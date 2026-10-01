@@ -131,7 +131,7 @@
           <i class="fa-solid fa-circle-check text-emerald-400 mt-0.5 text-sm"></i>
           <div>
             <strong class="text-emerald-300 block">시세·재무 데이터: 자체 프록시(Cloudflare Worker) 권장</strong>
-            <p class="text-[11px] text-slate-400 mt-0.5">프록시를 연결하면 Yahoo Finance 실시간 시세, P/E·ROE·Short Float·애널리스트 목표가가 실제 값으로 표시됩니다. 미설정 시 불안정한 공개 프록시로 시세만 시도하고, 모두 실패하면 <strong class="text-amber-300">시뮬레이션 데이터</strong>로 표시됩니다.</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">프록시를 연결하면 Yahoo Finance 실시간 시세, P/E·ROE·Short Float·애널리스트 목표가가 실제 값으로 표시됩니다. 미설정 시 불안정한 공개 프록시로 시세만 시도하며, 가져오지 못한 항목은 <strong class="text-amber-300">빈칸</strong>으로 둡니다.</p>
           </div>
         </div>
 
@@ -855,10 +855,11 @@
             <p class="text-slate-400 text-xs sm:text-sm mt-1">
               원클릭 프리셋을 적용하거나 원하는 재무·차트 조건(P/E, RSI, 숏 플로트, 이평선)을 설정하여 유망 종목을 발굴하세요.
             </p>
-            <p class="text-[11px] text-amber-300/90 mt-1"><i class="fa-solid fa-circle-info mr-1"></i>표의 가격·지표는 정적 스냅샷(참고용)이며 실시간이 아닙니다. 종목을 클릭하면 실시간 데이터로 분석합니다. 직접 등록한 종목은 실시간 값입니다.</p>
+            <p class="text-[11px] text-slate-400 mt-1"><i class="fa-solid fa-circle-info mr-1 text-cyan-400"></i>가격·지표는 자체 프록시로 실시간 조회해 채우며, 조회하지 못한 값은 빈칸입니다.</p>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-xs text-slate-400 font-mono-numbers">발굴된 종목: <strong id="screenerMatchCount" class="text-cyan-400 font-bold text-sm">0</strong>개</span>
+            <span id="screenerStatus" class="text-[11px] text-cyan-300"></span>
             <button onclick="resetScreenerFilters()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 hover:text-white transition flex items-center gap-1.5">
               <i class="fa-solid fa-rotate-right text-xs"></i> 필터 초기화
             </button>
@@ -1120,7 +1121,7 @@
   <footer class="border-t border-slate-800 bg-[#0b101c] py-6 px-4 text-center text-xs text-slate-500">
     <div class="max-w-7xl mx-auto space-y-2">
       <p>
-        PentAnalyst는 Motley Fool의 정성적 해자(Moat) 분석 및 Finviz의 정량적 기술 지표 방법론을 기반으로 시뮬레이션된 AI 보조 도구입니다.
+        PentAnalyst는 Motley Fool의 정성적 해자(Moat) 분석 및 Finviz의 정량적 기술 지표 방법론을 참고한 AI 보조 도구입니다.
       </p>
       <p class="text-slate-600">
         ※ 본 분석은 투자 권유나 금융 자문이 아니며, 모든 투자 결정과 책임은 투자자 본인에게 있습니다. 화폐 단위는 미국 달러(USD $) 기준입니다.
@@ -1222,6 +1223,7 @@
         }
 
         runScreenerFilter();
+        hydrateScreener();
       }
     }
 
@@ -1319,92 +1321,6 @@
       executeAnalysis(ticker);
     }
 
-    // Real verified profiles for special and popular stocks (Prevents dummy tech defaults for JVA, etc.)
-    const KNOWN_STOCK_PROFILES = {
-      "JVA": {
-        ticker: "JVA",
-        name: "Coffee Holding Co., Inc.",
-        sector: "Consumer Staples (원두 유통 & 패키징)",
-        capCategory: "MID",
-        marketCap: "$22.6M",
-        price: 3.95,
-        change: "+1.02%",
-        high52: 5.03,
-        low52: 2.93,
-        pe: 4.71,
-        forwardPe: 5.2,
-        peg: 0.95,
-        pSales: 0.23,
-        pBook: 0.73,
-        roe: 16.2,
-        shortFloat: 1.85,
-        rsi: 52.4,
-        sma20Diff: "+3.4%",
-        consensus: "HOLD / SPECULATIVE BUY",
-        summary: "Coffee Holding Co., Inc.(NASDAQ: JVA)는 1971년에 설립된 미국의 원두 도매 유통 및 자체 브랜드 로스팅 전문 기업입니다. Café Caribe, Don Manuel, Harmony Bay 등의 브랜드를 운영하며, 그린 커피(생두) 수입과 민간 라벨(Private Label) 커피를 대형 유통업체에 공급합니다. 소형 가치주(Micro-cap)로서 낮은 P/E(4.7배)와 순자산가치 대비 저평가(P/B 0.73) 상태에 있습니다.",
-        targetAvg: 5.50,
-        targetMin: 3.20,
-        targetMax: 9.50,
-        bullCase: [
-          "원두 원자재 가격 안정화 및 관세 환급에 따른 매출총이익률(Gross Margin) 25% 회복",
-          "P/E 4.7배 및 P/B 0.73배로 극심한 저평가 상태 (청산가치 수준의 안전마진)",
-          "생두 수입과 자체 브랜드 로스팅을 아우르는 50년 업력의 수평적 유통망"
-        ],
-        bearCase: [
-          "시가총액 2천만 달러대의 마이크로캡으로 일일 거래량 부족 및 주가 변동성 위험",
-          "커피 생두 국제 원자재 가격 급등락에 따른 분기별 실적 불안정성",
-          "대형 식음료 기업(스타벅스, J.M. 스머커 등) 대비 제한된 마케팅 파워"
-        ],
-        experts: [
-          {
-            name: "데이비드 (David)",
-            role: "Motley Fool 해자 & 장기 성장 분석가",
-            avatar: "fa-seedling",
-            color: "text-amber-400 bg-amber-950/60 border-amber-700/60",
-            stance: "HOLD (니치 마켓 관망)",
-            target: "$5.20",
-            thesis: "50년 업력의 커피 로스터이지만, 스타벅스나 피츠와 같은 전국 단위의 강력한 소비자 브랜드 해자(Moat)는 부족합니다. 다만 슈퍼마켓 PB 원두 공급망에서 실속 있는 현금 창출력을 보유하고 있습니다."
-          },
-          {
-            name: "빅터 (Victor)",
-            role: "Finviz 테크니컬 & 차트 분석가",
-            avatar: "fa-chart-line",
-            color: "text-blue-400 bg-blue-950/60 border-blue-700/60",
-            stance: "BUY (52주 바닥권 지지)",
-            target: "$4.80",
-            thesis: "52주 최저가 $2.93을 딛고 20일 이평선($3.61) 상단으로 반등 중입니다. RSI 52.4로 중립 수렴 구간이며, $4.20 저항선 돌파 시 강한 숏커버링 및 기술적 랠리가 가능합니다."
-          },
-          {
-            name: "클라라 (Clara)",
-            role: "DCF & 정통 가치평가 애널리스트",
-            avatar: "fa-scale-balanced",
-            color: "text-emerald-400 bg-emerald-950/60 border-emerald-700/60",
-            stance: "VALUE BUY (딥 밸류 매수)",
-            target: "$6.00",
-            thesis: "현재 P/E 4.7배, P/B 0.73배는 회사의 장부가치보다 주가가 낮게 거래되는 전형적인 벤저민 그레이엄식 딥 밸류 종목입니다. 부채비율(13.2%)도 매우 건전합니다."
-          },
-          {
-            name: "마커스 (Marcus)",
-            role: "매크로 & 지정학 리스크 매니저",
-            avatar: "fa-shield-halved",
-            color: "text-purple-400 bg-purple-950/60 border-purple-700/60",
-            stance: "MONITOR (원자재 리스크)",
-            target: "$4.00",
-            thesis: "브라질과 콜롬비아 가뭄에 따른 아라비카/로부스타 커피 원두 선물 가격 변동성이 직접적인 원가 부담 요인입니다. 원자재 헷지 비용을 확인해야 합니다."
-          },
-          {
-            name: "소피아 (Sophia)",
-            role: "퀀트 & 숏/수급 추적 전문가",
-            avatar: "fa-robot",
-            color: "text-pink-400 bg-pink-950/60 border-pink-700/60",
-            stance: "SPEC BUY (유동성 급증 감지)",
-            target: "$5.80",
-            thesis: "발행 주식 수(570만 주)가 매우 적은 품절주 구조입니다. 최근 호실적 발표 시 일일 거래량이 300% 이상 폭증하는 수급 모멘텀 특성을 보입니다."
-          }
-        ]
-      }
-    };
-
     let chartState = {
       timeframe: '6M',
       indicators: { sma20: true, sma50: true, sma200: true, bb: true, sr: false },
@@ -1417,7 +1333,7 @@
       return String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     }
 
-    // 첫 번째 유한한 숫자를 반환 (없으면 null) — 가짜 기본값 대신 N/A 처리를 위해 사용
+    // 첫 번째 유한한 숫자를 반환 (없으면 null) — 가짜 기본값 대신 빈칸 처리를 위해 사용
     function pick(...vals) {
       for (const v of vals) {
         if (v === null || v === undefined || v === '') continue;
@@ -1428,12 +1344,12 @@
     }
 
     function fmtNum(v, digits = null, suffix = '') {
-      if (v === null || v === undefined || !Number.isFinite(Number(v))) return 'N/A';
+      if (v === null || v === undefined || v === '' || !Number.isFinite(Number(v))) return '';
       return `${digits !== null ? Number(v).toFixed(digits) : v}${suffix}`;
     }
 
     function pctDiff(price, ref) {
-      if (!Number.isFinite(price) || !Number.isFinite(ref) || ref === 0) return 'N/A';
+      if (!Number.isFinite(price) || !Number.isFinite(ref) || ref === 0) return '';
       const d = ((price - ref) / ref) * 100;
       return `${d >= 0 ? '+' : ''}${d.toFixed(1)}%`;
     }
@@ -1481,7 +1397,7 @@
     // 배포한 자체 프록시(Cloudflare Worker) 주소를 여기에 고정할 수도 있고,
     // 비워 두면 'API 키 & 구글 검색 설정' 창에서 입력한 값(localStorage)을 사용합니다.
     const DEFAULT_PROXY_URL = '';
-    const GEMINI_MODEL = 'gemini-2.5-flash';
+    const GEMINI_MODEL = 'gemini-3.8-flash';
 
     function getProxyUrl() {
       const v = (getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL || '').trim();
@@ -1520,7 +1436,13 @@
       } else {
         showToast('설정 저장', '설정이 저장되었습니다.', 'success');
       }
+      hydrateScreenerAfterSettings();
       if (currentAnalysisData) executeAnalysis(currentAnalysisData.ticker);
+    }
+
+    function hydrateScreenerAfterSettings() {
+      if (!document.getElementById('view-screener').classList.contains('hidden')) hydrateScreener(true);
+      else SCREENER_MASTER_DATA.forEach(e => { e.loaded = false; });
     }
 
     // ===== Data layer =====
@@ -1586,13 +1508,13 @@
 
     // 1순위: 자체 프록시(/api/chart). 2순위: 공개 CORS 프록시(병렬 경쟁). 모두 실패 시 null.
     // 프록시가 404(존재하지 않는 티커)를 돌려주면 { notFound: true }.
-    async function fetchRealYahooFinanceData(ticker) {
+    async function fetchRealYahooFinanceData(ticker, range = '1y') {
       const sym = ticker.trim().toUpperCase();
       const proxy = getProxyUrl();
 
       if (proxy) {
         try {
-          const json = await fetchJsonWithTimeout(`${proxy}/api/chart?symbol=${encodeURIComponent(sym)}&range=1y`, 10000);
+          const json = await fetchJsonWithTimeout(`${proxy}/api/chart?symbol=${encodeURIComponent(sym)}&range=${range}`, 10000);
           const parsed = parseYahooChart(json, sym);
           if (parsed) return parsed;
         } catch (err) {
@@ -1601,7 +1523,7 @@
         }
       }
 
-      const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1y&interval=1d&includePrePost=false`;
+      const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=1d&includePrePost=false`;
       const publicProxies = [
         { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, wrapped: true },
         { url: `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`, wrapped: false },
@@ -1723,7 +1645,7 @@
 
     function calculateRealIndicators(history, ind) {
       if (!history || history.length === 0) {
-        return { rsi: null, sma20Diff: 'N/A', sma50Diff: 'N/A', sma200Diff: 'N/A', sma20: null, sma50: null, sma200: null };
+        return { rsi: null, sma20Diff: '', sma50Diff: '', sma200Diff: '', sma20: null, sma50: null, sma200: null };
       }
       ind = ind || computeIndicatorSeries(history);
       const n = history.length;
@@ -1787,7 +1709,7 @@
     async function fetchGeminiGroundingAnalysis(ticker, realMarket) {
       if (!getStoredApiKey('gemini_key')) return null;
       const prompt = `Conduct a live Google Search for the US stock ticker: "${ticker}".
-Verified market data (from exchange feed): last price $${realMarket.price}, 52-week range $${realMarket.low52} - $${realMarket.high52}.
+${realMarket ? `Verified market data (from exchange feed): last price $${realMarket.price}, 52-week range $${realMarket.low52} - $${realMarket.high52}.` : ''}
 Find the exact real company name, real P/E, forward P/E, PEG, ROE (%), Short Float (%), analyst price targets, and the latest news or earnings.
 Then provide a 5-expert panel analysis (David: Moat/TAM, Victor: Chart, Clara: DCF Valuation, Marcus: Macro, Sophia: Flows).
 All price and target values are in USD ($). Use null for any number you cannot verify. Write Korean text for summary, bullCase, bearCase and expert thesis.
@@ -1849,30 +1771,28 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       "퀀트 & 숏/수급 추적 전문가"
     ];
 
-    function buildTemplateExperts({ stockName, tech, pe, shortFloat, low52 }) {
-      const rsiTxt = tech.rsi === null ? 'N/A' : tech.rsi;
-      return [
-        {
-          name: "데이비드 (David)", stance: "정성 평가 (자동 템플릿)", target: "N/A",
-          thesis: `${stockName}의 해자·장기 성장성은 정량 지표만으로 판단할 수 없습니다. Gemini 키를 연결하면 최신 뉴스와 사업 구조를 반영한 의견을 제공합니다.`
-        },
-        {
-          name: "빅터 (Victor)", stance: tech.rsi !== null && tech.rsi > 70 ? "OVERBOUGHT (과열 주의)" : (tech.rsi !== null && tech.rsi < 30 ? "OVERSOLD (과매도)" : "NEUTRAL (추세 관찰)"), target: "N/A",
-          thesis: `실제 일봉 기준 RSI ${rsiTxt}, 20일선 괴리율 ${tech.sma20Diff}, 50일선 ${tech.sma50Diff}, 200일선 ${tech.sma200Diff}입니다. 52주 저점 $${Number(low52).toFixed(2)} 부근이 주요 지지 구간입니다.`
-        },
-        {
-          name: "클라라 (Clara)", stance: pe === null ? "밸류에이션 데이터 없음" : (pe < 15 ? "VALUE (저평가 구간)" : (pe > 40 ? "EXPENSIVE (고평가 구간)" : "FAIR (적정 구간)")), target: "N/A",
-          thesis: pe === null ? "P/E 데이터를 확인할 수 없습니다. 자체 프록시를 연결하면 실제 재무 지표가 표시됩니다." : `현재 P/E ${pe}배입니다. 동종 업계 평균 및 성장률(PEG)과 함께 비교해야 합니다.`
-        },
-        {
-          name: "마커스 (Marcus)", stance: "MONITOR (거시 변수)", target: "N/A",
-          thesis: "금리 경로, 환율, 원자재·공급망 비용이 마진에 미치는 영향을 점검해야 합니다. (자동 템플릿 문구)"
-        },
-        {
-          name: "소피아 (Sophia)", stance: shortFloat === null ? "수급 데이터 없음" : (shortFloat > 10 ? "SQUEEZE WATCH (공매도 높음)" : "NORMAL (수급 보통)"), target: "N/A",
-          thesis: shortFloat === null ? "Short Float 데이터를 확인할 수 없습니다." : `Short Float ${shortFloat}% 수준입니다. 거래량 급증 여부를 함께 확인하세요.`
-        }
-      ].map((e, i) => ({ ...e, role: EXPERT_ROLES[i], avatar: EXPERT_AVATARS[i], color: EXPERT_COLORS[i] }));
+    // 실시간 데이터로 계산할 수 있는 항목만 채우고, 나머지는 빈칸으로 둔다.
+    function buildTemplateExperts({ tech, pe, shortFloat, low52 }) {
+      const names = ["데이비드 (David)", "빅터 (Victor)", "클라라 (Clara)", "마커스 (Marcus)", "소피아 (Sophia)"];
+      const cards = names.map(name => ({ name, stance: '', target: '', thesis: '' }));
+
+      if (tech.rsi !== null) {
+        cards[1].stance = tech.rsi > 70 ? 'OVERBOUGHT (과열 주의)' : (tech.rsi < 30 ? 'OVERSOLD (과매도)' : 'NEUTRAL (추세 관찰)');
+        const parts = [`RSI ${tech.rsi}`];
+        if (tech.sma20Diff) parts.push(`20일선 괴리율 ${tech.sma20Diff}`);
+        if (tech.sma50Diff) parts.push(`50일선 ${tech.sma50Diff}`);
+        if (tech.sma200Diff) parts.push(`200일선 ${tech.sma200Diff}`);
+        cards[1].thesis = `실제 일봉 기준 ${parts.join(', ')}입니다.` + (low52 !== null ? ` 52주 저점은 $${low52.toFixed(2)}입니다.` : '');
+      }
+      if (pe !== null) {
+        cards[2].stance = pe < 15 ? 'VALUE (저평가 구간)' : (pe > 40 ? 'EXPENSIVE (고평가 구간)' : 'FAIR (적정 구간)');
+        cards[2].thesis = `현재 P/E ${pe}배입니다.`;
+      }
+      if (shortFloat !== null) {
+        cards[4].stance = shortFloat > 10 ? 'SQUEEZE WATCH (공매도 높음)' : 'NORMAL (수급 보통)';
+        cards[4].thesis = `Short Float ${shortFloat}% 수준입니다.`;
+      }
+      return cards.map((e, i) => ({ ...e, role: EXPERT_ROLES[i], avatar: EXPERT_AVATARS[i], color: EXPERT_COLORS[i] }));
     }
 
     async function executeAnalysis(ticker) {
@@ -1911,49 +1831,45 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           return;
         }
 
-        // 실시간 수집 실패 시 시뮬레이션 데이터로 대체 (화면에 명확히 표시)
-        let realMarket = chartData;
-        if (!realMarket) realMarket = generateDynamicStockData(upperTicker);
-        const isSimulated = !realMarket.isLive;
-
-        const price = Number(realMarket.price) || 10;
-        const high52 = realMarket.high52 !== undefined ? Number(realMarket.high52) : Number((price * 1.15).toFixed(2));
-        const low52 = realMarket.low52 !== undefined ? Number(realMarket.low52) : Number((price * 0.75).toFixed(2));
+        // 가상 데이터는 쓰지 않는다. 시세를 못 가져오면 해당 항목은 빈칸.
+        const market = chartData && chartData.isLive ? chartData : null;
+        const history = market ? market.history : [];
+        const price = market ? Number(market.price) : null;
+        const high52 = market && Number.isFinite(Number(market.high52)) ? Number(market.high52) : null;
+        const low52 = market && Number.isFinite(Number(market.low52)) ? Number(market.low52) : null;
 
         // 2. 기술 지표 (실제 일봉으로 계산)
-        const ind = computeIndicatorSeries(realMarket.history);
-        const tech = calculateRealIndicators(realMarket.history, ind);
+        const ind = computeIndicatorSeries(history);
+        const tech = calculateRealIndicators(history, ind);
 
         // 3. Gemini 구글 검색 (선택)
         let geminiInsight = null;
         if (getStoredApiKey('gemini_key')) {
           loadingSubtext.textContent = '구글 실시간 검색 및 Motley Fool 해자 평가를 AI로 종합 채점 중...';
-          geminiInsight = await fetchGeminiGroundingAnalysis(upperTicker, realMarket);
+          geminiInsight = await fetchGeminiGroundingAnalysis(upperTicker, market);
           if (seq !== analysisSeq) return;
         }
 
         const g = geminiInsight || {};
         const f = fundamentals || {};
-        const vp = KNOWN_STOCK_PROFILES[upperTicker];
 
-        const stockName = g.name || f.name || vp?.name || realMarket.name || `${upperTicker}`;
-        const stockSector = g.sector || f.sector || vp?.sector || realMarket.sector || 'N/A';
+        const stockName = g.name || f.name || market?.name || '';
+        const stockSector = g.sector || f.sector || '';
 
-        const pe = pick(g.pe, f.pe, vp?.pe, realMarket.pe);
-        const forwardPe = pick(g.forwardPe, f.forwardPe, vp?.forwardPe);
-        const peg = pick(g.peg, f.peg, vp?.peg, realMarket.peg);
-        const roe = pick(g.roe, f.roe, vp?.roe, realMarket.roe);
-        const shortFloat = pick(g.shortFloat, f.shortFloat, vp?.shortFloat, realMarket.shortFloat);
-        const pSales = pick(f.pSales, vp?.pSales);
-        const pBook = pick(f.pBook, vp?.pBook);
-        const targetAvg = pick(g.targetAvg, f.targetAvg, vp?.targetAvg);
-        const targetMin = pick(g.targetMin, f.targetMin, vp?.targetMin);
-        const targetMax = pick(g.targetMax, f.targetMax, vp?.targetMax);
-        const upside = targetAvg !== null ? (((targetAvg - price) / price) * 100) : null;
+        const pe = pick(g.pe, f.pe);
+        const forwardPe = pick(g.forwardPe, f.forwardPe);
+        const peg = pick(g.peg, f.peg);
+        const roe = pick(g.roe, f.roe);
+        const shortFloat = pick(g.shortFloat, f.shortFloat);
+        const pSales = pick(f.pSales);
+        const pBook = pick(f.pBook);
+        const targetAvg = pick(g.targetAvg, f.targetAvg);
+        const targetMin = pick(g.targetMin, f.targetMin);
+        const targetMax = pick(g.targetMax, f.targetMax);
+        const upside = (targetAvg !== null && price !== null && price !== 0) ? (((targetAvg - price) / price) * 100) : null;
 
-        let summary = g.summary || vp?.summary || '';
+        let summary = g.summary || '';
         if (!summary && f.summary) summary = f.summary.length > 420 ? f.summary.slice(0, 420) + '…' : f.summary;
-        if (!summary) summary = `${stockName}(${upperTicker})는 미국 증시에서 $${price.toFixed(2)}에 거래 중이며, 52주 변동폭($${low52.toFixed(2)} ~ $${high52.toFixed(2)}) 내에 있습니다.`;
 
         let experts, expertsNotice = '';
         if (Array.isArray(g.experts) && g.experts.length > 0) {
@@ -1962,42 +1878,43 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
             role: EXPERT_ROLES[idx] || "전문 애널리스트",
             avatar: EXPERT_AVATARS[idx] || "fa-user",
             color: EXPERT_COLORS[idx] || "text-cyan-400 bg-cyan-950/60 border-cyan-700/60",
-            stance: e.stance || 'N/A',
-            target: e.target || 'N/A',
+            stance: e.stance || '',
+            target: e.target || '',
             thesis: e.thesis || ''
           }));
-        } else if (vp) {
-          experts = vp.experts;
-          expertsNotice = '※ 이 종목의 전문가 의견은 사전 작성된 프로필(스냅샷)입니다. 최신 의견은 Gemini 키를 연결하세요.';
         } else {
-          experts = buildTemplateExperts({ stockName, tech, pe, shortFloat, low52 });
-          expertsNotice = '※ Gemini 키가 없어 정량 지표 기반 자동 템플릿 의견을 표시합니다. 목표가는 제공되지 않습니다.';
+          experts = buildTemplateExperts({ tech, pe, shortFloat, low52 });
+          expertsNotice = '※ Gemini 키를 연결하면 전문가 의견이 채워집니다. 현재는 실제 지표로 계산 가능한 항목만 표시하고 나머지는 비워 둡니다.';
         }
 
-        const bullCase = g.bullCase || vp?.bullCase || [
-          tech.sma200Diff !== 'N/A' && isPositivePct(tech.sma200Diff) ? `200일선 대비 ${tech.sma200Diff} 위에서 거래되는 장기 상승 추세` : `52주 저점($${low52.toFixed(2)}) 대비 ${pctDiff(price, low52)} 위치`,
-          pe !== null ? `P/E ${pe}배 수준의 밸류에이션` : '밸류에이션 데이터는 프록시/Gemini 연결 시 표시됩니다',
-          targetAvg !== null ? `애널리스트 평균 목표가 $${targetAvg} (상승여력 ${upside.toFixed(1)}%)` : '애널리스트 목표가 데이터 없음'
-        ];
-        const bearCase = g.bearCase || vp?.bearCase || [
-          `52주 고점($${high52.toFixed(2)}) 대비 ${pctDiff(price, high52)} 수준`,
-          shortFloat !== null ? `Short Float ${shortFloat}%` : '공매도 데이터 없음',
-          tech.rsi !== null ? `RSI ${tech.rsi} — ${tech.rsi > 70 ? '과열 구간' : (tech.rsi < 30 ? '과매도 구간' : '중립 구간')}` : 'RSI 계산 불가(데이터 부족)'
-        ];
+        // 불/베어 케이스: Gemini 결과가 없으면 실제 수치로 확인되는 항목만 표시
+        let bullCase = Array.isArray(g.bullCase) ? g.bullCase : [];
+        let bearCase = Array.isArray(g.bearCase) ? g.bearCase : [];
+        if (!Array.isArray(g.bullCase)) {
+          bullCase = [];
+          if (tech.sma200Diff && isPositivePct(tech.sma200Diff)) bullCase.push(`200일선 대비 ${tech.sma200Diff} 위에서 거래 중`);
+          if (upside !== null && upside > 0) bullCase.push(`애널리스트 평균 목표가 $${targetAvg} (상승여력 ${upside.toFixed(1)}%)`);
+        }
+        if (!Array.isArray(g.bearCase)) {
+          bearCase = [];
+          if (tech.sma200Diff && !isPositivePct(tech.sma200Diff)) bearCase.push(`200일선 대비 ${tech.sma200Diff} 아래에서 거래 중`);
+          if (price !== null && high52 !== null) bearCase.push(`52주 고점($${high52.toFixed(2)}) 대비 ${pctDiff(price, high52)}`);
+          if (tech.rsi !== null && tech.rsi > 70) bearCase.push(`RSI ${tech.rsi} — 과열 구간`);
+        }
 
         const feedParts = [];
         if (geminiInsight) feedParts.push('Google Search');
         if (fundamentals) feedParts.push('Yahoo 재무(프록시)');
-        feedParts.push(isSimulated ? '시뮬레이션 시세' : 'Yahoo 시세');
+        if (market) feedParts.push('Yahoo 시세');
         const dataFeed = feedParts.join(' + ');
 
         const compositeData = {
           ticker: upperTicker,
           name: stockName,
           sector: stockSector,
-          price: price.toFixed(2),
-          change: realMarket.change || '+0.00%',
-          consensus: g.consensus || f.consensus || vp?.consensus || 'N/A',
+          price: price !== null ? price.toFixed(2) : '',
+          change: market ? (market.change || '') : '',
+          consensus: g.consensus || f.consensus || '',
           summary: summary,
           targetAvg, targetMin, targetMax, upside,
           rsi: tech.rsi,
@@ -2005,9 +1922,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           sma50Diff: tech.sma50Diff,
           sma200Diff: tech.sma200Diff,
           pe, peg, roe, shortFloat,
-          history: realMarket.history,
+          history,
           ind,
-          isSimulated,
+          hasMarket: !!market,
           dataFeed,
           expertsNotice,
           finviz: [
@@ -2017,14 +1934,14 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
             { label: "P/S", val: fmtNum(pSales) },
             { label: "P/B", val: fmtNum(pBook) },
             { label: "ROE", val: fmtNum(roe, null, '%') },
-            { label: "52W High", val: `$${high52.toFixed(2)}` },
-            { label: "52W Low", val: `$${low52.toFixed(2)}` },
+            { label: "52W High", val: high52 !== null ? `$${high52.toFixed(2)}` : '' },
+            { label: "52W Low", val: low52 !== null ? `$${low52.toFixed(2)}` : '' },
             { label: "Short Float", val: fmtNum(shortFloat, null, '%') },
             { label: "SMA20", val: tech.sma20Diff },
             { label: "SMA50", val: tech.sma50Diff },
             { label: "SMA200", val: tech.sma200Diff },
             { label: "RSI (14)", val: fmtNum(tech.rsi) },
-            { label: "Target Price", val: targetAvg !== null ? `$${targetAvg}` : 'N/A' },
+            { label: "Target Price", val: targetAvg !== null ? `$${targetAvg}` : '' },
             { label: "Data Feed", val: dataFeed }
           ],
           experts, bullCase, bearCase
@@ -2039,10 +1956,10 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         renderProChart();
         renderMiniTrendPreview();
 
-        if (isSimulated) {
-          showToast('시뮬레이션 데이터', `${compositeData.ticker}: 실시간 시세를 가져오지 못해 가상 데이터로 표시합니다. 설정에서 자체 프록시를 연결하세요.`, 'warning');
+        if (!market) {
+          showToast('시세 데이터 없음', `${upperTicker}: 실시간 시세를 가져오지 못해 해당 항목을 비워 둡니다. 설정에서 자체 프록시 연결을 확인하세요.`, 'warning');
         } else {
-          showToast('데이터 분석 완료', `${compositeData.ticker} (${compositeData.name}): ${dataFeed}`, 'success');
+          showToast('데이터 분석 완료', `${upperTicker}${stockName ? ` (${stockName})` : ''}: ${dataFeed}`, 'success');
         }
       } catch (err) {
         console.error('analysis failed', err);
@@ -2055,107 +1972,13 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }
     }
 
-    function generateDynamicStockData(ticker) {
-      const upper = ticker.toUpperCase();
-
-      // Check verified database first
-      if (KNOWN_STOCK_PROFILES[upper]) {
-        const p = KNOWN_STOCK_PROFILES[upper];
-        const history = [];
-        let baseClose = p.price * 0.9;
-        const now = new Date();
-        for (let i = 251; i >= 0; i--) {
-          const d = new Date(now);
-          d.setDate(d.getDate() - i);
-          const dayVar = (Math.sin(i * 0.3) * 0.015) + ((Math.random() - 0.48) * 0.02);
-          baseClose = baseClose * (1 + dayVar);
-          const open = baseClose * (1 + (Math.random() - 0.5) * 0.01);
-          const high = Math.max(open, baseClose) * (1 + Math.random() * 0.012);
-          const low = Math.min(open, baseClose) * (1 - Math.random() * 0.012);
-          history.push({
-            date: d.toISOString().split('T')[0],
-            open: parseFloat(open.toFixed(2)),
-            high: parseFloat(high.toFixed(2)),
-            low: parseFloat(low.toFixed(2)),
-            close: parseFloat(baseClose.toFixed(2)),
-            volume: 75000
-          });
-        }
-        history[history.length - 1].close = p.price;
-
-        return {
-          ticker: upper,
-          name: p.name,
-          sector: p.sector,
-          price: p.price,
-          change: p.change,
-          high52: p.high52,
-          low52: p.low52,
-          pe: p.pe,
-          peg: p.peg,
-          roe: p.roe,
-          shortFloat: p.shortFloat,
-          history: history,
-          isLive: false
-        };
-      }
-
-      // Check screener master data
-      const existing = SCREENER_MASTER_DATA.find(s => s.ticker === upper);
-      let price = existing ? Number(existing.price) : 25.50;
-      let change = existing ? existing.change : '+0.85%';
-      let name = existing ? existing.name : `${upper} Corporation`;
-      let sector = existing ? existing.sector : 'General Market';
-      let pe = existing ? Number(existing.pe) : 18.5;
-      let peg = existing ? Number(existing.peg) : 1.20;
-      let roe = existing ? Number(existing.roe) : 16.5;
-      let shortFloat = existing ? Number(existing.shortFloat) : 2.10;
-
-      const history = [];
-      let baseClose = price * 0.88;
-      const now = new Date();
-      for (let i = 251; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        const dayVariance = (Math.sin(i * 0.45) * 0.02) + ((Math.random() - 0.46) * 0.03);
-        baseClose = baseClose * (1 + dayVariance);
-        const open = baseClose * (1 + (Math.random() - 0.5) * 0.015);
-        const high = Math.max(open, baseClose) * (1 + Math.random() * 0.015);
-        const low = Math.min(open, baseClose) * (1 - Math.random() * 0.015);
-        history.push({
-          date: d.toISOString().split('T')[0],
-          open: parseFloat(open.toFixed(2)),
-          high: parseFloat(high.toFixed(2)),
-          low: parseFloat(low.toFixed(2)),
-          close: parseFloat(baseClose.toFixed(2)),
-          volume: 250000
-        });
-      }
-      history[history.length - 1].close = price;
-
-      return {
-        ticker: upper,
-        name: name,
-        sector: sector,
-        price: price,
-        change: change,
-        high52: parseFloat((price * 1.18).toFixed(2)),
-        low52: parseFloat((price * 0.78).toFixed(2)),
-        pe: pe,
-        peg: peg,
-        roe: roe,
-        shortFloat: shortFloat,
-        history: history,
-        isLive: false
-      };
-    }
-
     function trendLabel(data) {
       const p = Number(data.price);
       const ind = data.ind;
       const n = data.history.length;
-      const s20 = ind?.sma20[n - 1], s50 = ind?.sma50[n - 1];
-      if (s20 == null) return { text: '데이터 부족', cls: 'bg-slate-800 text-slate-300 border-slate-700' };
+      if (!n || !Number.isFinite(p)) return { text: '', cls: 'hidden' };
+      const s20 = ind.sma20[n - 1], s50 = ind.sma50[n - 1];
+      if (s20 == null) return { text: '', cls: 'hidden' };
       if (s50 != null && p > s20 && s20 > s50) return { text: '상승 추세', cls: 'bg-emerald-950 text-emerald-400 border-emerald-800' };
       if (s50 != null && p < s20 && s20 < s50) return { text: '하락 추세', cls: 'bg-rose-950 text-rose-400 border-rose-800' };
       return { text: '횡보 / 혼조', cls: 'bg-amber-950 text-amber-300 border-amber-800' };
@@ -2165,42 +1988,38 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       document.getElementById('dispTicker').textContent = data.ticker;
       document.getElementById('dispCompanyName').textContent = data.name;
       document.getElementById('dispSector').textContent = data.sector;
+      document.getElementById('dispSector').classList.toggle('hidden', !data.sector);
       document.getElementById('dispSummary').textContent = data.summary;
-      document.getElementById('dispPrice').textContent = `$${data.price}`;
+      document.getElementById('dispPrice').textContent = data.price ? `$${data.price}` : '';
 
       const changeEl = document.getElementById('dispChange');
       changeEl.textContent = data.change;
       changeEl.className = isPositivePct(data.change) ? 'text-sm font-semibold font-mono-numbers text-emerald-400' : 'text-sm font-semibold font-mono-numbers text-rose-400';
 
-      // 데이터 출처 배지 (시뮬레이션이면 경고색)
+      // 데이터 출처 배지: 시세가 없으면 숨김
       const badge = document.getElementById('dispDataBadge');
-      if (data.isSimulated) {
-        badge.className = 'text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-mono-numbers flex items-center gap-1';
-        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>SIMULATED DATA';
-      } else {
-        badge.className = 'text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono-numbers flex items-center gap-1';
-        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>LIVE MARKET';
-      }
+      badge.classList.toggle('hidden', !data.hasMarket);
+      badge.className = 'text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono-numbers flex items-center gap-1' + (data.hasMarket ? '' : ' hidden');
+      badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>LIVE MARKET';
 
       const cons = document.getElementById('dispConsensusBadge');
       cons.textContent = data.consensus;
-      cons.className = `px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${consensusClass(data.consensus)}`;
+      cons.className = `px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${consensusClass(data.consensus)}` + (data.consensus ? '' : ' invisible');
 
       const price = Number(data.price);
-      document.getElementById('dispAvgTarget').textContent = data.targetAvg !== null ? `$${data.targetAvg}` : 'N/A';
+      document.getElementById('dispAvgTarget').textContent = data.targetAvg !== null ? `$${data.targetAvg}` : '';
       const upEl = document.getElementById('dispTargetUpside');
       if (data.upside === null) {
-        upEl.textContent = 'N/A';
-        upEl.className = 'font-bold text-slate-400 font-mono-numbers';
+        upEl.textContent = '';
       } else {
         upEl.textContent = `${data.upside >= 0 ? '+' : ''}${data.upside.toFixed(1)}%`;
         upEl.className = `font-bold font-mono-numbers ${data.upside >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
       }
-      document.getElementById('targetMin').textContent = `최저: ${data.targetMin !== null ? '$' + data.targetMin : 'N/A'}`;
-      document.getElementById('targetMax').textContent = `최고: ${data.targetMax !== null ? '$' + data.targetMax : 'N/A'}`;
+      document.getElementById('targetMin').textContent = data.targetMin !== null ? `최저: $${data.targetMin}` : '';
+      document.getElementById('targetMax').textContent = data.targetMax !== null ? `최고: $${data.targetMax}` : '';
       // 막대: 목표가 범위 안에서 '현재가'의 위치
       const bar = document.getElementById('targetBar');
-      if (data.targetMin !== null && data.targetMax !== null && data.targetMax > data.targetMin) {
+      if (data.targetMin !== null && data.targetMax !== null && data.targetMax > data.targetMin && Number.isFinite(price)) {
         const pos = Math.min(100, Math.max(0, ((price - data.targetMin) / (data.targetMax - data.targetMin)) * 100));
         bar.style.width = `${pos.toFixed(0)}%`;
       } else {
@@ -2209,9 +2028,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
       document.getElementById('dispRSI').textContent = fmtNum(data.rsi);
       const smaEl = document.getElementById('dispSMA200');
-      if (data.sma200Diff === 'N/A') {
-        smaEl.textContent = 'N/A';
-        smaEl.className = 'text-slate-400';
+      if (!data.sma200Diff) {
+        smaEl.textContent = '';
       } else {
         const up = isPositivePct(data.sma200Diff);
         smaEl.textContent = `${up ? '상회' : '하회'} (${data.sma200Diff})`;
@@ -2223,7 +2041,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       trendBadge.textContent = tr.text;
       trendBadge.className = `text-xs px-2 py-0.5 rounded border ${tr.cls}`;
       const patternBadge = document.getElementById('chartPatternBadge');
-      patternBadge.textContent = `빅터의 분석: ${tr.text}`;
+      patternBadge.textContent = tr.text ? `빅터의 분석: ${tr.text}` : '';
       patternBadge.className = `text-xs px-2.5 py-0.5 rounded-full border font-semibold ${tr.cls}`;
 
       const notice = document.getElementById('expertsNotice');
@@ -2249,7 +2067,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
               <td class="py-2.5 px-3 bg-slate-900/60 font-sans text-slate-400 border-r border-slate-800/80 font-medium">
                 ${escapeHtml(item.label)}
               </td>
-              <td class="py-2.5 px-3 ${item.val === 'N/A' ? 'text-slate-500' : 'text-white'} font-bold border-r border-slate-800/80">
+              <td class="py-2.5 px-3 text-white font-bold border-r border-slate-800/80">
                 ${escapeHtml(item.val)}
               </td>
             `;
@@ -2277,18 +2095,18 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
                   <span class="text-[10px] text-slate-400 block">${escapeHtml(exp.role)}</span>
                 </div>
               </div>
-              <span class="text-xs font-mono-numbers font-bold text-cyan-400 bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">
+              ${exp.target ? `<span class="text-xs font-mono-numbers font-bold text-cyan-400 bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">
                 목표: ${escapeHtml(exp.target)}
-              </span>
+              </span>` : ''}
             </div>
-            <div class="mb-3">
+            ${exp.stance ? `<div class="mb-3">
               <span class="px-2 py-0.5 rounded text-[10px] font-bold border bg-cyan-950/80 text-cyan-300 border-cyan-800">
                 ${escapeHtml(exp.stance)}
               </span>
-            </div>
-            <p class="text-xs text-slate-300 leading-relaxed font-sans">
+            </div>` : ''}
+            ${exp.thesis ? `<p class="text-xs text-slate-300 leading-relaxed font-sans">
               "${escapeHtml(exp.thesis)}"
-            </p>
+            </p>` : ''}
           </div>
           <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
             <span>Finviz/Fool 검증</span>
@@ -2384,11 +2202,22 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return String(v);
     }
 
+    function clearCharts() {
+      chartGeom = null;
+      ['mainCandleCanvas', 'subIndicatorCanvas'].forEach(id => {
+        const c = document.getElementById(id);
+        if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+      });
+      ['hudDate', 'hudOpen', 'hudHigh', 'hudLow', 'hudClose', 'hudChange', 'hudVol', 'hudSma20', 'hudSma50', 'hudSma200', 'hudRsi']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+    }
+
     function renderProChart() {
       if (!currentAnalysisData || !currentAnalysisData.history) return;
       const mainCanvas = document.getElementById('mainCandleCanvas');
       const subCanvas = document.getElementById('subIndicatorCanvas');
       if (!mainCanvas || !subCanvas) return;
+      if (currentAnalysisData.history.length === 0) { clearCharts(); return; }
 
       const dpr = window.devicePixelRatio || 1;
       const w = mainCanvas.parentElement.clientWidth;
@@ -2727,19 +2556,27 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       sophia: { label: '소피아 (수급 & 숏)', prompt: '퀀트·공매도·수급 전문가 소피아로서 답하세요.' }
     };
 
-    function templateAnswer(target, d, question) {
-      const rsi = fmtNum(d.rsi), pe = fmtNum(d.pe), sf = fmtNum(d.shortFloat, null, '%');
-      const lines = {
-        david: `${d.name}의 장기 경쟁력은 정량 지표만으로 판단하기 어렵습니다. 현재 ROE ${fmtNum(d.roe, null, '%')}, 섹터 ${d.sector}. 사업 구조와 해자는 Gemini 연결 시 최신 정보로 답변드릴 수 있습니다.`,
-        victor: `RSI ${rsi}, 20일선 ${d.sma20Diff}, 50일선 ${d.sma50Diff}, 200일선 ${d.sma200Diff}. ${d.sma20Diff !== 'N/A' && isPositivePct(d.sma20Diff) ? '단기 추세는 20일선 위에 있습니다.' : '단기 추세는 20일선 아래라 반등 확인이 필요합니다.'}`,
-        clara: `현재 P/E ${pe}, PEG ${fmtNum(d.peg)}입니다. 적정가 산출에는 현금흐름 가정이 필요해 자동 응답으로는 숫자를 제시하지 않습니다.${d.targetAvg !== null ? ` 참고로 애널리스트 평균 목표가는 $${d.targetAvg}입니다.` : ''}`,
-        marcus: `금리·환율·원자재 등 거시 변수가 ${d.name}의 마진에 주는 영향을 점검해야 합니다. 구체적 시나리오는 Gemini 연결 시 최신 뉴스와 함께 제공됩니다.`,
-        sophia: `Short Float ${sf}. 거래량이 20일 평균 대비 급증하는지 차트의 거래량 탭에서 확인해 보세요.`
-      };
-      if (target === 'roundtable') {
-        return Object.values(lines).join('\n') + '\n\n종합 결론: 개별 지표를 확인한 뒤 분할 접근을 고려하되, 최종 판단은 본인의 몫입니다.';
-      }
-      return lines[target];
+    // 실제 데이터가 있는 항목만 문장으로 만든다 (없으면 빈칸)
+    function templateAnswer(target, d) {
+      const lines = { david: '', victor: '', clara: '', marcus: '', sophia: '' };
+      const tech = [];
+      if (d.rsi !== null) tech.push(`RSI ${d.rsi}`);
+      if (d.sma20Diff) tech.push(`20일선 ${d.sma20Diff}`);
+      if (d.sma50Diff) tech.push(`50일선 ${d.sma50Diff}`);
+      if (d.sma200Diff) tech.push(`200일선 ${d.sma200Diff}`);
+      if (tech.length) lines.victor = `${tech.join(', ')}입니다.`;
+
+      const val = [];
+      if (d.pe !== null) val.push(`P/E ${d.pe}`);
+      if (d.peg !== null) val.push(`PEG ${d.peg}`);
+      if (d.targetAvg !== null) val.push(`애널리스트 평균 목표가 $${d.targetAvg}`);
+      if (val.length) lines.clara = `${val.join(', ')}입니다.`;
+
+      if (d.roe !== null) lines.david = `ROE ${d.roe}%입니다. 사업 구조와 해자 평가는 Gemini 연결 시 제공됩니다.`;
+      if (d.shortFloat !== null) lines.sophia = `Short Float ${d.shortFloat}%입니다.`;
+
+      if (target === 'roundtable') return Object.values(lines).filter(Boolean).join('\n');
+      return lines[target] || '';
     }
 
     function appendChatBubble(role, label, text) {
@@ -2779,7 +2616,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       appendChatBubble('user', '투자자 질문:', question);
 
       if (!getStoredApiKey('gemini_key')) {
-        appendChatBubble('ai', persona.label + ' (지표 기반 자동 응답)', templateAnswer(activeChatTarget, d, question));
+        appendChatBubble('ai', persona.label + ' (지표 기반 자동 응답)', templateAnswer(activeChatTarget, d));
         return;
       }
 
@@ -2787,14 +2624,14 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const sendBtn = document.getElementById('sendQuestionBtn');
       sendBtn.disabled = true;
       const prompt = `${persona.prompt}
-종목: ${d.name} (${d.ticker}), 현재가 $${d.price} (${d.change}), 52주 구간 데이터 기준.
-지표: P/E ${fmtNum(d.pe)}, PEG ${fmtNum(d.peg)}, ROE ${fmtNum(d.roe, null, '%')}, Short Float ${fmtNum(d.shortFloat, null, '%')}, RSI ${fmtNum(d.rsi)}, SMA20 ${d.sma20Diff}, SMA50 ${d.sma50Diff}, SMA200 ${d.sma200Diff}, 애널리스트 목표가 ${d.targetAvg !== null ? '$' + d.targetAvg : '없음'}.
+종목: ${d.name} (${d.ticker}), 현재가 ${d.price ? '$' + d.price : '(데이터 없음)'} ${d.change}.
+지표(빈 값은 데이터 없음): P/E ${fmtNum(d.pe)}, PEG ${fmtNum(d.peg)}, ROE ${fmtNum(d.roe, null, '%')}, Short Float ${fmtNum(d.shortFloat, null, '%')}, RSI ${fmtNum(d.rsi)}, SMA20 ${d.sma20Diff}, SMA50 ${d.sma50Diff}, SMA200 ${d.sma200Diff}, 애널리스트 목표가 ${d.targetAvg !== null ? '$' + d.targetAvg : ''}.
 위 숫자 외의 수치는 지어내지 말고, 모르면 모른다고 답하세요. 한국어로 간결하게(최대 8문장) 답하고, 투자 권유가 아님을 마지막에 한 줄로 밝히세요.
 질문: ${question}`;
       const r = await callGemini(prompt, { grounding: true });
       sendBtn.disabled = false;
       if (!r || r.error) {
-        bodyEl.textContent = `Gemini 호출 실패${r?.error ? ` (${r.error})` : ''}. 지표 기반 자동 응답으로 대체합니다.\n\n` + templateAnswer(activeChatTarget, d, question);
+        bodyEl.textContent = `Gemini 호출 실패${r?.error ? ` (${r.error})` : ''}. 지표 기반 자동 응답으로 대체합니다.\n\n` + templateAnswer(activeChatTarget, d);
       } else {
         bodyEl.textContent = r.text.trim() || '(빈 응답)';
       }
@@ -2803,6 +2640,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     function generateAudioBriefing() {
       if (!currentAnalysisData) return;
+      if (!currentAnalysisData.price) { showToast('데이터 없음', '시세 데이터가 없어 브리핑을 만들 수 없습니다.', 'info'); return; }
       const panel = document.getElementById('audioPlayerPanel');
       const audioStatus = document.getElementById('audioStatusText');
       panel.classList.remove('hidden');
@@ -2810,7 +2648,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if ('speechSynthesis' in window) {
         audioStatus.textContent = '브라우저 음성 엔진으로 브리핑 재생 중...';
         const msg = new SpeechSynthesisUtterance();
-        msg.text = `PentAnalyst 모닝 브리핑입니다. 분석 종목은 ${currentAnalysisData.name}, 티커는 ${currentAnalysisData.ticker}입니다. 현재 주가는 ${currentAnalysisData.price} 달러이며, 5인 전문가 종합 컨센서스는 ${currentAnalysisData.consensus}입니다. ${currentAnalysisData.targetAvg !== null ? `애널리스트 평균 목표 주가는 ${currentAnalysisData.targetAvg} 달러입니다.` : '목표 주가 데이터는 없습니다.'}`;
+        msg.text = `PentAnalyst 모닝 브리핑입니다. 분석 종목은 ${currentAnalysisData.name}, 티커는 ${currentAnalysisData.ticker}입니다. 현재 주가는 ${currentAnalysisData.price} 달러이며, 5인 전문가 종합 컨센서스는 ${currentAnalysisData.consensus || '없음'}입니다. ${currentAnalysisData.targetAvg !== null ? `애널리스트 평균 목표 주가는 ${currentAnalysisData.targetAvg} 달러입니다.` : '목표 주가 데이터는 없습니다.'}`;
         msg.lang = 'ko-KR';
         msg.rate = 1.0;
         window.speechSynthesis.cancel();
@@ -2828,6 +2666,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     function generateInfographicCard() {
       if (!currentAnalysisData) return;
+      if (!currentAnalysisData.price) { showToast('데이터 없음', '시세 데이터가 없어 인포그래픽을 만들 수 없습니다.', 'info'); return; }
       const panel = document.getElementById('infographicPanel');
       const loading = document.getElementById('infographicLoading');
       const result = document.getElementById('infographicResult');
@@ -2864,7 +2703,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 20px Inter, sans-serif';
         ctx.fillText(`현재가: $${currentAnalysisData.price}`, 40, 160);
-        ctx.fillText(`목표가: ${currentAnalysisData.targetAvg !== null ? '$' + currentAnalysisData.targetAvg : 'N/A'}`, 40, 200);
+        ctx.fillText(`목표가: ${currentAnalysisData.targetAvg !== null ? '$' + currentAnalysisData.targetAvg : ''}`, 40, 200);
         ctx.fillText(`P/E: ${fmtNum(currentAnalysisData.pe)} | PEG: ${fmtNum(currentAnalysisData.peg)}`, 40, 240);
         ctx.fillText(`RSI: ${fmtNum(currentAnalysisData.rsi)} | ROE: ${fmtNum(currentAnalysisData.roe, null, '%')}`, 40, 280);
         ctx.fillText(`컨센서스: ${currentAnalysisData.consensus}`, 40, 320);
@@ -2908,83 +2747,81 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     // Comprehensive US Large/Mega/Mid-Cap Database (60+ S&P 500 & Nasdaq Leaders + JVA)
     const SCREENER_MASTER_DATA = [
       // Coffee & Consumer Micro/Mid Cap
-      { ticker: "JVA", name: "Coffee Holding Co., Inc.", sector: "Consumer", capCategory: "MID", marketCapVal: 0.023, marketCap: "$23M", price: 3.95, change: "+1.02%", pe: 4.71, peg: 0.95, roe: 16.2, shortFloat: 1.85, rsi: 52.4, sma20Diff: "+3.4%", consensus: "HOLD / SPEC" },
-
+      { ticker: "JVA", name: "Coffee Holding Co., Inc.", sector: "Consumer" },
       // Tech & AI Giants
-      { ticker: "NVDA", name: "NVIDIA Corporation", sector: "Semiconductors", capCategory: "MEGA", marketCapVal: 3300, marketCap: "$3.3T", price: 135.50, change: "+3.85%", pe: 44.8, peg: 1.25, roe: 91.5, shortFloat: 1.34, rsi: 64.8, sma20Diff: "+5.1%", consensus: "STRONG BUY" },
-      { ticker: "AAPL", name: "Apple Inc.", sector: "Tech", capCategory: "MEGA", marketCapVal: 3500, marketCap: "$3.5T", price: 228.40, change: "+1.15%", pe: 33.2, peg: 2.85, roe: 145.0, shortFloat: 0.85, rsi: 56.2, sma20Diff: "+2.3%", consensus: "BUY" },
-      { ticker: "MSFT", name: "Microsoft Corporation", sector: "Tech", capCategory: "MEGA", marketCapVal: 3100, marketCap: "$3.1T", price: 422.50, change: "+0.85%", pe: 35.4, peg: 2.10, roe: 38.8, shortFloat: 0.72, rsi: 52.4, sma20Diff: "+1.2%", consensus: "STRONG BUY" },
-      { ticker: "GOOGL", name: "Alphabet Inc.", sector: "Tech", capCategory: "MEGA", marketCapVal: 2050, marketCap: "$2.0T", price: 165.20, change: "+1.40%", pe: 22.4, peg: 1.15, roe: 30.5, shortFloat: 0.95, rsi: 50.8, sma20Diff: "+1.8%", consensus: "STRONG BUY" },
-      { ticker: "AMZN", name: "Amazon.com, Inc.", sector: "Tech", capCategory: "MEGA", marketCapVal: 1950, marketCap: "$1.9T", price: 186.40, change: "+2.10%", pe: 42.1, peg: 1.45, roe: 21.2, shortFloat: 1.10, rsi: 58.6, sma20Diff: "+3.4%", consensus: "BUY" },
-      { ticker: "META", name: "Meta Platforms, Inc.", sector: "Tech", capCategory: "MEGA", marketCapVal: 1450, marketCap: "$1.4T", price: 582.00, change: "+2.75%", pe: 27.6, peg: 1.20, roe: 33.4, shortFloat: 1.15, rsi: 62.5, sma20Diff: "+4.5%", consensus: "STRONG BUY" },
-      { ticker: "TSLA", name: "Tesla, Inc.", sector: "Automotive", capCategory: "MEGA", marketCapVal: 780, marketCap: "$780B", price: 245.80, change: "+5.20%", pe: 68.4, peg: 3.40, roe: 19.5, shortFloat: 3.80, rsi: 61.5, sma20Diff: "+8.2%", consensus: "BUY / SPEC" },
-      { ticker: "AVGO", name: "Broadcom Inc.", sector: "Semiconductors", capCategory: "MEGA", marketCapVal: 820, marketCap: "$820B", price: 176.30, change: "+2.40%", pe: 36.8, peg: 1.60, roe: 28.5, shortFloat: 1.45, rsi: 55.4, sma20Diff: "+2.9%", consensus: "STRONG BUY" },
-      { ticker: "TSM", name: "Taiwan Semiconductor ADR", sector: "Semiconductors", capCategory: "MEGA", marketCapVal: 900, marketCap: "$900B", price: 188.00, change: "+3.10%", pe: 26.5, peg: 1.10, roe: 27.8, shortFloat: 0.65, rsi: 59.2, sma20Diff: "+4.1%", consensus: "STRONG BUY" },
-      { ticker: "AMD", name: "Advanced Micro Devices", sector: "Semiconductors", capCategory: "LARGE", marketCapVal: 240, marketCap: "$240B", price: 148.60, change: "+1.90%", pe: 45.2, peg: 1.35, roe: 8.9, shortFloat: 2.65, rsi: 48.2, sma20Diff: "+0.5%", consensus: "BUY" },
-      { ticker: "QCOM", name: "QUALCOMM Incorporated", sector: "Semiconductors", capCategory: "LARGE", marketCapVal: 185, marketCap: "$185B", price: 168.20, change: "+0.75%", pe: 21.4, peg: 1.30, roe: 36.5, shortFloat: 1.80, rsi: 46.5, sma20Diff: "-0.8%", consensus: "BUY" },
-      { ticker: "ARM", name: "Arm Holdings plc", sector: "Semiconductors", capCategory: "LARGE", marketCapVal: 145, marketCap: "$145B", price: 142.50, change: "+4.60%", pe: 88.0, peg: 2.80, roe: 14.2, shortFloat: 4.85, rsi: 63.4, sma20Diff: "+6.8%", consensus: "BUY / SPEC" },
-      { ticker: "INTC", name: "Intel Corporation", sector: "Semiconductors", capCategory: "LARGE", marketCapVal: 98, marketCap: "$98B", price: 23.40, change: "-1.80%", pe: 38.5, peg: 2.95, roe: 2.1, shortFloat: 3.40, rsi: 38.5, sma20Diff: "-4.2%", consensus: "HOLD" },
-      { ticker: "MU", name: "Micron Technology", sector: "Semiconductors", capCategory: "LARGE", marketCapVal: 120, marketCap: "$120B", price: 108.50, change: "+3.25%", pe: 24.5, peg: 0.95, roe: 16.8, shortFloat: 2.90, rsi: 58.1, sma20Diff: "+3.8%", consensus: "STRONG BUY" },
-      { ticker: "PLTR", name: "Palantir Technologies", sector: "Tech", capCategory: "LARGE", marketCapVal: 95, marketCap: "$95B", price: 43.20, change: "+6.80%", pe: 95.2, peg: 2.90, roe: 18.4, shortFloat: 4.25, rsi: 68.2, sma20Diff: "+11.5%", consensus: "BUY / SPEC" },
-      { ticker: "CRM", name: "Salesforce, Inc.", sector: "Tech", capCategory: "LARGE", marketCapVal: 280, marketCap: "$280B", price: 290.50, change: "+1.30%", pe: 38.2, peg: 1.80, roe: 11.2, shortFloat: 1.10, rsi: 52.8, sma20Diff: "+1.6%", consensus: "BUY" },
-      { ticker: "ORCL", name: "Oracle Corporation", sector: "Tech", capCategory: "LARGE", marketCapVal: 480, marketCap: "$480B", price: 174.00, change: "+2.90%", pe: 39.5, peg: 1.95, roe: 78.4, shortFloat: 1.40, rsi: 66.4, sma20Diff: "+7.2%", consensus: "STRONG BUY" },
-      { ticker: "ADBE", name: "Adobe Inc.", sector: "Tech", capCategory: "LARGE", marketCapVal: 220, marketCap: "$220B", price: 495.00, change: "-0.65%", pe: 32.8, peg: 1.75, roe: 34.2, shortFloat: 1.55, rsi: 44.2, sma20Diff: "-1.5%", consensus: "BUY" },
-      { ticker: "NOW", name: "ServiceNow, Inc.", sector: "Tech", capCategory: "LARGE", marketCapVal: 185, marketCap: "$185B", price: 910.00, change: "+1.85%", pe: 58.4, peg: 2.10, roe: 19.5, shortFloat: 1.60, rsi: 57.5, sma20Diff: "+3.1%", consensus: "STRONG BUY" },
-      { ticker: "SNOW", name: "Snowflake Inc.", sector: "Tech", capCategory: "LARGE", marketCapVal: 42, marketCap: "$42B", price: 125.80, change: "+2.40%", pe: 72.0, peg: 2.45, roe: -9.5, shortFloat: 5.10, rsi: 46.8, sma20Diff: "+0.8%", consensus: "HOLD" },
-      { ticker: "SMCI", name: "Super Micro Computer", sector: "Tech", capCategory: "LARGE", marketCapVal: 26, marketCap: "$26B", price: 45.10, change: "+4.10%", pe: 18.2, peg: 0.65, roe: 35.4, shortFloat: 8.60, rsi: 44.8, sma20Diff: "-2.4%", consensus: "BUY / SPEC" },
-
+      { ticker: "NVDA", name: "NVIDIA Corporation", sector: "Semiconductors" },
+      { ticker: "AAPL", name: "Apple Inc.", sector: "Tech" },
+      { ticker: "MSFT", name: "Microsoft Corporation", sector: "Tech" },
+      { ticker: "GOOGL", name: "Alphabet Inc.", sector: "Tech" },
+      { ticker: "AMZN", name: "Amazon.com, Inc.", sector: "Tech" },
+      { ticker: "META", name: "Meta Platforms, Inc.", sector: "Tech" },
+      { ticker: "TSLA", name: "Tesla, Inc.", sector: "Automotive" },
+      { ticker: "AVGO", name: "Broadcom Inc.", sector: "Semiconductors" },
+      { ticker: "TSM", name: "Taiwan Semiconductor ADR", sector: "Semiconductors" },
+      { ticker: "AMD", name: "Advanced Micro Devices", sector: "Semiconductors" },
+      { ticker: "QCOM", name: "QUALCOMM Incorporated", sector: "Semiconductors" },
+      { ticker: "ARM", name: "Arm Holdings plc", sector: "Semiconductors" },
+      { ticker: "INTC", name: "Intel Corporation", sector: "Semiconductors" },
+      { ticker: "MU", name: "Micron Technology", sector: "Semiconductors" },
+      { ticker: "PLTR", name: "Palantir Technologies", sector: "Tech" },
+      { ticker: "CRM", name: "Salesforce, Inc.", sector: "Tech" },
+      { ticker: "ORCL", name: "Oracle Corporation", sector: "Tech" },
+      { ticker: "ADBE", name: "Adobe Inc.", sector: "Tech" },
+      { ticker: "NOW", name: "ServiceNow, Inc.", sector: "Tech" },
+      { ticker: "SNOW", name: "Snowflake Inc.", sector: "Tech" },
+      { ticker: "SMCI", name: "Super Micro Computer", sector: "Tech" },
       // Media, Consumer & Mobility
-      { ticker: "NFLX", name: "Netflix, Inc.", sector: "Communication", capCategory: "MEGA", marketCapVal: 310, marketCap: "$310B", price: 720.00, change: "+2.15%", pe: 41.5, peg: 1.65, roe: 29.8, shortFloat: 1.45, rsi: 61.2, sma20Diff: "+4.8%", consensus: "STRONG BUY" },
-      { ticker: "DIS", name: "The Walt Disney Company", sector: "Communication", capCategory: "LARGE", marketCapVal: 175, marketCap: "$175B", price: 95.80, change: "+0.80%", pe: 36.2, peg: 1.90, roe: 5.6, shortFloat: 1.25, rsi: 48.0, sma20Diff: "+0.4%", consensus: "BUY" },
-      { ticker: "UBER", name: "Uber Technologies", sector: "Tech", capCategory: "LARGE", marketCapVal: 165, marketCap: "$165B", price: 78.40, change: "+3.45%", pe: 34.0, peg: 1.40, roe: 24.5, shortFloat: 2.10, rsi: 60.5, sma20Diff: "+5.2%", consensus: "STRONG BUY" },
-      { ticker: "ABNB", name: "Airbnb, Inc.", sector: "Consumer", capCategory: "LARGE", marketCapVal: 82, marketCap: "$82B", price: 128.50, change: "+1.20%", pe: 19.8, peg: 1.35, roe: 32.1, shortFloat: 3.20, rsi: 49.5, sma20Diff: "+1.1%", consensus: "BUY" },
-      { ticker: "NKE", name: "NIKE, Inc.", sector: "Consumer", capCategory: "LARGE", marketCapVal: 125, marketCap: "$125B", price: 82.30, change: "-1.10%", pe: 23.5, peg: 2.20, roe: 36.4, shortFloat: 2.05, rsi: 39.8, sma20Diff: "-2.8%", consensus: "HOLD" },
-      { ticker: "MCD", name: "McDonald's Corporation", sector: "Consumer", capCategory: "MEGA", marketCapVal: 215, marketCap: "$215B", price: 298.00, change: "+0.45%", pe: 25.8, peg: 3.10, roe: 120.0, shortFloat: 0.90, rsi: 54.0, sma20Diff: "+1.5%", consensus: "BUY" },
-      { ticker: "SBUX", name: "Starbucks Corporation", sector: "Consumer", capCategory: "LARGE", marketCapVal: 110, marketCap: "$110B", price: 96.50, change: "+1.65%", pe: 27.4, peg: 2.40, roe: 45.2, shortFloat: 2.50, rsi: 55.8, sma20Diff: "+3.0%", consensus: "BUY" },
-      { ticker: "COST", name: "Costco Wholesale", sector: "Consumer", capCategory: "MEGA", marketCapVal: 400, marketCap: "$400B", price: 902.00, change: "+0.90%", pe: 54.5, peg: 3.80, roe: 30.5, shortFloat: 1.15, rsi: 57.2, sma20Diff: "+2.2%", consensus: "BUY" },
-      { ticker: "WMT", name: "Walmart Inc.", sector: "Consumer", capCategory: "MEGA", marketCapVal: 640, marketCap: "$640B", price: 80.50, change: "+0.60%", pe: 34.2, peg: 2.95, roe: 21.0, shortFloat: 0.70, rsi: 56.4, sma20Diff: "+1.9%", consensus: "BUY" },
-      { ticker: "KO", name: "The Coca-Cola Company", sector: "Consumer", capCategory: "LARGE", marketCapVal: 290, marketCap: "$290B", price: 68.20, change: "-0.40%", pe: 24.1, peg: 2.60, roe: 42.0, shortFloat: 0.65, rsi: 43.5, sma20Diff: "-0.8%", consensus: "HOLD" },
-      { ticker: "PEP", name: "PepsiCo, Inc.", sector: "Consumer", capCategory: "MEGA", marketCapVal: 235, marketCap: "$235B", price: 172.00, change: "-0.30%", pe: 24.8, peg: 2.70, roe: 52.4, shortFloat: 0.85, rsi: 45.0, sma20Diff: "-0.5%", consensus: "HOLD" },
-
+      { ticker: "NFLX", name: "Netflix, Inc.", sector: "Communication" },
+      { ticker: "DIS", name: "The Walt Disney Company", sector: "Communication" },
+      { ticker: "UBER", name: "Uber Technologies", sector: "Tech" },
+      { ticker: "ABNB", name: "Airbnb, Inc.", sector: "Consumer" },
+      { ticker: "NKE", name: "NIKE, Inc.", sector: "Consumer" },
+      { ticker: "MCD", name: "McDonald's Corporation", sector: "Consumer" },
+      { ticker: "SBUX", name: "Starbucks Corporation", sector: "Consumer" },
+      { ticker: "COST", name: "Costco Wholesale", sector: "Consumer" },
+      { ticker: "WMT", name: "Walmart Inc.", sector: "Consumer" },
+      { ticker: "KO", name: "The Coca-Cola Company", sector: "Consumer" },
+      { ticker: "PEP", name: "PepsiCo, Inc.", sector: "Consumer" },
       // Healthcare & Biotech Giants
-      { ticker: "LLY", name: "Eli Lilly and Company", sector: "Healthcare", capCategory: "MEGA", marketCapVal: 850, marketCap: "$850B", price: 895.00, change: "+1.65%", pe: 62.4, peg: 1.85, roe: 58.2, shortFloat: 0.85, rsi: 54.1, sma20Diff: "+2.1%", consensus: "STRONG BUY" },
-      { ticker: "NVO", name: "Novo Nordisk ADR", sector: "Healthcare", capCategory: "MEGA", marketCapVal: 520, marketCap: "$520B", price: 118.50, change: "+1.40%", pe: 32.5, peg: 1.45, roe: 74.0, shortFloat: 0.50, rsi: 51.5, sma20Diff: "+1.2%", consensus: "STRONG BUY" },
-      { ticker: "UNH", name: "UnitedHealth Group", sector: "Healthcare", capCategory: "MEGA", marketCapVal: 535, marketCap: "$535B", price: 580.00, change: "+0.55%", pe: 26.2, peg: 2.05, roe: 26.5, shortFloat: 0.80, rsi: 53.0, sma20Diff: "+1.4%", consensus: "BUY" },
-      { ticker: "JNJ", name: "Johnson & Johnson", sector: "Healthcare", capCategory: "MEGA", marketCapVal: 385, marketCap: "$385B", price: 161.00, change: "-0.25%", pe: 16.5, peg: 2.50, roe: 23.0, shortFloat: 0.70, rsi: 46.2, sma20Diff: "-0.3%", consensus: "BUY" },
-      { ticker: "ABBV", name: "AbbVie Inc.", sector: "Healthcare", capCategory: "MEGA", marketCapVal: 330, marketCap: "$330B", price: 188.50, change: "+0.70%", pe: 38.0, peg: 1.90, roe: 85.0, shortFloat: 0.95, rsi: 52.8, sma20Diff: "+1.1%", consensus: "BUY" },
-      { ticker: "MRK", name: "Merck & Co., Inc.", sector: "Healthcare", capCategory: "MEGA", marketCapVal: 285, marketCap: "$285B", price: 112.00, change: "-0.80%", pe: 15.8, peg: 1.25, roe: 31.0, shortFloat: 0.75, rsi: 41.5, sma20Diff: "-1.8%", consensus: "BUY" },
-      { ticker: "PFE", name: "Pfizer Inc.", sector: "Healthcare", capCategory: "LARGE", marketCapVal: 162, marketCap: "$162B", price: 28.50, change: "-0.50%", pe: 14.2, peg: 2.10, roe: 9.8, shortFloat: 1.40, rsi: 40.2, sma20Diff: "-1.2%", consensus: "HOLD" },
-
+      { ticker: "LLY", name: "Eli Lilly and Company", sector: "Healthcare" },
+      { ticker: "NVO", name: "Novo Nordisk ADR", sector: "Healthcare" },
+      { ticker: "UNH", name: "UnitedHealth Group", sector: "Healthcare" },
+      { ticker: "JNJ", name: "Johnson & Johnson", sector: "Healthcare" },
+      { ticker: "ABBV", name: "AbbVie Inc.", sector: "Healthcare" },
+      { ticker: "MRK", name: "Merck & Co., Inc.", sector: "Healthcare" },
+      { ticker: "PFE", name: "Pfizer Inc.", sector: "Healthcare" },
       // Finance, Payments & Value
-      { ticker: "BRK-B", name: "Berkshire Hathaway", sector: "Finance", capCategory: "MEGA", marketCapVal: 980, marketCap: "$980B", price: 455.00, change: "+0.35%", pe: 21.5, peg: 1.80, roe: 14.8, shortFloat: 0.50, rsi: 49.5, sma20Diff: "+0.8%", consensus: "BUY" },
-      { ticker: "JPM", name: "JPMorgan Chase & Co.", sector: "Finance", capCategory: "MEGA", marketCapVal: 610, marketCap: "$610B", price: 216.50, change: "+0.95%", pe: 12.4, peg: 1.40, roe: 17.2, shortFloat: 0.75, rsi: 53.0, sma20Diff: "+1.5%", consensus: "BUY" },
-      { ticker: "V", name: "Visa Inc.", sector: "Finance", capCategory: "MEGA", marketCapVal: 570, marketCap: "$570B", price: 282.00, change: "+0.85%", pe: 29.5, peg: 2.15, roe: 48.0, shortFloat: 1.20, rsi: 54.6, sma20Diff: "+2.0%", consensus: "STRONG BUY" },
-      { ticker: "MA", name: "Mastercard Incorporated", sector: "Finance", capCategory: "MEGA", marketCapVal: 460, marketCap: "$460B", price: 495.00, change: "+1.05%", pe: 34.0, peg: 2.30, roe: 165.0, shortFloat: 1.05, rsi: 55.8, sma20Diff: "+2.4%", consensus: "STRONG BUY" },
-      { ticker: "BAC", name: "Bank of America", sector: "Finance", capCategory: "MEGA", marketCapVal: 320, marketCap: "$320B", price: 41.50, change: "+1.20%", pe: 13.8, peg: 1.55, roe: 10.5, shortFloat: 0.90, rsi: 51.0, sma20Diff: "+1.2%", consensus: "BUY" },
-      { ticker: "GS", name: "The Goldman Sachs Group", sector: "Finance", capCategory: "LARGE", marketCapVal: 165, marketCap: "$165B", price: 498.00, change: "+1.80%", pe: 15.2, peg: 1.35, roe: 11.8, shortFloat: 1.15, rsi: 58.2, sma20Diff: "+3.5%", consensus: "BUY" },
-      { ticker: "MS", name: "Morgan Stanley", sector: "Finance", capCategory: "LARGE", marketCapVal: 170, marketCap: "$170B", price: 105.00, change: "+1.40%", pe: 16.5, peg: 1.45, roe: 12.4, shortFloat: 1.25, rsi: 56.0, sma20Diff: "+2.8%", consensus: "BUY" },
-      { ticker: "COIN", name: "Coinbase Global, Inc.", sector: "Finance", capCategory: "LARGE", marketCapVal: 48, marketCap: "$48B", price: 195.00, change: "+6.50%", pe: 38.0, peg: 1.20, roe: 22.0, shortFloat: 6.20, rsi: 65.0, sma20Diff: "+9.5%", consensus: "BUY / SPEC" },
-      { ticker: "HOOD", name: "Robinhood Markets", sector: "Finance", capCategory: "LARGE", marketCapVal: 22, marketCap: "$22B", price: 25.50, change: "+5.10%", pe: 42.0, peg: 1.50, roe: 8.5, shortFloat: 5.80, rsi: 63.8, sma20Diff: "+8.1%", consensus: "BUY / SPEC" },
-
+      { ticker: "BRK-B", name: "Berkshire Hathaway", sector: "Finance" },
+      { ticker: "JPM", name: "JPMorgan Chase & Co.", sector: "Finance" },
+      { ticker: "V", name: "Visa Inc.", sector: "Finance" },
+      { ticker: "MA", name: "Mastercard Incorporated", sector: "Finance" },
+      { ticker: "BAC", name: "Bank of America", sector: "Finance" },
+      { ticker: "GS", name: "The Goldman Sachs Group", sector: "Finance" },
+      { ticker: "MS", name: "Morgan Stanley", sector: "Finance" },
+      { ticker: "COIN", name: "Coinbase Global, Inc.", sector: "Finance" },
+      { ticker: "HOOD", name: "Robinhood Markets", sector: "Finance" },
       // Energy, Industrials & Defense
-      { ticker: "XOM", name: "Exxon Mobil Corporation", sector: "Energy", capCategory: "MEGA", marketCapVal: 480, marketCap: "$480B", price: 119.50, change: "+0.40%", pe: 14.1, peg: 1.95, roe: 18.5, shortFloat: 0.95, rsi: 48.5, sma20Diff: "+0.5%", consensus: "BUY" },
-      { ticker: "CVX", name: "Chevron Corporation", sector: "Energy", capCategory: "MEGA", marketCapVal: 275, marketCap: "$275B", price: 152.00, change: "+0.20%", pe: 14.8, peg: 2.10, roe: 14.2, shortFloat: 1.10, rsi: 47.0, sma20Diff: "-0.2%", consensus: "HOLD" },
-      { ticker: "CAT", name: "Caterpillar Inc.", sector: "Energy", capCategory: "MEGA", marketCapVal: 195, marketCap: "$195B", price: 395.00, change: "+1.90%", pe: 18.5, peg: 1.60, roe: 55.0, shortFloat: 1.30, rsi: 62.0, sma20Diff: "+4.2%", consensus: "STRONG BUY" },
-      { ticker: "GE", name: "GE Aerospace", sector: "Energy", capCategory: "LARGE", marketCapVal: 205, marketCap: "$205B", price: 188.00, change: "+2.20%", pe: 34.0, peg: 1.70, roe: 28.0, shortFloat: 1.05, rsi: 61.5, sma20Diff: "+3.8%", consensus: "STRONG BUY" },
-      { ticker: "LMT", name: "Lockheed Martin", sector: "Energy", capCategory: "LARGE", marketCapVal: 135, marketCap: "$135B", price: 575.00, change: "+0.75%", pe: 21.0, peg: 2.30, roe: 82.0, shortFloat: 1.15, rsi: 56.5, sma20Diff: "+2.1%", consensus: "BUY" },
-      { ticker: "RTX", name: "RTX Corporation", sector: "Energy", capCategory: "LARGE", marketCapVal: 160, marketCap: "$160B", price: 121.00, change: "+1.10%", pe: 32.0, peg: 2.05, roe: 12.5, shortFloat: 0.85, rsi: 57.0, sma20Diff: "+2.5%", consensus: "BUY" }
+      { ticker: "XOM", name: "Exxon Mobil Corporation", sector: "Energy" },
+      { ticker: "CVX", name: "Chevron Corporation", sector: "Energy" },
+      { ticker: "CAT", name: "Caterpillar Inc.", sector: "Energy" },
+      { ticker: "GE", name: "GE Aerospace", sector: "Energy" },
+      { ticker: "LMT", name: "Lockheed Martin", sector: "Energy" },
+      { ticker: "RTX", name: "RTX Corporation", sector: "Energy" }
     ];
 
+    // 실시간 값이 채워지기 전의 기본값 (빈칸)
+    SCREENER_MASTER_DATA.forEach(s => Object.assign(s, {
+      capCategory: null, marketCapVal: null, marketCap: '', price: null, change: '',
+      pe: null, peg: null, roe: null, shortFloat: null, rsi: null, sma20Diff: '', consensus: '', loaded: false
+    }));
+
     function capCategoryFromVal(billions) {
-      if (!Number.isFinite(billions)) return 'LARGE';
+      if (!Number.isFinite(billions)) return null;
       if (billions >= 200) return 'MEGA';
       if (billions >= 10) return 'LARGE';
       if (billions >= 2) return 'MID';
       return 'MICRO';
     }
-    // 시가총액 수치와 분류가 어긋나지 않도록 일괄 재계산
-    SCREENER_MASTER_DATA.forEach(s => { s.capCategory = capCategoryFromVal(s.marketCapVal); });
-
     function mapYahooSector(sector, industry) {
       const s = String(sector || ''), i = String(industry || '');
       if (/semiconductor/i.test(i)) return 'Semiconductors';
@@ -2999,7 +2836,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     }
 
     function formatMarketCap(billions) {
-      if (!Number.isFinite(billions)) return 'N/A';
+      if (!Number.isFinite(billions)) return '';
       if (billions >= 1000) return `$${(billions / 1000).toFixed(1)}T`;
       if (billions >= 1) return `$${billions.toFixed(0)}B`;
       return `$${(billions * 1000).toFixed(0)}M`;
@@ -3013,7 +2850,67 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       runScreenerFilter();
     }
 
-    // 실제 시세·재무(프록시)를 조회해 스크리너에 등록. 조회에 실패하면 가짜 데이터를 만들지 않고 안내만 한다.
+    // 실시간 시세·재무 값을 스크리너 항목에 반영
+    function applyLiveToEntry(entry, market, f) {
+      const fx = f || {};
+      const tech = calculateRealIndicators(market.history);
+      const mcapB = Number.isFinite(fx.marketCap) ? fx.marketCap / 1e9 : null;
+      entry.price = market.price;
+      entry.change = market.change;
+      entry.rsi = tech.rsi;
+      entry.sma20Diff = tech.sma20Diff;
+      entry.pe = pick(fx.pe);
+      entry.peg = pick(fx.peg);
+      entry.roe = pick(fx.roe);
+      entry.shortFloat = pick(fx.shortFloat);
+      entry.marketCapVal = mcapB;
+      entry.marketCap = formatMarketCap(mcapB);
+      entry.capCategory = capCategoryFromVal(mcapB);
+      entry.consensus = fx.consensus || '';
+      if (fx.name) entry.name = fx.name;
+    }
+
+    let screenerHydrating = false;
+
+    function setScreenerStatus(text) {
+      const el = document.getElementById('screenerStatus');
+      if (el) el.textContent = text;
+    }
+
+    // 프록시가 설정되어 있을 때만 전 종목의 실시간 값을 채운다 (동시 5건)
+    async function hydrateScreener(force = false) {
+      if (screenerHydrating) return;
+      if (!getProxyUrl()) {
+        setScreenerStatus('자체 프록시를 연결하면 가격·지표가 채워집니다');
+        return;
+      }
+      if (force) SCREENER_MASTER_DATA.forEach(e => { e.loaded = false; });
+      const queue = SCREENER_MASTER_DATA.filter(e => !e.loaded);
+      if (queue.length === 0) { setScreenerStatus(''); return; }
+
+      screenerHydrating = true;
+      const total = queue.length;
+      let done = 0;
+      setScreenerStatus(`실시간 데이터 로딩 0/${total}`);
+      const runner = async () => {
+        while (queue.length) {
+          const entry = queue.shift();
+          try {
+            const [market, f] = await Promise.all([fetchRealYahooFinanceData(entry.ticker, '6mo'), fetchFundamentals(entry.ticker)]);
+            if (market && !market.notFound) applyLiveToEntry(entry, market, f);
+          } catch (e) { /* 실패한 종목은 빈칸으로 둔다 */ }
+          entry.loaded = true;
+          done++;
+          setScreenerStatus(done < total ? `실시간 데이터 로딩 ${done}/${total}` : '');
+          if (done % 5 === 0 || done === total) runScreenerFilter();
+        }
+      };
+      await Promise.all(Array.from({ length: 5 }, runner));
+      screenerHydrating = false;
+      runScreenerFilter();
+    }
+
+    // 실제 시세·재무(프록시)를 조회해 스크리너에 등록. 조회에 실패하면 아무것도 만들지 않고 안내만 한다.
     async function addCustomTickerToScreener() {
       const input = document.getElementById('screenerSearchKeyword');
       const raw = input.value.trim();
@@ -3025,7 +2922,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
       const existing = SCREENER_MASTER_DATA.find(s => s.ticker === ticker);
       if (existing) {
-        showToast("이미 등록됨", `${ticker}는 이미 스크리너 데이터베이스에 포함되어 있습니다.`, "info");
+        showToast("이미 등록됨", `${ticker}는 이미 스크리너에 포함되어 있습니다.`, "info");
         screenerState.searchKeyword = ticker;
         screenerState.page = 1;
         runScreenerFilter();
@@ -3033,7 +2930,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }
 
       showToast("조회 중", `${ticker}의 실시간 시세를 조회하고 있습니다...`, "info");
-      const [market, f] = await Promise.all([fetchRealYahooFinanceData(ticker), fetchFundamentals(ticker)]);
+      const [market, f] = await Promise.all([fetchRealYahooFinanceData(ticker, '6mo'), fetchFundamentals(ticker)]);
       if (!market || market.notFound) {
         showToast("등록 실패", market && market.notFound
           ? `"${ticker}" 종목을 찾을 수 없습니다.`
@@ -3041,26 +2938,12 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         return;
       }
 
-      const tech = calculateRealIndicators(market.history);
-      const fx = f || {};
-      const mcapB = Number.isFinite(fx.marketCap) ? fx.marketCap / 1e9 : null;
       const newEntry = {
-        ticker: market.ticker,
-        name: fx.name || market.name,
-        sector: mapYahooSector(fx.sector, fx.industry),
-        capCategory: capCategoryFromVal(mcapB),
-        marketCapVal: mcapB ?? 0,
-        marketCap: formatMarketCap(mcapB),
-        price: market.price,
-        change: market.change,
-        pe: pick(fx.pe),
-        peg: pick(fx.peg),
-        roe: pick(fx.roe),
-        shortFloat: pick(fx.shortFloat),
-        rsi: tech.rsi,
-        sma20Diff: tech.sma20Diff,
-        consensus: fx.consensus || 'N/A'
+        ticker: market.ticker, name: market.name, sector: mapYahooSector(f?.sector, f?.industry),
+        capCategory: null, marketCapVal: null, marketCap: '', price: null, change: '',
+        pe: null, peg: null, roe: null, shortFloat: null, rsi: null, sma20Diff: '', consensus: '', loaded: true
       };
+      applyLiveToEntry(newEntry, market, f);
 
       SCREENER_MASTER_DATA.unshift(newEntry);
       input.value = '';
@@ -3172,7 +3055,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         }
 
         if (sma20 !== 'ALL') {
-          if (item.sma20Diff === 'N/A') return false;
+          if (!item.sma20Diff) return false;
           const isAbove20 = isPositivePct(item.sma20Diff);
           if (sma20 === 'ABOVE' && !isAbove20) return false;
           if (sma20 === 'BELOW' && isAbove20) return false;
@@ -3268,7 +3151,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         return;
       }
 
-      const dash = '<span class="text-slate-600">—</span>';
+      const dash = '';
       const has = v => Number.isFinite(v);
 
       tbody.innerHTML = stocks.map(stock => {
@@ -3277,7 +3160,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         const t = escapeHtml(stock.ticker);
 
         let consensusBadge = 'bg-slate-800 text-slate-300 border-slate-700';
-        const cons = String(stock.consensus || 'N/A');
+        const cons = String(stock.consensus || '');
         if (cons.includes('STRONG BUY')) {
           consensusBadge = 'bg-emerald-950 text-emerald-300 border-emerald-800 font-bold';
         } else if (cons.includes('BUY')) {
@@ -3290,22 +3173,20 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           <tr class="hover:bg-slate-900/60 transition group cursor-pointer" data-ticker="${t}" onclick="selectScreenerStock(this.dataset.ticker)">
             <td class="py-3 px-3 border-r border-slate-800 font-bold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-1.5">
               <span>${t}</span>
-              <span class="text-[10px] text-slate-500">(${escapeHtml(stock.marketCap)})</span>
+              ${stock.marketCap ? `<span class="text-[10px] text-slate-500">(${escapeHtml(stock.marketCap)})</span>` : ''}
             </td>
             <td class="py-3 px-3 border-r border-slate-800 text-white font-sans text-xs whitespace-nowrap">${escapeHtml(stock.name)}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-slate-400 font-sans text-[11px] whitespace-nowrap">${escapeHtml(stock.sector)}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right font-bold text-white">$${Number(stock.price).toFixed(2)}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right font-bold text-white">${Number.isFinite(stock.price) ? '$' + Number(stock.price).toFixed(2) : ''}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-right font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(stock.change)}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.pe) && stock.pe < 25 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${has(stock.pe) ? stock.pe : dash}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.peg) && stock.peg < 1.5 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${has(stock.peg) ? stock.peg : dash}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.roe) && stock.roe > 25 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${has(stock.roe) ? stock.roe + '%' : dash}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.shortFloat) && stock.shortFloat > 3.0 ? 'text-rose-400 font-bold' : 'text-slate-300'}">${has(stock.shortFloat) ? stock.shortFloat + '%' : dash}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.rsi) ? (stock.rsi > 60 ? 'text-amber-400' : (stock.rsi < 45 ? 'text-cyan-400 font-bold' : 'text-slate-300')) : 'text-slate-300'}">${has(stock.rsi) ? stock.rsi : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-center font-bold ${stock.sma20Diff === 'N/A' ? 'text-slate-500' : (above20 ? 'text-emerald-400' : 'text-rose-400')}">${escapeHtml(stock.sma20Diff)}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-center font-bold ${!stock.sma20Diff ? 'text-slate-500' : (above20 ? 'text-emerald-400' : 'text-rose-400')}">${escapeHtml(stock.sma20Diff)}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-center">
-              <span class="px-2 py-0.5 rounded text-[10px] border ${consensusBadge} whitespace-nowrap">
-                ${escapeHtml(cons)}
-              </span>
+              ${cons ? `<span class="px-2 py-0.5 rounded text-[10px] border ${consensusBadge} whitespace-nowrap">${escapeHtml(cons)}</span>` : ''}
             </td>
             <td class="py-3 px-3 text-center">
               <button
