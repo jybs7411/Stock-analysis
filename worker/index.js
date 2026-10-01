@@ -74,6 +74,12 @@ const num = v => {
   return typeof n === 'number' && Number.isFinite(n) ? n : null;
 };
 
+// 비율(0.123) -> 퍼센트 숫자(12.3). 값이 없으면 null
+const pct = (v, digits = 1) => {
+  const n = num(v);
+  return n === null ? null : Number((n * 100).toFixed(digits));
+};
+
 const CONSENSUS = {
   strong_buy: 'STRONG BUY',
   buy: 'BUY',
@@ -92,6 +98,7 @@ export function mapFundamentals(symbol, result) {
   const roe = num(fin.returnOnEquity);
   const shortPct = num(stats.shortPercentOfFloat);
   return {
+    // ---- 기존 키 (하위 호환: 이름·의미 변경 금지) ----
     symbol,
     name: price.shortName || price.longName || null,
     sector: profile.sector || null,
@@ -109,7 +116,36 @@ export function mapFundamentals(symbol, result) {
     targetMin: num(fin.targetLowPrice),
     targetMax: num(fin.targetHighPrice),
     consensus: CONSENSUS[fin.recommendationKey] || null,
-    dividendYield: num(detail.dividendYield)
+    dividendYield: num(detail.dividendYield),
+
+    // ---- 스크리너용 추가 키 (값이 없으면 null, 비율은 12.3 = 12.3%) ----
+    beta: num(detail.beta) ?? num(stats.beta),
+    dividendRate: num(detail.dividendRate),
+    dividendYieldPct: pct(detail.dividendYield, 2),
+    payoutRatio: pct(detail.payoutRatio),
+    roa: pct(fin.returnOnAssets),
+    grossMargin: pct(fin.grossMargins),
+    opMargin: pct(fin.operatingMargins),
+    profitMargin: pct(fin.profitMargins),
+    revGrowth: pct(fin.revenueGrowth),
+    epsGrowth: pct(fin.earningsGrowth),
+    debtToEquity: num(fin.debtToEquity), // Yahoo는 퍼센트로 줌 (150 = 150%)
+    currentRatio: num(fin.currentRatio),
+    quickRatio: num(fin.quickRatio),
+    freeCashflow: num(fin.freeCashflow),
+    totalRevenue: num(fin.totalRevenue),
+    recMean: num(fin.recommendationMean), // 1(적극 매수) ~ 5(적극 매도)
+    numAnalysts: num(fin.numberOfAnalystOpinions),
+    insiderPct: pct(stats.heldPercentInsiders),
+    instPct: pct(stats.heldPercentInstitutions),
+    floatShares: num(stats.floatShares),
+    sharesOutstanding: num(stats.sharesOutstanding),
+    avgVolume: num(detail.averageVolume),
+    country: profile.country || null,
+    exchange: price.exchangeName || null,
+    currency: price.currency || null,
+    epsTrailing: num(stats.trailingEps),
+    epsForward: num(stats.forwardEps)
   };
 }
 
@@ -141,10 +177,6 @@ async function fetchQuoteSummary(symbol, modules = BASIC_MODULES, retry = true) 
 const iso = v => {
   const n = num(v);
   return n === null ? null : new Date(n * 1000).toISOString().slice(0, 10);
-};
-const pct = (v, digits = 1) => {
-  const n = num(v);
-  return n === null ? null : Number((n * 100).toFixed(digits));
 };
 
 export function mapDeep(symbol, r, news = []) {
