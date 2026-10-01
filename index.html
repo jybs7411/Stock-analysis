@@ -4851,7 +4851,10 @@ SONY|Sony Group ADR|T
       if (!p) return;
       userScreenerPresets.splice(i, 1);
       saveUserPresets();
+      const wasActive = !!screenerState.preset && screenerState.preset.src === 'user' && screenerState.preset.id === p.name;
+      if (wasActive) screenerState.preset = null;
       refreshScreenerControls();
+      if (wasActive) runScreenerFilter(); // 점수 종류(헤더)를 되돌린다
     }
 
     function loadThemedStocks(theme) {
