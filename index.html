@@ -877,6 +877,7 @@
           <div class="flex items-center gap-2">
             <span class="text-xs text-slate-400 font-mono-numbers">발굴된 종목: <strong id="screenerMatchCount" class="text-cyan-400 font-bold text-sm">0</strong>개</span>
             <span id="screenerStatus" class="text-[11px] text-cyan-300"></span>
+            <button id="screenerLoadAllBtn" onclick="loadAllScreener()" class="hidden px-2.5 py-1.5 rounded-lg bg-cyan-900/60 hover:bg-cyan-800 border border-cyan-700/60 text-[11px] text-cyan-200 transition">전체 불러오기</button>
             <button onclick="resetScreenerFilters()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 hover:text-white transition flex items-center gap-1.5">
               <i class="fa-solid fa-rotate-right text-xs"></i> 필터 초기화
             </button>
@@ -966,7 +967,7 @@
           <!-- Quick Bulk Load Presets -->
           <div class="flex flex-wrap items-center gap-1.5 border-t md:border-t-0 pt-2 md:pt-0 border-slate-800 w-full md:w-auto">
             <span class="text-[11px] text-slate-400 w-full sm:w-auto block"><i class="fa-solid fa-cloud-arrow-down text-amber-400 mr-1"></i>테마별 대량 로드:</span>
-            <button onclick="loadThemedStocks('ALL')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-400 text-xs font-semibold">전종목(60+)</button>
+            <button onclick="loadThemedStocks('ALL')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-400 text-xs font-semibold">전종목</button>
             <button onclick="loadThemedStocks('TECH')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs hover:text-white">빅테크&반도체</button>
             <button onclick="loadThemedStocks('VALUE')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs hover:text-white">금융&가치배당</button>
             <button onclick="loadThemedStocks('GROWTH')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs hover:text-white">모멘텀&성장주</button>
@@ -1062,7 +1063,7 @@
             <select id="screenerPageSize" onchange="changePageSize(this.value)" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white outline-none">
               <option value="15">15개씩</option>
               <option value="30">30개씩</option>
-              <option value="50">50개씩</option>
+              <option value="50" selected>50개씩</option>
               <option value="100">100개씩 (전체)</option>
             </select>
           </div>
@@ -1240,7 +1241,6 @@
         }
 
         runScreenerFilter();
-        hydrateScreener();
       }
     }
 
@@ -1458,8 +1458,8 @@
     }
 
     function hydrateScreenerAfterSettings() {
-      if (!document.getElementById('view-screener').classList.contains('hidden')) hydrateScreener(true);
-      else SCREENER_MASTER_DATA.forEach(e => { e.loaded = false; });
+      resetScreenerLoading();
+      if (!document.getElementById('view-screener').classList.contains('hidden')) runScreenerFilter();
     }
 
     // ===== Data layer =====
@@ -2050,6 +2050,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
         analysisInputs = { upperTicker, market, fundamentals, deep, history, ind, tech };
         currentAnalysisData = composeAnalysis(analysisInputs, null);
+        // 검색한 종목은 스크리너에도 바로 등록(이미 있으면 실시간 값 갱신)
+        upsertScreenerEntry(upperTicker, market, fundamentals);
         renderAnalysisResult(currentAnalysisData);
         renderDeepAnalysis(deep);
         updateAiButton();
@@ -3057,9 +3059,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     // Screener State Management
     let screenerState = {
       page: 1,
-      pageSize: 15,
-      sortBy: 'marketCapVal',
-      sortDir: 'desc',
+      pageSize: 50,
+      sortBy: 'rank',
+      sortDir: 'asc',
       searchKeyword: '',
       currentCategory: 'ALL',
       extra: { sectors: null, minRoe: null }
@@ -3130,11 +3132,308 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       { ticker: "RTX", name: "RTX Corporation", sector: "Energy" }
     ];
 
-    // 실시간 값이 채워지기 전의 기본값 (빈칸)
-    SCREENER_MASTER_DATA.forEach(s => Object.assign(s, {
+    // 추가 종목 (티커|이름|섹터코드). 섹터는 초기 추정값이며 실시간 조회 후 Yahoo 분류로 갱신됩니다.
+    const SCREENER_EXTRA_UNIVERSE = `
+GOOG|Alphabet Inc. Class C|T
+IBM|International Business Machines|T
+CSCO|Cisco Systems|T
+ACN|Accenture plc|T
+INTU|Intuit Inc.|T
+PANW|Palo Alto Networks|T
+CRWD|CrowdStrike Holdings|T
+FTNT|Fortinet Inc.|T
+ADSK|Autodesk Inc.|T
+WDAY|Workday Inc.|T
+TEAM|Atlassian Corporation|T
+DDOG|Datadog Inc.|T
+ZS|Zscaler Inc.|T
+NET|Cloudflare Inc.|T
+MDB|MongoDB Inc.|T
+SHOP|Shopify Inc.|T
+XYZ|Block Inc.|F
+ANET|Arista Networks|T
+DELL|Dell Technologies|T
+HPQ|HP Inc.|T
+HPE|Hewlett Packard Enterprise|T
+NTAP|NetApp Inc.|T
+WDC|Western Digital|T
+STX|Seagate Technology|T
+KEYS|Keysight Technologies|T
+TYL|Tyler Technologies|T
+ROP|Roper Technologies|T
+CDNS|Cadence Design Systems|T
+SNPS|Synopsys Inc.|T
+FICO|Fair Isaac Corporation|T
+ADP|Automatic Data Processing|T
+PAYX|Paychex Inc.|T
+GDDY|GoDaddy Inc.|T
+TWLO|Twilio Inc.|T
+OKTA|Okta Inc.|T
+HUBS|HubSpot Inc.|T
+PINS|Pinterest Inc.|M
+SNAP|Snap Inc.|M
+RBLX|Roblox Corporation|T
+U|Unity Software|T
+APP|AppLovin Corporation|T
+TTD|The Trade Desk|T
+SPOT|Spotify Technology|M
+MELI|MercadoLibre Inc.|C
+SE|Sea Limited|C
+BABA|Alibaba Group ADR|C
+PDD|PDD Holdings ADR|C
+JD|JD.com ADR|C
+BIDU|Baidu Inc. ADR|T
+CPNG|Coupang Inc.|C
+SAP|SAP SE ADR|T
+AMAT|Applied Materials|S
+LRCX|Lam Research|S
+KLAC|KLA Corporation|S
+ASML|ASML Holding ADR|S
+TXN|Texas Instruments|S
+ADI|Analog Devices|S
+MRVL|Marvell Technology|S
+NXPI|NXP Semiconductors|S
+ON|ON Semiconductor|S
+MCHP|Microchip Technology|S
+MPWR|Monolithic Power Systems|S
+TER|Teradyne Inc.|S
+GFS|GlobalFoundries|S
+SWKS|Skyworks Solutions|S
+QRVO|Qorvo Inc.|S
+T|AT&T Inc.|M
+VZ|Verizon Communications|M
+TMUS|T-Mobile US|M
+CMCSA|Comcast Corporation|M
+CHTR|Charter Communications|M
+WBD|Warner Bros. Discovery|M
+EA|Electronic Arts|M
+TTWO|Take-Two Interactive|M
+LYV|Live Nation Entertainment|M
+FOXA|Fox Corporation|M
+MTCH|Match Group|M
+HD|The Home Depot|C
+LOW|Lowe's Companies|C
+TGT|Target Corporation|C
+TJX|The TJX Companies|C
+ROST|Ross Stores|C
+DG|Dollar General|C
+DLTR|Dollar Tree|C
+BKNG|Booking Holdings|C
+MAR|Marriott International|C
+HLT|Hilton Worldwide|C
+CMG|Chipotle Mexican Grill|C
+YUM|Yum! Brands|C
+DPZ|Domino's Pizza|C
+DRI|Darden Restaurants|C
+LULU|Lululemon Athletica|C
+DECK|Deckers Outdoor|C
+ORLY|O'Reilly Automotive|C
+AZO|AutoZone Inc.|C
+F|Ford Motor Company|A
+GM|General Motors|A
+RIVN|Rivian Automotive|A
+LCID|Lucid Group|A
+NIO|NIO Inc. ADR|A
+XPEV|XPeng Inc. ADR|A
+LI|Li Auto ADR|A
+TM|Toyota Motor ADR|A
+EBAY|eBay Inc.|C
+ETSY|Etsy Inc.|C
+CHWY|Chewy Inc.|C
+PG|Procter & Gamble|C
+CL|Colgate-Palmolive|C
+KMB|Kimberly-Clark|C
+MDLZ|Mondelez International|C
+GIS|General Mills|C
+HSY|The Hershey Company|C
+KHC|The Kraft Heinz Company|C
+MNST|Monster Beverage|C
+KDP|Keurig Dr Pepper|C
+STZ|Constellation Brands|C
+PM|Philip Morris International|C
+MO|Altria Group|C
+EL|The Estee Lauder Companies|C
+TSN|Tyson Foods|C
+SYY|Sysco Corporation|C
+KR|The Kroger Co.|C
+CCL|Carnival Corporation|C
+RCL|Royal Caribbean Group|C
+NCLH|Norwegian Cruise Line|C
+DAL|Delta Air Lines|E
+UAL|United Airlines Holdings|E
+AAL|American Airlines Group|E
+LUV|Southwest Airlines|E
+EXPE|Expedia Group|C
+LVS|Las Vegas Sands|C
+WYNN|Wynn Resorts|C
+MGM|MGM Resorts International|C
+DKNG|DraftKings Inc.|C
+TPR|Tapestry Inc.|C
+RL|Ralph Lauren|C
+TMO|Thermo Fisher Scientific|H
+DHR|Danaher Corporation|H
+ABT|Abbott Laboratories|H
+ISRG|Intuitive Surgical|H
+SYK|Stryker Corporation|H
+BSX|Boston Scientific|H
+MDT|Medtronic plc|H
+EW|Edwards Lifesciences|H
+BDX|Becton Dickinson|H
+VRTX|Vertex Pharmaceuticals|H
+REGN|Regeneron Pharmaceuticals|H
+GILD|Gilead Sciences|H
+AMGN|Amgen Inc.|H
+BMY|Bristol-Myers Squibb|H
+BIIB|Biogen Inc.|H
+MRNA|Moderna Inc.|H
+ILMN|Illumina Inc.|H
+HUM|Humana Inc.|H
+CI|The Cigna Group|H
+ELV|Elevance Health|H
+CNC|Centene Corporation|H
+MCK|McKesson Corporation|H
+COR|Cencora Inc.|H
+HCA|HCA Healthcare|H
+IQV|IQVIA Holdings|H
+A|Agilent Technologies|H
+DXCM|DexCom Inc.|H
+IDXX|IDEXX Laboratories|H
+ALGN|Align Technology|H
+PODD|Insulet Corporation|H
+VEEV|Veeva Systems|H
+ZTS|Zoetis Inc.|H
+GEHC|GE HealthCare Technologies|H
+CVS|CVS Health|H
+AZN|AstraZeneca ADR|H
+NVS|Novartis AG ADR|H
+SNY|Sanofi ADR|H
+WFC|Wells Fargo & Company|F
+C|Citigroup Inc.|F
+SCHW|Charles Schwab|F
+BLK|BlackRock Inc.|F
+SPGI|S&P Global|F
+MCO|Moody's Corporation|F
+ICE|Intercontinental Exchange|F
+CME|CME Group|F
+AXP|American Express|F
+COF|Capital One Financial|F
+PYPL|PayPal Holdings|F
+USB|U.S. Bancorp|F
+PNC|The PNC Financial Services Group|F
+TFC|Truist Financial|F
+MET|MetLife Inc.|F
+PRU|Prudential Financial|F
+AIG|American International Group|F
+CB|Chubb Limited|F
+TRV|The Travelers Companies|F
+PGR|The Progressive Corporation|F
+ALL|The Allstate Corporation|F
+AFL|Aflac Inc.|F
+MMC|Marsh & McLennan|F
+AON|Aon plc|F
+BX|Blackstone Inc.|F
+KKR|KKR & Co.|F
+APO|Apollo Global Management|F
+SOFI|SoFi Technologies|F
+AFRM|Affirm Holdings|F
+UPST|Upstart Holdings|F
+NU|Nu Holdings|F
+IBKR|Interactive Brokers Group|F
+MSTR|MicroStrategy Inc.|F
+COP|ConocoPhillips|E
+EOG|EOG Resources|E
+SLB|Schlumberger|E
+OXY|Occidental Petroleum|E
+PSX|Phillips 66|E
+MPC|Marathon Petroleum|E
+VLO|Valero Energy|E
+KMI|Kinder Morgan|E
+WMB|The Williams Companies|E
+OKE|ONEOK Inc.|E
+HAL|Halliburton Company|E
+DVN|Devon Energy|E
+FANG|Diamondback Energy|E
+BKR|Baker Hughes|E
+HON|Honeywell International|E
+UPS|United Parcel Service|E
+FDX|FedEx Corporation|E
+BA|The Boeing Company|E
+NOC|Northrop Grumman|E
+GD|General Dynamics|E
+LHX|L3Harris Technologies|E
+DE|Deere & Company|E
+EMR|Emerson Electric|E
+ETN|Eaton Corporation|E
+ITW|Illinois Tool Works|E
+PH|Parker-Hannifin|E
+MMM|3M Company|E
+WM|Waste Management|E
+RSG|Republic Services|E
+CSX|CSX Corporation|E
+UNP|Union Pacific|E
+NSC|Norfolk Southern|E
+URI|United Rentals|E
+PCAR|PACCAR Inc.|E
+GWW|W.W. Grainger|E
+FAST|Fastenal Company|E
+CARR|Carrier Global|E
+OTIS|Otis Worldwide|E
+TT|Trane Technologies|E
+JCI|Johnson Controls|E
+LIN|Linde plc|E
+APD|Air Products and Chemicals|E
+SHW|The Sherwin-Williams Company|E
+ECL|Ecolab Inc.|E
+FCX|Freeport-McMoRan|E
+NEM|Newmont Corporation|E
+NUE|Nucor Corporation|E
+NEE|NextEra Energy|E
+DUK|Duke Energy|E
+SO|The Southern Company|E
+D|Dominion Energy|E
+AEP|American Electric Power|E
+SRE|Sempra|E
+EXC|Exelon Corporation|E
+VST|Vistra Corp.|E
+CEG|Constellation Energy|E
+PLUG|Plug Power|E
+ENPH|Enphase Energy|E
+FSLR|First Solar|E
+OKLO|Oklo Inc.|E
+RKLB|Rocket Lab USA|E
+JOBY|Joby Aviation|E
+PLD|Prologis Inc.|E
+AMT|American Tower|E
+EQIX|Equinix Inc.|E
+SPG|Simon Property Group|E
+O|Realty Income|E
+PSA|Public Storage|E
+DLR|Digital Realty Trust|E
+CCI|Crown Castle|E
+WELL|Welltower Inc.|E
+RIO|Rio Tinto ADR|E
+BHP|BHP Group ADR|E
+SHEL|Shell plc ADR|E
+BP|BP p.l.c. ADR|E
+UL|Unilever PLC ADR|C
+DEO|Diageo plc ADR|C
+SONY|Sony Group ADR|T
+`;
+    const SECTOR_CODES = { T: 'Tech', S: 'Semiconductors', A: 'Automotive', H: 'Healthcare', F: 'Finance', C: 'Consumer', E: 'Energy', M: 'Communication' };
+    SCREENER_EXTRA_UNIVERSE.trim().split('\n').forEach(line => {
+      const [ticker, name, code] = line.trim().split('|');
+      if (ticker && !SCREENER_MASTER_DATA.some(s => s.ticker === ticker)) {
+        SCREENER_MASTER_DATA.push({ ticker, name, sector: SECTOR_CODES[code] || 'Tech' });
+      }
+    });
+
+    // 실시간 값이 채워지기 전의 기본값 (빈칸). rank = 기본 표시 순서
+    const SCREENER_BLANK = {
       capCategory: null, marketCapVal: null, marketCap: '', price: null, change: '',
-      pe: null, peg: null, roe: null, shortFloat: null, rsi: null, sma20Diff: '', consensus: '', loaded: false
-    }));
+      pe: null, peg: null, roe: null, shortFloat: null, rsi: null, sma20Diff: '', consensus: '',
+      loaded: false, loading: false, missing: false, searched: false
+    };
+    SCREENER_MASTER_DATA.forEach((s, i) => Object.assign(s, SCREENER_BLANK, { rank: i }));
 
     function capCategoryFromVal(billions) {
       if (!Number.isFinite(billions)) return null;
@@ -3189,46 +3488,109 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       entry.capCategory = capCategoryFromVal(mcapB);
       entry.consensus = fx.consensus || '';
       if (fx.name) entry.name = fx.name;
+      if (fx.sector) entry.sector = mapYahooSector(fx.sector, fx.industry);
     }
 
-    let screenerHydrating = false;
+    // ---- 스크리너 실시간 로딩 큐: 화면에 보이는 종목을 우선, 동시 5건 ----
+    const screenerQueue = [];
+    let screenerActive = 0;
+    let screenerDoneSinceRender = 0;
+    const SCREENER_CONCURRENCY = 5;
 
-    function setScreenerStatus(text) {
+    function updateScreenerStatus() {
       const el = document.getElementById('screenerStatus');
-      if (el) el.textContent = text;
+      const btn = document.getElementById('screenerLoadAllBtn');
+      if (!el) return;
+      const valid = SCREENER_MASTER_DATA.filter(e => !e.missing);
+      const loaded = valid.filter(e => e.loaded).length;
+      const pending = screenerQueue.length + screenerActive;
+      const hasProxy = !!getProxyUrl();
+      let text = '';
+      if (!hasProxy) {
+        text = '자체 프록시를 연결하면 가격·지표가 채워집니다';
+      } else {
+        text = `불러옴 ${loaded}/${valid.length}`;
+        if (pending) text += ` · 로딩 중 ${pending}`;
+        const dataFilter = ['filterMarketCap', 'filterPE', 'filterRSI', 'filterShortFloat', 'filterSMA20'].some(id => document.getElementById(id).value !== 'ALL') || screenerState.extra.minRoe !== null;
+        if (dataFilter && loaded < valid.length) text += ' · 지표 필터는 불러온 종목에만 적용됩니다';
+      }
+      el.textContent = text;
+      if (btn) btn.classList.toggle('hidden', !hasProxy || loaded >= valid.length || pending > 0);
     }
 
-    // 프록시가 설정되어 있을 때만 전 종목의 실시간 값을 채운다 (동시 5건)
-    async function hydrateScreener(force = false) {
-      if (screenerHydrating) return;
-      if (!getProxyUrl()) {
-        setScreenerStatus('자체 프록시를 연결하면 가격·지표가 채워집니다');
-        return;
-      }
-      if (force) SCREENER_MASTER_DATA.forEach(e => { e.loaded = false; });
-      const queue = SCREENER_MASTER_DATA.filter(e => !e.loaded);
-      if (queue.length === 0) { setScreenerStatus(''); return; }
+    function enqueueScreener(entries, priority = false) {
+      if (!getProxyUrl()) return;
+      const list = priority ? [...entries].reverse() : entries;
+      list.forEach(e => {
+        if (e.loaded || e.missing) return;
+        if (e.loading) {
+          if (priority) {
+            const i = screenerQueue.indexOf(e);
+            if (i > 0) { screenerQueue.splice(i, 1); screenerQueue.unshift(e); }
+          }
+          return;
+        }
+        e.loading = true;
+        if (priority) screenerQueue.unshift(e); else screenerQueue.push(e);
+      });
+      pumpScreener();
+    }
 
-      screenerHydrating = true;
-      const total = queue.length;
-      let done = 0;
-      setScreenerStatus(`실시간 데이터 로딩 0/${total}`);
-      const runner = async () => {
-        while (queue.length) {
-          const entry = queue.shift();
+    function pumpScreener() {
+      while (screenerActive < SCREENER_CONCURRENCY && screenerQueue.length) {
+        const entry = screenerQueue.shift();
+        screenerActive++;
+        (async () => {
           try {
             const [market, f] = await Promise.all([fetchRealYahooFinanceData(entry.ticker, '6mo'), fetchFundamentals(entry.ticker)]);
-            if (market && !market.notFound) applyLiveToEntry(entry, market, f);
+            if (market && market.notFound) entry.missing = true;
+            else if (market) applyLiveToEntry(entry, market, f);
           } catch (e) { /* 실패한 종목은 빈칸으로 둔다 */ }
           entry.loaded = true;
-          done++;
-          setScreenerStatus(done < total ? `실시간 데이터 로딩 ${done}/${total}` : '');
-          if (done % 5 === 0 || done === total) runScreenerFilter();
-        }
-      };
-      await Promise.all(Array.from({ length: 5 }, runner));
-      screenerHydrating = false;
-      runScreenerFilter();
+          entry.loading = false;
+          screenerActive--;
+          screenerDoneSinceRender++;
+          if (screenerDoneSinceRender >= 5 || (!screenerQueue.length && !screenerActive)) {
+            screenerDoneSinceRender = 0;
+            runScreenerFilter();
+          } else {
+            updateScreenerStatus();
+          }
+          pumpScreener();
+        })();
+      }
+      updateScreenerStatus();
+    }
+
+    function loadAllScreener() {
+      if (!getProxyUrl()) {
+        showToast('프록시 필요', '설정에서 자체 프록시를 연결해 주세요.', 'info');
+        return;
+      }
+      const pending = SCREENER_MASTER_DATA.filter(e => !e.loaded && !e.missing);
+      if (pending.length === 0) return;
+      if (!confirm(`${pending.length}개 종목의 실시간 데이터를 모두 불러옵니다.\n종목당 요청 2회, 몇 분 걸릴 수 있습니다. 계속할까요?`)) return;
+      enqueueScreener(pending, false);
+    }
+
+    // 프록시 설정이 바뀌면 처음부터 다시 불러온다
+    function resetScreenerLoading() {
+      screenerQueue.length = 0;
+      SCREENER_MASTER_DATA.forEach(e => { e.loaded = false; e.loading = false; e.missing = false; });
+    }
+
+    // 분석 탭에서 검색한 종목(또는 직접 등록한 종목)을 스크리너에 즉시 반영한다.
+    function upsertScreenerEntry(ticker, market, fundamentals) {
+      if (!market || market.notFound) return null;
+      let e = SCREENER_MASTER_DATA.find(s => s.ticker === ticker);
+      if (!e) {
+        const minRank = SCREENER_MASTER_DATA.reduce((m, s) => Math.min(m, s.rank), 0);
+        e = { ticker, name: market.name || ticker, sector: 'Tech', ...SCREENER_BLANK, rank: minRank - 1, searched: true };
+        SCREENER_MASTER_DATA.unshift(e);
+      }
+      applyLiveToEntry(e, market, fundamentals);
+      e.loaded = true; e.loading = false; e.missing = false;
+      return e;
     }
 
     // 실제 시세·재무(프록시)를 조회해 스크리너에 등록. 조회에 실패하면 아무것도 만들지 않고 안내만 한다.
@@ -3259,14 +3621,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         return;
       }
 
-      const newEntry = {
-        ticker: market.ticker, name: market.name, sector: mapYahooSector(f?.sector, f?.industry),
-        capCategory: null, marketCapVal: null, marketCap: '', price: null, change: '',
-        pe: null, peg: null, roe: null, shortFloat: null, rsi: null, sma20Diff: '', consensus: '', loaded: true
-      };
-      applyLiveToEntry(newEntry, market, f);
-
-      SCREENER_MASTER_DATA.unshift(newEntry);
+      upsertScreenerEntry(market.ticker, market, f);
       input.value = '';
       screenerState.searchKeyword = '';
       screenerState.page = 1;
@@ -3291,7 +3646,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         document.getElementById('filterSMA20').value = 'ABOVE';
         showToast("테마 로드", "20일선 위에서 질주 중인 모멘텀 성장주를 불러왔습니다.", "info");
       } else {
-        showToast("전체 로드", "스크리너에 등록된 전종목을 표시합니다.", "info");
+        showToast("전체 로드", "스크리너의 전종목을 표시합니다. (실시간 값은 화면에 보이는 종목부터 불러옵니다)", "info");
       }
       runScreenerFilter();
     }
@@ -3344,6 +3699,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const has = v => Number.isFinite(v);
 
       let filtered = SCREENER_MASTER_DATA.filter(item => {
+        if (item.missing) return false;
         if (kw) {
           const matchTicker = item.ticker.toUpperCase().includes(kw);
           const matchName = String(item.name || '').toUpperCase().includes(kw);
@@ -3417,6 +3773,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const pageStocks = filtered.slice(startIndex, startIndex + pageSize);
 
       renderScreenerTable(pageStocks, totalCount, startIndex, totalPages);
+      // 화면에 보이는 종목의 실시간 값을 우선 불러온다
+      enqueueScreener(pageStocks, true);
+      updateScreenerStatus();
     }
 
     function renderScreenerTable(stocks, totalCount, startIndex, totalPages) {
@@ -3495,6 +3854,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
             <td class="py-3 px-3 border-r border-slate-800 font-bold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-1.5">
               <span>${t}</span>
               ${stock.marketCap ? `<span class="text-[10px] text-slate-500">(${escapeHtml(stock.marketCap)})</span>` : ''}
+              ${stock.searched ? '<span class="text-[9px] px-1 rounded bg-cyan-900 text-cyan-300 font-sans">검색</span>' : ''}
             </td>
             <td class="py-3 px-3 border-r border-slate-800 text-white font-sans text-xs whitespace-nowrap">${escapeHtml(stock.name)}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-slate-400 font-sans text-[11px] whitespace-nowrap">${escapeHtml(stock.sector)}</td>
@@ -3566,6 +3926,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       document.getElementById('screenerSearchKeyword').value = '';
       screenerState.searchKeyword = '';
       screenerState.extra = { sectors: null, minRoe: null };
+      screenerState.sortBy = 'rank';
+      screenerState.sortDir = 'asc';
       screenerState.page = 1;
 
       if (shouldRender) {
