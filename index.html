@@ -4312,7 +4312,8 @@ SONY|Sony Group ADR|T
       const lt = (v, u = '', l) => ({ k: 'lt' + v, label: l || `${v}${u} 미만`, max: v, maxX: true });
       const le = (v, u = '', l) => ({ k: 'le' + v, label: l || `${v}${u} 이하`, max: v });
       const rng = (a, b, u = '', l) => ({ k: `r${a}_${b}`, label: l || `${a}~${b}${u}`, min: a, max: b });
-      const ltPos = (v, u = '') => ({ k: 'lt' + v, label: `${v}${u} 미만 (흑자)`, min: 0, minX: true, max: v, maxX: true }); // 적자(음수)는 제외
+      const ltPos = (v, u = '', s = '') => ({ k: 'lt' + v, label: `${v}${u} 미만${s}`, min: 0, minX: true, max: v, maxX: true }); // 0 이하(적자·산출 불가)는 제외
+      const ltPE = v => ltPos(v, '', ' (흑자)');
       const cat = (field, val, label) => ({ k: String(val), label, fn: e => e[field] === val, field });
       const flag = (k, label, fn, field) => ({ k, label, fn, field });
       const perf = extra => [gt(0, '%', '상승 (0% 초과)'), gt(10, '%'), ...(extra || []), gt(20, '%'), lt(0, '%', '하락 (0% 미만)'), lt(-10, '%'), lt(-20, '%')];
@@ -4345,8 +4346,8 @@ SONY|Sony Group ADR|T
           flag('us', '미국', e => e.country === 'United States', 'country'), flag('adr', '해외 (ADR)', e => !!e.country && e.country !== 'United States', 'country')] },
 
         // ---------------- 재무 ----------------
-        { id: 'pe', tab: 'fund', label: 'P/E (주가수익비율)', field: 'pe', guide: 'pe', opts: [ltPos(10), ltPos(15), ltPos(20), ltPos(25), ltPos(30), ltPos(50), gt(50), gt(0, '', '흑자 (P/E 산출)')] },
-        { id: 'fpe', tab: 'fund', label: 'Forward P/E', field: 'fpe', guide: 'fpe', opts: [ltPos(10), ltPos(15), ltPos(20), ltPos(25), ltPos(30)] },
+        { id: 'pe', tab: 'fund', label: 'P/E (주가수익비율)', field: 'pe', guide: 'pe', opts: [ltPE(10), ltPE(15), ltPE(20), ltPE(25), ltPE(30), ltPE(50), gt(50), gt(0, '', '흑자 (P/E 산출)')] },
+        { id: 'fpe', tab: 'fund', label: 'Forward P/E', field: 'fpe', guide: 'fpe', opts: [ltPE(10), ltPE(15), ltPE(20), ltPE(25), ltPE(30)] },
         { id: 'peg', tab: 'fund', label: 'PEG', field: 'peg', guide: 'peg', opts: [ltPos(1), ltPos(1.5), ltPos(2), ltPos(3)] },
         { id: 'ps', tab: 'fund', label: 'P/S (주가매출비율)', field: 'pS', guide: 'ps', opts: [ltPos(1), ltPos(2), ltPos(5), ltPos(10)] },
         { id: 'pb', tab: 'fund', label: 'P/B (주가순자산비율)', field: 'pB', guide: 'pb', opts: [ltPos(1), ltPos(2), ltPos(3), ltPos(5)] },
