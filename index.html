@@ -1577,6 +1577,18 @@
       return curSym(code) + n.toLocaleString('en-US', { minimumFractionDigits: zero ? 0 : 2, maximumFractionDigits: zero ? 0 : 2 });
     }
 
+    // Motley Fool 종목 페이지: https://www.fool.com/quote/nyse/crm/ (거래소를 모르면 검색 링크로 대체)
+    function foolUrl(ticker, exchange) {
+      const ex = String(exchange || '').toLowerCase();
+      let slug = '';
+      if (/nasdaq|^nm|^ngm|^ncm|^nms/.test(ex)) slug = 'nasdaq';
+      else if (/nyse|^nyq/.test(ex) && !/arca/.test(ex)) slug = 'nyse';
+      else if (/arca|^pcx/.test(ex)) slug = 'nysearca';
+      else if (/amex|^ase/.test(ex)) slug = 'nysemkt';
+      if (!slug) return `https://www.fool.com/search/solr.aspx?q=${encodeURIComponent(ticker)}`;
+      return `https://www.fool.com/quote/${slug}/${encodeURIComponent(ticker.toLowerCase().replace(/-/g, '.'))}/`;
+    }
+
     function pick(...vals) {
       for (const v of vals) {
         if (v === null || v === undefined || v === '') continue;
@@ -1745,6 +1757,7 @@
         high52: meta.fiftyTwoWeekHigh ?? Math.max(...history.slice(-252).map(c => c.high)),
         low52: meta.fiftyTwoWeekLow ?? Math.min(...history.slice(-252).map(c => c.low)),
         currency: meta.currency || 'USD',
+        exchange: meta.exchangeName || meta.fullExchangeName || '',
         history: history,
         isLive: true
       };
@@ -2253,7 +2266,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const btnLinkFool = document.getElementById('btnLinkFool');
       if (btnLinkGoogle) btnLinkGoogle.href = `https://www.google.com/search?q=${encodeURIComponent(upperTicker)}+stock+price+news`;
       if (btnLinkFinviz) btnLinkFinviz.href = `https://finviz.com/quote.ashx?t=${encodeURIComponent(upperTicker)}`;
-      if (btnLinkFool) btnLinkFool.href = `https://www.fool.com/search/solr.aspx?q=${encodeURIComponent(upperTicker)}`;
+      if (btnLinkFool) btnLinkFool.href = foolUrl(upperTicker, '');
 
       try {
         // 시세 + 재무 + 심층 데이터 병렬 수집 (AI는 호출하지 않는다 — 버튼을 눌렀을 때만)
@@ -2272,6 +2285,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
         const market = chartData && chartData.isLive ? chartData : null;
         activeCurrency = (market && market.currency) || 'USD';
+        if (btnLinkFool) btnLinkFool.href = foolUrl(upperTicker, (fundamentals && fundamentals.exchange) || (market && market.exchange) || '');
         const history = market ? market.history : [];
         const ind = computeIndicatorSeries(history);
         const tech = calculateRealIndicators(history, ind);
