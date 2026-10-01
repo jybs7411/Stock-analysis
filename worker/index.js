@@ -6,7 +6,8 @@
  *
  * Endpoints
  *   GET /api/health                              -> { ok: true, service: "pentanalyst-proxy" }
- *   GET /api/chart?symbol=NVDA&range=1y          -> Yahoo v8 chart JSON 그대로 (일봉)
+ *   GET /api/chart?symbol=NVDA&range=1y&interval=1d -> Yahoo v8 chart JSON 그대로 (interval: 1d | 1wk | 1mo)
+ *   GET /api/search?q=basf                       -> 회사명/티커 검색 (전 세계 거래소) [{symbol,name,exchange,type}]
  *   GET /api/fundamentals?symbol=NVDA            -> 정리된 재무 지표 JSON
  *   GET /api/deep?symbol=NVDA                    -> 실적·재무·애널리스트·수급·배당·뉴스 (심층 분석용)
  *
@@ -17,7 +18,9 @@
 const YAHOO = 'https://query1.finance.yahoo.com';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const SYMBOL_RE = /^[A-Z0-9.\-^=]{1,15}$/;
-const RANGES = new Set(['1mo', '3mo', '6mo', '1y', '2y', '5y']);
+const RANGES = new Set(['1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'max']);
+const INTERVALS = new Set(['1d', '1wk', '1mo']);
+const SEARCH_TYPES = new Set(['EQUITY', 'ETF', 'INDEX', 'CRYPTOCURRENCY']);
 
 // Yahoo crumb/cookie (isolate 메모리에 캐시)
 let crumbCache = null;
@@ -251,6 +254,35 @@ async function fetchNews(symbol) {
   }
 }
 
+// ---- symbol search (회사명 → 티커) ----
+export function mapSearch(data) {
+  const out = [];
+  const seen = new Set();
+  for (const q of (data && data.quotes) || []) {
+    const symbol = typeof q.symbol === 'string' ? q.symbol.toUpperCase() : '';
+    if (!SYMBOL_RE.test(symbol) || seen.has(symbol)) continue;
+    if (!SEARCH_TYPES.has(q.quoteType)) continue;
+    seen.add(symbol);
+    out.push({
+      symbol,
+      name: q.shortname || q.longname || null,
+      exchange: q.exchDisp || q.exchange || null,
+      type: q.quoteType,
+      sector: q.sectorDisp || q.sector || null
+    });
+  }
+  return out;
+}
+
+async function searchSymbols(query) {
+  const resp = await fetch(
+    `${YAHOO}/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0&listsCount=0&enableFuzzyQuery=false`,
+    { headers: { 'User-Agent': UA } }
+  );
+  if (!resp.ok) throw new Error(`yahoo search ${resp.status}`);
+  return mapSearch(await resp.json());
+}
+
 async function cached(request, ctx, ttl, producer) {
   const cache = typeof caches !== 'undefined' ? caches.default : null;
   if (cache) {
@@ -281,6 +313,16 @@ export default {
       return json({ ok: true, service: 'pentanalyst-proxy' }, 200, request, env);
     }
 
+    if (url.pathname === '/api/search') {
+      const q = (url.searchParams.get('q') || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 40);
+      if (q.length < 1) return json({ error: 'invalid query' }, 400, request, env);
+      try {
+        return await cached(request, ctx, 3600, async () => json({ query: q, results: await searchSymbols(q) }, 200, request, env, 3600));
+      } catch (err) {
+        return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
+      }
+    }
+
     const symbol = (url.searchParams.get('symbol') || '').trim().toUpperCase();
     if (url.pathname === '/api/chart' || url.pathname === '/api/fundamentals' || url.pathname === '/api/deep') {
       if (!SYMBOL_RE.test(symbol)) return json({ error: 'invalid symbol' }, 400, request, env);
@@ -289,9 +331,10 @@ export default {
     try {
       if (url.pathname === '/api/chart') {
         const range = RANGES.has(url.searchParams.get('range')) ? url.searchParams.get('range') : '1y';
+        const interval = INTERVALS.has(url.searchParams.get('interval')) ? url.searchParams.get('interval') : '1d';
         return await cached(request, ctx, 60, async () => {
           const upstream = await fetch(
-            `${YAHOO}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d&includePrePost=false`,
+            `${YAHOO}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includePrePost=false`,
             { headers: { 'User-Agent': UA } }
           );
           if (upstream.status === 404) return json({ error: 'not found' }, 404, request, env);
