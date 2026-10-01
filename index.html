@@ -33,6 +33,11 @@
     .font-mono-numbers {
       font-family: 'JetBrains Mono', monospace;
     }
+    .chart-lg-row { pointer-events: auto; display: flex; width: fit-content; max-width: 100%; }
+    #proChartContainer canvas { display: block; }
+    #chartFsRoot:fullscreen { display: flex; flex-direction: column; padding: 14px; background: #0a0f1d; height: 100vh; }
+    #chartFsRoot:fullscreen #chartWrap { flex: 1; min-height: 0; }
+    #chartFsRoot:fullscreen #proChartContainer { height: 100% !important; }
     /* Custom scrollbars */
     ::-webkit-scrollbar {
       width: 6px;
@@ -593,119 +598,95 @@
 
       </div>
 
-      <!-- Finviz Pro Interactive Technical Chart Station -->
-      <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-2xl space-y-4">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
-          <div>
-            <div class="flex items-center gap-2.5">
-              <span class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/40 text-cyan-400 flex items-center justify-center text-sm shadow">
-                <i class="fa-solid fa-chart-line"></i>
-              </span>
-              <h3 class="text-lg font-bold text-white tracking-wide">
-                Finviz 스타일 인터랙티브 프로 테크니컬 분석 차트
-              </h3>
-              <span id="chartPatternBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold">
-                빅터의 분석: 상승 추세 지속
-              </span>
+      <!-- Pro Chart Station (TradingView-style) -->
+      <section id="chartStation" class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 lg:p-5 shadow-2xl space-y-3">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+          <div class="flex items-center flex-wrap gap-2.5">
+            <span class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/40 text-cyan-400 flex items-center justify-center text-sm shadow">
+              <i class="fa-solid fa-chart-line"></i>
+            </span>
+            <h3 class="text-lg font-bold text-white tracking-wide">프로 차트 스테이션</h3>
+            <span id="chartPatternBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold">빅터의 분석: 상승 추세 지속</span>
+          </div>
+          <p class="text-[11px] text-slate-500 leading-snug"><i class="fa-regular fa-hand-pointer mr-1 text-slate-600"></i>휠 = 확대/축소 · 드래그 = 이동 · 가격축/날짜축 드래그 = 스케일 · 축 더블클릭 = 초기화 · 모바일은 두 손가락 핀치</p>
+        </div>
+
+        <!-- 스윙 프리셋 5종 -->
+        <div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+            <div class="flex items-center gap-2 text-xs font-bold text-slate-300">
+              <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+              <span>스윙 트레이딩 프리셋 5종 <span class="font-normal text-slate-500">— 클릭하면 지표·신호·성과 요약이 차트에 그대로 적용됩니다 (다시 클릭하면 해제)</span></span>
             </div>
-            <p class="text-xs text-slate-400 mt-1">
-              캔들스틱, 이동평균선(SMA 20/50/200), 볼린저 밴드, 지지·저항선 및 RSI/MACD 오실레이터를 정밀 분석합니다.
-            </p>
+          </div>
+          <div id="presetCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2"></div>
+        </div>
+
+        <div id="chartFsRoot" class="space-y-2 bg-[#131e32]">
+          <!-- 툴바 -->
+          <div id="chartToolbar" class="flex flex-wrap items-center gap-2 text-xs">
+            <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800">
+              <button type="button" id="iv-D" onclick="chSetInterval('D')">일</button>
+              <button type="button" id="iv-W" onclick="chSetInterval('W')">주</button>
+              <button type="button" id="iv-M" onclick="chSetInterval('M')">월</button>
+            </div>
+            <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800">
+              <button type="button" id="rg-1M" onclick="chSetRange('1M')">1M</button>
+              <button type="button" id="rg-3M" onclick="chSetRange('3M')">3M</button>
+              <button type="button" id="rg-6M" onclick="chSetRange('6M')">6M</button>
+              <button type="button" id="rg-1Y" onclick="chSetRange('1Y')">1Y</button>
+              <button type="button" id="rg-2Y" onclick="chSetRange('2Y')">2Y</button>
+              <button type="button" id="rg-5Y" onclick="chSetRange('5Y')">5Y</button>
+              <button type="button" id="rg-ALL" onclick="chSetRange('ALL')">전체</button>
+            </div>
+            <select id="chartTypeSel" onchange="chSetType(this.value)" title="차트 유형" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 outline-none focus:border-cyan-400"></select>
+            <button type="button" id="btnIndicators" onclick="chOpenIndicators()" class="px-3 py-1 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-semibold transition flex items-center gap-1.5"><i class="fa-solid fa-chart-simple"></i>지표 추가</button>
+            <button type="button" id="btnLog" onclick="chToggleLog()" title="로그 스케일">로그</button>
+            <button type="button" id="btnAuto" onclick="chToggleAuto()" title="가격 자동 스케일">자동</button>
+            <button type="button" id="btnMagnet" onclick="chToggleMagnet()" title="그림을 그릴 때 캔들의 시·고·저·종가에 달라붙기"><i class="fa-solid fa-magnet mr-1 text-[10px]"></i>자석</button>
+            <span class="flex-1"></span>
+            <button type="button" id="btnSnap" onclick="chSnapshot()" title="차트를 PNG 이미지로 저장" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white"><i class="fa-solid fa-camera"></i></button>
+            <button type="button" id="btnFull" onclick="chToggleFullscreen()" title="전체화면" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white"><i class="fa-solid fa-expand"></i></button>
           </div>
 
-          <!-- Chart Control Toolbar -->
-          <div class="flex flex-wrap items-center gap-2">
-            <!-- Timeframe selector -->
-            <div class="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-800 text-xs">
-              <button onclick="setChartTimeframe('1M')" id="tf-1M" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition">1M</button>
-              <button onclick="setChartTimeframe('3M')" id="tf-3M" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition">3M</button>
-              <button onclick="setChartTimeframe('6M')" id="tf-6M" class="px-2.5 py-1 rounded-lg bg-cyan-600 text-white font-bold transition shadow">6M</button>
-              <button onclick="setChartTimeframe('1Y')" id="tf-1Y" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition">1Y</button>
-            </div>
+          <div id="chartWrap" class="flex gap-1.5 min-h-0">
+            <!-- 그리기 도구 -->
+            <div id="drawTools" class="flex flex-col gap-1 w-9 shrink-0 bg-slate-950/70 border border-slate-800 rounded-xl p-0.5 self-start"></div>
 
-            <!-- Indicator Toggles -->
-            <div class="flex items-center gap-1.5 flex-wrap text-xs">
-              <button onclick="toggleIndicator('sma20')" id="btn-sma20" class="px-2.5 py-1 rounded-lg border border-amber-500/50 bg-amber-950/40 text-amber-300 font-medium transition flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-amber-400"></span>SMA 20
-              </button>
-              <button onclick="toggleIndicator('sma50')" id="btn-sma50" class="px-2.5 py-1 rounded-lg border border-blue-500/50 bg-blue-950/40 text-blue-300 font-medium transition flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-blue-400"></span>SMA 50
-              </button>
-              <button onclick="toggleIndicator('sma200')" id="btn-sma200" class="px-2.5 py-1 rounded-lg border border-purple-500/50 bg-purple-950/40 text-purple-300 font-medium transition flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-purple-400"></span>SMA 200
-              </button>
-              <button onclick="toggleIndicator('bb')" id="btn-bb" class="px-2.5 py-1 rounded-lg border border-cyan-500/40 bg-cyan-950/40 text-cyan-300 font-medium transition flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>볼린저밴드
-              </button>
-              <button onclick="toggleIndicator('sr')" id="btn-sr" class="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-900 text-slate-400 font-medium hover:border-slate-500 transition flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-rose-400"></span>지지/저항
-              </button>
-            </div>
-
-            <!-- Sub-chart switch -->
-            <div class="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-800 text-xs">
-              <button onclick="setSubChart('rsi')" id="sub-rsi" class="px-2.5 py-1 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-700 font-semibold transition">RSI(14)</button>
-              <button onclick="setSubChart('volume')" id="sub-volume" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition">거래량</button>
-              <button onclick="setSubChart('macd')" id="sub-macd" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition">MACD</button>
+            <div id="proChartContainer" tabindex="0" class="relative flex-1 min-w-0 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden select-none outline-none focus:border-slate-600" style="height:620px">
+              <canvas id="chartCanvas" class="absolute left-0 top-0"></canvas>
+              <canvas id="chartOverlay" class="absolute left-0 top-0 pointer-events-none"></canvas>
+              <div id="chartLegend" class="absolute top-1.5 left-2 z-10 text-[11px] font-mono-numbers space-y-0.5 pointer-events-none"></div>
+              <div id="subLegends" class="absolute inset-0 z-10 pointer-events-none text-[11px] font-mono-numbers"></div>
+              <div id="studyEditor" class="hidden absolute z-30 top-24 left-3 w-60 bg-slate-900 border border-slate-600 rounded-xl p-3 shadow-2xl"></div>
+              <div id="chartLoading" class="hidden absolute inset-0 z-30 grid place-items-center bg-slate-950/60 text-sm text-cyan-300"><span><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>차트 데이터 불러오는 중...</span></div>
+              <div id="chartEmpty" class="hidden absolute inset-0 z-20 grid place-items-center text-sm text-slate-500">표시할 시세 데이터가 없습니다. (설정에서 자체 프록시를 연결하세요)</div>
             </div>
           </div>
         </div>
 
-        <!-- Live Crosshair Inspection HUD -->
-        <div id="chartHud" class="bg-slate-950/80 border border-slate-800/80 rounded-xl px-4 py-2 text-xs font-mono-numbers flex flex-wrap items-center justify-between gap-3 text-slate-300">
-          <div class="flex items-center gap-3">
-            <span class="text-cyan-400 font-bold" id="hudDate">DATE: --</span>
-            <span>O: <strong class="text-white" id="hudOpen">$0.00</strong></span>
-            <span>H: <strong class="text-emerald-400" id="hudHigh">$0.00</strong></span>
-            <span>L: <strong class="text-rose-400" id="hudLow">$0.00</strong></span>
-            <span>C: <strong class="text-white" id="hudClose">$0.00</strong></span>
-            <span id="hudChange" class="font-bold text-emerald-400">+0.00%</span>
-          </div>
-          <div class="flex items-center gap-3 text-[11px] text-slate-400">
-            <span>Vol: <strong class="text-slate-200" id="hudVol">--</strong></span>
-            <span class="text-amber-300">SMA20: <strong id="hudSma20">--</strong></span>
-            <span class="text-blue-300">SMA50: <strong id="hudSma50">--</strong></span>
-            <span class="text-purple-300">SMA200: <strong id="hudSma200">--</strong></span>
-            <span class="text-cyan-300">RSI: <strong id="hudRsi">--</strong></span>
-          </div>
-        </div>
+        <!-- 프리셋 분석 패널 -->
+        <div id="presetPanel" class="hidden rounded-xl bg-slate-950/60 border border-slate-800 p-4 space-y-3"></div>
 
-        <!-- Main Chart & Sub-chart Canvas Wrapper -->
-        <div id="proChartContainer" class="relative bg-slate-950 rounded-2xl border border-slate-800 p-2 overflow-hidden select-none cursor-crosshair">
-          <!-- Main Candlestick Canvas -->
-          <div class="relative w-full h-[320px] sm:h-[380px]">
-            <canvas id="mainCandleCanvas" class="w-full h-full block"></canvas>
-            <div class="absolute top-2 left-3 pointer-events-none flex items-center gap-2 text-[10px] text-slate-500 font-mono-numbers">
-              <span id="chartSymbolWatermark" class="text-slate-600 font-bold text-sm">FINVIZ CANDLESTICK ENGINE</span>
-            </div>
-          </div>
-
-          <!-- Divider -->
-          <div class="border-t border-slate-800/80 my-1"></div>
-
-          <!-- Sub-Indicator Canvas (RSI / Volume / MACD) -->
-          <div class="relative w-full h-[100px] sm:h-[120px]">
-            <canvas id="subIndicatorCanvas" class="w-full h-full block"></canvas>
-            <div class="absolute top-1.5 left-3 pointer-events-none text-[10px] text-slate-400 font-mono-numbers flex items-center gap-2">
-              <span id="subChartTitle" class="text-cyan-400 font-bold">RSI (14)</span>
-              <span id="subChartLegend" class="text-slate-500">Overbought: 70 | Oversold: 30</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Chart Bottom Status Footer -->
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 pt-2 border-t border-slate-800/80">
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-lightbulb text-amber-400"></i>
-            <span>차트 위에 마우스를 올리거나 드래그하여 일자별 세부 시가/고가/저가/종가 및 보조지표 수치를 탐색하세요.</span>
-          </div>
-          <div class="flex items-center gap-3 font-mono-numbers text-[11px]">
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-emerald-500 inline-block"></span>상승 캔들</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-rose-500 inline-block"></span>하락 캔들</span>
-            <span class="text-slate-500">화폐: USD ($)</span>
-          </div>
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-slate-500 pt-1 border-t border-slate-800/80">
+          <div class="flex items-center gap-2"><i class="fa-solid fa-lightbulb text-amber-400"></i><span>그리기 도구: 왼쪽 도구를 고르고 차트를 클릭(드래그)하세요. 선택 후 <kbd class="px-1 rounded bg-slate-800 text-slate-300">Delete</kbd>로 삭제, 그림은 종목별로 이 브라우저에 자동 저장됩니다.</span></div>
+          <div class="flex items-center gap-3 font-mono-numbers"><span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-emerald-500 inline-block"></span>상승</span><span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-rose-500 inline-block"></span>하락</span></div>
         </div>
       </section>
+
+      <!-- 지표 선택 모달 -->
+      <div id="indicatorModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div class="bg-[#131e32] border border-cyan-800/70 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+          <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-800">
+            <div class="flex items-center gap-2"><i class="fa-solid fa-chart-simple text-cyan-400"></i><h3 class="text-base font-bold text-white">지표 · 분석 도구</h3></div>
+            <button type="button" onclick="chCloseIndicators()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="px-5 py-3 border-b border-slate-800">
+            <input id="indSearch" type="text" placeholder="지표 검색 (예: RSI, 볼린저, 일목, ADX, 거래량…)" autocomplete="off" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white outline-none focus:border-cyan-400">
+          </div>
+          <div id="indList" class="px-5 py-4 overflow-y-auto"></div>
+        </div>
+      </div>
 
       <!-- Deep analysis (Yahoo Finance via own proxy) -->
       <section id="deepSection" class="hidden space-y-4">
@@ -1257,7 +1238,7 @@
 
         if (currentAnalysisData) {
           setTimeout(() => {
-            renderProChart();
+            chResize(true);
             renderMiniTrendPreview();
           }, 50);
         }
@@ -1683,13 +1664,6 @@
       executeAnalysis(r.ticker);
     }
 
-    let chartState = {
-      timeframe: '6M',
-      indicators: { sma20: true, sma50: true, sma200: true, bb: true, sr: false },
-      subChart: 'rsi',
-      hoverIndex: null
-    };
-
     // ===== Utilities =====
     function escapeHtml(v) {
       return String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -1885,13 +1859,13 @@
 
     // 1순위: 자체 프록시(/api/chart). 2순위: 공개 CORS 프록시(병렬 경쟁). 모두 실패 시 null.
     // 프록시가 404(존재하지 않는 티커)를 돌려주면 { notFound: true }.
-    async function fetchRealYahooFinanceData(ticker, range = '1y') {
+    async function fetchRealYahooFinanceData(ticker, range = '1y', interval = '1d') {
       const sym = ticker.trim().toUpperCase();
       const proxy = getProxyUrl();
 
       if (proxy) {
         try {
-          const json = await fetchJsonWithTimeout(`${proxy}/api/chart?symbol=${encodeURIComponent(sym)}&range=${range}`, 10000);
+          const json = await fetchJsonWithTimeout(`${proxy}/api/chart?symbol=${encodeURIComponent(sym)}&range=${range}&interval=${interval}`, 10000);
           const parsed = parseYahooChart(json, sym);
           if (parsed) return parsed;
         } catch (err) {
@@ -1900,7 +1874,7 @@
         }
       }
 
-      const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=1d&includePrePost=false`;
+      const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=${interval}&includePrePost=false`;
       const publicProxies = [
         { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, wrapped: true },
         { url: `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`, wrapped: false },
@@ -2391,7 +2365,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       try {
         // 시세 + 재무 + 심층 데이터 병렬 수집 (AI는 호출하지 않는다 — 버튼을 눌렀을 때만)
         const [chartData, fundamentals, deep] = await Promise.all([
-          fetchRealYahooFinanceData(upperTicker),
+          fetchRealYahooFinanceData(upperTicker, '5y'),
           fetchFundamentals(upperTicker),
           fetchDeep(upperTicker)
         ]);
@@ -2421,7 +2395,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         loading.classList.add('hidden');
         dashboard.classList.remove('hidden');
 
-        renderProChart();
+        chSetData(upperTicker, history, activeCurrency);
         renderMiniTrendPreview();
 
         const name = currentAnalysisData.name;
@@ -3040,64 +3014,2361 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       `).join('');
     }
 
-    function setChartTimeframe(tf) {
-      chartState.timeframe = tf;
-      ['1M', '3M', '6M', '1Y'].forEach(t => {
-        const btn = document.getElementById(`tf-${t}`);
-        if (btn) {
-          if (t === tf) {
-            btn.className = 'px-2.5 py-1 rounded-lg bg-cyan-600 text-white font-bold transition shadow';
-          } else {
-            btn.className = 'px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition';
-          }
-        }
-      });
-      renderProChart();
-    }
+    // ===== 기술적 분석 라이브러리 (순수 함수 · DOM 의존 없음) =====
+    // 입력 h = [{t,date,open,high,low,close,volume}, ...] (오래된 것 → 최신), 출력은 h 와 같은 길이의 배열(계산 불가 구간은 null)
+    const TA = {};
+    const nullArr = n => new Array(n).fill(null);
 
-    function syncIndicatorButtons() {
-      Object.keys(chartState.indicators).forEach(ind => {
-        const btn = document.getElementById(`btn-${ind}`);
-        if (btn) btn.classList.toggle('opacity-40', !chartState.indicators[ind]);
-      });
-    }
-
-    function toggleIndicator(ind) {
-      chartState.indicators[ind] = !chartState.indicators[ind];
-      syncIndicatorButtons();
-      drawChart(chartState.hoverIndex);
-    }
-
-    function setSubChart(type) {
-      chartState.subChart = type;
-      ['rsi', 'volume', 'macd'].forEach(s => {
-        const btn = document.getElementById(`sub-${s}`);
-        if (btn) {
-          if (s === type) {
-            btn.className = 'px-2.5 py-1 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-700 font-semibold transition';
-          } else {
-            btn.className = 'px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition';
-          }
-        }
-      });
-      const title = document.getElementById('subChartTitle');
-      const legend = document.getElementById('subChartLegend');
-      if (type === 'rsi') {
-        title.textContent = 'RSI (14)';
-        legend.textContent = '과매수: 70 | 과매도: 30';
-      } else if (type === 'volume') {
-        title.textContent = '거래량 (Volume)';
-        legend.textContent = '노란선: 20일 평균 거래량';
-      } else {
-        title.textContent = 'MACD (12, 26, 9)';
-        legend.textContent = '청록: MACD | 주황: 시그널 | 막대: 히스토그램';
+    // null 을 허용하는 단순이동평균 (연속 p개가 모두 값이 있을 때만 계산)
+    TA.sma = (v, p) => {
+      const out = nullArr(v.length);
+      let sum = 0, cnt = 0;
+      for (let i = 0; i < v.length; i++) {
+        const x = v[i];
+        if (x !== null && x !== undefined) { sum += x; cnt++; }
+        if (i >= p) { const y = v[i - p]; if (y !== null && y !== undefined) { sum -= y; cnt--; } }
+        if (i >= p - 1 && cnt === p) out[i] = sum / p;
       }
-      drawChart(chartState.hoverIndex);
+      return out;
+    };
+    TA.ema = (v, p) => emaSeries(v, p);
+
+    // Wilder 평활(RMA): 첫 p개 평균으로 시작
+    TA.rma = (v, p) => {
+      const out = nullArr(v.length);
+      let prev = null, sum = 0, cnt = 0;
+      for (let i = 0; i < v.length; i++) {
+        const x = v[i];
+        if (x === null || x === undefined) continue;
+        if (prev === null) {
+          sum += x; cnt++;
+          if (cnt === p) { prev = sum / p; out[i] = prev; }
+        } else {
+          prev = (prev * (p - 1) + x) / p;
+          out[i] = prev;
+        }
+      }
+      return out;
+    };
+
+    TA.wma = (v, p) => {
+      const out = nullArr(v.length);
+      const den = p * (p + 1) / 2;
+      for (let i = p - 1; i < v.length; i++) {
+        let s = 0, ok = true;
+        for (let j = 0; j < p; j++) {
+          const x = v[i - p + 1 + j];
+          if (x === null || x === undefined) { ok = false; break; }
+          s += x * (j + 1);
+        }
+        if (ok) out[i] = s / den;
+      }
+      return out;
+    };
+
+    TA.highest = (v, p) => {
+      const out = nullArr(v.length);
+      for (let i = p - 1; i < v.length; i++) {
+        let m = -Infinity;
+        for (let j = i - p + 1; j <= i; j++) if (v[j] > m) m = v[j];
+        out[i] = m;
+      }
+      return out;
+    };
+    TA.lowest = (v, p) => {
+      const out = nullArr(v.length);
+      for (let i = p - 1; i < v.length; i++) {
+        let m = Infinity;
+        for (let j = i - p + 1; j <= i; j++) if (v[j] < m) m = v[j];
+        out[i] = m;
+      }
+      return out;
+    };
+
+    TA.trueRange = h => h.map((c, i) => i === 0
+      ? c.high - c.low
+      : Math.max(c.high - c.low, Math.abs(c.high - h[i - 1].close), Math.abs(c.low - h[i - 1].close)));
+    TA.atr = (h, p = 14) => TA.rma(TA.trueRange(h), p);
+
+    // 스토캐스틱 (%K 원시 → smooth 평활 → %D)
+    TA.stochastic = (h, kP = 14, dP = 3, smooth = 3) => {
+      const hh = TA.highest(h.map(c => c.high), kP);
+      const ll = TA.lowest(h.map(c => c.low), kP);
+      const raw = h.map((c, i) => (hh[i] === null || hh[i] === ll[i]) ? null : ((c.close - ll[i]) / (hh[i] - ll[i])) * 100);
+      const k = smooth > 1 ? TA.sma(raw, smooth) : raw;
+      return { k, d: TA.sma(k, dP) };
+    };
+
+    TA.williamsR = (h, p = 14) => {
+      const hh = TA.highest(h.map(c => c.high), p);
+      const ll = TA.lowest(h.map(c => c.low), p);
+      return h.map((c, i) => (hh[i] === null || hh[i] === ll[i]) ? null : ((hh[i] - c.close) / (hh[i] - ll[i])) * -100);
+    };
+
+    TA.cci = (h, p = 20) => {
+      const tp = h.map(c => (c.high + c.low + c.close) / 3);
+      const ma = TA.sma(tp, p);
+      return tp.map((x, i) => {
+        if (ma[i] === null) return null;
+        let md = 0;
+        for (let j = i - p + 1; j <= i; j++) md += Math.abs(tp[j] - ma[i]);
+        md /= p;
+        return md === 0 ? 0 : (x - ma[i]) / (0.015 * md);
+      });
+    };
+
+    // ADX / +DI / -DI (Wilder)
+    TA.adx = (h, p = 14) => {
+      const n = h.length;
+      const pdm = nullArr(n), mdm = nullArr(n);
+      for (let i = 1; i < n; i++) {
+        const up = h[i].high - h[i - 1].high, dn = h[i - 1].low - h[i].low;
+        pdm[i] = (up > dn && up > 0) ? up : 0;
+        mdm[i] = (dn > up && dn > 0) ? dn : 0;
+      }
+      const tr = TA.trueRange(h); tr[0] = null;
+      const atr = TA.rma(tr, p), pS = TA.rma(pdm, p), mS = TA.rma(mdm, p);
+      const plusDI = nullArr(n), minusDI = nullArr(n), dx = nullArr(n);
+      for (let i = 0; i < n; i++) {
+        if (atr[i] === null || atr[i] === 0 || pS[i] === null || mS[i] === null) continue;
+        plusDI[i] = (pS[i] / atr[i]) * 100;
+        minusDI[i] = (mS[i] / atr[i]) * 100;
+        const sum = plusDI[i] + minusDI[i];
+        dx[i] = sum === 0 ? 0 : (Math.abs(plusDI[i] - minusDI[i]) / sum) * 100;
+      }
+      return { adx: TA.rma(dx, p), plusDI, minusDI };
+    };
+
+    TA.obv = h => {
+      const out = nullArr(h.length);
+      let acc = 0;
+      for (let i = 0; i < h.length; i++) {
+        if (i > 0) acc += h[i].close > h[i - 1].close ? h[i].volume : h[i].close < h[i - 1].close ? -h[i].volume : 0;
+        out[i] = acc;
+      }
+      return out;
+    };
+
+    TA.mfi = (h, p = 14) => {
+      const n = h.length, out = nullArr(n);
+      const tp = h.map(c => (c.high + c.low + c.close) / 3);
+      for (let i = p; i < n; i++) {
+        let pos = 0, neg = 0;
+        for (let j = i - p + 1; j <= i; j++) {
+          const flow = tp[j] * h[j].volume;
+          if (tp[j] > tp[j - 1]) pos += flow; else if (tp[j] < tp[j - 1]) neg += flow;
+        }
+        out[i] = neg === 0 ? 100 : 100 - 100 / (1 + pos / neg);
+      }
+      return out;
+    };
+
+    // 차이킨 머니플로우
+    TA.cmf = (h, p = 20) => {
+      const n = h.length, out = nullArr(n);
+      const mfv = h.map(c => c.high === c.low ? 0 : (((c.close - c.low) - (c.high - c.close)) / (c.high - c.low)) * c.volume);
+      for (let i = p - 1; i < n; i++) {
+        let a = 0, b = 0;
+        for (let j = i - p + 1; j <= i; j++) { a += mfv[j]; b += h[j].volume; }
+        out[i] = b === 0 ? 0 : a / b;
+      }
+      return out;
+    };
+
+    TA.roc = (v, p = 12) => v.map((x, i) => (i >= p && v[i - p]) ? (x / v[i - p] - 1) * 100 : null);
+
+    // 엘더 포스인덱스 (EMA 평활)
+    TA.force = (h, p = 13) => TA.ema(h.map((c, i) => i === 0 ? null : (c.close - h[i - 1].close) * c.volume), p);
+
+    // 볼린저 %B / 밴드폭(%)
+    TA.bbExtra = (closes, p = 20, k = 2) => {
+      const b = bollingerSeries(closes, p, k);
+      return {
+        pctB: closes.map((c, i) => b.upper[i] === null || b.upper[i] === b.lower[i] ? null : (c - b.lower[i]) / (b.upper[i] - b.lower[i])),
+        width: closes.map((_, i) => b.mid[i] ? ((b.upper[i] - b.lower[i]) / b.mid[i]) * 100 : null)
+      };
+    };
+
+    // 켈트너 채널
+    TA.keltner = (h, p = 20, mult = 2, atrP = 10) => {
+      const mid = TA.ema(h.map(c => c.close), p);
+      const atr = TA.atr(h, atrP);
+      return {
+        mid,
+        upper: mid.map((m, i) => (m === null || atr[i] === null) ? null : m + mult * atr[i]),
+        lower: mid.map((m, i) => (m === null || atr[i] === null) ? null : m - mult * atr[i])
+      };
+    };
+
+    // 돈치안 채널 (당일 포함)
+    TA.donchian = (h, p = 20) => {
+      const upper = TA.highest(h.map(c => c.high), p), lower = TA.lowest(h.map(c => c.low), p);
+      return { upper, lower, mid: upper.map((u, i) => u === null ? null : (u + lower[i]) / 2) };
+    };
+
+    // 일목균형표: 선행스팬은 displacement 만큼 앞(미래)으로 그려지므로 길이가 n + displacement
+    TA.ichimoku = (h, tenkanP = 9, kijunP = 26, senkouP = 52, disp = 26) => {
+      const n = h.length;
+      const mid = p => {
+        const hh = TA.highest(h.map(c => c.high), p), ll = TA.lowest(h.map(c => c.low), p);
+        return hh.map((x, i) => x === null ? null : (x + ll[i]) / 2);
+      };
+      const tenkan = mid(tenkanP), kijun = mid(kijunP), sb = mid(senkouP);
+      const spanA = nullArr(n + disp), spanB = nullArr(n + disp), chikou = nullArr(n);
+      for (let i = 0; i < n; i++) {
+        if (tenkan[i] !== null && kijun[i] !== null) spanA[i + disp] = (tenkan[i] + kijun[i]) / 2;
+        if (sb[i] !== null) spanB[i + disp] = sb[i];
+        if (i - disp >= 0) chikou[i - disp] = h[i].close;
+      }
+      return { tenkan, kijun, spanA, spanB, chikou, disp };
+    };
+
+    // 파라볼릭 SAR → { sar, dir } (dir: 1 상승 / -1 하락)
+    TA.psar = (h, step = 0.02, maxAf = 0.2) => {
+      const n = h.length, sar = nullArr(n), dir = nullArr(n);
+      if (n < 3) return { sar, dir };
+      let up = h[1].close >= h[0].close;
+      let ep = up ? Math.max(h[0].high, h[1].high) : Math.min(h[0].low, h[1].low);
+      let s = up ? Math.min(h[0].low, h[1].low) : Math.max(h[0].high, h[1].high);
+      let af = step;
+      sar[1] = s; dir[1] = up ? 1 : -1;
+      for (let i = 2; i < n; i++) {
+        s = s + af * (ep - s);
+        if (up) {
+          s = Math.min(s, h[i - 1].low, h[i - 2].low);
+          if (h[i].low < s) { up = false; s = ep; ep = h[i].low; af = step; }
+          else if (h[i].high > ep) { ep = h[i].high; af = Math.min(af + step, maxAf); }
+        } else {
+          s = Math.max(s, h[i - 1].high, h[i - 2].high);
+          if (h[i].high > s) { up = true; s = ep; ep = h[i].high; af = step; }
+          else if (h[i].low < ep) { ep = h[i].low; af = Math.min(af + step, maxAf); }
+        }
+        sar[i] = s; dir[i] = up ? 1 : -1;
+      }
+      return { sar, dir };
+    };
+
+    // 슈퍼트렌드 → { line, dir }
+    TA.supertrend = (h, p = 10, mult = 3) => {
+      const n = h.length, atr = TA.atr(h, p);
+      const line = nullArr(n), dir = nullArr(n);
+      let fu = null, fl = null, d = 1;
+      for (let i = 0; i < n; i++) {
+        if (atr[i] === null) continue;
+        const mid = (h[i].high + h[i].low) / 2;
+        const bu = mid + mult * atr[i], bl = mid - mult * atr[i];
+        const pc = i > 0 ? h[i - 1].close : h[i].close;
+        fu = (fu === null || bu < fu || pc > fu) ? bu : fu;
+        fl = (fl === null || bl > fl || pc < fl) ? bl : fl;
+        if (d === 1 && h[i].close < fl) d = -1;
+        else if (d === -1 && h[i].close > fu) d = 1;
+        line[i] = d === 1 ? fl : fu;
+        dir[i] = d;
+      }
+      return { line, dir };
+    };
+
+    // 지그재그: 반대 방향으로 dev(비율) 이상 되돌리면 피벗 확정. 마지막 극값은 pending 표시
+    TA.zigzag = (h, dev = 0.05) => {
+      const n = h.length, piv = [];
+      if (n < 2) return piv;
+      let dir = 0, hiI = 0, hiP = h[0].high, loI = 0, loP = h[0].low;
+      for (let i = 1; i < n; i++) {
+        const H = h[i].high, L = h[i].low;
+        if (dir === 0) {
+          if (H > hiP) { hiP = H; hiI = i; }
+          if (L < loP) { loP = L; loI = i; }
+          if (hiP >= loP * (1 + dev) && hiI !== loI) {
+            if (loI < hiI) { piv.push({ i: loI, price: loP, type: 'L' }); dir = 1; }
+            else { piv.push({ i: hiI, price: hiP, type: 'H' }); dir = -1; }
+          }
+        } else if (dir === 1) {
+          if (H > hiP) { hiP = H; hiI = i; }
+          else if (L <= hiP * (1 - dev)) { piv.push({ i: hiI, price: hiP, type: 'H' }); dir = -1; loP = L; loI = i; }
+        } else {
+          if (L < loP) { loP = L; loI = i; }
+          else if (H >= loP * (1 + dev)) { piv.push({ i: loI, price: loP, type: 'L' }); dir = 1; hiP = H; hiI = i; }
+        }
+      }
+      if (dir === 1) piv.push({ i: hiI, price: hiP, type: 'H', pending: true });
+      else if (dir === -1) piv.push({ i: loI, price: loP, type: 'L', pending: true });
+      return piv;
+    };
+
+    // 선형회귀 채널 (마지막 p개 봉): 반환 배열은 구간 밖 null
+    TA.linreg = (closes, p = 100, k = 2) => {
+      const n = closes.length, mid = nullArr(n), upper = nullArr(n), lower = nullArr(n);
+      if (n < 3) return { mid, upper, lower, slope: null };
+      const m = Math.min(p, n), start = n - m;
+      let sx = 0, sy = 0, sxy = 0, sxx = 0;
+      for (let j = 0; j < m; j++) { const y = closes[start + j]; sx += j; sy += y; sxy += j * y; sxx += j * j; }
+      const slope = (m * sxy - sx * sy) / (m * sxx - sx * sx || 1);
+      const icpt = (sy - slope * sx) / m;
+      let ss = 0;
+      for (let j = 0; j < m; j++) ss += (closes[start + j] - (icpt + slope * j)) ** 2;
+      const sd = Math.sqrt(ss / m);
+      for (let j = 0; j < m; j++) {
+        const v = icpt + slope * j;
+        mid[start + j] = v; upper[start + j] = v + k * sd; lower[start + j] = v - k * sd;
+      }
+      return { mid, upper, lower, slope };
+    };
+
+    // 자동 지지/저항: 프랙탈 피벗을 ATR 폭으로 군집화 → 터치 횟수가 많은 수평 레벨
+    TA.autoSR = (h, opts = {}) => {
+      const wing = opts.wing || 5, n = h.length;
+      if (n < wing * 2 + 5) return [];
+      const atrArr = TA.atr(h, 14);
+      const atr = atrArr[n - 1] || (h[n - 1].close * 0.02);
+      const tol = Math.max(atr * 0.6, h[n - 1].close * 0.004);
+      const pts = [];
+      for (let i = wing; i < n - wing; i++) {
+        let isH = true, isL = true;
+        for (let j = 1; j <= wing; j++) {
+          if (h[i].high < h[i - j].high || h[i].high <= h[i + j].high) isH = false;
+          if (h[i].low > h[i - j].low || h[i].low >= h[i + j].low) isL = false;
+        }
+        if (isH) pts.push({ price: h[i].high, i });
+        if (isL) pts.push({ price: h[i].low, i });
+      }
+      pts.sort((a, b) => a.price - b.price);
+      const clusters = [];
+      pts.forEach(p => {
+        const c = clusters[clusters.length - 1];
+        if (c && p.price - c.max <= tol) { c.items.push(p); c.max = p.price; }
+        else clusters.push({ items: [p], max: p.price });
+      });
+      const last = h[n - 1].close;
+      const levels = clusters.map(c => {
+        const price = c.items.reduce((a, b) => a + b.price, 0) / c.items.length;
+        const recent = Math.max(...c.items.map(x => x.i));
+        return { price, touches: c.items.length, lastIdx: recent, kind: price >= last ? 'R' : 'S' };
+      }).filter(l => l.touches >= (opts.minTouches || 2));
+      const maxLevels = opts.maxEach || 3;
+      const above = levels.filter(l => l.kind === 'R').sort((a, b) => a.price - b.price).slice(0, maxLevels);
+      const below = levels.filter(l => l.kind === 'S').sort((a, b) => b.price - a.price).slice(0, maxLevels);
+      return [...below, ...above];
+    };
+
+    // 하이킨아시 변환
+    TA.heikinAshi = h => {
+      const out = [];
+      h.forEach((c, i) => {
+        const close = (c.open + c.high + c.low + c.close) / 4;
+        const open = i === 0 ? (c.open + c.close) / 2 : (out[i - 1].open + out[i - 1].close) / 2;
+        out.push({ ...c, open, close, high: Math.max(c.high, open, close), low: Math.min(c.low, open, close) });
+      });
+      return out;
+    };
+
+    // 일봉 → 주봉 (월요일 시작 주). 마지막 주가 진행 중이면 그 주의 부분 봉을 포함
+    TA.resampleWeekly = h => {
+      const out = [];
+      let key = null, cur = null;
+      h.forEach(c => {
+        const k = Math.floor((Math.floor(c.t / 86400) + 3) / 7);
+        if (k !== key) { cur = { ...c }; out.push(cur); key = k; }
+        else { cur.high = Math.max(cur.high, c.high); cur.low = Math.min(cur.low, c.low); cur.close = c.close; cur.volume += c.volume; cur.t = c.t; cur.date = c.date; }
+      });
+      return out;
+    };
+
+    // 캔들 패턴: [{i, kind:'bull'|'bear'|'neutral', text}]
+    TA.patterns = h => {
+      const out = [], n = h.length;
+      const atr = TA.atr(h, 14);
+      for (let i = 2; i < n; i++) {
+        const c = h[i], p = h[i - 1];
+        const range = c.high - c.low, body = Math.abs(c.close - c.open);
+        if (range <= 0) continue;
+        const upper = c.high - Math.max(c.open, c.close), lower = Math.min(c.open, c.close) - c.low;
+        const pBody = Math.abs(p.close - p.open);
+        const fell = i >= 6 && h[i - 1].close < h[i - 6].close;
+        const rose = i >= 6 && h[i - 1].close > h[i - 6].close;
+        const big = atr[i] ? range >= atr[i] * 0.8 : true;
+        if (p.close < p.open && c.close > c.open && c.open <= p.close && c.close >= p.open && body > pBody && big) out.push({ i, kind: 'bull', text: '장악' });
+        else if (p.close > p.open && c.close < c.open && c.open >= p.close && c.close <= p.open && body > pBody && big) out.push({ i, kind: 'bear', text: '장악' });
+        else if (fell && lower >= body * 2 && upper <= body * 0.5 + range * 0.05 && lower >= range * 0.55) out.push({ i, kind: 'bull', text: '망치' });
+        else if (rose && upper >= body * 2 && lower <= body * 0.5 + range * 0.05 && upper >= range * 0.55) out.push({ i, kind: 'bear', text: '유성' });
+        else if (c.high > p.high && c.low < p.low && big && ((c.close > c.open && c.close > p.high) || (c.close < c.open && c.close < p.low))) out.push({ i, kind: c.close > c.open ? 'bull' : 'bear', text: 'OB' });
+        else if (c.high < p.high && c.low > p.low && h[i - 2] && p.high < h[i - 2].high && p.low > h[i - 2].low) out.push({ i, kind: 'neutral', text: 'ii' });
+      }
+      return out;
+    };
+
+    // 시간(초) ↔ 봉 인덱스(소수). 데이터 바깥은 평균 봉 간격으로 외삽 — 드로잉이 주기를 바꿔도 같은 시점에 붙도록
+    TA.timeIndex = h => {
+      const n = h.length;
+      let avg = 86400;
+      if (n >= 2) {
+        const gaps = [];
+        for (let i = 1; i < n; i++) gaps.push(h[i].t - h[i - 1].t);
+        gaps.sort((a, b) => a - b);
+        avg = gaps[Math.floor(gaps.length / 2)] || 86400;
+      }
+      const idxOfTime = t => {
+        if (!n) return 0;
+        if (t <= h[0].t) return (t - h[0].t) / avg;
+        if (t >= h[n - 1].t) return n - 1 + (t - h[n - 1].t) / avg;
+        let lo = 0, hi = n - 1;
+        while (hi - lo > 1) { const m = (lo + hi) >> 1; if (h[m].t <= t) lo = m; else hi = m; }
+        return lo + (t - h[lo].t) / ((h[hi].t - h[lo].t) || 1);
+      };
+      const timeOfIdx = i => {
+        if (!n) return 0;
+        if (i <= 0) return h[0].t + i * avg;
+        if (i >= n - 1) return h[n - 1].t + (i - (n - 1)) * avg;
+        const lo = Math.floor(i);
+        return h[lo].t + (i - lo) * (h[lo + 1].t - h[lo].t);
+      };
+      return { idxOfTime, timeOfIdx, avg };
+    };
+
+    // 거래 성과 요약 (수수료·슬리피지·세금 미반영)
+    TA.tradeStats = (trades, h) => {
+      const n = trades.length;
+      if (!n) return { n: 0 };
+      const rets = trades.map(t => t.ret);
+      const wins = rets.filter(r => r > 0), losses = rets.filter(r => r <= 0);
+      const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+      const gw = wins.reduce((x, y) => x + y, 0), gl = Math.abs(losses.reduce((x, y) => x + y, 0));
+      let eq = 1, peak = 1, mdd = 0;
+      trades.forEach(t => { eq *= 1 + t.ret / 100; peak = Math.max(peak, eq); mdd = Math.min(mdd, eq / peak - 1); });
+      const first = trades[0].i0, last = h.length - 1;
+      const bh = h[first] ? (h[last].close / h[first].close - 1) * 100 : null;
+      return {
+        n, winRate: (wins.length / n) * 100, avgRet: avg(rets), avgWin: avg(wins), avgLoss: avg(losses),
+        profitFactor: gl === 0 ? null : gw / gl, total: (eq - 1) * 100, mdd: mdd * 100,
+        avgBars: avg(trades.map(t => t.i1 - t.i0)), buyHold: bh, open: trades.some(t => t.open)
+      };
+    };
+    // ===== 지표(Study) 레지스트리 =====
+    // compute(h, params, st) → 렌더 명세. 공통 필드:
+    //   lines:[{v, color, width?, dash?, cv?(구간별 색), name?}]  fills:[{upper, lower, color}]  cloud:{a,b,up,down}
+    //   dots:{v, dir, up, down}  hist:{v, c(색 배열)}  markers:[{i,kind,text}]  hlines:[{price,color,label,dash}]
+    //   poly:{pts:[{i,price}], color}  levels:[값…](서브 기준선)  range:[lo,hi]  zero:true  fmt:'num'|'vol'|'pct'
+    const STUDY_PALETTE = ['#f59e0b', '#38bdf8', '#a855f7', '#22c55e', '#f472b6', '#facc15', '#fb7185', '#2dd4bf'];
+    const UP_COLOR = '#10b981', DOWN_COLOR = '#f43f5e';
+    const closesOf = h => h.map(c => c.close);
+    const P = (k, label, def, min, max, step = 1) => ({ k, label, def, min, max, step });
+
+    const STUDY_DEFS = {
+      // ---------- 메인 차트 오버레이 ----------
+      sma: {
+        cat: '추세 · 이동평균', pane: 'main', name: '단순 이동평균 (SMA)', desc: '최근 N일 종가의 평균. 추세 방향과 지지·저항 기준.',
+        params: [P('period', '기간', 20, 2, 400)], label: p => `SMA ${p.period}`,
+        compute: (h, p, st) => ({ lines: [{ v: TA.sma(closesOf(h), p.period), color: st.color, width: st.width || 1.6, name: `SMA ${p.period}` }] })
+      },
+      ema: {
+        cat: '추세 · 이동평균', pane: 'main', name: '지수 이동평균 (EMA)', desc: '최근 값에 가중치를 더 주는 이동평균. Al Brooks 의 20 EMA 기준선.',
+        params: [P('period', '기간', 20, 2, 400)], label: p => `EMA ${p.period}`,
+        compute: (h, p, st) => ({ lines: [{ v: TA.ema(closesOf(h), p.period), color: st.color, width: st.width || 1.6, name: `EMA ${p.period}` }] })
+      },
+      bb: {
+        cat: '변동성 · 채널', pane: 'main', name: '볼린저 밴드', desc: '이동평균 ± 표준편차 밴드. 밴드 폭이 좁아지면(스퀴즈) 큰 움직임 임박.',
+        params: [P('period', '기간', 20, 2, 200), P('mult', '배수', 2, 0.5, 5, 0.5)], label: p => `BB ${p.period}, ${p.mult}`,
+        compute: (h, p, st) => {
+          const b = bollingerSeries(closesOf(h), p.period, p.mult);
+          return { lines: [{ v: b.upper, color: '#06b6d4', dash: [4, 3], name: '상단' }, { v: b.mid, color: 'rgba(6,182,212,0.55)', width: 1, name: '중심' }, { v: b.lower, color: '#06b6d4', dash: [4, 3], name: '하단' }], fills: [{ upper: b.upper, lower: b.lower, color: 'rgba(6,182,212,0.07)' }] };
+        }
+      },
+      kc: {
+        cat: '변동성 · 채널', pane: 'main', name: '켈트너 채널', desc: 'EMA ± ATR 배수 채널. 볼린저보다 완만하며 추세 돌파 확인에 사용.',
+        params: [P('period', 'EMA 기간', 20, 2, 200), P('mult', 'ATR 배수', 2, 0.5, 5, 0.5), P('atr', 'ATR 기간', 10, 2, 100)], label: p => `KC ${p.period}, ${p.mult}`,
+        compute: (h, p) => {
+          const k = TA.keltner(h, p.period, p.mult, p.atr);
+          return { lines: [{ v: k.upper, color: '#a78bfa', name: '상단' }, { v: k.mid, color: 'rgba(167,139,250,0.5)', width: 1, name: '중심' }, { v: k.lower, color: '#a78bfa', name: '하단' }], fills: [{ upper: k.upper, lower: k.lower, color: 'rgba(167,139,250,0.06)' }] };
+        }
+      },
+      donchian: {
+        cat: '변동성 · 채널', pane: 'main', name: '돈치안 채널', desc: 'N일 최고가·최저가 채널. 터틀 트레이딩의 20/55일 돌파 기준.',
+        params: [P('period', '기간', 20, 2, 300), P('mid', '중심선(1=표시)', 0, 0, 1)], label: p => `Donchian ${p.period}`,
+        compute: (h, p, st) => {
+          const d = TA.donchian(h, p.period), c = st.color || '#38bdf8';
+          const lines = [{ v: d.upper, color: c, width: 1.4, name: '상단' }, { v: d.lower, color: c, width: 1.4, name: '하단' }];
+          if (p.mid) lines.push({ v: d.mid, color: c, dash: [3, 3], width: 1, name: '중심' });
+          return { lines };
+        }
+      },
+      ichimoku: {
+        cat: '추세 · 이동평균', pane: 'main', name: '일목균형표', desc: '전환선·기준선·구름(선행스팬)·후행스팬. 구름 위/아래로 추세와 지지·저항을 한눈에.',
+        params: [P('tenkan', '전환선', 9, 2, 60), P('kijun', '기준선', 26, 2, 120), P('senkou', '선행스팬B', 52, 2, 240)], label: p => `일목 ${p.tenkan}, ${p.kijun}, ${p.senkou}`,
+        compute: (h, p) => {
+          const i = TA.ichimoku(h, p.tenkan, p.kijun, p.senkou, p.kijun);
+          return {
+            lines: [{ v: i.tenkan, color: '#38bdf8', width: 1.3, name: '전환' }, { v: i.kijun, color: '#f43f5e', width: 1.3, name: '기준' },
+              { v: i.chikou, color: 'rgba(163,230,53,0.85)', width: 1, name: '후행' },
+              { v: i.spanA, color: 'rgba(16,185,129,0.55)', width: 0.8, name: '선행A' }, { v: i.spanB, color: 'rgba(244,63,94,0.55)', width: 0.8, name: '선행B' }],
+            cloud: { a: i.spanA, b: i.spanB, up: 'rgba(16,185,129,0.14)', down: 'rgba(244,63,94,0.14)' }, extend: i.disp
+          };
+        }
+      },
+      psar: {
+        cat: '추세 · 이동평균', pane: 'main', name: '파라볼릭 SAR', desc: '추세 반전 점. 점이 가격 아래면 상승 추세, 위면 하락 추세.',
+        params: [P('step', '가속', 0.02, 0.005, 0.1, 0.005), P('max', '최대', 0.2, 0.05, 0.5, 0.05)], label: p => `SAR ${p.step}, ${p.max}`,
+        compute: (h, p) => { const r = TA.psar(h, p.step, p.max); return { dots: { v: r.sar, dir: r.dir, up: UP_COLOR, down: DOWN_COLOR } }; }
+      },
+      supertrend: {
+        cat: '추세 · 이동평균', pane: 'main', name: '슈퍼트렌드', desc: 'ATR 기반 추세 추종선. 초록=상승 추세 유지, 빨강=하락 추세.',
+        params: [P('period', 'ATR 기간', 10, 2, 100), P('mult', '배수', 3, 0.5, 8, 0.5)], label: p => `Supertrend ${p.period}, ${p.mult}`,
+        compute: (h, p) => {
+          const r = TA.supertrend(h, p.period, p.mult);
+          return { lines: [{ v: r.line, color: UP_COLOR, width: 1.8, cv: r.dir.map(d => d === 1 ? UP_COLOR : d === -1 ? DOWN_COLOR : null), name: 'ST' }] };
+        }
+      },
+      zigzag: {
+        cat: '패턴 · 구조', pane: 'main', name: '지그재그(스윙 구조)', desc: '일정 % 이상 되돌린 고점·저점만 이어 스윙 구조를 단순화. 피보나치·측정이동 작도에 유용.',
+        params: [P('dev', '되돌림(%)', 7, 1, 40)], label: p => `ZigZag ${p.dev}%`,
+        compute: (h, p) => ({ poly: { pts: TA.zigzag(h, p.dev / 100).map(z => ({ i: z.i, price: z.price })), color: '#e879f9' } })
+      },
+      linreg: {
+        cat: '변동성 · 채널', pane: 'main', name: '선형회귀 채널', desc: '최근 N봉 종가의 회귀선 ± 표준편차. 추세의 기울기와 이탈 정도 파악.',
+        params: [P('period', '기간', 100, 10, 500), P('mult', '배수', 2, 0.5, 4, 0.5)], label: p => `LinReg ${p.period}`,
+        compute: (h, p) => {
+          const r = TA.linreg(closesOf(h), p.period, p.mult);
+          return { lines: [{ v: r.upper, color: '#fbbf24', name: '상단' }, { v: r.mid, color: 'rgba(251,191,36,0.6)', dash: [4, 3], name: '중심' }, { v: r.lower, color: '#fbbf24', name: '하단' }], fills: [{ upper: r.upper, lower: r.lower, color: 'rgba(251,191,36,0.05)' }] };
+        }
+      },
+      autosr: {
+        cat: '패턴 · 구조', pane: 'main', name: '자동 지지/저항', desc: '여러 번 반응한 가격대를 자동으로 찾아 수평선으로 표시 (터치 횟수 표기).',
+        params: [P('wing', '피벗 폭(봉)', 5, 2, 15), P('touch', '최소 터치', 2, 2, 6)], label: p => `S/R ${p.wing}`,
+        compute: (h, p) => ({ hlines: TA.autoSR(h, { wing: p.wing, minTouches: p.touch }).map(l => ({ price: l.price, color: l.kind === 'R' ? 'rgba(251,113,133,0.85)' : 'rgba(52,211,153,0.85)', label: `${l.kind === 'R' ? '저항' : '지지'} ×${l.touches}`, dash: [6, 4] })) })
+      },
+      patterns: {
+        cat: '패턴 · 구조', pane: 'main', name: '캔들 패턴 인식', desc: '장악형·망치·유성형·아웃사이드바(OB)·인사이드바(ii)를 자동 표시.',
+        params: [], label: () => '캔들 패턴',
+        compute: h => ({ markers: TA.patterns(h) })
+      },
+
+      // ---------- 서브 패널 ----------
+      volume: {
+        cat: '거래량', pane: 'sub', name: '거래량 + 평균', desc: '거래량 막대(상승=초록/하락=빨강)와 이동평균. 돌파 시 거래량 증가 확인.',
+        params: [P('ma', '평균 기간', 20, 2, 200)], label: p => `거래량 ${p.ma}`, fmt: 'vol',
+        compute: (h, p) => ({ hist: { v: h.map(c => c.volume || 0), c: h.map(c => c.close >= c.open ? 'rgba(16,185,129,0.6)' : 'rgba(244,63,94,0.6)'), base: 0 }, lines: [{ v: TA.sma(h.map(c => c.volume || 0), p.ma), color: '#f59e0b', width: 1.3, name: 'MA' }], fmt: 'vol', min0: true })
+      },
+      rsi: {
+        cat: '모멘텀', pane: 'sub', name: 'RSI', desc: '상승·하락 강도 (0~100). 70 이상 과매수, 30 이하 과매도. 추세장에선 40~80 범위.',
+        params: [P('period', '기간', 14, 2, 100)], label: p => `RSI ${p.period}`,
+        compute: (h, p) => ({ lines: [{ v: rsiSeries(closesOf(h), p.period), color: '#06b6d4', width: 1.6, name: 'RSI' }], levels: [30, 50, 70], range: [0, 100], fills2: { lo: 30, hi: 70 } })
+      },
+      macd: {
+        cat: '모멘텀', pane: 'sub', name: 'MACD', desc: '단기·장기 EMA 차이. 시그널선 교차와 히스토그램 방향으로 추세 전환 판단.',
+        params: [P('fast', '단기', 12, 2, 60), P('slow', '장기', 26, 5, 120), P('sig', '시그널', 9, 2, 50)], label: p => `MACD ${p.fast}, ${p.slow}, ${p.sig}`,
+        compute: (h, p) => {
+          const c = closesOf(h), ef = TA.ema(c, p.fast), es = TA.ema(c, p.slow);
+          const macd = c.map((_, i) => (ef[i] !== null && es[i] !== null) ? ef[i] - es[i] : null);
+          const sig = TA.ema(macd, p.sig);
+          const hist = macd.map((m, i) => (m !== null && sig[i] !== null) ? m - sig[i] : null);
+          return { hist: { v: hist, c: hist.map(v => v === null ? null : v >= 0 ? 'rgba(16,185,129,0.65)' : 'rgba(244,63,94,0.65)'), base: 0 }, lines: [{ v: macd, color: '#06b6d4', name: 'MACD' }, { v: sig, color: '#f59e0b', name: '시그널' }], zero: true };
+        }
+      },
+      stoch: {
+        cat: '모멘텀', pane: 'sub', name: '스토캐스틱', desc: '최근 N일 고저 범위 내 종가 위치 (0~100). %K가 %D를 상향 돌파하면 매수 신호(과매도권일 때 유효).',
+        params: [P('k', '%K', 14, 2, 60), P('d', '%D', 3, 1, 20), P('smooth', '평활', 3, 1, 10)], label: p => `Stoch ${p.k}, ${p.d}, ${p.smooth}`,
+        compute: (h, p) => { const s = TA.stochastic(h, p.k, p.d, p.smooth); return { lines: [{ v: s.k, color: '#06b6d4', name: '%K' }, { v: s.d, color: '#f59e0b', name: '%D' }], levels: [20, 50, 80], range: [0, 100] }; }
+      },
+      cci: {
+        cat: '모멘텀', pane: 'sub', name: 'CCI', desc: '평균가격 대비 이탈 정도. +100 위는 강세, -100 아래는 약세, 극단값에서 반전 가능.',
+        params: [P('period', '기간', 20, 2, 100)], label: p => `CCI ${p.period}`,
+        compute: (h, p) => ({ lines: [{ v: TA.cci(h, p.period), color: '#a78bfa', name: 'CCI' }], levels: [-100, 0, 100] })
+      },
+      willr: {
+        cat: '모멘텀', pane: 'sub', name: '윌리엄스 %R', desc: '-20 이상 과매수, -80 이하 과매도 (스토캐스틱의 반대 표기).',
+        params: [P('period', '기간', 14, 2, 100)], label: p => `%R ${p.period}`,
+        compute: (h, p) => ({ lines: [{ v: TA.williamsR(h, p.period), color: '#f472b6', name: '%R' }], levels: [-80, -50, -20], range: [-100, 0] })
+      },
+      roc: {
+        cat: '모멘텀', pane: 'sub', name: 'ROC (변화율)', desc: 'N일 전 대비 가격 변화율(%). 0선 위/아래로 모멘텀 방향 확인.',
+        params: [P('period', '기간', 12, 1, 100)], label: p => `ROC ${p.period}`,
+        compute: (h, p) => ({ lines: [{ v: TA.roc(closesOf(h), p.period), color: '#2dd4bf', name: 'ROC' }], zero: true, fmt: 'pct' })
+      },
+      atr: {
+        cat: '변동성 · 채널', pane: 'sub', name: 'ATR (평균 진폭)', desc: '하루 평균 변동 폭. 손절 폭·포지션 크기 산정에 사용 (보통 손절 = 진입가 − 2×ATR).',
+        params: [P('period', '기간', 14, 2, 100)], label: p => `ATR ${p.period}`,
+        compute: (h, p) => ({ lines: [{ v: TA.atr(h, p.period), color: '#fb923c', name: 'ATR' }], min0: true })
+      },
+      adx: {
+        cat: '추세 강도', pane: 'sub', name: 'ADX / DMI', desc: 'ADX는 추세의 강도(25 이상이면 추세장), +DI/-DI는 방향. 박스권에선 ADX가 낮음.',
+        params: [P('period', '기간', 14, 2, 100)], label: p => `ADX ${p.period}`,
+        compute: (h, p) => { const a = TA.adx(h, p.period); return { lines: [{ v: a.adx, color: '#f8fafc', width: 1.8, name: 'ADX' }, { v: a.plusDI, color: UP_COLOR, name: '+DI' }, { v: a.minusDI, color: DOWN_COLOR, name: '-DI' }], levels: [20, 25, 40], min0: true }; }
+      },
+      obv: {
+        cat: '거래량', pane: 'sub', name: 'OBV', desc: '거래량 누적 지표. 가격보다 먼저 신고가를 내면 매집, 가격만 오르면 괴리 경고.',
+        params: [], label: () => 'OBV', fmt: 'vol',
+        compute: h => ({ lines: [{ v: TA.obv(h), color: '#22d3ee', name: 'OBV' }, { v: TA.ema(TA.obv(h), 21), color: '#f59e0b', width: 1, name: 'EMA21' }], fmt: 'vol' })
+      },
+      mfi: {
+        cat: '거래량', pane: 'sub', name: 'MFI (자금흐름)', desc: '거래량을 반영한 RSI. 80 이상 과매수, 20 이하 과매도.',
+        params: [P('period', '기간', 14, 2, 100)], label: p => `MFI ${p.period}`,
+        compute: (h, p) => ({ lines: [{ v: TA.mfi(h, p.period), color: '#34d399', name: 'MFI' }], levels: [20, 50, 80], range: [0, 100] })
+      },
+      cmf: {
+        cat: '거래량', pane: 'sub', name: '차이킨 자금흐름 (CMF)', desc: '+0.05 이상이면 매수 우위(자금 유입), -0.05 이하면 매도 우위.',
+        params: [P('period', '기간', 20, 2, 100)], label: p => `CMF ${p.period}`,
+        compute: (h, p) => { const v = TA.cmf(h, p.period); return { hist: { v, c: v.map(x => x === null ? null : x >= 0 ? 'rgba(16,185,129,0.55)' : 'rgba(244,63,94,0.55)'), base: 0 }, zero: true, fmtD: 3 }; }
+      },
+      force: {
+        cat: '거래량', pane: 'sub', name: '엘더 포스인덱스', desc: '가격 변화 × 거래량의 EMA. 상승 추세 속 0선 아래 눌림 = 엘더의 매수 타이밍.',
+        params: [P('period', '기간', 13, 2, 100)], label: p => `Force ${p.period}`, fmt: 'vol',
+        compute: (h, p) => ({ lines: [{ v: TA.force(h, p.period), color: '#fbbf24', name: 'Force' }], zero: true, fmt: 'vol' })
+      },
+      bbpb: {
+        cat: '변동성 · 채널', pane: 'sub', name: '볼린저 %B', desc: '가격이 볼린저 밴드 안 어디에 있는지 (0=하단, 1=상단). 1 초과는 밴드 상단 돌파.',
+        params: [P('period', '기간', 20, 2, 200), P('mult', '배수', 2, 0.5, 5, 0.5)], label: p => `%B ${p.period}`,
+        compute: (h, p) => ({ lines: [{ v: TA.bbExtra(closesOf(h), p.period, p.mult).pctB, color: '#06b6d4', name: '%B' }], levels: [0, 0.5, 1] })
+      },
+      bbw: {
+        cat: '변동성 · 채널', pane: 'sub', name: '볼린저 밴드폭', desc: '밴드 폭(%). 6개월 최저 부근이면 변동성 수축(스퀴즈) → 이후 큰 방향성 움직임.',
+        params: [P('period', '기간', 20, 2, 200), P('mult', '배수', 2, 0.5, 5, 0.5)], label: p => `BB폭 ${p.period}`,
+        compute: (h, p) => ({ lines: [{ v: TA.bbExtra(closesOf(h), p.period, p.mult).width, color: '#c084fc', name: '폭%' }], fmt: 'pct', min0: true })
+      }
+    };
+
+    let studyUid = 1;
+    function newStudy(id, overrides = {}, paletteIdx = 0) {
+      const def = STUDY_DEFS[id];
+      if (!def) return null;
+      const params = {};
+      def.params.forEach(p => { params[p.k] = p.def; });
+      Object.assign(params, overrides.params || {});
+      return { uid: studyUid++, id, params, color: overrides.color || STUDY_PALETTE[paletteIdx % STUDY_PALETTE.length], width: overrides.width || null, hidden: false };
     }
 
-    // ---- Pro chart ----
-    let chartGeom = null;
-    const CHART_MARGIN_R = 54;
+    // 계산 결과 캐시: 데이터셋 키 + 파라미터가 같으면 재사용
+    function studySpec(st, h, dsKey) {
+      const key = `${dsKey}|${JSON.stringify(st.params)}|${st.color}`;
+      if (st._spec && st._key === key) return st._spec;
+      let spec;
+      try { spec = STUDY_DEFS[st.id].compute(h, st.params, st); } catch (e) { console.warn('지표 계산 실패', st.id, e); spec = { lines: [] }; }
+      st._spec = spec; st._key = key;
+      return spec;
+    }
+    const studyLabel = st => STUDY_DEFS[st.id].label(st.params);
+    // ===== 스윙 트레이딩 프리셋 5종 (널리 알려진 기법 — 규칙을 코드로 옮겨 신호와 과거 성과를 계산) =====
+    // 주의: '검증/인증된 수익 보장 전략'은 존재하지 않습니다. 각 기법의 규칙을 공개 자료대로 구현했고,
+    //       이 종목의 불러온 구간에서 신호가 어떻게 작동했는지를 숫자로 보여줍니다(수수료·슬리피지·세금 미반영).
+    const fmtN = (v, d = 2) => (v === null || v === undefined || !Number.isFinite(v)) ? '' : Number(v).toFixed(d);
+    const pctS = (v, d = 1) => (v === null || v === undefined || !Number.isFinite(v)) ? '' : `${v >= 0 ? '+' : ''}${v.toFixed(d)}%`;
+
+    // 한 포지션을 시뮬레이션: i0 봉에서 entry 가격에 진입. 손절은 봉 안(고저)에서 먼저 판정, rule 은 이후 봉에서 평가.
+    function walkTrade(h, i0, entry, dir, stop, rule, maxBars = 120) {
+      for (let j = i0; j < h.length; j++) {
+        const c = h[j];
+        const hit = dir > 0 ? c.low <= stop : c.high >= stop;
+        const r = (j > i0 && rule) ? rule(c, j) : null;
+        // 같은 봉에서 손절선과 '가격 수준(level) 청산'이 모두 닿으면, 시가에서 가까운(= 먼저 닿는) 쪽으로 체결
+        if (hit && r && r.level && (dir > 0 ? r.price >= stop : r.price <= stop)) return { j, price: r.price, reason: r.reason };
+        if (hit) {
+          const gap = j > i0 ? (dir > 0 ? Math.min(stop, c.open) : Math.max(stop, c.open)) : stop; // 갭으로 손절선을 넘으면 시가 체결
+          return { j, price: gap, reason: '손절' };
+        }
+        if (r) return { j, price: r.price, reason: r.reason };
+        if (j > i0 && j - i0 >= maxBars) return { j, price: c.close, reason: '기간 만료' };
+      }
+      const last = h.length - 1;
+      return { j: last, price: h[last].close, reason: '보유 중', open: true };
+    }
+    function mkTrade(h, i0, p0, dir, ex, tag) {
+      return { i0, i1: ex.j, p0, p1: ex.price, dir, ret: dir * (ex.price / p0 - 1) * 100, reason: ex.reason, open: !!ex.open, tag };
+    }
+    // 신호 배열(진입 봉 순서) → 한 번에 한 포지션만 보유하는 거래 목록
+    function simulate(h, signals, build) {
+      const trades = []; let free = -1;
+      signals.forEach(s => {
+        if (s.i <= free) return;
+        const t = build(s);
+        if (!t) return;
+        trades.push(t); free = t.i1;
+      });
+      return trades;
+    }
+
+    // ---------- 1) Al Brooks 프라이스 액션 ----------
+    // H1/H2(상승 추세 눌림 후 고점 돌파) · L1/L2(하락 추세 반등 후 저점 이탈) 카운트
+    function brooksSignals(h, ema) {
+      const out = [], n = h.length;
+      let bc = 0, bleg = false, bref = 0, sc = 0, sleg = false, sref = 0;
+      for (let i = 21; i < n; i++) {
+        const c = h[i], p = h[i - 1];
+        const e = ema[i], e5 = ema[i - 5];
+        if (e === null || e5 === null) continue;
+        const bullCtx = e > e5 && c.low >= e * 0.97;
+        const bearCtx = e < e5 && c.high <= e * 1.03;
+        // 상승 쪽
+        if (!bullCtx) { bc = 0; bleg = false; }
+        else {
+          if (c.high < p.high) { if (!bleg) { bleg = true; if (bc === 0) bref = p.high; } }
+          else if (c.high > p.high && bleg) {
+            bc++; bleg = false;
+            out.push({ i, dir: 1, n: bc, level: p.high, signalLow: p.low, signalHigh: p.high });
+          }
+          if (bc > 0 && c.high > bref) { bc = 0; bleg = false; }
+        }
+        // 하락 쪽
+        if (!bearCtx) { sc = 0; sleg = false; }
+        else {
+          if (c.low > p.low) { if (!sleg) { sleg = true; if (sc === 0) sref = p.low; } }
+          else if (c.low < p.low && sleg) {
+            sc++; sleg = false;
+            out.push({ i, dir: -1, n: sc, level: p.low, signalLow: p.low, signalHigh: p.high });
+          }
+          if (sc > 0 && c.low < sref) { sc = 0; sleg = false; }
+        }
+      }
+      return out;
+    }
+
+    function analyzeBrooks(h) {
+      const n = h.length, closes = closesOf(h);
+      const ema = TA.ema(closes, 20), atr = TA.atr(h, 14);
+      const all = brooksSignals(h, ema).filter(s => s.n >= 2 && s.n <= 3); // 4번째 이후 시도는 표시하지 않음
+      const sigs = all.filter(s => s.n === 2);                                  // 거래·성과 통계는 H2/L2 기준
+      const markers = all.map(s => ({
+        i: s.i, dir: s.dir > 0 ? 'up' : 'down', text: `${s.dir > 0 ? 'H' : 'L'}${s.n}`,
+        color: s.n === 3 ? '#fbbf24' : (s.dir > 0 ? '#34d399' : '#fb7185'), strong: s.n === 2
+      }));
+
+      // 거래: 신호봉(i-1) 고/저 돌파 시 진입(스톱 주문), 손절 = 신호봉 반대편 끝(최소 0.5 ATR), 목표 2R, 최대 30봉 보유
+      const trades = simulate(h, sigs, s => {
+        const c = h[s.i], a = atr[s.i - 1] || (c.close * 0.02);
+        const entry = s.dir > 0 ? Math.max(c.open, s.level) : Math.min(c.open, s.level);
+        const stop = s.dir > 0 ? Math.min(s.signalLow, entry - a * 0.5) : Math.max(s.signalHigh, entry + a * 0.5);
+        const R = Math.abs(entry - stop);
+        const target = entry + s.dir * 2 * R;
+        const ex = walkTrade(h, s.i, entry, s.dir, stop, (b) => (s.dir > 0 ? b.high >= target : b.low <= target) ? { price: target, reason: '목표(2R)' } : null, 30);
+        return mkTrade(h, s.i, entry, s.dir, ex, 'H2');
+      });
+
+      // 상태 판단 (Always In)
+      const last = h[n - 1], e = ema[n - 1], e6 = ema[n - 6];
+      let above = 0, crosses = 0;
+      for (let i = n - 10; i < n; i++) if (i >= 0 && ema[i] !== null && h[i].close > ema[i]) above++;
+      for (let i = n - 20; i < n; i++) if (i >= 1 && ema[i] !== null && ema[i - 1] !== null && (h[i].close > ema[i]) !== (h[i - 1].close > ema[i - 1])) crosses++;
+      let state = '전환/불명확', tone = 'warn';
+      if (crosses >= 4) { state = '횡보 (트레이딩 레인지)'; tone = 'info'; }
+      else if (e !== null && e6 !== null && above >= 8 && e > e6) { state = 'Always In 롱 (상승 추세)'; tone = 'good'; }
+      else if (e !== null && e6 !== null && above <= 2 && e < e6) { state = 'Always In 숏 (하락 추세)'; tone = 'bad'; }
+      const distAtr = (e !== null && atr[n - 1]) ? (last.close - e) / atr[n - 1] : null;
+
+      // 스윙 구조 + 측정 이동(MM)
+      const dev = Math.min(0.15, Math.max(0.03, 2.2 * (atr[n - 1] || last.close * 0.02) / last.close));
+      const piv = TA.zigzag(h, dev);
+      const levels = [];
+      let mmText = '';
+      const confirmed = piv.filter(z => !z.pending);
+      if (confirmed.length >= 2) {
+        const b = confirmed[confirmed.length - 1], a = confirmed[confirmed.length - 2];
+        const leg = Math.abs(b.price - a.price);
+        if (b.type === 'H') { // 상승 레그 완료 후 눌림 중 → 눌림 저점 + 레그 길이
+          let lo = Infinity; for (let i = b.i; i < n; i++) lo = Math.min(lo, h[i].low);
+          const tgt = lo + leg;
+          levels.push({ price: b.price, color: '#fbbf24', label: `스윙 고점 ${fmtN(b.price)}`, dash: [5, 4] });
+          levels.push({ price: tgt, color: '#34d399', label: `MM 목표 ${fmtN(tgt)}`, dash: [2, 3] });
+          mmText = `상승 레그 ${fmtN(a.price)} → ${fmtN(b.price)} (${fmtN(leg)}), 눌림 저점 ${fmtN(lo)} 기준 측정 이동 목표 ${fmtN(tgt)}`;
+        } else {
+          let hi = -Infinity; for (let i = b.i; i < n; i++) hi = Math.max(hi, h[i].high);
+          const tgt = hi - leg;
+          levels.push({ price: b.price, color: '#fbbf24', label: `스윙 저점 ${fmtN(b.price)}`, dash: [5, 4] });
+          levels.push({ price: tgt, color: '#fb7185', label: `MM 목표 ${fmtN(tgt)}`, dash: [2, 3] });
+          mmText = `하락 레그 ${fmtN(a.price)} → ${fmtN(b.price)} (${fmtN(leg)}), 반등 고점 ${fmtN(hi)} 기준 측정 이동 목표 ${fmtN(tgt)}`;
+        }
+      }
+
+      const lastSig = sigs[sigs.length - 1];
+      const stats = TA.tradeStats(trades, h);
+      const rows = [
+        { k: '추세 상태', v: state, tone },
+        { k: '20 EMA 대비', v: distAtr === null ? '' : `${distAtr >= 0 ? '+' : ''}${distAtr.toFixed(1)} ATR ${Math.abs(distAtr) > 2.5 ? '(EMA에서 멀리 이탈 — 눌림/되돌림 가능)' : Math.abs(distAtr) < 0.7 ? '(EMA 근처 — 눌림목 구간)' : ''}`, tone: Math.abs(distAtr || 0) > 2.5 ? 'warn' : 'info' },
+        { k: '최근 H2/L2 신호', v: lastSig ? `${lastSig.dir > 0 ? 'H' : 'L'}${lastSig.n} · ${h[lastSig.i].date} (${n - 1 - lastSig.i}봉 전)${n - 1 - lastSig.i <= 3 ? ' ← 최근' : ''}` : '신호 없음', tone: lastSig ? (lastSig.dir > 0 ? 'good' : 'bad') : 'info' },
+        { k: '측정 이동(MM)', v: mmText || '스윙 구조 계산 불가', tone: 'info' }
+      ];
+      let verdict = '횡보 구간입니다. 박스 상·하단에서의 반전 신호(실패한 돌파)를 노리는 편이 낫고, 중간에서는 관망하세요.';
+      if (tone === 'good') verdict = lastSig && lastSig.dir > 0 && n - 1 - lastSig.i <= 3 ? '상승 추세 속 눌림 후 H2 신호가 최근 발생했습니다. 신호봉 고점 돌파 진입, 손절은 신호봉 저점 아래가 기본 시나리오입니다.' : '상승 추세입니다. 20 EMA 부근까지 눌릴 때 H1/H2 신호봉을 기다리세요. EMA에서 멀리 벗어난 추격 매수는 피합니다.';
+      else if (tone === 'bad') verdict = '하락 추세입니다. 신규 매수보다 관망이 우선이며, 반등이 20 EMA 부근에서 L2 신호를 보일 때가 숏/회피 구간입니다.';
+      return {
+        annot: { markers, levels, trades },
+        rows, verdict: { text: verdict, tone }, stats,
+        rules: [
+          '진입: 상승 추세(20 EMA 우상향·가격이 EMA 위)에서 눌림(고점이 낮아지는 봉) 후 직전 봉 고점을 다시 넘는 두 번째 시도(H2). 하락은 L2.',
+          '손절: 신호봉(직전 봉)의 반대편 끝 (최소 0.5 ATR). 목표: 2R 또는 측정 이동(MM) 목표.',
+          '추세가 강할수록 H1에서도 진입하지만, 횡보 구간의 첫 시도는 실패가 많아 H2를 기준으로 합니다.'
+        ]
+      };
+    }
+
+    // ---------- 2) Minervini 트렌드 템플릿 (스테이지 2) ----------
+    function analyzeMinervini(h) {
+      const n = h.length, closes = closesOf(h);
+      const s50 = TA.sma(closes, 50), s150 = TA.sma(closes, 150), s200 = TA.sma(closes, 200);
+      const hi252 = TA.highest(h.map(c => c.high), 252), lo252 = TA.lowest(h.map(c => c.low), 252);
+      const vol50 = TA.sma(h.map(c => c.volume || 0), 50);
+      const crit = i => {
+        if ([s50[i], s150[i], s200[i], hi252[i], lo252[i]].some(v => v === null) || i < 22 || s200[i - 22] === null) return null;
+        const c = closes[i];
+        return [
+          ['현재가 > 150일선, 200일선', c > s150[i] && c > s200[i]],
+          ['150일선 > 200일선', s150[i] > s200[i]],
+          ['200일선이 1개월 이상 상승 중', s200[i] > s200[i - 22]],
+          ['50일선 > 150일선, 200일선', s50[i] > s150[i] && s50[i] > s200[i]],
+          ['현재가 > 50일선', c > s50[i]],
+          ['52주 저점보다 30% 이상 위', c >= lo252[i] * 1.3],
+          ['52주 고점의 25% 이내', c >= hi252[i] * 0.75]
+        ];
+      };
+      const okArr = h.map((_, i) => { const c = crit(i); return c ? c.every(x => x[1]) : null; });
+      const shade = [];
+      okArr.forEach((ok, i) => { if (ok) shade.push({ i, color: 'rgba(16,185,129,0.07)' }); });
+
+      // 피벗 돌파: 템플릿 충족 + 직전 20봉 고점 돌파 + 거래량 50일 평균의 1.4배 이상
+      const sigs = [], markers = [];
+      for (let i = 21; i < n; i++) {
+        if (!okArr[i] || !vol50[i - 1]) continue;
+        let pv = -Infinity; for (let j = i - 20; j < i; j++) pv = Math.max(pv, h[j].high);
+        if (h[i].close > pv && h[i].volume >= vol50[i - 1] * 1.4) {
+          sigs.push({ i, pivot: pv }); markers.push({ i, dir: 'up', text: '돌파', color: '#34d399', strong: true });
+        }
+      }
+      // 거래: 신호 다음 봉 시가 매수, 손절 8%, 종가가 50일선 아래로 마감하면 청산
+      const trades = simulate(h, sigs, s => {
+        if (s.i + 1 >= n) return null;
+        const i0 = s.i + 1, entry = h[i0].open;
+        const ex = walkTrade(h, i0, entry, 1, entry * 0.92, (c, j) => s50[j] !== null && c.close < s50[j] ? { price: c.close, reason: '50일선 이탈' } : null, 150);
+        return mkTrade(h, i0, entry, 1, ex, 'BO');
+      });
+
+      const c = crit(n - 1);
+      const passed = c ? c.filter(x => x[1]).length : null;
+      const last = h[n - 1];
+      const perf6 = n > 126 ? (last.close / closes[n - 127] - 1) * 100 : null;
+      const levels = [];
+      let pv = -Infinity; for (let j = Math.max(0, n - 20); j < n; j++) pv = Math.max(pv, h[j].high);
+      if (Number.isFinite(pv)) levels.push({ price: pv, color: '#fbbf24', label: `피벗(20일 고점) ${fmtN(pv)}`, dash: [5, 4] });
+      levels.push({ price: last.close * 0.92, color: '#fb7185', label: `손절 -8% ${fmtN(last.close * 0.92)}`, dash: [2, 3] });
+
+      const rows = c ? c.map(x => ({ k: x[0], v: x[1] ? '충족 ✓' : '미충족 ✗', tone: x[1] ? 'good' : 'bad' })) : [{ k: '트렌드 템플릿', v: '200일선 계산에 필요한 데이터(약 1년 이상)가 부족합니다', tone: 'warn' }];
+      rows.push({ k: '상대강도(RS) 참고', v: perf6 === null ? '' : `최근 6개월 수익률 ${pctS(perf6)} (시장 대비 RS 순위는 이 앱에서 계산하지 않음)`, tone: 'info' });
+      let verdict = '데이터가 부족해 판단할 수 없습니다.', tone = 'warn';
+      if (c) {
+        if (passed === 7) { verdict = '트렌드 템플릿 7개 조건을 모두 충족하는 스테이지 2(상승 추세) 종목입니다. 거래량이 실린 피벗(20일 고점) 돌파 때 진입을 고려하고, 손절은 -7~8%가 기본입니다.'; tone = 'good'; }
+        else if (passed >= 5) { verdict = `${passed}/7 충족 — 상승 추세에 근접했지만 아직 템플릿 미완성입니다. 미충족 조건이 해소되는지 지켜보세요.`; tone = 'warn'; }
+        else { verdict = `${passed}/7 충족 — 스테이지 2가 아닙니다. 이 기법에서는 매수 대상이 아닙니다.`; tone = 'bad'; }
+      }
+      return {
+        annot: { markers, levels, shade, trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(trades, h), score: passed === null ? null : `${passed}/7`,
+        rules: [
+          '템플릿 7조건(Mark Minervini, "Trade Like a Stock Market Wizard"): 가격>150·200일선, 150>200일선, 200일선 1개월+ 상승, 50>150·200일선, 가격>50일선, 52주 저점 +30%, 52주 고점 -25% 이내.',
+          '진입: 템플릿 충족 + 직전 20봉 고점 돌파 + 거래량이 50일 평균의 1.4배 이상 (차트의 ▲돌파). 초록 배경 = 템플릿 충족 구간.',
+          '청산: 손절 -8% 또는 종가가 50일선 아래로 마감.'
+        ]
+      };
+    }
+
+    // ---------- 3) 터틀 / 돈치안 채널 돌파 ----------
+    function analyzeTurtle(h) {
+      const n = h.length;
+      const atr20 = TA.atr(h, 20);
+      const hh = (a, b, p) => { let m = -Infinity; for (let j = a - p; j < a; j++) if (j >= 0) m = Math.max(m, h[j][b]); return m; };
+      const ll = (a, p) => { let m = Infinity; for (let j = a - p; j < a; j++) if (j >= 0) m = Math.min(m, h[j].low); return m; };
+      const markers = [], sigs = [];
+      for (let i = 56; i < n; i++) {
+        const c = h[i], u20 = hh(i, 'high', 20), u55 = hh(i, 'high', 55), l20 = ll(i, 20);
+        if (c.high > u55) markers.push({ i, dir: 'up', text: '55일', color: '#a78bfa', strong: true });
+        else if (c.high > u20) markers.push({ i, dir: 'up', text: '20일', color: '#34d399', strong: false });
+        if (c.high > u20) sigs.push({ i, level: u20, sys: c.high > u55 ? 2 : 1 });
+        if (c.low < l20 && !(c.high > u20)) markers.push({ i, dir: 'down', text: '이탈', color: '#fb7185', strong: false });
+      }
+      // 거래(시스템 1): 20일 고점 돌파 진입, 손절 2N, 10일 저점 이탈 청산
+      const trades = simulate(h, sigs, s => {
+        const c = h[s.i], N = atr20[s.i - 1] || c.close * 0.02;
+        const entry = Math.max(c.open, s.level), stop = entry - 2 * N;
+        const ex = walkTrade(h, s.i, entry, 1, stop, (b, j) => { const lv = ll(j, 10); return b.low <= lv ? { price: Math.min(b.open, lv), reason: '10일 저점 이탈', level: true } : null; }, 200);
+        return mkTrade(h, s.i, entry, 1, ex, 'S1');
+      });
+      const last = h[n - 1], N = atr20[n - 1];
+      const u20 = hh(n, 'high', 20), u55 = hh(n, 'high', 55), l10 = ll(n, 10);
+      const levels = [];
+      if (Number.isFinite(u20)) levels.push({ price: u20, color: '#34d399', label: `20일 돌파선 ${fmtN(u20)}`, dash: [5, 4] });
+      if (Number.isFinite(l10)) levels.push({ price: l10, color: '#fb7185', label: `10일 청산선 ${fmtN(l10)}`, dash: [5, 4] });
+      const lt = trades[trades.length - 1];
+      const inPos = lt && lt.open;
+      const rows = [
+        { k: '현재 상태', v: inPos ? `시스템1 롱 보유 구간 (진입 ${h[lt.i0].date}, ${fmtN(lt.p0)} · 현재 ${pctS(lt.ret)})` : last.close > u20 ? '20일 고점 돌파 상태 — 신규 진입 구간(당일 돌파 확인)' : '대기 (돌파 신호 없음)', tone: inPos ? 'good' : last.close > u20 ? 'good' : 'info' },
+        { k: '1N (ATR 20)', v: N ? `${fmtN(N)} (가격의 ${fmtN(N / last.close * 100, 1)}%)` : '', tone: 'info' },
+        { k: '20일 돌파선 / 10일 청산선', v: `${fmtN(u20)} / ${fmtN(l10)}`, tone: 'info' },
+        { k: '55일 돌파선', v: fmtN(u55), tone: 'info' },
+        { k: '손절 (진입가 − 2N)', v: N ? `현재가 기준 ${fmtN(last.close - 2 * N)}` : '', tone: 'warn' },
+        { k: '포지션 크기 규칙', v: N ? `1유닛 = (계좌 × 1%) ÷ ${fmtN(N)} 주 (1N 변동 시 계좌 1% 손익)` : '', tone: 'info' }
+      ];
+      const verdict = inPos ? '추세 추종 포지션 보유 중입니다. 10일 저점(청산선) 이탈 전까지 보유하고, 손절 2N은 지킵니다.' : last.close > u20 ? '20일 고점 돌파가 발생했습니다. 거짓 돌파가 잦으므로 손절(2N)을 먼저 정하고 진입하세요.' : '돌파 신호가 없습니다. 20일 고점(돌파선) 위로 마감할 때까지 기다립니다.';
+      return {
+        annot: { markers, levels, trades }, rows, verdict: { text: verdict, tone: inPos || last.close > u20 ? 'good' : 'info' }, stats: TA.tradeStats(trades, h),
+        rules: [
+          '터틀 트레이딩(Richard Dennis·William Eckhardt 교육, Curtis Faith 공개): 시스템1 = 20일 고점 돌파 진입 / 10일 저점 이탈 청산, 시스템2 = 55일 돌파 / 20일 이탈.',
+          '손절은 진입가 − 2N(N = 20일 ATR). 리스크는 1유닛당 계좌의 1%. 추세 추종이라 승률은 낮고(30~45%) 큰 추세에서 크게 이기는 구조입니다.',
+          '차트의 ▲20일/▲55일 = 돌파, ▼이탈 = 20일 저점 이탈. 통계는 시스템1(롱)만 집계합니다.'
+        ]
+      };
+    }
+
+    // ---------- 4) 엘더 트리플 스크린 (주봉 추세 + 일봉 오실레이터) ----------
+    function analyzeElder(h) {
+      const n = h.length, closes = closesOf(h);
+      // 1) 주봉 MACD 히스토그램 기울기 = '조류'. 진행 중인 주는 쓰지 않고 완료된 주만 사용(미래 참조 방지)
+      const wk = TA.resampleWeekly(h);
+      const wm = macdSeries(closesOf(wk)).hist;
+      const wkey = c => Math.floor((Math.floor(c.t / 86400) + 3) / 7);
+      const wIndexByKey = new Map(); wk.forEach((c, i) => wIndexByKey.set(wkey(c), i));
+      const tide = h.map(c => {
+        const w = wIndexByKey.get(wkey(c));
+        if (w === undefined || w < 2 || wm[w - 1] === null || wm[w - 2] === null) return null;
+        return wm[w - 1] > wm[w - 2] ? 1 : wm[w - 1] < wm[w - 2] ? -1 : 0;
+      });
+      const shade = [];
+      tide.forEach((t, i) => { if (t === 1) shade.push({ i, color: 'rgba(16,185,129,0.10)' }); else if (t === -1) shade.push({ i, color: 'rgba(244,63,94,0.10)' }); });
+      // 2) 일봉 스토캐스틱 K/D 교차 (과매도권에서 상향 = 매수, 과매수권에서 하향 = 매도/회피)
+      const st = TA.stochastic(h, 14, 3, 3);
+      const sigs = [], markers = [];
+      for (let i = 6; i < n; i++) {
+        const k = st.k[i], d = st.d[i], pk = st.k[i - 1], pd = st.d[i - 1];
+        if (k === null || d === null || pk === null || pd === null) continue;
+        let minK = 100, maxK = 0; for (let j = i - 5; j <= i; j++) { if (st.k[j] !== null) { minK = Math.min(minK, st.k[j]); maxK = Math.max(maxK, st.k[j]); } }
+        if (tide[i] === 1 && pk <= pd && k > d && minK < 30) { sigs.push({ i }); markers.push({ i, dir: 'up', text: '매수', color: '#34d399', strong: true }); }
+        else if (tide[i] === -1 && pk >= pd && k < d && maxK > 70) markers.push({ i, dir: 'down', text: '회피', color: '#fb7185', strong: false });
+      }
+      // 거래: 신호 다음 봉 시가 매수, 손절 = 최근 5봉 저점, 청산 = 조류가 하락 전환 / %K가 과매수권에서 %D 하향 교차
+      const trades = simulate(h, sigs, s => {
+        if (s.i + 1 >= n) return null;
+        const i0 = s.i + 1, entry = h[i0].open;
+        let stop = Infinity; for (let j = Math.max(0, s.i - 4); j <= s.i; j++) stop = Math.min(stop, h[j].low);
+        if (!(stop < entry)) return null;
+        const ex = walkTrade(h, i0, entry, 1, stop, (c, j) => {
+          if (tide[j] === -1) return { price: c.close, reason: '조류 하락 전환' };
+          if (st.k[j] !== null && st.d[j] !== null && st.k[j - 1] > st.d[j - 1] && st.k[j] < st.d[j] && st.k[j] > 70) return { price: c.close, reason: '과매수권 하향 교차' };
+          return null;
+        }, 60);
+        return mkTrade(h, i0, entry, 1, ex, 'TS');
+      });
+      const tNow = tide[n - 1], k = st.k[n - 1], d = st.d[n - 1];
+      const tideTxt = tNow === 1 ? '상승 (주봉 MACD 히스토그램 상승)' : tNow === -1 ? '하락 (주봉 MACD 히스토그램 하락)' : '중립/데이터 부족';
+      let osc = '';
+      if (k !== null) osc = k < 30 ? `과매도 (%K ${fmtN(k, 0)})` : k > 70 ? `과매수 (%K ${fmtN(k, 0)})` : `중립 (%K ${fmtN(k, 0)})`;
+      const lt = trades[trades.length - 1];
+      const rows = [
+        { k: '1단계 · 주봉 조류', v: tideTxt, tone: tNow === 1 ? 'good' : tNow === -1 ? 'bad' : 'info' },
+        { k: '2단계 · 일봉 스토캐스틱', v: osc, tone: k !== null && k < 30 ? 'good' : k !== null && k > 70 ? 'warn' : 'info' },
+        { k: '3단계 · 진입 방식', v: '신호 다음 날 시가(또는 전일 고점 돌파 스톱)로 진입, 손절은 최근 5봉 저점', tone: 'info' },
+        { k: '현재 포지션', v: lt && lt.open ? `보유 구간 (진입 ${h[lt.i0].date}, ${pctS(lt.ret)})` : '없음', tone: lt && lt.open ? 'good' : 'info' }
+      ];
+      let verdict, tone;
+      if (tNow === 1 && k !== null && k < 30) { verdict = '주봉 조류는 상승이고 일봉은 과매도입니다. 스토캐스틱이 %D를 위로 돌파하면 매수 신호입니다 (조류와 같은 방향의 눌림목 매수).'; tone = 'good'; }
+      else if (tNow === 1) { verdict = '주봉 조류가 상승입니다. 일봉 오실레이터가 과매도권으로 내려올 때까지 기다리는 구간입니다. 급하게 추격하지 마세요.'; tone = 'info'; }
+      else if (tNow === -1) { verdict = '주봉 조류가 하락입니다. 이 기법은 조류에 역행하는 매수를 하지 않습니다 (신규 매수 보류).'; tone = 'bad'; }
+      else { verdict = '조류를 판단할 데이터가 부족합니다.'; tone = 'warn'; }
+      return {
+        annot: { markers, levels: [], shade, trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(trades, h),
+        rules: [
+          'Alexander Elder 「Come Into My Trading Room」의 트리플 스크린: ① 큰 시간대(주봉)로 조류 방향 확인 → ② 작은 시간대(일봉) 오실레이터로 조류 반대 방향 눌림에서 진입 → ③ 돌파/스톱 주문으로 진입.',
+          '이 구현: 조류 = 완료된 주봉의 MACD(12,26,9) 히스토그램 기울기. 초록 배경 = 상승 조류, 빨강 = 하락 조류. 일봉 스토캐스틱(14,3,3)이 과매도(<30)에서 %K가 %D를 상향 교차하면 ▲매수.',
+          '청산: 조류가 하락으로 바뀌거나 %K가 과매수(>70)에서 %D 아래로 교차. 손절은 최근 5봉 저점.'
+        ]
+      };
+    }
+
+    // ---------- 5) 일목균형표 (삼역호전) ----------
+    function analyzeIchimoku(h) {
+      const n = h.length;
+      const ic = TA.ichimoku(h, 9, 26, 52, 26), atr = TA.atr(h, 14);
+      const cloudTop = i => (ic.spanA[i] === null || ic.spanB[i] === null) ? null : Math.max(ic.spanA[i], ic.spanB[i]);
+      const cloudBot = i => (ic.spanA[i] === null || ic.spanB[i] === null) ? null : Math.min(ic.spanA[i], ic.spanB[i]);
+      const markers = [], sigs = [];
+      for (let i = 27; i < n; i++) {
+        const t = ic.tenkan[i], k = ic.kijun[i], pt = ic.tenkan[i - 1], pk = ic.kijun[i - 1];
+        if (t === null || k === null || pt === null || pk === null || cloudTop(i) === null) continue;
+        if (pt <= pk && t > k) {
+          const strong = h[i].close > cloudTop(i) && h[i].close > h[i - 26].close;
+          markers.push({ i, dir: 'up', text: strong ? '삼역호전' : 'TK↑', color: strong ? '#34d399' : '#94a3b8', strong });
+          if (strong) sigs.push({ i });
+        } else if (pt >= pk && t < k) {
+          const strong = h[i].close < cloudBot(i) && h[i].close < h[i - 26].close;
+          markers.push({ i, dir: 'down', text: strong ? '삼역역전' : 'TK↓', color: strong ? '#fb7185' : '#94a3b8', strong });
+        }
+      }
+      // 거래: 삼역호전 다음 봉 시가 매수, 종가가 기준선 아래로 마감 시 청산, 하드 손절 -10%
+      const trades = simulate(h, sigs, s => {
+        if (s.i + 1 >= n) return null;
+        const i0 = s.i + 1, entry = h[i0].open;
+        const ex = walkTrade(h, i0, entry, 1, entry * 0.9, (c, j) => ic.kijun[j] !== null && c.close < ic.kijun[j] ? { price: c.close, reason: '기준선 이탈' } : null, 150);
+        return mkTrade(h, i0, entry, 1, ex, 'IK');
+      });
+      const last = h[n - 1], i = n - 1;
+      const top = cloudTop(i), bot = cloudBot(i);
+      const pos = top === null ? null : last.close > top ? 'above' : last.close < bot ? 'below' : 'inside';
+      const tk = ic.tenkan[i] !== null && ic.kijun[i] !== null ? (ic.tenkan[i] > ic.kijun[i] ? 'bull' : 'bear') : null;
+      const chi = n > 26 ? (last.close > h[n - 27].close ? 'bull' : 'bear') : null;
+      const fa = ic.spanA[n + 25], fb = ic.spanB[n + 25];
+      const futCloud = (fa !== null && fb !== null) ? (fa > fb ? 'bull' : 'bear') : null;
+      const bull3 = pos === 'above' && tk === 'bull' && chi === 'bull', bear3 = pos === 'below' && tk === 'bear' && chi === 'bear';
+      const lt = trades[trades.length - 1];
+      const rows = [
+        { k: '가격 vs 구름', v: pos === 'above' ? '구름 위 (강세)' : pos === 'below' ? '구름 아래 (약세)' : pos === 'inside' ? '구름 안 (방향 불명확)' : '데이터 부족', tone: pos === 'above' ? 'good' : pos === 'below' ? 'bad' : 'warn' },
+        { k: '전환선 vs 기준선', v: tk === 'bull' ? '전환선 > 기준선 (호전)' : tk === 'bear' ? '전환선 < 기준선 (역전)' : '', tone: tk === 'bull' ? 'good' : tk === 'bear' ? 'bad' : 'info' },
+        { k: '후행스팬', v: chi === 'bull' ? '26일 전 가격 위 (강세)' : chi === 'bear' ? '26일 전 가격 아래 (약세)' : '', tone: chi === 'bull' ? 'good' : chi === 'bear' ? 'bad' : 'info' },
+        { k: '미래 구름 (26일 후)', v: futCloud === 'bull' ? '양운 (선행A > 선행B)' : futCloud === 'bear' ? '음운 (선행A < 선행B)' : '', tone: futCloud === 'bull' ? 'good' : futCloud === 'bear' ? 'bad' : 'info' },
+        { k: '청산 기준선', v: ic.kijun[i] !== null ? `기준선 ${fmtN(ic.kijun[i])} (종가 이탈 시 청산)` : '', tone: 'info' },
+        { k: '현재 포지션', v: lt && lt.open ? `보유 구간 (진입 ${h[lt.i0].date}, ${pctS(lt.ret)})` : '없음', tone: lt && lt.open ? 'good' : 'info' }
+      ];
+      let verdict, tone;
+      if (bull3) { verdict = '삼역호전(가격이 구름 위 · 전환선>기준선 · 후행스팬이 가격 위)입니다. 일목의 가장 강한 매수 상태이며, 종가가 기준선 아래로 마감하면 청산합니다.'; tone = 'good'; }
+      else if (bear3) { verdict = '삼역역전(구름 아래 · 전환선<기준선 · 후행스팬이 가격 아래)입니다. 매수 대상이 아닙니다.'; tone = 'bad'; }
+      else if (pos === 'inside') { verdict = '가격이 구름 안에 있어 방향성이 불분명합니다. 구름 위로 안착할 때까지 관망하세요.'; tone = 'warn'; }
+      else { verdict = '세 조건이 엇갈려 있습니다. 삼역호전이 완성되는지 지켜보세요.'; tone = 'info'; }
+      return {
+        annot: { markers, levels: [], trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(trades, h),
+        rules: [
+          '일목균형표(호소다 고이치): 전환선(9)·기준선(26)·선행스팬A/B(구름, 26일 앞에 표시)·후행스팬(종가를 26일 뒤로). 구름은 지지/저항대 역할.',
+          '삼역호전 = ① 가격이 구름 위 ② 전환선이 기준선을 상향 돌파(또는 위) ③ 후행스팬이 26일 전 가격 위 — 세 조건이 모두 맞을 때 가장 강한 매수 신호입니다.',
+          '청산: 종가가 기준선 아래로 마감. 하드 손절은 진입가 −10%. 구름이 두꺼울수록 지지/저항이 강합니다.'
+        ]
+      };
+    }
+
+    // ---------- 프리셋 정의 ----------
+    const CHART_PRESETS = {
+      brooks: {
+        name: 'Al Brooks 프라이스 액션', short: 'Brooks', icon: 'fa-wave-square', color: 'amber',
+        tag: '프라이스 액션 · 스윙', desc: '20 EMA + 눌림목 H2/L2 신호 + 측정 이동(MM) 목표', source: 'Al Brooks, 「Trading Price Action」 시리즈',
+        interval: 'D', chartType: 'candles', range: '6M',
+        studies: [{ id: 'ema', params: { period: 20 }, color: '#f59e0b', width: 2.4 }],
+        analyze: analyzeBrooks
+      },
+      minervini: {
+        name: 'Minervini 트렌드 템플릿', short: 'Minervini', icon: 'fa-stairs', color: 'emerald',
+        tag: '성장주 · 스테이지 2', desc: '50/150/200일선 정배열 + 52주 고점 근접 + 거래량 동반 돌파', source: 'Mark Minervini, 「Trade Like a Stock Market Wizard」',
+        interval: 'D', chartType: 'candles', range: '1Y',
+        studies: [{ id: 'sma', params: { period: 50 }, color: '#38bdf8' }, { id: 'sma', params: { period: 150 }, color: '#f59e0b' }, { id: 'sma', params: { period: 200 }, color: '#ef4444' }, { id: 'volume', params: { ma: 50 } }],
+        analyze: analyzeMinervini
+      },
+      turtle: {
+        name: '터틀 돈치안 돌파', short: 'Turtle', icon: 'fa-water', color: 'sky',
+        tag: '추세 추종 · 돌파', desc: '20/55일 고점 돌파 진입, 10일 저점 이탈 청산, ATR 기반 손절', source: 'Richard Dennis 터틀 규칙 (Curtis Faith 공개)',
+        interval: 'D', chartType: 'candles', range: '1Y',
+        studies: [{ id: 'donchian', params: { period: 20 }, color: '#38bdf8' }, { id: 'donchian', params: { period: 55 }, color: '#a78bfa' }, { id: 'atr', params: { period: 20 } }],
+        analyze: analyzeTurtle
+      },
+      elder: {
+        name: '엘더 트리플 스크린', short: 'Elder', icon: 'fa-layer-group', color: 'violet',
+        tag: '다중 시간대 · 눌림목', desc: '주봉 추세 방향 + 일봉 스토캐스틱 과매도 반등 진입', source: 'Alexander Elder, 「Come Into My Trading Room」',
+        interval: 'D', chartType: 'candles', range: '1Y',
+        studies: [{ id: 'ema', params: { period: 13 }, color: '#38bdf8' }, { id: 'ema', params: { period: 26 }, color: '#f59e0b' }, { id: 'stoch', params: {} }, { id: 'macd', params: {} }],
+        analyze: analyzeElder
+      },
+      ichimoku: {
+        name: '일목균형표 삼역호전', short: 'Ichimoku', icon: 'fa-cloud', color: 'rose',
+        tag: '추세 · 구름대', desc: '구름 위 + 전환선>기준선 + 후행스팬 상향 = 가장 강한 매수 상태', source: '호소다 고이치(一目山人), 일목균형표',
+        interval: 'D', chartType: 'candles', range: '6M',
+        studies: [{ id: 'ichimoku', params: {} }],
+        analyze: analyzeIchimoku
+      }
+    };
+    // ===== 프로 차트 엔진 (TradingView 스타일) — 상태 · 좌표 · 렌더링 =====
+    const CH_UP = '#10b981', CH_DN = '#f43f5e';
+    const CH_AXIS_W = 66, CH_DATE_H = 22, CH_SUB_H = 112, CH_MAIN_H = 430;
+    const CH_RANGES = { '1M': 31, '3M': 92, '6M': 183, '1Y': 366, '2Y': 731, '5Y': 1827, 'ALL': null };
+    const CH_TYPES = { candles: '캔들', hollow: '속 빈 캔들', ha: '하이킨아시', bars: 'OHLC 바', line: '라인', area: '영역' };
+    const CH_IV = { D: { label: '일', range: '5y', iv: '1d', name: '일봉' }, W: { label: '주', range: '10y', iv: '1wk', name: '주봉' }, M: { label: '월', range: 'max', iv: '1mo', name: '월봉' } };
+    const CH_TOOLS = {
+      cursor: { n: 0, label: '커서 (선택·이동)' },
+      trend: { n: 2, label: '추세선' }, ray: { n: 2, label: '연장선(레이)' }, hline: { n: 1, label: '수평선' }, vline: { n: 1, label: '수직선' },
+      channel: { n: 3, label: '평행 채널 (3번 클릭)' }, rect: { n: 2, label: '사각형(가격·기간 박스)' }, fib: { n: 2, label: '피보나치 되돌림' },
+      measure: { n: 2, label: '측정 (가격·%·기간)' }, avwap: { n: 1, label: '앵커드 VWAP (기준봉 클릭)' }
+    };
+    const CH_FIB = [[0, '#94a3b8'], [0.236, '#f87171'], [0.382, '#fb923c'], [0.5, '#facc15'], [0.618, '#4ade80'], [0.786, '#38bdf8'], [1, '#94a3b8'], [1.272, '#c084fc'], [1.618, '#e879f9']];
+
+    const CH = {
+      ticker: '', currency: 'USD', interval: 'D', range: '6M',
+      sets: {}, hist: [], dsKey: '', tix: null, ha: null,
+      type: 'candles', log: false, auto: true, manual: null, magnet: true,
+      barW: 7, R: 0,
+      studies: [], drawings: [], tool: 'cursor', draft: null, sel: -1, measure: null,
+      presetId: null, presetResult: null, annot: null, showSignals: true,
+      mouse: null, hoverIdx: null,
+      W: 0, H: 0, dpr: 1, layout: null, scale: null,
+      drag: null, pointers: new Map(), raf: 0, raf2: 0, ready: false, loading: false, saveTimer: null
+    };
+    const $id = id => document.getElementById(id);
+
+    function chDefaultStudies() {
+      return [newStudy('sma', { params: { period: 20 }, color: '#f59e0b' }), newStudy('sma', { params: { period: 50 }, color: '#38bdf8' }), newStudy('sma', { params: { period: 200 }, color: '#a855f7' }), newStudy('volume'), newStudy('rsi')];
+    }
+    const chPlotW = () => Math.max(60, CH.W - CH_AXIS_W);
+    const chX = i => chPlotW() + (i - CH.R) * CH.barW;
+    const chI = x => CH.R + (x - chPlotW()) / CH.barW;
+    const chVisibleSubs = () => CH.studies.filter(s => !s.hidden && STUDY_DEFS[s.id].pane === 'sub');
+    const chSpec = st => studySpec(st, CH.hist, CH.dsKey);
+    const chPad2 = n => String(n).padStart(2, '0');
+
+    function chClampView() {
+      const n = CH.hist.length, pw = chPlotW();
+      CH.barW = Math.min(64, Math.max(1.2, CH.barW));
+      const vis = pw / CH.barW;
+      const maxR = n - 1 + Math.max(10, vis * 0.5);
+      const minR = Math.min(maxR, vis * 0.3 - 1);
+      CH.R = Math.min(maxR, Math.max(minR, CH.R));
+    }
+
+    // 표시 구간(기간 버튼): 봉 간격과 무관하게 '시간'으로 계산
+    function chSetRange(key, redraw = true) {
+      CH.range = key;
+      const n = CH.hist.length;
+      if (!n) return;
+      const span = CH_RANGES[key];
+      let count = n;
+      if (span) {
+        const startT = CH.hist[n - 1].t - span * 86400;
+        let idx = 0; while (idx < n - 1 && CH.hist[idx].t < startT) idx++;
+        count = Math.max(CH.interval === 'D' ? 15 : 24, n - idx);
+      }
+      count = Math.min(count, n);
+      const pad = Math.max(3, Math.round(count * 0.05));
+      CH.barW = chPlotW() / (count + pad);
+      CH.R = n - 1 + pad;
+      CH.auto = true; CH.manual = null;
+      chClampView();
+      chSyncToolbar();
+      if (redraw) chDraw();
+    }
+
+    // ---------- 데이터 ----------
+    function chSetData(ticker, history, currency) {
+      const changed = ticker !== CH.ticker;
+      CH.ticker = ticker; CH.currency = currency || 'USD';
+      CH.sets = { D: history || [] };
+      CH.interval = 'D';
+      CH.hist = CH.sets.D;
+      if (!CH.studies.length) CH.studies = chDefaultStudies();
+      if (changed || !CH.ready) { CH.drawings = chLoadDrawings(ticker); CH.sel = -1; CH.draft = null; CH.measure = null; }
+      chRebuildDataset();
+      if (!CH.ready) CH.ready = true;
+      chResize(true);
+      chSetRange(CH.range, false);
+      chRunPreset();
+      chBuildLegend();
+      chSyncToolbar();
+      chDraw();
+    }
+    function chRebuildDataset() {
+      CH.tix = TA.timeIndex(CH.hist);
+      const n = CH.hist.length;
+      CH.dsKey = `${CH.ticker}|${CH.interval}|${n}|${n ? CH.hist[n - 1].t : 0}`;
+      CH.ha = null;
+    }
+    const chData = () => {
+      if (CH.type !== 'ha') return CH.hist;
+      if (!CH.ha) CH.ha = TA.heikinAshi(CH.hist);
+      return CH.ha;
+    };
+
+    // ---------- 레이아웃 ----------
+    function chLayout() {
+      const subs = chVisibleSubs();
+      const mainH = Math.max(180, CH.H - CH_DATE_H - subs.length * CH_SUB_H);
+      const panes = [{ kind: 'main', y0: 0, y1: mainH }];
+      let y = mainH;
+      subs.forEach(st => { panes.push({ kind: 'sub', st, y0: y, y1: y + CH_SUB_H }); y += CH_SUB_H; });
+      CH.layout = { panes, dateY: y };
+    }
+    const chPaneAt = y => (CH.layout ? CH.layout.panes.find(p => y >= p.y0 && y < p.y1) : null);
+
+    function chResize(force) {
+      const box = $id('proChartContainer');
+      if (!box) return;
+      if (!document.fullscreenElement) {
+        box.style.height = `${CH_MAIN_H + chVisibleSubs().length * CH_SUB_H + CH_DATE_H}px`;
+      }
+      const w = box.clientWidth, h = box.clientHeight;
+      if (!w || !h) return;
+      if (!force && w === CH.W && h === CH.H) return;
+      const keepRight = CH.W ? CH.R : null;
+      CH.W = w; CH.H = h; CH.dpr = window.devicePixelRatio || 1;
+      ['chartCanvas', 'chartOverlay'].forEach(id => {
+        const c = $id(id);
+        c.width = Math.round(w * CH.dpr); c.height = Math.round(h * CH.dpr);
+        c.style.width = `${w}px`; c.style.height = `${h}px`;
+      });
+      chLayout();
+      if (CH.hist.length) { if (keepRight === null) chSetRange(CH.range, false); else chClampView(); }
+      chPositionLegends();
+      chDraw();
+    }
+
+    // ---------- 스케줄 ----------
+    function chDraw() {
+      if (CH.raf) return;
+      CH.raf = requestAnimationFrame(() => { CH.raf = 0; chDrawBase(); chDrawOverlay(); });
+    }
+    function chDrawOver() {
+      if (CH.raf2) return;
+      CH.raf2 = requestAnimationFrame(() => { CH.raf2 = 0; chDrawOverlay(); });
+    }
+
+    // ---------- 눈금 / 포맷 ----------
+    function chNiceStep(range, target) {
+      const raw = range / Math.max(1, target);
+      if (!(raw > 0)) return 1;
+      const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+      const norm = raw / mag;
+      return (norm < 1.5 ? 1 : norm < 3.5 ? 2 : norm < 7.5 ? 5 : 10) * mag;
+    }
+    function chFmtPrice(p, step) {
+      if (!Number.isFinite(p)) return '';
+      if (CH.currency === 'KRW' || CH.currency === 'JPY') return Math.round(p).toLocaleString('en-US');
+      const dec = step ? Math.min(5, Math.max(0, Math.ceil(-Math.log10(step) - 1e-9))) : (Math.abs(p) >= 100 ? 2 : Math.abs(p) >= 1 ? 2 : 4);
+      return p.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    }
+    function chFmtVal(v, spec = {}) {
+      if (v === null || v === undefined || !Number.isFinite(v)) return '';
+      if (spec.fmt === 'vol') return fmtVol(Math.abs(v)) === '--' ? '0' : (v < 0 ? '-' : '') + fmtVol(Math.abs(v));
+      if (spec.fmt === 'pct') return `${v.toFixed(2)}%`;
+      if (spec.fmtD !== undefined) return v.toFixed(spec.fmtD);
+      return Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(3);
+    }
+    function chDateParts(i) {
+      const n = CH.hist.length;
+      if (!n) return null;
+      let d;
+      if (i >= 0 && i <= n - 1 && Number.isInteger(i)) d = CH.hist[i].date;
+      else d = new Date(CH.tix.timeOfIdx(i) * 1000).toISOString().slice(0, 10);
+      return { y: +d.slice(0, 4), m: +d.slice(5, 7), d: +d.slice(8, 10), s: d };
+    }
+    const chDow = s => ['일', '월', '화', '수', '목', '금', '토'][new Date(`${s}T00:00:00Z`).getUTCDay()];
+
+    // ---------- 가격 스케일 ----------
+    function chMainScale(i0, i1) {
+      const pane = CH.layout.panes[0];
+      let lo = Infinity, hi = -Infinity;
+      const data = CH.hist;
+      const lineLike = CH.type === 'line' || CH.type === 'area';
+      const d2 = chData();
+      for (let i = Math.max(0, i0); i <= Math.min(data.length - 1, i1); i++) {
+        const c = d2[i];
+        if (lineLike) { lo = Math.min(lo, c.close); hi = Math.max(hi, c.close); }
+        else { lo = Math.min(lo, c.low); hi = Math.max(hi, c.high); }
+      }
+      CH.studies.forEach(st => {
+        if (st.hidden || STUDY_DEFS[st.id].pane !== 'main') return;
+        const sp = chSpec(st), iEnd = i1;
+        const take = arr => { if (!arr) return; for (let i = Math.max(0, i0); i <= Math.min(arr.length - 1, iEnd); i++) { const v = arr[i]; if (v !== null && v !== undefined && Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } } };
+        (sp.lines || []).forEach(l => take(l.v));
+        (sp.fills || []).forEach(f => { take(f.upper); take(f.lower); });
+        if (sp.dots) take(sp.dots.v);
+      });
+      if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
+      if (!CH.auto && CH.manual) { lo = CH.manual.lo; hi = CH.manual.hi; }
+      else {
+        if (hi === lo) { hi = lo * 1.01 + 0.01; lo = lo * 0.99 - 0.01; }
+        if (CH.log && lo > 0) { const a = Math.log(lo), b = Math.log(hi), pad = (b - a) * 0.07; lo = Math.exp(a - pad); hi = Math.exp(b + pad); }
+        else { const pad = (hi - lo) * 0.07; lo -= pad; hi += pad; }
+      }
+      return chMakeScale(pane, lo, hi, CH.log && lo > 0, 8, 8);
+    }
+    function chMakeScale(pane, lo, hi, log, padT, padB) {
+      const f = log ? Math.log : (v => v);
+      const flo = f(lo), fhi = f(hi), h = pane.y1 - pane.y0 - padT - padB;
+      const span = (fhi - flo) || 1;
+      return {
+        lo, hi, log, pane, padT, padB,
+        yOf: p => pane.y0 + padT + (1 - (f(Math.max(p, log ? 1e-12 : -Infinity)) - flo) / span) * h,
+        pOf: y => { const t = 1 - (y - pane.y0 - padT) / h; const v = flo + t * span; return log ? Math.exp(v) : v; }
+      };
+    }
+    function chSubScale(pane, st, spec, i0, i1) {
+      let lo = Infinity, hi = -Infinity;
+      const take = arr => { if (!arr) return; for (let i = Math.max(0, i0); i <= Math.min(arr.length - 1, i1); i++) { const v = arr[i]; if (v !== null && v !== undefined && Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } } };
+      (spec.lines || []).forEach(l => take(l.v));
+      if (spec.hist) take(spec.hist.v);
+      if (spec.range) { lo = spec.range[0]; hi = spec.range[1]; }
+      else {
+        if (spec.zero || spec.hist) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+        if (spec.min0) lo = Math.min(lo, 0);
+        (spec.levels || []).forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); });
+        if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
+        if (hi === lo) { hi = lo + 1; }
+        const pad = (hi - lo) * 0.1;
+        if (!spec.min0 || lo < 0) lo -= pad;
+        hi += pad;
+      }
+      return chMakeScale(pane, lo, hi, false, 16, 4);
+    }
+
+    // ---------- 렌더링 ----------
+    function chLinePath(ctx, arr, scale, i0, i1, color, width, dash, cv) {
+      const iEnd = Math.min(arr.length - 1, i1);
+      ctx.lineWidth = width || 1.4; ctx.lineJoin = 'round';
+      ctx.setLineDash(dash || []);
+      if (cv) {
+        let prevC = null;
+        for (let i = Math.max(1, i0); i <= iEnd; i++) {
+          const a = arr[i - 1], b = arr[i], col = cv[i];
+          if (a === null || b === null || a === undefined || b === undefined || !col) continue;
+          ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(chX(i - 1), scale.yOf(a));
+          // 추세가 바뀌는 구간은 수직으로 이어 붙이지 않고 끊는다
+          if (cv[i - 1] !== col) { ctx.moveTo(chX(i), scale.yOf(b)); }
+          ctx.lineTo(chX(i), scale.yOf(b)); ctx.stroke();
+        }
+        ctx.setLineDash([]); return;
+      }
+      ctx.strokeStyle = color; ctx.beginPath();
+      let started = false;
+      for (let i = Math.max(0, i0); i <= iEnd; i++) {
+        const v = arr[i];
+        if (v === null || v === undefined || !Number.isFinite(v)) { started = false; continue; }
+        const x = chX(i), y = scale.yOf(v);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    function chFillBetween(ctx, upper, lower, scale, i0, i1, color) {
+      const iEnd = Math.min(upper.length - 1, lower.length - 1, i1);
+      ctx.fillStyle = color;
+      let seg = [];
+      const flush = () => {
+        if (seg.length > 1) {
+          ctx.beginPath();
+          seg.forEach((s, k) => { k === 0 ? ctx.moveTo(chX(s.i), scale.yOf(s.u)) : ctx.lineTo(chX(s.i), scale.yOf(s.u)); });
+          for (let k = seg.length - 1; k >= 0; k--) ctx.lineTo(chX(seg[k].i), scale.yOf(seg[k].l));
+          ctx.closePath(); ctx.fill();
+        }
+        seg = [];
+      };
+      for (let i = Math.max(0, i0); i <= iEnd; i++) {
+        const u = upper[i], l = lower[i];
+        if (u === null || l === null || u === undefined || l === undefined) { flush(); continue; }
+        seg.push({ i, u, l });
+      }
+      flush();
+    }
+
+    function chDateTicks(i0, i1) {
+      const pw = chPlotW(), out = [];
+      const dayMode = CH.barW >= 15 && CH.interval !== 'M';
+      let prevKey = null, lastX = -1e9;
+      const minGap = dayMode ? 46 : 58;
+      for (let i = Math.max(0, i0); i <= i1; i++) {
+        const d = chDateParts(i);
+        if (!d) continue;
+        let key, text;
+        if (CH.interval === 'M') { key = CH.barW > 22 ? d.y * 100 + d.m : d.y; text = CH.barW > 22 ? `${d.y}-${chPad2(d.m)}` : String(d.y); }
+        else if (dayMode) { key = d.y * 10000 + d.m * 100 + d.d; text = (d.d === 1 || prevKey === null) ? `${d.m}/${d.d}` : String(d.d); }
+        else { key = d.y * 100 + d.m; text = d.m === 1 ? String(d.y) : `${d.m}월`; }
+        if (key === prevKey) continue;
+        prevKey = key;
+        const x = chX(i);
+        if (x - lastX >= minGap && x > 16 && x < pw - 16) { out.push({ x, text }); lastX = x; }
+      }
+      return out;
+    }
+
+    function chDrawBase() {
+      const cv = $id('chartCanvas');
+      if (!cv || !CH.W) return;
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(CH.dpr, 0, 0, CH.dpr, 0, 0);
+      ctx.clearRect(0, 0, CH.W, CH.H);
+      const n = CH.hist.length;
+      const empty = $id('chartEmpty');
+      if (empty) empty.classList.toggle('hidden', n > 0);
+      if (!n) { CH.scale = null; return; }
+      chLayout();
+      const pw = chPlotW();
+      const i0 = Math.max(0, Math.floor(chI(0)) - 1), iMax = Math.ceil(chI(pw)) + 1, i1 = Math.min(n - 1, iMax);
+      const sc = chMainScale(i0, i1);
+      CH.scale = sc;
+      const ticks = chDateTicks(i0, iMax);
+      ctx.font = '10px "JetBrains Mono", monospace';
+
+      // ----- 세로 격자 (모든 패널) -----
+      ctx.strokeStyle = 'rgba(30,41,59,0.75)'; ctx.lineWidth = 1;
+      ticks.forEach(t => { const x = Math.round(t.x) + 0.5; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CH.layout.dateY); ctx.stroke(); });
+
+      // ===== 메인 패널 =====
+      const mp = CH.layout.panes[0];
+      ctx.save(); ctx.beginPath(); ctx.rect(0, mp.y0, pw, mp.y1 - mp.y0); ctx.clip();
+      // 가로 격자 + 축 라벨은 clip 밖에서
+      ctx.restore();
+      const step = chNiceStep(sc.hi - sc.lo, Math.max(3, Math.round((mp.y1 - mp.y0) / 55)));
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const priceTicks = [];
+      for (let v = Math.ceil(sc.lo / step) * step; v <= sc.hi; v += step) priceTicks.push(v);
+      priceTicks.forEach(v => {
+        const y = Math.round(sc.yOf(v)) + 0.5;
+        if (y < mp.y0 + 6 || y > mp.y1 - 6) return;
+        ctx.strokeStyle = 'rgba(30,41,59,0.9)'; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke();
+        ctx.fillStyle = '#64748b'; ctx.fillText(chFmtPrice(v, step), pw + 6, y);
+      });
+      CH.priceStep = step;
+
+      ctx.save(); ctx.beginPath(); ctx.rect(0, mp.y0, pw, mp.y1 - mp.y0); ctx.clip();
+      // 프리셋 배경 음영
+      if (CH.annot && CH.showSignals && CH.annot.shade) {
+        CH.annot.shade.forEach(s => { if (s.i < i0 - 1 || s.i > i1 + 1) return; ctx.fillStyle = s.color; ctx.fillRect(chX(s.i) - CH.barW / 2, mp.y0, CH.barW + 0.6, mp.y1 - mp.y0); });
+      }
+      // 일목 구름 · 밴드 채움 (캔들 뒤)
+      const mainSts = CH.studies.filter(st => !st.hidden && STUDY_DEFS[st.id].pane === 'main');
+      mainSts.forEach(st => {
+        const sp = chSpec(st);
+        (sp.fills || []).forEach(f => chFillBetween(ctx, f.upper, f.lower, sc, i0, iMax, f.color));
+        if (sp.cloud) {
+          const a = sp.cloud.a, b = sp.cloud.b, iEnd = Math.min(a.length - 1, iMax);
+          for (let i = Math.max(0, i0); i < iEnd; i++) {
+            if ([a[i], b[i], a[i + 1], b[i + 1]].some(v => v === null || v === undefined)) continue;
+            ctx.fillStyle = a[i] >= b[i] ? sp.cloud.up : sp.cloud.down;
+            ctx.beginPath(); ctx.moveTo(chX(i), sc.yOf(a[i])); ctx.lineTo(chX(i + 1), sc.yOf(a[i + 1])); ctx.lineTo(chX(i + 1), sc.yOf(b[i + 1])); ctx.lineTo(chX(i), sc.yOf(b[i])); ctx.closePath(); ctx.fill();
+          }
+        }
+      });
+      chDrawSeries(ctx, sc, i0, i1);
+      // 오버레이 선 · 점 · 지그재그 · 수평선
+      mainSts.forEach(st => {
+        const sp = chSpec(st);
+        (sp.lines || []).forEach(l => chLinePath(ctx, l.v, sc, i0, iMax, l.color, l.width, l.dash, l.cv));
+        if (sp.dots) {
+          for (let i = Math.max(0, i0); i <= i1; i++) {
+            const v = sp.dots.v[i]; if (v === null || v === undefined) continue;
+            ctx.fillStyle = sp.dots.dir[i] === 1 ? sp.dots.up : sp.dots.down;
+            ctx.beginPath(); ctx.arc(chX(i), sc.yOf(v), Math.max(1.2, Math.min(2.4, CH.barW * 0.22)), 0, Math.PI * 2); ctx.fill();
+          }
+        }
+        if (sp.poly) {
+          ctx.strokeStyle = sp.poly.color; ctx.lineWidth = 1.6; ctx.beginPath();
+          sp.poly.pts.forEach((p, k) => { const x = chX(p.i), y = sc.yOf(p.price); k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+          ctx.stroke();
+          ctx.fillStyle = sp.poly.color;
+          sp.poly.pts.forEach(p => { if (p.i >= i0 && p.i <= i1) { ctx.beginPath(); ctx.arc(chX(p.i), sc.yOf(p.price), 2.2, 0, Math.PI * 2); ctx.fill(); } });
+        }
+        (sp.hlines || []).forEach(l => chHLine(ctx, sc, l.price, l.color, l.dash, l.label));
+        if (sp.markers) chDrawMarkers(ctx, sc, sp.markers.map(m => ({ i: m.i, dir: m.kind === 'bear' ? 'down' : m.kind === 'bull' ? 'up' : 'dot', text: m.text, color: m.kind === 'bear' ? '#fb7185' : m.kind === 'bull' ? '#34d399' : '#94a3b8', strong: false })), i0, i1);
+      });
+      // 프리셋 신호
+      if (CH.annot && CH.showSignals) {
+        (CH.annot.levels || []).forEach(l => chHLine(ctx, sc, l.price, l.color, l.dash, l.label));
+        chDrawTrades(ctx, sc, i0, i1);
+        chDrawMarkers(ctx, sc, CH.annot.markers || [], i0, i1);
+      }
+      // 사용자 드로잉
+      CH.drawings.forEach((d, k) => chDrawDrawing(ctx, sc, d, k === CH.sel));
+      ctx.restore();
+      CH.drawings.forEach(d => { if (d.type === 'hline') { const y = sc.yOf(d.pts[0].p); if (y > mp.y0 && y < mp.y1) chAxisTag(ctx, y, chFmtPrice(d.pts[0].p, 0.01), CH_DRAW_COLORS.hline, '#0b1220'); } });
+
+      // 마지막 종가 라인 + 태그
+      const last = CH.hist[n - 1];
+      const ly = sc.yOf(last.close);
+      if (ly > mp.y0 && ly < mp.y1) {
+        const col = last.close >= last.open ? CH_UP : CH_DN;
+        ctx.strokeStyle = col; ctx.globalAlpha = 0.55; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(pw, ly); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+        chAxisTag(ctx, ly, chFmtPrice(last.close, 0.01), col, '#04110b');
+      }
+
+      // ===== 서브 패널 =====
+      CH.layout.panes.slice(1).forEach(pane => chDrawSubPane(ctx, pane, i0, i1, iMax));
+
+      // 패널 구분선 + 축 경계
+      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+      CH.layout.panes.slice(1).forEach(p => { ctx.beginPath(); ctx.moveTo(0, p.y0 + 0.5); ctx.lineTo(CH.W, p.y0 + 0.5); ctx.stroke(); });
+      ctx.beginPath(); ctx.moveTo(pw + 0.5, 0); ctx.lineTo(pw + 0.5, CH.layout.dateY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, CH.layout.dateY + 0.5); ctx.lineTo(CH.W, CH.layout.dateY + 0.5); ctx.stroke();
+
+      // 날짜 축
+      ctx.fillStyle = '#64748b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ticks.forEach(t => ctx.fillText(t.text, t.x, CH.layout.dateY + CH_DATE_H / 2 + 1));
+      chPositionLegends();
+    }
+
+    function chAxisTag(ctx, y, text, bg, fg) {
+      const pw = chPlotW();
+      ctx.fillStyle = bg; ctx.fillRect(pw + 1, Math.round(y) - 8, CH_AXIS_W - 2, 16);
+      ctx.fillStyle = fg; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = '10px "JetBrains Mono", monospace';
+      ctx.fillText(text, pw + 5, Math.round(y) + 0.5);
+    }
+    function chHLine(ctx, sc, price, color, dash, label) {
+      const y = Math.round(sc.yOf(price)) + 0.5, pw = chPlotW();
+      if (y < sc.pane.y0 - 2 || y > sc.pane.y1 + 2) return;
+      ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash(dash || [5, 4]);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke(); ctx.setLineDash([]);
+      if (label) { ctx.fillStyle = color; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.font = '10px "JetBrains Mono", monospace'; ctx.fillText(label, pw - 6, y - 2); }
+    }
+
+    function chDrawSeries(ctx, sc, i0, i1) {
+      const d = chData(), bw = CH.barW;
+      if (CH.type === 'line' || CH.type === 'area') {
+        const pts = [];
+        for (let i = i0; i <= i1; i++) pts.push([chX(i), sc.yOf(d[i].close)]);
+        if (!pts.length) return;
+        if (CH.type === 'area') {
+          const g = ctx.createLinearGradient(0, sc.pane.y0, 0, sc.pane.y1);
+          g.addColorStop(0, 'rgba(56,189,248,0.32)'); g.addColorStop(1, 'rgba(56,189,248,0.0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(pts[0][0], sc.pane.y1);
+          pts.forEach(p => ctx.lineTo(p[0], p[1])); ctx.lineTo(pts[pts.length - 1][0], sc.pane.y1); ctx.closePath(); ctx.fill();
+        }
+        ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+        pts.forEach((p, k) => k === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1])); ctx.stroke();
+        return;
+      }
+      const bodyW = Math.max(1, Math.floor(bw * 0.72));
+      for (let i = i0; i <= i1; i++) {
+        const c = d[i], x = chX(i);
+        const prevClose = i > 0 ? d[i - 1].close : c.open;
+        const up = CH.type === 'hollow' ? c.close >= prevClose : c.close >= c.open;
+        const col = up ? CH_UP : CH_DN;
+        const yH = sc.yOf(c.high), yL = sc.yOf(c.low), yO = sc.yOf(c.open), yC = sc.yOf(c.close);
+        ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+        const xc = Math.round(x) + 0.5;
+        if (CH.type === 'bars') {
+          ctx.beginPath(); ctx.moveTo(xc, yH); ctx.lineTo(xc, yL);
+          const tick = Math.max(2, bw * 0.35);
+          ctx.moveTo(xc - tick, Math.round(yO) + 0.5); ctx.lineTo(xc, Math.round(yO) + 0.5);
+          ctx.moveTo(xc, Math.round(yC) + 0.5); ctx.lineTo(xc + tick, Math.round(yC) + 0.5); ctx.stroke();
+          continue;
+        }
+        ctx.beginPath(); ctx.moveTo(xc, yH); ctx.lineTo(xc, yL); ctx.stroke();
+        if (bw < 2.6) continue;
+        const top = Math.min(yO, yC), bh = Math.max(1, Math.abs(yC - yO));
+        const x0 = Math.round(x - bodyW / 2);
+        if (CH.type === 'hollow' && c.close > c.open) { ctx.fillStyle = '#020617'; ctx.fillRect(x0, top, bodyW, bh); ctx.strokeRect(x0 + 0.5, top + 0.5, Math.max(1, bodyW - 1), Math.max(1, bh - 1)); }
+        else ctx.fillRect(x0, top, bodyW, bh);
+      }
+    }
+
+    function chDrawMarkers(ctx, sc, markers, i0, i1) {
+      const d = CH.hist;
+      markers.forEach(m => {
+        if (m.i < i0 || m.i > i1 || !d[m.i]) return;
+        const x = chX(m.i), c = d[m.i];
+        const big = !!m.strong, s = big ? 5.5 : 4;
+        ctx.fillStyle = m.color; ctx.strokeStyle = m.color; ctx.globalAlpha = big ? 1 : 0.8;
+        if (CH.barW < 3.5) { // 너무 촘촘하면 점만
+          const y = m.dir === 'down' ? sc.yOf(c.high) - 5 : sc.yOf(c.low) + 5;
+          ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; return;
+        }
+        if (m.dir === 'up') {
+          const y = sc.yOf(c.low) + 5;
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - s, y + s * 1.6); ctx.lineTo(x + s, y + s * 1.6); ctx.closePath(); ctx.fill();
+          if (m.text) { ctx.font = `${big ? 'bold ' : ''}10px "JetBrains Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(m.text, x, y + s * 1.6 + 2); }
+        } else if (m.dir === 'down') {
+          const y = sc.yOf(c.high) - 5;
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - s, y - s * 1.6); ctx.lineTo(x + s, y - s * 1.6); ctx.closePath(); ctx.fill();
+          if (m.text) { ctx.font = `${big ? 'bold ' : ''}10px "JetBrains Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(m.text, x, y - s * 1.6 - 2); }
+        } else {
+          const y = sc.yOf(c.high) - 6;
+          ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
+          if (m.text) { ctx.font = '9px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(m.text, x, y - 3); }
+        }
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    function chDrawTrades(ctx, sc, i0, i1) {
+      (CH.annot.trades || []).forEach(t => {
+        if (t.i1 < i0 - 1 || t.i0 > i1 + 1) return;
+        const col = t.ret > 0 ? 'rgba(52,211,153,0.9)' : 'rgba(251,113,133,0.9)';
+        const x0 = chX(t.i0), y0 = sc.yOf(t.p0), x1 = chX(t.i1), y1 = sc.yOf(t.p1);
+        ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+        // 진입 점 / 청산 점
+        ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.arc(x0, y0, 2.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = col;
+        if (!t.open) { ctx.fillRect(x1 - 2.5, y1 - 2.5, 5, 5); if (CH.barW >= 5) { ctx.font = '9px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(`${t.ret >= 0 ? '+' : ''}${t.ret.toFixed(1)}%`, x1 + 5, y1 + (t.ret >= 0 ? -8 : 8)); } }
+        else { ctx.beginPath(); ctx.arc(x1, y1, 3, 0, Math.PI * 2); ctx.fill(); }
+      });
+    }
+
+    function chDrawSubPane(ctx, pane, i0, i1, iMax) {
+      const st = pane.st, spec = chSpec(st), pw = chPlotW();
+      const sc = chSubScale(pane, st, spec, i0, i1);
+      pane.scale = sc;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, pane.y0 + 1, pw, pane.y1 - pane.y0 - 1); ctx.clip();
+      if (spec.fills2) { ctx.fillStyle = 'rgba(100,116,139,0.10)'; ctx.fillRect(0, sc.yOf(spec.fills2.hi), pw, sc.yOf(spec.fills2.lo) - sc.yOf(spec.fills2.hi)); }
+      (spec.levels || []).forEach(v => { const y = Math.round(sc.yOf(v)) + 0.5; ctx.strokeStyle = 'rgba(71,85,105,0.7)'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke(); ctx.setLineDash([]); });
+      if (spec.zero || spec.hist) { const y = Math.round(sc.yOf(spec.hist ? (spec.hist.base || 0) : 0)) + 0.5; ctx.strokeStyle = 'rgba(71,85,105,0.9)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke(); }
+      if (spec.hist) {
+        const bw = Math.max(1, Math.floor(CH.barW * 0.72)), zeroY = sc.yOf(spec.hist.base || 0);
+        for (let i = i0; i <= i1; i++) {
+          const v = spec.hist.v[i], col = spec.hist.c ? spec.hist.c[i] : null;
+          if (v === null || v === undefined || !col) continue;
+          const y = sc.yOf(v); ctx.fillStyle = col;
+          ctx.fillRect(Math.round(chX(i) - bw / 2), Math.min(y, zeroY), bw, Math.max(1, Math.abs(y - zeroY)));
+        }
+      }
+      (spec.lines || []).forEach(l => chLinePath(ctx, l.v, sc, i0, iMax, l.color, l.width, l.dash, l.cv));
+      ctx.restore();
+      // 축 라벨: 상·하단 + 기준선 + 마지막 값 태그
+      ctx.font = '10px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#64748b';
+      const labelAt = v => { const y = sc.yOf(v); if (y > pane.y0 + 8 && y < pane.y1 - 6) ctx.fillText(chFmtVal(v, spec) || '0', pw + 6, y); };
+      const marks = (spec.levels && spec.levels.length) ? spec.levels : [sc.lo + (sc.hi - sc.lo) * 0.15, sc.hi - (sc.hi - sc.lo) * 0.15];
+      marks.forEach(labelAt);
+      const first = (spec.lines && spec.lines[0]) ? spec.lines[0] : null;
+      const lastV = first ? chLastVal(first.v, CH.hist.length - 1) : (spec.hist ? chLastVal(spec.hist.v, CH.hist.length - 1) : null);
+      if (lastV !== null) { const y = sc.yOf(lastV); if (y > pane.y0 + 4 && y < pane.y1 - 4) chAxisTag(ctx, y, chFmtVal(lastV, spec) || '0', first ? first.color : '#475569', '#0b1220'); }
+    }
+    const chLastVal = (arr, idx) => { for (let i = Math.min(idx, arr.length - 1); i >= Math.max(0, idx - 8); i--) if (arr[i] !== null && arr[i] !== undefined) return arr[i]; return null; };
+
+    // ===== 프로 차트 엔진 — 드로잉 · 오버레이 · 인터랙션 · UI =====
+    const CH_DRAW_COLORS = { trend: '#38bdf8', ray: '#38bdf8', hline: '#fbbf24', vline: '#94a3b8', channel: '#38bdf8', rect: '#a78bfa', fib: '#fbbf24', avwap: '#f97316', measure: '#94a3b8' };
+
+    // ---------- 드로잉 저장 ----------
+    function chLoadDrawings(ticker) {
+      try {
+        const arr = JSON.parse(localStorage.getItem(`pentanalyst_draw_${ticker}`) || '[]');
+        return Array.isArray(arr) ? arr.filter(d => d && CH_TOOLS[d.type] && Array.isArray(d.pts) && d.pts.length >= CH_TOOLS[d.type].n) : [];
+      } catch (e) { return []; }
+    }
+    function chSaveDrawings() {
+      clearTimeout(CH.saveTimer);
+      CH.saveTimer = setTimeout(() => {
+        try {
+          const key = `pentanalyst_draw_${CH.ticker}`;
+          if (CH.drawings.length) localStorage.setItem(key, JSON.stringify(CH.drawings.slice(0, 100).map(d => ({ id: d.id, type: d.type, pts: d.pts, color: d.color }))));
+          else localStorage.removeItem(key);
+        } catch (e) { /* 저장 불가 환경 */ }
+      }, 250);
+    }
+
+    // ---------- 좌표 변환 ----------
+    function chPointAt(x, y, snap = true) {
+      const sc = CH.scale;
+      if (!sc || !CH.hist.length) return null;
+      const yy = Math.min(sc.pane.y1 - sc.padB, Math.max(sc.pane.y0 + sc.padT, y));
+      let idx = chI(x), p = sc.pOf(yy);
+      if (snap && CH.magnet) {
+        const ri = Math.round(idx);
+        if (ri >= 0 && ri < CH.hist.length) {
+          const c = CH.hist[ri];
+          let best = null, bd = 14;
+          [c.open, c.high, c.low, c.close].forEach(v => { const d = Math.abs(sc.yOf(v) - yy); if (d < bd) { bd = d; best = v; } });
+          if (best !== null) { p = best; idx = ri; }
+        }
+      }
+      return { t: CH.tix.timeOfIdx(idx), p };
+    }
+    const chScreenPts = (d, sc) => d.pts.map(q => ({ x: chX(CH.tix.idxOfTime(q.t)), y: sc.yOf(q.p), p: q.p, t: q.t }));
+
+    function chSegDist(px, py, ax, ay, bx, by) {
+      const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      let t = l2 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    }
+    function chRayTo(a, b, xmax) {
+      const dx = b.x - a.x;
+      if (Math.abs(dx) < 1e-6) return { x: b.x, y: b.y > a.y ? 1e5 : -1e5 };
+      const m = (b.y - a.y) / dx, xe = dx > 0 ? xmax : 0;
+      return { x: xe, y: a.y + m * (xe - a.x) };
+    }
+    function chChannelOffset(P) {
+      if (P.length < 3) return 0;
+      const dx = P[1].x - P[0].x, m = Math.abs(dx) < 1e-6 ? 0 : (P[1].y - P[0].y) / dx;
+      return P[2].y - (P[0].y + m * (P[2].x - P[0].x));
+    }
+    function chAvwap(d) {
+      const key = `${CH.dsKey}|${d.pts[0].t}`;
+      if (d._vwKey === key) return d._vw;
+      const n = CH.hist.length, a = Math.max(0, Math.min(n - 1, Math.round(CH.tix.idxOfTime(d.pts[0].t))));
+      const out = new Array(n).fill(null);
+      let pv = 0, vv = 0;
+      for (let i = a; i < n; i++) { const c = CH.hist[i], tp = (c.high + c.low + c.close) / 3, v = c.volume || 0; pv += tp * v; vv += v; out[i] = vv ? pv / vv : tp; }
+      d._vw = out; d._vwKey = key; d._vwA = a;
+      return out;
+    }
+
+    function chHit(x, y) {
+      const sc = CH.scale;
+      if (!sc) return null;
+      for (let k = CH.drawings.length - 1; k >= 0; k--) {
+        const d = CH.drawings[k], P = chScreenPts(d, sc);
+        for (let h = 0; h < P.length; h++) if (Math.hypot(x - P[h].x, y - P[h].y) <= 8) return { k, h };
+        const pw = chPlotW();
+        let dist = 1e9;
+        switch (d.type) {
+          case 'trend': dist = chSegDist(x, y, P[0].x, P[0].y, P[1].x, P[1].y); break;
+          case 'ray': { const e = chRayTo(P[0], P[1], pw); dist = chSegDist(x, y, P[0].x, P[0].y, e.x, e.y); break; }
+          case 'hline': dist = Math.abs(y - P[0].y); break;
+          case 'vline': dist = Math.abs(x - P[0].x); break;
+          case 'channel': {
+            const off = chChannelOffset(P);
+            dist = Math.min(chSegDist(x, y, P[0].x, P[0].y, P[1].x, P[1].y), chSegDist(x, y, P[0].x, P[0].y + off, P[1].x, P[1].y + off));
+            break;
+          }
+          case 'rect': {
+            const x0 = Math.min(P[0].x, P[1].x), x1 = Math.max(P[0].x, P[1].x), y0 = Math.min(P[0].y, P[1].y), y1 = Math.max(P[0].y, P[1].y);
+            if (x >= x0 && x <= x1 && y >= y0 && y <= y1) dist = 0;
+            break;
+          }
+          case 'fib': {
+            const xa = Math.min(P[0].x, P[1].x);
+            if (x >= xa - 4) CH_FIB.forEach(([lv]) => { const yy = sc.yOf(P[1].p + (P[0].p - P[1].p) * lv); dist = Math.min(dist, Math.abs(y - yy)); });
+            break;
+          }
+          case 'avwap': {
+            const vw = chAvwap(d);
+            for (let i = d._vwA; i < vw.length; i++) { if (vw[i] === null) continue; const xx = chX(i); if (Math.abs(xx - x) < Math.max(4, CH.barW)) dist = Math.min(dist, Math.abs(sc.yOf(vw[i]) - y)); }
+            break;
+          }
+        }
+        if (dist <= 6) return { k, h: -1 };
+      }
+      return null;
+    }
+
+    // ---------- 드로잉 렌더 ----------
+    function chLabelBox(ctx, x, y, text, color, align = 'left') {
+      ctx.font = '10px "JetBrains Mono", monospace';
+      const w = ctx.measureText(text).width + 10;
+      let bx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+      ctx.fillStyle = 'rgba(2,6,23,0.88)'; ctx.fillRect(bx, y - 8, w, 16);
+      ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(bx + 0.5, y - 7.5, w - 1, 15);
+      ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(text, bx + 5, y + 0.5);
+    }
+    function chDrawDrawing(ctx, sc, d, selected, draftMode = false) {
+      const P = chScreenPts(d, sc), pw = chPlotW();
+      const col = d.color || CH_DRAW_COLORS[d.type] || '#38bdf8';
+      ctx.save();
+      ctx.lineWidth = selected ? 2 : 1.4; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineJoin = 'round';
+      const seg = (a, b) => { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); };
+      switch (d.type) {
+        case 'trend': {
+          if (P.length < 2) break;
+          seg(P[0], P[1]);
+          if (selected || draftMode) {
+            const pct = (P[1].p / P[0].p - 1) * 100, bars = Math.round(CH.tix.idxOfTime(P[1].t) - CH.tix.idxOfTime(P[0].t));
+            chLabelBox(ctx, P[1].x + 8, P[1].y, `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% · ${Math.abs(bars)}봉`, col);
+          }
+          break;
+        }
+        case 'ray': { if (P.length < 2) break; const e = chRayTo(P[0], P[1], pw); seg(P[0], e); break; }
+        case 'hline': { ctx.beginPath(); ctx.moveTo(0, P[0].y); ctx.lineTo(pw, P[0].y); ctx.stroke(); break; }
+        case 'vline': { ctx.beginPath(); ctx.moveTo(P[0].x, 0); ctx.lineTo(P[0].x, CH.layout.dateY); ctx.stroke(); break; }
+        case 'channel': {
+          if (P.length < 2) break;
+          seg(P[0], P[1]);
+          if (P.length >= 3) {
+            const off = chChannelOffset(P);
+            const A = { x: P[0].x, y: P[0].y + off }, B = { x: P[1].x, y: P[1].y + off };
+            ctx.fillStyle = 'rgba(56,189,248,0.07)'; ctx.beginPath(); ctx.moveTo(P[0].x, P[0].y); ctx.lineTo(P[1].x, P[1].y); ctx.lineTo(B.x, B.y); ctx.lineTo(A.x, A.y); ctx.closePath(); ctx.fill();
+            seg(A, B);
+            ctx.setLineDash([4, 4]); ctx.globalAlpha = 0.6; seg({ x: P[0].x, y: P[0].y + off / 2 }, { x: P[1].x, y: P[1].y + off / 2 }); ctx.setLineDash([]); ctx.globalAlpha = 1;
+          }
+          break;
+        }
+        case 'rect': {
+          if (P.length < 2) break;
+          const x0 = Math.min(P[0].x, P[1].x), y0 = Math.min(P[0].y, P[1].y), w = Math.abs(P[1].x - P[0].x), h = Math.abs(P[1].y - P[0].y);
+          ctx.fillStyle = 'rgba(167,139,250,0.10)'; ctx.fillRect(x0, y0, w, h); ctx.strokeRect(x0 + 0.5, y0 + 0.5, w, h);
+          if (selected || draftMode) { const pct = (P[1].p / P[0].p - 1) * 100; chLabelBox(ctx, x0 + w / 2, y0 - 10, `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`, col, 'center'); }
+          break;
+        }
+        case 'fib': {
+          if (P.length < 2) break;
+          const xa = Math.min(P[0].x, P[1].x);
+          ctx.setLineDash([3, 4]); ctx.globalAlpha = 0.5; seg(P[0], P[1]); ctx.setLineDash([]); ctx.globalAlpha = 1;
+          let prevY = null;
+          CH_FIB.forEach(([lv, lc], idx) => {
+            const pr = P[1].p + (P[0].p - P[1].p) * lv, y = sc.yOf(pr);
+            if (prevY !== null && lv <= 1) { ctx.fillStyle = lc + '14'; ctx.fillRect(xa, Math.min(prevY, y), pw - xa, Math.abs(y - prevY)); }
+            if (lv <= 1) prevY = y;
+            ctx.strokeStyle = lc; ctx.lineWidth = lv === 0.618 || lv === 0.5 ? 1.5 : 1; ctx.beginPath(); ctx.moveTo(xa, y); ctx.lineTo(pw, y); ctx.stroke();
+            ctx.fillStyle = lc; ctx.font = '10px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+            ctx.fillText(`${lv} (${chFmtPrice(pr, 0.01)})`, xa + 4, y - 2);
+          });
+          break;
+        }
+        case 'avwap': {
+          const vw = chAvwap(d);
+          ctx.beginPath(); let st = false;
+          for (let i = d._vwA; i < vw.length; i++) { if (vw[i] === null) continue; const x = chX(i), y = sc.yOf(vw[i]); if (!st) { ctx.moveTo(x, y); st = true; } else ctx.lineTo(x, y); }
+          ctx.lineWidth = 1.8; ctx.stroke();
+          ctx.fillStyle = col; ctx.font = 'bold 10px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+          const ax = chX(d._vwA), ay = sc.yOf(vw[d._vwA]);
+          ctx.beginPath(); ctx.arc(ax, ay, 3.5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillText('AVWAP', ax + 6, ay - 4);
+          break;
+        }
+      }
+      if (selected) {
+        ctx.fillStyle = '#0b1220'; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        P.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
+      }
+      ctx.restore();
+    }
+    function chDrawMeasure(ctx, sc, m) {
+      const a = { x: chX(CH.tix.idxOfTime(m.pts[0].t)), y: sc.yOf(m.pts[0].p) }, b = { x: chX(CH.tix.idxOfTime(m.pts[1].t)), y: sc.yOf(m.pts[1].p) };
+      const dp = m.pts[1].p - m.pts[0].p, pct = (m.pts[1].p / m.pts[0].p - 1) * 100;
+      const bars = Math.round(CH.tix.idxOfTime(m.pts[1].t) - CH.tix.idxOfTime(m.pts[0].t)), days = Math.round((m.pts[1].t - m.pts[0].t) / 86400);
+      const col = dp >= 0 ? '#34d399' : '#fb7185';
+      ctx.save();
+      ctx.fillStyle = dp >= 0 ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)';
+      ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+      ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.strokeRect(Math.min(a.x, b.x) + 0.5, Math.min(a.y, b.y) + 0.5, Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      chLabelBox(ctx, (a.x + b.x) / 2, Math.min(a.y, b.y) - 14, `${dp >= 0 ? '+' : ''}${chFmtPrice(dp, 0.01)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%) · ${Math.abs(bars)}봉 · ${Math.abs(days)}일`, col, 'center');
+      ctx.restore();
+    }
+
+    // ---------- 오버레이(크로스헤어 · 드래프트 · 선택 핸들) ----------
+    function chDrawOverlay() {
+      const cv = $id('chartOverlay');
+      if (!cv || !CH.W) return;
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(CH.dpr, 0, 0, CH.dpr, 0, 0);
+      ctx.clearRect(0, 0, CH.W, CH.H);
+      if (!CH.hist.length || !CH.scale || !CH.layout) return;
+      const sc = CH.scale, pw = chPlotW(), mp = CH.layout.panes[0];
+      ctx.save(); ctx.beginPath(); ctx.rect(0, mp.y0, pw, mp.y1 - mp.y0); ctx.clip();
+      if (CH.draft) chDrawDrawing(ctx, sc, CH.draft, false, true);
+      if (CH.measure) chDrawMeasure(ctx, sc, CH.measure);
+      ctx.restore();
+
+      const m = CH.mouse;
+      if (!m || CH.drag && CH.drag.mode === 'pan' || m.x < 0 || m.x > pw || m.y < 0 || m.y >= CH.layout.dateY) return;
+      const n = CH.hist.length, ri = Math.round(chI(m.x));
+      const x = (ri >= 0 && ri < n) ? chX(ri) : m.x;
+      ctx.strokeStyle = 'rgba(148,163,184,0.55)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, 0); ctx.lineTo(Math.round(x) + 0.5, CH.layout.dateY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, Math.round(m.y) + 0.5); ctx.lineTo(pw, Math.round(m.y) + 0.5); ctx.stroke(); ctx.setLineDash([]);
+      // 축 라벨
+      const pane = chPaneAt(m.y);
+      if (pane) {
+        let label = '';
+        if (pane.kind === 'main') label = chFmtPrice(sc.pOf(m.y), 0.01);
+        else if (pane.scale) label = chFmtVal(pane.scale.pOf(m.y), chSpec(pane.st));
+        if (label) chAxisTag(ctx, m.y, label, '#334155', '#f1f5f9');
+      }
+      const dp = chDateParts(ri);
+      if (dp) {
+        const txt = `${dp.s} (${chDow(dp.s)})`;
+        ctx.font = '10px "JetBrains Mono", monospace';
+        const w = ctx.measureText(txt).width + 12, bx = Math.max(0, Math.min(pw - w, x - w / 2));
+        ctx.fillStyle = '#334155'; ctx.fillRect(bx, CH.layout.dateY + 2, w, CH_DATE_H - 4);
+        ctx.fillStyle = '#f1f5f9'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(txt, bx + 6, CH.layout.dateY + CH_DATE_H / 2 + 0.5);
+      }
+    }
+
+    // ---------- 레전드(DOM) ----------
+    const chBtn = 'w-5 h-5 grid place-items-center rounded text-slate-400 hover:text-white hover:bg-slate-700/70';
+    function chLegendRow(st) {
+      const def = STUDY_DEFS[st.id];
+      return `<div class="chart-lg-row group flex items-center gap-1.5 ${st.hidden ? 'opacity-40' : ''}" data-uid="${st.uid}">
+        <span class="w-2 h-2 rounded-full shrink-0" style="background:${st.color}"></span>
+        <span class="text-slate-300">${escapeHtml(studyLabel(st))}</span>
+        <span id="lgv-${st.uid}" class="font-mono-numbers"></span>
+        <span class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
+          <button type="button" class="${chBtn}" title="${st.hidden ? '보이기' : '숨기기'}" onclick="chToggleStudy(${st.uid})"><i class="fa-solid ${st.hidden ? 'fa-eye-slash' : 'fa-eye'} text-[10px]"></i></button>
+          ${def.params.length || def.pane === 'main' ? `<button type="button" class="${chBtn}" title="설정" onclick="chEditStudy(${st.uid})"><i class="fa-solid fa-gear text-[10px]"></i></button>` : ''}
+          <button type="button" class="${chBtn}" title="삭제" onclick="chRemoveStudy(${st.uid})"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+        </span></div>`;
+    }
+    function chBuildLegend() {
+      const lg = $id('chartLegend'), sl = $id('subLegends');
+      if (!lg) return;
+      const head = `<div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 pointer-events-none">
+        <span class="font-bold text-slate-100 text-xs">${escapeHtml(CH.ticker)}</span>
+        <span class="text-slate-500">${CH_IV[CH.interval].name} · ${CH_TYPES[CH.type]}${CH.log ? ' · 로그' : ''}</span>
+        <span class="text-slate-500">O <b id="lgO" class="text-slate-200 font-semibold"></b></span><span class="text-slate-500">H <b id="lgH" class="text-slate-200 font-semibold"></b></span><span class="text-slate-500">L <b id="lgL" class="text-slate-200 font-semibold"></b></span><span class="text-slate-500">C <b id="lgC" class="text-slate-200 font-semibold"></b></span>
+        <b id="lgChg"></b><span class="text-slate-500">거래량 <b id="lgV" class="text-slate-300 font-semibold"></b></span></div>`;
+      lg.innerHTML = head + CH.studies.filter(st => STUDY_DEFS[st.id].pane === 'main' || st.hidden).map(chLegendRow).join('');
+      sl.innerHTML = chVisibleSubs().map(st => `<div class="absolute left-2 chart-sublg" data-uid="${st.uid}">${chLegendRow(st)}</div>`).join('');
+      chPositionLegends();
+      chUpdateLegendValues(CH.hoverIdx);
+    }
+    function chPositionLegends() {
+      if (!CH.layout) return;
+      CH.layout.panes.forEach(p => {
+        if (p.kind !== 'sub') return;
+        const el = document.querySelector(`#subLegends .chart-sublg[data-uid="${p.st.uid}"]`);
+        if (el) el.style.top = `${p.y0 + 2}px`;
+      });
+    }
+    function chUpdateLegendValues(idx) {
+      const n = CH.hist.length;
+      if (!n) return;
+      const i = (idx === null || idx === undefined || idx < 0 || idx >= n) ? n - 1 : idx;
+      const c = CH.hist[i], prev = i > 0 ? CH.hist[i - 1].close : c.open;
+      const chg = prev ? ((c.close - prev) / prev) * 100 : 0;
+      const set = (id, v, cls) => { const el = $id(id); if (el) { el.textContent = v; if (cls) el.className = cls; } };
+      set('lgO', chFmtPrice(c.open, 0.01)); set('lgH', chFmtPrice(c.high, 0.01)); set('lgL', chFmtPrice(c.low, 0.01)); set('lgC', chFmtPrice(c.close, 0.01));
+      set('lgChg', `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`, chg >= 0 ? 'text-emerald-400' : 'text-rose-400');
+      set('lgV', fmtVol(c.volume));
+      CH.studies.forEach(st => {
+        const el = $id(`lgv-${st.uid}`);
+        if (!el) return;
+        if (st.hidden) { el.innerHTML = ''; return; }
+        const sp = chSpec(st), parts = [];
+        (sp.lines || []).forEach(l => {
+          if (/선행/.test(l.name || '')) return;
+          const v = l.v[i];
+          if (v !== null && v !== undefined && Number.isFinite(v)) parts.push(`<span style="color:${l.color && l.color.startsWith('rgba') ? '#cbd5e1' : (l.cv && l.cv[i]) || l.color}">${chFmtVal(v, sp) || chFmtPrice(v, CH.priceStep)}</span>`);
+        });
+        if (sp.hist && sp.hist.v[i] !== null && sp.hist.v[i] !== undefined) parts.push(`<span class="text-slate-300">${chFmtVal(sp.hist.v[i], sp)}</span>`);
+        el.innerHTML = parts.join(' ');
+      });
+    }
+
+    // ---------- 툴바 / 프리셋 UI ----------
+    const CH_TOOL_ICONS = {
+      cursor: '<i class="fa-solid fa-arrow-pointer"></i>',
+      trend: '<svg viewBox="0 0 20 20" class="w-4 h-4"><path d="M3 16 L17 4" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="3" cy="16" r="2" fill="currentColor"/><circle cx="17" cy="4" r="2" fill="currentColor"/></svg>',
+      ray: '<svg viewBox="0 0 20 20" class="w-4 h-4"><path d="M3 16 L18 5" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="3" cy="16" r="2" fill="currentColor"/><path d="M18 5 l-4 .5 M18 5 l-1.2 3.8" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>',
+      hline: '<svg viewBox="0 0 20 20" class="w-4 h-4"><path d="M1 10 H19" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="10" r="2.2" fill="currentColor"/></svg>',
+      vline: '<svg viewBox="0 0 20 20" class="w-4 h-4"><path d="M10 1 V19" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="10" r="2.2" fill="currentColor"/></svg>',
+      channel: '<svg viewBox="0 0 20 20" class="w-4 h-4"><path d="M2 14 L17 5 M3 18 L18 9" stroke="currentColor" stroke-width="1.7" fill="none"/></svg>',
+      rect: '<svg viewBox="0 0 20 20" class="w-4 h-4"><rect x="3" y="5" width="14" height="10" stroke="currentColor" stroke-width="1.7" fill="none"/></svg>',
+      fib: '<svg viewBox="0 0 20 20" class="w-4 h-4"><path d="M2 3 H18 M2 8 H18 M2 12 H18 M2 17 H18" stroke="currentColor" stroke-width="1.5"/></svg>',
+      measure: '<i class="fa-solid fa-ruler-combined"></i>',
+      avwap: '<span class="text-[9px] font-bold leading-none">VW</span>'
+    };
+    function chRenderDrawTools() {
+      const box = $id('drawTools');
+      if (!box) return;
+      box.innerHTML = Object.keys(CH_TOOLS).map(k => `<button type="button" id="tool-${k}" onclick="chSetTool('${k}')" title="${CH_TOOLS[k].label}" class="w-8 h-8 grid place-items-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent transition">${CH_TOOL_ICONS[k]}</button>`).join('')
+        + `<div class="h-px bg-slate-800 my-1"></div>
+           <button type="button" onclick="chDeleteSelected()" title="선택한 그림 삭제 (Delete)" class="w-8 h-8 grid place-items-center rounded-lg text-slate-500 hover:text-rose-300 hover:bg-slate-800 transition"><i class="fa-regular fa-trash-can text-xs"></i></button>
+           <button type="button" onclick="chClearDrawings()" title="이 종목의 그림 모두 지우기" class="w-8 h-8 grid place-items-center rounded-lg text-slate-500 hover:text-rose-300 hover:bg-slate-800 transition"><i class="fa-solid fa-eraser text-xs"></i></button>`;
+    }
+    function chSyncToolbar() {
+      Object.keys(CH_IV).forEach(k => { const b = $id(`iv-${k}`); if (b) b.className = `px-2.5 py-1 rounded-md transition ${CH.interval === k ? 'bg-cyan-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`; });
+      Object.keys(CH_RANGES).forEach(k => { const b = $id(`rg-${k}`); if (b) b.className = `px-2 py-1 rounded-md transition ${CH.range === k ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'}`; });
+      const sel = $id('chartTypeSel'); if (sel) sel.value = CH.type;
+      const tog = (id, on) => { const b = $id(id); if (b) b.className = `px-2.5 py-1 rounded-lg border transition ${on ? 'bg-cyan-950 border-cyan-600 text-cyan-300 font-semibold' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}`; };
+      tog('btnLog', CH.log); tog('btnAuto', CH.auto); tog('btnMagnet', CH.magnet);
+      Object.keys(CH_TOOLS).forEach(k => { const b = $id(`tool-${k}`); if (b) b.className = `w-8 h-8 grid place-items-center rounded-lg border transition ${CH.tool === k ? 'bg-cyan-950 text-cyan-300 border-cyan-600' : 'text-slate-400 hover:text-white hover:bg-slate-800 border-transparent'}`; });
+      const box = $id('proChartContainer'); if (box) box.style.touchAction = CH.tool === 'cursor' ? 'pan-y' : 'none';
+      chRenderPresetCards();
+    }
+
+    function chSetTool(tool) {
+      CH.tool = tool; CH.draft = null;
+      if (tool !== 'measure') CH.measure = null;
+      chSyncToolbar(); chDrawOver();
+      const box = $id('proChartContainer'); if (box) box.focus({ preventScroll: true });
+    }
+    function chSetType(t) { CH.type = t; CH.ha = null; chSyncToolbar(); chBuildLegend(); chDraw(); }
+    function chToggleLog() { CH.log = !CH.log; CH.auto = true; CH.manual = null; chSyncToolbar(); chBuildLegend(); chDraw(); }
+    function chToggleAuto() { CH.auto = true; CH.manual = null; chSyncToolbar(); chDraw(); }
+    function chToggleMagnet() { CH.magnet = !CH.magnet; chSyncToolbar(); }
+    function chDeleteSelected() { if (CH.sel >= 0) { CH.drawings.splice(CH.sel, 1); CH.sel = -1; chSaveDrawings(); chDraw(); chDrawOver(); } }
+    function chClearDrawings() {
+      if (!CH.drawings.length) return;
+      if (!confirm(`${CH.ticker} 차트에 그린 ${CH.drawings.length}개의 그림을 모두 지울까요?`)) return;
+      CH.drawings = []; CH.sel = -1; chSaveDrawings(); chDraw(); chDrawOver();
+    }
+
+    async function chSetInterval(iv) {
+      if (!CH_IV[iv] || iv === CH.interval || CH.loading) return;
+      if (!CH.sets[iv]) {
+        CH.loading = true; $id('chartLoading').classList.remove('hidden');
+        let res = null;
+        try { res = await fetchRealYahooFinanceData(CH.ticker, CH_IV[iv].range, CH_IV[iv].iv); } catch (e) { res = null; }
+        CH.loading = false; $id('chartLoading').classList.add('hidden');
+        if (!res || res.notFound || !res.history || res.history.length < 5) { showToast('차트 데이터 없음', `${CH_IV[iv].name} 데이터를 불러오지 못했습니다.`, 'warning'); return; }
+        CH.sets[iv] = res.history;
+      }
+      CH.interval = iv; CH.hist = CH.sets[iv]; CH.draft = null;
+      chRebuildDataset();
+      if (!CH.presetId) CH.range = { D: '6M', W: '2Y', M: '5Y' }[iv];
+      chSetRange(CH.range, false);
+      chRunPreset(); chBuildLegend(); chSyncToolbar(); chDraw();
+    }
+
+    // ----- 지표 추가/삭제/설정 -----
+    function chAfterStudies() { chResize(true); chBuildLegend(); chDraw(); }
+    function chAddStudy(id) {
+      const same = CH.studies.filter(s => s.id === id).length;
+      const st = newStudy(id, {}, CH.studies.length + same);
+      if (!st) return;
+      CH.studies.push(st); chAfterStudies(); chRenderIndicatorModal();
+    }
+    function chRemoveStudy(uid) { CH.studies = CH.studies.filter(s => s.uid !== uid); chCloseStudyEditor(); chAfterStudies(); chRenderIndicatorModal(); }
+    function chToggleStudy(uid) { const s = CH.studies.find(x => x.uid === uid); if (s) { s.hidden = !s.hidden; chAfterStudies(); } }
+    function chEditStudy(uid) {
+      const st = CH.studies.find(s => s.uid === uid), box = $id('studyEditor');
+      if (!st || !box) return;
+      const def = STUDY_DEFS[st.id];
+      box.innerHTML = `
+        <div class="flex items-center justify-between mb-2"><strong class="text-slate-100 text-xs">${escapeHtml(def.name)} 설정</strong>
+          <button type="button" onclick="chCloseStudyEditor()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="space-y-1.5">${def.params.map(p => `
+          <label class="flex items-center justify-between gap-3 text-[11px] text-slate-300">${escapeHtml(p.label)}
+            <input type="number" value="${st.params[p.k]}" min="${p.min}" max="${p.max}" step="${p.step}" onchange="chStudyParam(${st.uid}, '${p.k}', this.value)" class="w-20 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-mono-numbers outline-none focus:border-cyan-400"></label>`).join('')}
+          <label class="flex items-center justify-between gap-3 text-[11px] text-slate-300">색상
+            <input type="color" value="${/^#[0-9a-f]{6}$/i.test(st.color) ? st.color : '#38bdf8'}" onchange="chStudyColor(${st.uid}, this.value)" class="w-20 h-6 bg-transparent border border-slate-700 rounded"></label></div>
+        <div class="text-[10px] text-slate-500 mt-2 leading-snug">${escapeHtml(def.desc)}</div>`;
+      box.classList.remove('hidden');
+    }
+    function chCloseStudyEditor() { const b = $id('studyEditor'); if (b) b.classList.add('hidden'); }
+    function chStudyParam(uid, k, val) {
+      const st = CH.studies.find(s => s.uid === uid), p = STUDY_DEFS[st.id].params.find(x => x.k === k);
+      let v = parseFloat(val); if (!Number.isFinite(v)) return;
+      v = Math.min(p.max, Math.max(p.min, v)); st.params[k] = v; st._spec = null;
+      chBuildLegend(); chDraw();
+    }
+    function chStudyColor(uid, c) { const st = CH.studies.find(s => s.uid === uid); st.color = c; st._spec = null; chBuildLegend(); chDraw(); }
+
+    // ----- 지표 선택 모달 -----
+    function chOpenIndicators() { $id('indicatorModal').classList.remove('hidden'); const q = $id('indSearch'); q.value = ''; chRenderIndicatorModal(); setTimeout(() => q.focus(), 30); }
+    function chCloseIndicators() { $id('indicatorModal').classList.add('hidden'); }
+    function chRenderIndicatorModal() {
+      const body = $id('indList');
+      if (!body || $id('indicatorModal').classList.contains('hidden')) return;
+      const q = ($id('indSearch').value || '').trim().toLowerCase();
+      const cats = {};
+      Object.keys(STUDY_DEFS).forEach(id => {
+        const d = STUDY_DEFS[id];
+        if (q && !(`${d.name} ${d.desc} ${d.cat} ${id}`.toLowerCase().includes(q))) return;
+        (cats[d.cat] = cats[d.cat] || []).push(id);
+      });
+      const active = CH.studies.length ? `<div class="mb-3"><div class="text-[11px] font-bold text-slate-400 mb-1.5">적용 중 (${CH.studies.length})</div><div class="flex flex-wrap gap-1.5">${CH.studies.map(st => `<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[11px] text-slate-200"><span class="w-2 h-2 rounded-full" style="background:${st.color}"></span>${escapeHtml(studyLabel(st))}<button type="button" onclick="chRemoveStudy(${st.uid})" class="text-slate-500 hover:text-rose-300"><i class="fa-solid fa-xmark text-[10px]"></i></button></span>`).join('')}</div></div>` : '';
+      const list = Object.keys(cats).map(cat => `
+        <div class="mb-3"><div class="text-[11px] font-bold text-cyan-300 mb-1.5">${escapeHtml(cat)}</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">${cats[cat].map(id => {
+            const d = STUDY_DEFS[id], cnt = CH.studies.filter(s => s.id === id).length;
+            return `<button type="button" onclick="chAddStudy('${id}')" class="text-left p-2.5 rounded-lg bg-slate-950/80 hover:bg-slate-800 border border-slate-800 hover:border-cyan-600/60 transition">
+              <div class="flex items-center justify-between"><span class="text-xs font-bold text-slate-100">${escapeHtml(d.name)}</span>
+                <span class="text-[10px] ${d.pane === 'main' ? 'text-amber-300' : 'text-sky-300'}">${d.pane === 'main' ? '차트 위' : '하단 패널'}${cnt ? ` · ${cnt}개 적용` : ''}</span></div>
+              <p class="text-[11px] text-slate-400 mt-0.5 leading-snug">${escapeHtml(d.desc)}</p></button>`;
+          }).join('')}</div></div>`).join('');
+      body.innerHTML = active + (list || '<div class="py-8 text-center text-xs text-slate-500">일치하는 지표가 없습니다.</div>');
+    }
+
+    // ----- 프리셋 -----
+    const CH_PRESET_COLORS = { amber: 'border-amber-500/60 text-amber-300 hover:bg-amber-950/40', emerald: 'border-emerald-500/60 text-emerald-300 hover:bg-emerald-950/40', sky: 'border-sky-500/60 text-sky-300 hover:bg-sky-950/40', violet: 'border-violet-500/60 text-violet-300 hover:bg-violet-950/40', rose: 'border-rose-500/60 text-rose-300 hover:bg-rose-950/40' };
+    function chRenderPresetCards() {
+      const box = $id('presetCards');
+      if (!box) return;
+      box.innerHTML = Object.keys(CHART_PRESETS).map(id => {
+        const p = CHART_PRESETS[id], on = CH.presetId === id, c = CH_PRESET_COLORS[p.color];
+        return `<button type="button" onclick="chApplyPreset('${id}')" title="${escapeHtml(p.source)}" class="text-left p-2.5 rounded-xl bg-slate-950/80 border ${on ? c.split(' ')[0] + ' ring-1 ring-offset-0 ring-' + p.color + '-500/60 bg-slate-900' : 'border-slate-800 hover:border-slate-600'} transition group">
+          <div class="flex items-center justify-between gap-1">
+            <span class="text-xs font-bold ${c.split(' ')[1]} flex items-center gap-1.5"><i class="fa-solid ${p.icon}"></i>${escapeHtml(p.name)}</span>
+            ${on ? '<i class="fa-solid fa-circle-check text-[11px] text-cyan-300"></i>' : '<i class="fa-solid fa-play text-[9px] text-slate-600 group-hover:text-slate-300"></i>'}
+          </div>
+          <div class="text-[10px] text-slate-500 mt-0.5">${escapeHtml(p.tag)}</div>
+          <p class="text-[11px] text-slate-400 mt-1 leading-snug">${escapeHtml(p.desc)}</p></button>`;
+      }).join('');
+    }
+    async function chApplyPreset(id) {
+      const P = CHART_PRESETS[id];
+      if (!P || !CH.hist.length) return;
+      if (CH.presetId === id) { chClearPreset(); return; }
+      CH.presetId = id; CH.type = P.chartType; CH.ha = null; CH.showSignals = true;
+      CH.studies = P.studies.map((s, i) => newStudy(s.id, { params: s.params, color: s.color, width: s.width }, i));
+      if (CH.interval !== P.interval) { await chSetInterval(P.interval); }
+      chRunPreset();
+      chSetRange(P.range, false);
+      chResize(true); chBuildLegend(); chSyncToolbar(); chDraw();
+      const box = $id('presetPanel'); if (box && box.scrollIntoView) { /* 패널은 차트 아래에 표시 */ }
+    }
+    function chClearPreset() {
+      CH.presetId = null; CH.annot = null; CH.presetResult = null;
+      CH.studies = chDefaultStudies(); CH.type = 'candles'; CH.ha = null;
+      chRenderPresetPanel(); chResize(true); chBuildLegend(); chSyncToolbar(); chDraw();
+    }
+    function chRunPreset() {
+      const P = CH.presetId ? CHART_PRESETS[CH.presetId] : null;
+      CH.annot = null; CH.presetResult = null;
+      if (P && CH.hist.length >= 5 && CH.interval === P.interval) {
+        try { CH.presetResult = P.analyze(CH.hist); CH.annot = CH.presetResult.annot; } catch (e) { console.warn('프리셋 분석 실패', e); }
+      }
+      chRenderPresetPanel();
+    }
+    function chToggleSignals(on) { CH.showSignals = !!on; chDraw(); }
+    const CH_TONE = { good: 'text-emerald-300', bad: 'text-rose-300', warn: 'text-amber-300', info: 'text-slate-200' };
+    const CH_TONE_BOX = { good: 'bg-emerald-950/50 border-emerald-800/70', bad: 'bg-rose-950/50 border-rose-800/70', warn: 'bg-amber-950/40 border-amber-800/60', info: 'bg-slate-900 border-slate-700' };
+    function chRenderPresetPanel() {
+      const box = $id('presetPanel');
+      if (!box) return;
+      const P = CH.presetId ? CHART_PRESETS[CH.presetId] : null;
+      if (!P) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+      box.classList.remove('hidden');
+      if (CH.interval !== P.interval) {
+        box.innerHTML = `<div class="flex items-center justify-between gap-3 flex-wrap"><div class="text-sm text-amber-300"><i class="fa-solid fa-circle-info mr-1"></i>${escapeHtml(P.name)} 프리셋은 일봉 기준입니다.</div><button type="button" onclick="chSetInterval('${P.interval}')" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold">일봉으로 전환</button></div>`;
+        return;
+      }
+      const r = CH.presetResult;
+      if (!r) { box.innerHTML = `<div class="text-sm text-slate-400">${escapeHtml(P.name)}: 분석에 필요한 데이터가 부족합니다.</div>`; return; }
+      const st = r.stats || { n: 0 };
+      const stat = (label, val, cls = 'text-white') => `<div class="rounded-lg bg-slate-950/70 border border-slate-800 px-3 py-2"><div class="text-[10px] text-slate-500">${label}</div><div class="text-sm font-bold font-mono-numbers ${cls}">${val}</div></div>`;
+      const statHtml = st.n ? `
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          ${stat('신호 횟수', `${st.n}회`)}
+          ${stat('승률', `${st.winRate.toFixed(0)}%`, st.winRate >= 50 ? 'text-emerald-300' : 'text-amber-300')}
+          ${stat('평균 수익률', pctS(st.avgRet), st.avgRet >= 0 ? 'text-emerald-300' : 'text-rose-300')}
+          ${stat('평균 이익 / 손실', `${pctS(st.avgWin)} / ${pctS(st.avgLoss)}`, 'text-slate-200')}
+          ${stat('손익비(PF)', st.profitFactor === null ? '∞' : st.profitFactor.toFixed(2), st.profitFactor === null || st.profitFactor >= 1 ? 'text-emerald-300' : 'text-rose-300')}
+          ${stat('누적 vs 보유', `${pctS(st.total, 0)} / ${st.buyHold === null ? '' : pctS(st.buyHold, 0)}`, st.buyHold !== null && st.total >= st.buyHold ? 'text-emerald-300' : 'text-amber-300')}
+        </div>
+        <p class="text-[10px] text-slate-500 leading-snug">※ 이 종목에 불러온 구간(${CH.hist.length}봉)에서 규칙을 그대로 적용한 단순 시뮬레이션입니다. 평균 보유 ${st.avgBars.toFixed(0)}봉, 최대 낙폭 ${st.mdd.toFixed(1)}%. 수수료·슬리피지·세금 미반영이며 표본이 적을 수 있습니다. 과거 성과는 미래 수익을 보장하지 않습니다.</p>`
+        : '<p class="text-[11px] text-slate-500">이 종목의 불러온 구간에서는 이 규칙의 신호(거래)가 한 번도 발생하지 않았습니다.</p>';
+      box.innerHTML = `
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div><div class="flex items-center gap-2"><i class="fa-solid ${P.icon} text-cyan-300"></i><h4 class="text-sm font-bold text-white">${escapeHtml(P.name)}</h4><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">${escapeHtml(P.tag)}</span>${r.score ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono-numbers">${escapeHtml(r.score)}</span>` : ''}</div>
+            <p class="text-[10px] text-slate-500 mt-0.5">출처: ${escapeHtml(P.source)}</p></div>
+          <div class="flex items-center gap-3 text-[11px] text-slate-400">
+            <label class="flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" ${CH.showSignals ? 'checked' : ''} onchange="chToggleSignals(this.checked)" class="accent-cyan-500">차트에 신호 표시</label>
+            <button type="button" onclick="chClearPreset()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">프리셋 해제</button>
+          </div></div>
+        <div class="rounded-xl border px-3.5 py-2.5 text-sm leading-relaxed ${CH_TONE_BOX[r.verdict.tone] || CH_TONE_BOX.info} ${CH_TONE[r.verdict.tone] || ''}"><i class="fa-solid fa-lightbulb mr-1.5"></i>${escapeHtml(r.verdict.text)}</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">${r.rows.filter(x => x.v).map(x => `<div class="flex items-start justify-between gap-3 py-1 border-b border-slate-800/70 text-xs"><span class="text-slate-400 shrink-0">${escapeHtml(x.k)}</span><span class="text-right font-mono-numbers ${CH_TONE[x.tone] || 'text-slate-200'}">${escapeHtml(x.v)}</span></div>`).join('')}</div>
+        <div><div class="text-[11px] font-bold text-slate-300 mb-1.5"><i class="fa-solid fa-chart-column text-amber-400 mr-1"></i>이 종목에서의 과거 신호 성과 (참고용)</div>${statHtml}</div>
+        <details class="group"><summary class="cursor-pointer text-xs font-semibold text-cyan-300 hover:text-cyan-200 select-none"><i class="fa-solid fa-book-open mr-1"></i>이 기법의 규칙 (펼치기)</summary>
+          <ul class="mt-2 space-y-1.5 text-[11px] text-slate-400 leading-snug list-disc pl-5">${r.rules.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul></details>
+        <p class="text-[10px] text-slate-600 leading-snug">※ 널리 알려진 기법의 공개된 규칙을 코드로 옮긴 것이며, 수익을 보장하는 '인증된 전략'은 아닙니다. 교육·참고용이며 투자 권유가 아닙니다.</p>`;
+    }
+
+    // ---------- 전체화면 · 이미지 저장 ----------
+    function chToggleFullscreen() {
+      const root = $id('chartFsRoot');
+      if (!root) return;
+      if (document.fullscreenElement) document.exitFullscreen(); else if (root.requestFullscreen) root.requestFullscreen();
+    }
+    function chSnapshot() {
+      if (!CH.W || !CH.hist.length) return;
+      const out = document.createElement('canvas');
+      out.width = Math.round(CH.W * CH.dpr); out.height = Math.round(CH.H * CH.dpr) + 30 * CH.dpr;
+      const ctx = out.getContext('2d');
+      ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, out.width, out.height);
+      ctx.drawImage($id('chartCanvas'), 0, 30 * CH.dpr); ctx.drawImage($id('chartOverlay'), 0, 30 * CH.dpr);
+      ctx.setTransform(CH.dpr, 0, 0, CH.dpr, 0, 0);
+      ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 13px "JetBrains Mono", monospace'; ctx.textBaseline = 'middle';
+      ctx.fillText(`${CH.ticker} · ${CH_IV[CH.interval].name} · ${CH.hist[CH.hist.length - 1].date}${CH.presetId ? ' · ' + CHART_PRESETS[CH.presetId].name : ''}`, 10, 15);
+      out.toBlob(b => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `${CH.ticker}_${CH.interval}_chart.png`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
+    }
+
+    // ---------- 포인터 · 키보드 인터랙션 ----------
+    function chLocal(e) { const r = $id('proChartContainer').getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    function chZone(x, y) {
+      if (!CH.layout) return 'plot';
+      if (y >= CH.layout.dateY) return 'date';
+      if (x > chPlotW()) return 'axis';
+      return 'plot';
+    }
+    function chZoomAt(x, factor) {
+      const pw = chPlotW(), ax = Math.min(x, pw), iA = chI(ax);
+      CH.barW = Math.min(64, Math.max(1.2, CH.barW * factor));
+      CH.R = iA - (ax - pw) / CH.barW;
+      chClampView();
+    }
+    function chOnDown(e) {
+      if (!CH.hist.length) return;
+      if (e.target.closest && e.target.closest('.chart-lg-row, #studyEditor')) return;
+      const box = $id('proChartContainer');
+      box.focus({ preventScroll: true });
+      const { x, y } = chLocal(e);
+      try { box.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+      CH.pointers.set(e.pointerId, { x, y });
+      if (CH.pointers.size === 2) {
+        const [a, b] = [...CH.pointers.values()];
+        CH.drag = { mode: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, barW0: CH.barW, mid: (a.x + b.x) / 2, iA: chI((a.x + b.x) / 2) };
+        return;
+      }
+      CH.mouse = (e.pointerType === 'mouse') ? { x, y } : CH.mouse;
+      const zone = chZone(x, y);
+      if (zone === 'axis') {
+        const pane = chPaneAt(y);
+        if (pane && pane.kind === 'main' && CH.scale) { CH.drag = { mode: 'yscale', y0: y, lo: CH.scale.lo, hi: CH.scale.hi, log: CH.scale.log }; CH.auto = false; CH.manual = { lo: CH.scale.lo, hi: CH.scale.hi }; chSyncToolbar(); }
+        return;
+      }
+      if (zone === 'date') { CH.drag = { mode: 'xscale', x0: x, barW0: CH.barW, R0: CH.R }; return; }
+      // plot
+      const pane = chPaneAt(y);
+      if (CH.tool !== 'cursor') {
+        if (!pane || pane.kind !== 'main') return;
+        chToolDown(x, y);
+        return;
+      }
+      CH.measure = null;
+      const hit = pane && pane.kind === 'main' ? chHit(x, y) : null;
+      if (hit) {
+        CH.sel = hit.k;
+        const d = CH.drawings[hit.k];
+        CH.drag = { mode: hit.h >= 0 ? 'handle' : 'move', h: hit.h, x0: x, y0: y, orig: JSON.parse(JSON.stringify(d.pts)), changed: false };
+        chDraw(); chDrawOver();
+        return;
+      }
+      if (CH.sel >= 0) { CH.sel = -1; chDraw(); }
+      CH.drag = { mode: 'pan', x0: x, y0: y, R0: CH.R, man0: CH.manual ? { ...CH.manual } : null, moved: false, touch: e.pointerType !== 'mouse' };
+      box.style.cursor = 'grabbing';
+    }
+    function chOnMove(e) {
+      if (!CH.hist.length) return;
+      const { x, y } = chLocal(e);
+      if (CH.pointers.has(e.pointerId)) CH.pointers.set(e.pointerId, { x, y });
+      const d = CH.drag;
+      if (d && d.mode === 'pinch' && CH.pointers.size >= 2) {
+        const [a, b] = [...CH.pointers.values()], dist = Math.hypot(a.x - b.x, a.y - b.y) || 1, pw = chPlotW();
+        CH.barW = Math.min(64, Math.max(1.2, d.barW0 * dist / d.d0));
+        CH.R = d.iA - (Math.min(d.mid, pw) - pw) / CH.barW; chClampView(); chDraw(); return;
+      }
+      if (e.pointerType === 'mouse' || !d) CH.mouse = { x, y };
+      if (d) {
+        if (d.mode === 'pan') {
+          const dx = x - d.x0, dy = y - d.y0;
+          if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+          CH.R = d.R0 - dx / CH.barW;
+          if (!CH.auto && d.man0 && CH.scale) {
+            const sc = CH.scale, h = sc.pane.y1 - sc.pane.y0 - sc.padT - sc.padB;
+            if (CH.log) { const f = Math.exp((dy / h) * (Math.log(d.man0.hi) - Math.log(d.man0.lo))); CH.manual = { lo: d.man0.lo * f, hi: d.man0.hi * f }; }
+            else { const dp = (dy / h) * (d.man0.hi - d.man0.lo); CH.manual = { lo: d.man0.lo + dp, hi: d.man0.hi + dp }; }
+          }
+          chClampView(); chDraw(); chUpdateHover();
+        } else if (d.mode === 'yscale') {
+          const f = Math.exp((y - d.y0) * 0.006);
+          if (d.log) { const c = (Math.log(d.hi) + Math.log(d.lo)) / 2, half = (Math.log(d.hi) - Math.log(d.lo)) / 2 * f; CH.manual = { lo: Math.exp(c - half), hi: Math.exp(c + half) }; }
+          else { const c = (d.hi + d.lo) / 2, half = (d.hi - d.lo) / 2 * f; CH.manual = { lo: c - half, hi: c + half }; }
+          chDraw();
+        } else if (d.mode === 'xscale') {
+          CH.barW = Math.min(64, Math.max(1.2, d.barW0 * Math.exp((x - d.x0) * 0.006))); CH.R = d.R0; chClampView(); chDraw();
+        } else if (d.mode === 'move' || d.mode === 'handle') {
+          const dr = CH.drawings[CH.sel], sc = CH.scale;
+          if (!dr || !sc) return;
+          d.changed = true;
+          if (d.mode === 'handle') { const pt = chPointAt(x, y, true); if (pt) dr.pts[d.h] = pt; }
+          else {
+            const dIdx = chI(x) - chI(d.x0), p0 = sc.pOf(d.y0), p1 = sc.pOf(y);
+            dr.pts = d.orig.map(q => ({ t: CH.tix.timeOfIdx(CH.tix.idxOfTime(q.t) + dIdx), p: CH.log ? q.p * (p1 / p0) : q.p + (p1 - p0) }));
+          }
+          dr._vwKey = null; chDraw();
+        }
+        return;
+      }
+      // 드로잉 진행 중: 마지막 점이 마우스를 따라감
+      if (CH.draft) {
+        const pt = chPointAt(x, y, true);
+        if (pt) { CH.draft.pts[CH.draft.pts.length - 1] = pt; if (Math.hypot(x - CH.draft.sx, y - CH.draft.sy) > 6) CH.draft.moved = true; }
+        chDrawOver();
+        return;
+      }
+      // 호버
+      chUpdateHover();
+      const zone = chZone(x, y), box = $id('proChartContainer');
+      if (zone === 'axis') box.style.cursor = 'ns-resize';
+      else if (zone === 'date') box.style.cursor = 'ew-resize';
+      else if (CH.tool !== 'cursor') box.style.cursor = 'crosshair';
+      else { const pane = chPaneAt(y), hit = pane && pane.kind === 'main' ? chHit(x, y) : null; box.style.cursor = hit ? (hit.h >= 0 ? 'pointer' : 'move') : 'crosshair'; }
+      chDrawOver();
+    }
+    function chUpdateHover() {
+      if (!CH.mouse) return;
+      const ri = Math.round(chI(CH.mouse.x));
+      const idx = (ri >= 0 && ri < CH.hist.length && CH.mouse.x <= chPlotW()) ? ri : null;
+      if (idx !== CH.hoverIdx) { CH.hoverIdx = idx; chUpdateLegendValues(idx); }
+    }
+    function chOnUp(e) {
+      const box = $id('proChartContainer');
+      try { box.releasePointerCapture(e.pointerId); } catch (err) { /* noop */ }
+      const d = CH.drag;
+      CH.pointers.delete(e.pointerId);
+      if (d && d.mode === 'pinch') { if (CH.pointers.size < 2) CH.drag = null; return; }
+      if (CH.draft && CH.draft.dragging) { chToolUp(e); return; }
+      if (d) {
+        if ((d.mode === 'move' || d.mode === 'handle') && d.changed) chSaveDrawings();
+        if (d.mode === 'pan' && !d.moved && d.touch) { const { x, y } = chLocal(e); CH.mouse = { x, y }; chUpdateHover(); }
+        CH.drag = null; box.style.cursor = 'crosshair'; chDraw(); chDrawOver();
+      }
+    }
+    function chOnLeave() { if (!CH.drag) { CH.mouse = null; CH.hoverIdx = null; chUpdateLegendValues(null); chDrawOver(); } }
+    function chOnWheel(e) {
+      if (!CH.hist.length) return;
+      e.preventDefault();
+      const { x, y } = chLocal(e);
+      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) { CH.R += (e.deltaX || e.deltaY) / Math.max(2, CH.barW); chClampView(); chDraw(); return; }
+      const f = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016));
+      if (chZone(x, y) === 'axis' && CH.scale) { // 가격축 위 휠 = 세로 스케일
+        const sc = CH.scale, c = CH.log ? (Math.log(sc.hi) + Math.log(sc.lo)) / 2 : (sc.hi + sc.lo) / 2;
+        const half = CH.log ? (Math.log(sc.hi) - Math.log(sc.lo)) / 2 / f : (sc.hi - sc.lo) / 2 / f;
+        CH.auto = false; CH.manual = CH.log ? { lo: Math.exp(c - half), hi: Math.exp(c + half) } : { lo: c - half, hi: c + half };
+        chSyncToolbar(); chDraw(); return;
+      }
+      chZoomAt(x, f); chDraw(); chUpdateHover();
+    }
+    function chOnDbl(e) {
+      const { x, y } = chLocal(e), z = chZone(x, y);
+      if (z === 'axis') chToggleAuto();
+      else if (z === 'date') chSetRange(CH.range);
+    }
+    function chOnKey(e) {
+      if (!CH.hist.length) return;
+      const k = e.key;
+      if (k === 'Delete' || k === 'Backspace') { if (CH.sel >= 0) { e.preventDefault(); chDeleteSelected(); } }
+      else if (k === 'Escape') { CH.draft = null; CH.measure = null; CH.sel = -1; if (CH.tool !== 'cursor') chSetTool('cursor'); chDraw(); chDrawOver(); chCloseStudyEditor(); }
+      else if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); CH.R += (k === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 20 : 5); chClampView(); chDraw(); }
+      else if (k === '+' || k === '=') { chZoomAt(chPlotW(), 1.2); chDraw(); }
+      else if (k === '-' || k === '_') { chZoomAt(chPlotW(), 1 / 1.2); chDraw(); }
+      else if (k === 'Home') { CH.R = chPlotW() / CH.barW * 0.5; chClampView(); chDraw(); }
+      else if (k === 'End') { chSetRange(CH.range); }
+    }
+
+    // ---------- 드로잉 도구 입력 ----------
+    function chToolDown(x, y) {
+      const pt = chPointAt(x, y, true);
+      if (!pt) return;
+      const spec = CH_TOOLS[CH.tool], type = CH.tool;
+      if (!CH.draft) {
+        if (spec.n === 1) { chAddDrawing({ type, pts: [pt] }); return; }
+        CH.draft = { type, pts: [pt, pt], sx: x, sy: y, moved: false, dragging: true };
+        chDrawOver();
+        return;
+      }
+      // 두 번째/세 번째 클릭
+      CH.draft.pts[CH.draft.pts.length - 1] = pt;
+      if (CH.draft.pts.length < spec.n) { CH.draft.pts.push(pt); chDrawOver(); }
+      else chFinishDraft();
+    }
+    function chToolUp(e) {
+      const d = CH.draft;
+      if (!d) return;
+      d.dragging = false;
+      CH.drag = null;
+      if (d.moved) { // 드래그로 두 번째 점까지 지정
+        const spec = CH_TOOLS[d.type];
+        if (d.pts.length < spec.n) { d.pts.push(d.pts[d.pts.length - 1]); chDrawOver(); }
+        else chFinishDraft();
+      }
+      // 클릭만 한 경우: 다음 클릭을 기다림 (마우스를 따라 두 번째 점이 움직임)
+    }
+    function chFinishDraft() {
+      const d = CH.draft;
+      CH.draft = null;
+      if (!d) return;
+      if (d.type === 'measure') { chSetTool('cursor'); CH.measure = { pts: d.pts.slice(0, 2) }; chDrawOver(); return; }
+      chAddDrawing({ type: d.type, pts: d.pts });
+    }
+    function chAddDrawing(d) {
+      d.id = Date.now() + Math.random();
+      CH.drawings.push(d); CH.sel = CH.drawings.length - 1;
+      chSaveDrawings(); chSetTool('cursor'); chDraw(); chDrawOver();
+    }
+
+    // ---------- 초기화 ----------
+    function initChartEngine() {
+      const box = $id('proChartContainer');
+      if (!box) return;
+      const sel = $id('chartTypeSel');
+      if (sel) sel.innerHTML = Object.keys(CH_TYPES).map(k => `<option value="${k}">${CH_TYPES[k]}</option>`).join('');
+      chRenderDrawTools(); chRenderPresetCards(); chSyncToolbar();
+      box.addEventListener('pointerdown', chOnDown);
+      box.addEventListener('pointermove', chOnMove);
+      box.addEventListener('pointerup', chOnUp);
+      box.addEventListener('pointercancel', chOnUp);
+      box.addEventListener('pointerleave', chOnLeave);
+      box.addEventListener('wheel', chOnWheel, { passive: false });
+      box.addEventListener('dblclick', chOnDbl);
+      box.addEventListener('keydown', chOnKey);
+      box.addEventListener('contextmenu', e => { e.preventDefault(); if (CH.draft || CH.tool !== 'cursor') { CH.draft = null; chSetTool('cursor'); } });
+      if (window.ResizeObserver) new ResizeObserver(() => chResize(false)).observe(box);
+      document.addEventListener('fullscreenchange', () => { setTimeout(() => chResize(true), 60); const b = $id('btnFull'); if (b) b.title = document.fullscreenElement ? '전체화면 종료 (Esc)' : '전체화면'; });
+      const im = $id('indicatorModal');
+      if (im) im.addEventListener('mousedown', e => { if (e.target === im) chCloseIndicators(); });
+      const is = $id('indSearch'); if (is) is.addEventListener('input', chRenderIndicatorModal);
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && im && !im.classList.contains('hidden')) chCloseIndicators(); });
+    }
 
     function fmtVol(v) {
       if (!v) return '--';
@@ -3105,273 +5376,6 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (v >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
       if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
       return String(v);
-    }
-
-    function clearCharts() {
-      chartGeom = null;
-      ['mainCandleCanvas', 'subIndicatorCanvas'].forEach(id => {
-        const c = document.getElementById(id);
-        if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
-      });
-      ['hudDate', 'hudOpen', 'hudHigh', 'hudLow', 'hudClose', 'hudChange', 'hudVol', 'hudSma20', 'hudSma50', 'hudSma200', 'hudRsi']
-        .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
-    }
-
-    function renderProChart() {
-      if (!currentAnalysisData || !currentAnalysisData.history) return;
-      const mainCanvas = document.getElementById('mainCandleCanvas');
-      const subCanvas = document.getElementById('subIndicatorCanvas');
-      if (!mainCanvas || !subCanvas) return;
-      if (currentAnalysisData.history.length === 0) { clearCharts(); return; }
-
-      const dpr = window.devicePixelRatio || 1;
-      const w = mainCanvas.parentElement.clientWidth;
-      const h = mainCanvas.parentElement.clientHeight;
-      const subW = subCanvas.parentElement.clientWidth;
-      const subH = subCanvas.parentElement.clientHeight;
-      if (!w || !h) return; // 숨겨진 탭
-
-      mainCanvas.width = w * dpr;
-      mainCanvas.height = h * dpr;
-      subCanvas.width = subW * dpr;
-      subCanvas.height = subH * dpr;
-
-      const history = currentAnalysisData.history;
-      const total = history.length;
-      const bars = { '1M': 22, '3M': 63, '6M': 126, '1Y': total }[chartState.timeframe] || total;
-      const start = Math.max(0, total - bars);
-
-      chartGeom = { dpr, w, h, subW, subH, start, n: total - start, pw: Math.max(10, w - CHART_MARGIN_R) };
-      chartState.hoverIndex = null;
-      drawChart(null);
-    }
-
-    function drawChart(hoverIdx) {
-      if (!chartGeom || !currentAnalysisData) return;
-      const mainCanvas = document.getElementById('mainCandleCanvas');
-      const subCanvas = document.getElementById('subIndicatorCanvas');
-      const mctx = mainCanvas.getContext('2d');
-      const sctx = subCanvas.getContext('2d');
-      const { dpr, w, h, subW, subH, start, n, pw } = chartGeom;
-      const history = currentAnalysisData.history;
-      const ind = currentAnalysisData.ind;
-      const candles = history.slice(start);
-      const step = pw / n;
-      const candleW = Math.max(1.5, Math.min(14, step * 0.7));
-      const xOf = i => i * step + step / 2;
-
-      mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      mctx.clearRect(0, 0, w, h);
-      sctx.clearRect(0, 0, subW, subH);
-
-      // price range
-      let minP = Infinity, maxP = -Infinity;
-      candles.forEach(c => { if (c.low < minP) minP = c.low; if (c.high > maxP) maxP = c.high; });
-      if (chartState.indicators.bb) {
-        for (let i = 0; i < n; i++) {
-          const u = ind.bb.upper[start + i], l = ind.bb.lower[start + i];
-          if (u !== null && u > maxP) maxP = u;
-          if (l !== null && l < minP) minP = l;
-        }
-      }
-      const pad = (maxP - minP) * 0.08 || 1;
-      minP -= pad; maxP += pad;
-      const padTop = 8, padBottom = 8;
-      const yOf = p => padTop + (1 - (p - minP) / (maxP - minP)) * (h - padTop - padBottom);
-
-      // grid + price axis
-      mctx.font = '10px "JetBrains Mono", monospace';
-      mctx.textAlign = 'left';
-      mctx.textBaseline = 'middle';
-      for (let k = 0; k <= 5; k++) {
-        const p = minP + ((maxP - minP) * k) / 5;
-        const y = yOf(p);
-        mctx.strokeStyle = '#1e293b';
-        mctx.lineWidth = 1;
-        mctx.beginPath(); mctx.moveTo(0, y); mctx.lineTo(pw, y); mctx.stroke();
-        mctx.fillStyle = '#64748b';
-        mctx.fillText(p.toFixed(p < 10 ? 2 : 1), pw + 6, y);
-      }
-
-      // Bollinger bands
-      if (chartState.indicators.bb) {
-        const drawBand = (arr, color) => {
-          mctx.strokeStyle = color; mctx.lineWidth = 1; mctx.setLineDash([4, 3]);
-          mctx.beginPath(); let s = false;
-          for (let i = 0; i < n; i++) {
-            const v = arr[start + i]; if (v === null) continue;
-            if (!s) { mctx.moveTo(xOf(i), yOf(v)); s = true; } else mctx.lineTo(xOf(i), yOf(v));
-          }
-          mctx.stroke(); mctx.setLineDash([]);
-        };
-        drawBand(ind.bb.upper, 'rgba(6,182,212,0.7)');
-        drawBand(ind.bb.lower, 'rgba(6,182,212,0.7)');
-      }
-
-      // Support / Resistance (표시 구간의 최고/최저 종가 기준)
-      if (chartState.indicators.sr) {
-        let hi = -Infinity, lo = Infinity;
-        candles.forEach(c => { if (c.high > hi) hi = c.high; if (c.low < lo) lo = c.low; });
-        [[hi, '저항', '#fb7185'], [lo, '지지', '#34d399']].forEach(([v, label, color]) => {
-          mctx.strokeStyle = color; mctx.lineWidth = 1; mctx.setLineDash([6, 4]);
-          mctx.beginPath(); mctx.moveTo(0, yOf(v)); mctx.lineTo(pw, yOf(v)); mctx.stroke();
-          mctx.setLineDash([]);
-          mctx.fillStyle = color; mctx.textAlign = 'left';
-          mctx.fillText(`${label} ${v.toFixed(2)}`, 6, yOf(v) - 7);
-        });
-      }
-
-      // candles
-      candles.forEach((c, i) => {
-        const x = xOf(i);
-        const isBull = c.close >= c.open;
-        const color = isBull ? '#10b981' : '#f43f5e';
-        mctx.strokeStyle = color; mctx.fillStyle = color;
-        mctx.lineWidth = 1;
-        mctx.beginPath(); mctx.moveTo(x, yOf(c.high)); mctx.lineTo(x, yOf(c.low)); mctx.stroke();
-        const top = Math.min(yOf(c.open), yOf(c.close));
-        mctx.fillRect(x - candleW / 2, top, candleW, Math.max(1, Math.abs(yOf(c.close) - yOf(c.open))));
-      });
-
-      // SMAs (전체 히스토리로 계산한 값을 표시 구간만큼 그림)
-      const drawLine = (arr, color) => {
-        mctx.strokeStyle = color; mctx.lineWidth = 1.6;
-        mctx.beginPath(); let s = false;
-        for (let i = 0; i < n; i++) {
-          const v = arr[start + i]; if (v === null) continue;
-          if (!s) { mctx.moveTo(xOf(i), yOf(v)); s = true; } else mctx.lineTo(xOf(i), yOf(v));
-        }
-        mctx.stroke();
-      };
-      if (chartState.indicators.sma20) drawLine(ind.sma20, '#f59e0b');
-      if (chartState.indicators.sma50) drawLine(ind.sma50, '#38bdf8');
-      if (chartState.indicators.sma200) drawLine(ind.sma200, '#a855f7');
-
-      // last price tag
-      const lastC = candles[n - 1];
-      mctx.strokeStyle = '#475569'; mctx.setLineDash([2, 3]); mctx.lineWidth = 1;
-      mctx.beginPath(); mctx.moveTo(0, yOf(lastC.close)); mctx.lineTo(pw, yOf(lastC.close)); mctx.stroke(); mctx.setLineDash([]);
-      mctx.fillStyle = lastC.close >= lastC.open ? '#10b981' : '#f43f5e';
-      mctx.fillRect(pw + 2, yOf(lastC.close) - 8, CHART_MARGIN_R - 4, 16);
-      mctx.fillStyle = '#0a0f1d'; mctx.textAlign = 'left';
-      mctx.fillText(lastC.close.toFixed(2), pw + 5, yOf(lastC.close));
-
-      // ---- sub chart ----
-      sctx.font = '10px "JetBrains Mono", monospace';
-      sctx.textBaseline = 'middle';
-      const sPadT = 14, sPadB = 4;
-      const subY = (v, lo, hi) => sPadT + (1 - (v - lo) / (hi - lo || 1)) * (subH - sPadT - sPadB);
-      const subLine = (arr, lo, hi, color, width = 1.6) => {
-        sctx.strokeStyle = color; sctx.lineWidth = width; sctx.beginPath(); let s = false;
-        for (let i = 0; i < n; i++) {
-          const v = arr[start + i]; if (v === null || v === undefined) continue;
-          const y = subY(v, lo, hi);
-          if (!s) { sctx.moveTo(xOf(i), y); s = true; } else sctx.lineTo(xOf(i), y);
-        }
-        sctx.stroke();
-      };
-
-      if (chartState.subChart === 'rsi') {
-        [30, 70].forEach(level => {
-          sctx.strokeStyle = '#334155'; sctx.setLineDash([4, 3]); sctx.lineWidth = 1;
-          sctx.beginPath(); sctx.moveTo(0, subY(level, 0, 100)); sctx.lineTo(pw, subY(level, 0, 100)); sctx.stroke();
-          sctx.setLineDash([]);
-          sctx.fillStyle = '#64748b'; sctx.fillText(level, pw + 6, subY(level, 0, 100));
-        });
-        subLine(ind.rsi, 0, 100, '#06b6d4', 1.8);
-      } else if (chartState.subChart === 'volume') {
-        let maxVol = 0;
-        candles.forEach(c => { if (c.volume > maxVol) maxVol = c.volume; });
-        maxVol = maxVol || 1;
-        candles.forEach((c, i) => {
-          const barH = (c.volume / maxVol) * (subH - sPadT - sPadB);
-          sctx.fillStyle = c.close >= c.open ? 'rgba(16,185,129,0.65)' : 'rgba(244,63,94,0.65)';
-          sctx.fillRect(xOf(i) - candleW / 2, subH - sPadB - barH, candleW, barH);
-        });
-        subLine(ind.volMa20, 0, maxVol, '#f59e0b', 1.4);
-        sctx.fillStyle = '#64748b'; sctx.fillText(fmtVol(maxVol), pw + 6, sPadT);
-      } else {
-        let maxAbs = 0.0001;
-        for (let i = 0; i < n; i++) {
-          [ind.macd.macd[start + i], ind.macd.signal[start + i], ind.macd.hist[start + i]].forEach(v => {
-            if (v !== null && Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
-          });
-        }
-        const zeroY = subY(0, -maxAbs, maxAbs);
-        sctx.strokeStyle = '#334155'; sctx.lineWidth = 1;
-        sctx.beginPath(); sctx.moveTo(0, zeroY); sctx.lineTo(pw, zeroY); sctx.stroke();
-        for (let i = 0; i < n; i++) {
-          const v = ind.macd.hist[start + i]; if (v === null) continue;
-          sctx.fillStyle = v >= 0 ? 'rgba(16,185,129,0.65)' : 'rgba(244,63,94,0.65)';
-          const y = subY(v, -maxAbs, maxAbs);
-          sctx.fillRect(xOf(i) - Math.max(1, candleW / 2), Math.min(y, zeroY), Math.max(2, candleW), Math.abs(y - zeroY));
-        }
-        subLine(ind.macd.macd, -maxAbs, maxAbs, '#06b6d4');
-        subLine(ind.macd.signal, -maxAbs, maxAbs, '#f59e0b');
-      }
-
-      // ---- crosshair ----
-      const idx = (hoverIdx !== null && hoverIdx >= 0 && hoverIdx < n) ? hoverIdx : null;
-      if (idx !== null) {
-        const x = xOf(idx);
-        const c = candles[idx];
-        [[mctx, h], [sctx, subH]].forEach(([ctx, hh]) => {
-          ctx.strokeStyle = 'rgba(148,163,184,0.6)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, hh); ctx.stroke(); ctx.setLineDash([]);
-        });
-        const cy = yOf(c.close);
-        mctx.strokeStyle = 'rgba(148,163,184,0.4)'; mctx.setLineDash([3, 3]);
-        mctx.beginPath(); mctx.moveTo(0, cy); mctx.lineTo(pw, cy); mctx.stroke(); mctx.setLineDash([]);
-      }
-
-      updateChartHud(start + (idx !== null ? idx : n - 1));
-    }
-
-    function updateChartHud(absIdx) {
-      const history = currentAnalysisData.history;
-      const ind = currentAnalysisData.ind;
-      const c = history[absIdx];
-      if (!c) return;
-      const prev = absIdx > 0 ? history[absIdx - 1].close : c.open;
-      const chg = prev ? ((c.close - prev) / prev) * 100 : 0;
-      const money = v => (v === null || v === undefined) ? '--' : `$${v.toFixed(2)}`;
-
-      document.getElementById('hudDate').textContent = `DATE: ${c.date}`;
-      document.getElementById('hudOpen').textContent = money(c.open);
-      document.getElementById('hudHigh').textContent = money(c.high);
-      document.getElementById('hudLow').textContent = money(c.low);
-      document.getElementById('hudClose').textContent = money(c.close);
-      const chgEl = document.getElementById('hudChange');
-      chgEl.textContent = `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`;
-      chgEl.className = `font-bold ${chg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
-      document.getElementById('hudVol').textContent = fmtVol(c.volume);
-      document.getElementById('hudSma20').textContent = money(ind.sma20[absIdx]);
-      document.getElementById('hudSma50').textContent = money(ind.sma50[absIdx]);
-      document.getElementById('hudSma200').textContent = money(ind.sma200[absIdx]);
-      document.getElementById('hudRsi').textContent = ind.rsi[absIdx] === null ? '--' : ind.rsi[absIdx].toFixed(1);
-    }
-
-    let hoverFrame = null;
-    function handleChartPointer(clientX) {
-      if (!chartGeom) return;
-      const rect = document.getElementById('mainCandleCanvas').getBoundingClientRect();
-      const x = clientX - rect.left;
-      let idx = Math.floor(x / (chartGeom.pw / chartGeom.n));
-      idx = (x < 0 || x > chartGeom.pw) ? null : Math.min(chartGeom.n - 1, Math.max(0, idx));
-      if (idx === chartState.hoverIndex) return;
-      chartState.hoverIndex = idx;
-      if (hoverFrame) cancelAnimationFrame(hoverFrame);
-      hoverFrame = requestAnimationFrame(() => drawChart(chartState.hoverIndex));
-    }
-
-    function initChartInteraction() {
-      const box = document.getElementById('proChartContainer');
-      if (!box) return;
-      box.addEventListener('mousemove', e => handleChartPointer(e.clientX));
-      box.addEventListener('mouseleave', () => { chartState.hoverIndex = null; drawChart(null); });
-      box.addEventListener('touchmove', e => { if (e.touches[0]) handleChartPointer(e.touches[0].clientX); }, { passive: true });
-      box.addEventListener('touchend', () => { chartState.hoverIndex = null; drawChart(null); });
     }
 
     function renderMiniTrendPreview() {
@@ -3385,7 +5389,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       canvas.height = h;
 
       ctx.clearRect(0, 0, w, h);
-      const history = currentAnalysisData.history;
+      const history = (currentAnalysisData.history || []).slice(-126); // 최근 6개월(약 126거래일)
       if (!history || history.length < 2) return;
 
       let min = Infinity, max = -Infinity;
@@ -4520,7 +6524,7 @@ SONY|Sony Group ADR|T
 
     window.addEventListener('resize', () => {
       if (currentAnalysisData) {
-        renderProChart();
+        chResize(false);
         renderMiniTrendPreview();
       }
     });
@@ -4528,8 +6532,7 @@ SONY|Sony Group ADR|T
     window.addEventListener('DOMContentLoaded', () => {
       updateGoogleSearchBannerState();
       // Default to JVA or NVDA
-      syncIndicatorButtons();
-      initChartInteraction();
+      initChartEngine();
       initSearchSuggest();
       renderMetricGuide();
       initScreenerHeaderTips();
