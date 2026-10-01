@@ -9,6 +9,7 @@
 | --- | --- |
 | `GET /api/health` | 동작 확인 |
 | `GET /api/chart?symbol=NVDA&range=1y` | Yahoo 일봉 차트 JSON (1분 캐시). 없는 티커는 404 |
+| `GET /api/deep?symbol=NVDA` | 심층 분석용: 실적(EPS 서프라이즈·전망·다음 발표일), 재무(성장률·마진·부채·FCF·연/분기 매출), 애널리스트(의견 분포·상향/하향), 수급(기관·내부자 보유·거래), 배당, 최신 뉴스 (1시간 캐시) |
 | `GET /api/fundamentals?symbol=NVDA` | P/E, Forward P/E, PEG, P/S, P/B, ROE, Short Float, 애널리스트 목표가(평균/최저/최고), 컨센서스, 섹터, 사업 개요 (6시간 캐시) |
 
 ## 배포 (5분)
@@ -34,6 +35,9 @@ curl https://pentanalyst-proxy.<계정>.workers.dev/api/health
 - 심볼은 `^[A-Z0-9.\-^=]{1,15}$` 만 허용하며, 지정한 Yahoo 경로만 호출합니다 (오픈 프록시가 아닙니다).
 
 ## 참고 / 한계
+
+- `/api/deep`은 Yahoo의 여러 모듈을 한 번에 요청합니다. 종목에 따라 일부 항목(재무제표 계열 등)이 비어 있을 수 있고, 비어 있는 항목은 화면에 표시되지 않습니다.
+- Worker 코드를 수정한 뒤에는 Cloudflare 대시보드에서 코드를 다시 붙여 넣고 **Deploy**(또는 `wrangler deploy`)해야 반영됩니다.
 
 - Yahoo Finance 비공식 엔드포인트라 정책이 바뀌면 동작이 달라질 수 있습니다. 재무 지표(`/api/fundamentals`)는
   쿠키·crumb 인증이 필요해서 Worker가 자동으로 처리하며, 실패 시 한 번 재시도합니다.

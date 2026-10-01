@@ -419,7 +419,7 @@
           </div>
           <div>
             <h4 class="text-sm font-bold text-white flex items-center gap-2">
-              멀티모달 스튜디오
+              브리핑 · 인포그래픽 스튜디오
               <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-900 text-cyan-300 border border-cyan-700">TTS · Image</span>
             </h4>
             <p class="text-xs text-slate-400">오디오 팟캐스트 브리핑 청취 또는 시각적 투자 인포그래픽을 원클릭으로 생성합니다.</p>
@@ -678,6 +678,20 @@
         </div>
       </section>
 
+      <!-- Deep analysis (Yahoo Finance via own proxy) -->
+      <section id="deepSection" class="hidden space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <div>
+            <h3 class="text-xl font-extrabold text-white flex items-center gap-2.5">
+              <i class="fa-solid fa-magnifying-glass-chart text-cyan-400"></i>
+              심층 분석 데이터
+            </h3>
+            <p class="text-xs sm:text-sm text-slate-400">실적·재무 건전성·애널리스트·수급·배당·뉴스. 제공되지 않는 항목은 표시하지 않습니다. (출처: Yahoo Finance, 자체 프록시)</p>
+          </div>
+        </div>
+        <div id="deepGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-5"></div>
+      </section>
+
       <!-- 5 Experts In-Depth Analysis Grid -->
       <div class="space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -688,8 +702,11 @@
             </h3>
             <p class="text-xs sm:text-sm text-slate-400">각 전문가는 고유한 투자 철학과 기법으로 독립된 의견과 목표 주가를 제시합니다.</p>
           </div>
-          <div class="text-xs text-slate-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-            <i class="fa-solid fa-handshake mr-1.5 text-amber-400"></i> Motley Fool의 심층 해자와 Finviz의 수급/차트 결합
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <button id="aiAnalyzeBtn" onclick="runAiAnalysis()" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-60 active:scale-95 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30" title="Gemini를 호출합니다 (호출 1회당 소액 과금)">
+              <i class="fa-solid fa-wand-magic-sparkles"></i><span>AI 심층 분석 실행</span>
+            </button>
+            <span class="text-[10px] text-slate-500">호출 1회당 소액 과금 · 버튼을 누를 때만 실행</span>
           </div>
         </div>
 
@@ -750,7 +767,7 @@
               5인의 투자 위원회 인터랙티브 Q&A & 난상 토론
             </h3>
             <p class="text-xs text-slate-400 mt-1">
-              원하는 전문가를 지정하거나 위원회 전원에게 질문하세요. Gemini 키를 연결하면 구글 검색 기반 AI 답변을 받을 수 있습니다.
+              원하는 전문가를 지정하거나 위원회 전원에게 질문하세요. Gemini 키를 연결하면 AI가 답변합니다 (질문 1개당 유료 호출 1회).
             </p>
           </div>
           <div class="text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
@@ -1720,11 +1737,11 @@
       return r;
     }
 
-    async function fetchGeminiGroundingAnalysis(ticker, realMarket) {
+    async function fetchGeminiGroundingAnalysis(ticker, realMarket, verifiedText = '') {
       if (!getStoredApiKey('gemini_key')) return null;
       const prompt = `Conduct a live Google Search for the US stock ticker: "${ticker}".
-${realMarket ? `Verified market data (from exchange feed): last price $${realMarket.price}, 52-week range $${realMarket.low52} - $${realMarket.high52}.` : ''}
-Find the exact real company name, real P/E, forward P/E, PEG, ROE (%), Short Float (%), analyst price targets, and the latest news or earnings.
+${verifiedText ? `VERIFIED DATA (from the exchange/Yahoo feed — treat as ground truth, prefer it over search results when they conflict):\n${verifiedText}\n` : ''}
+Use search to find only what is NOT in the verified data: the exact company name, the latest news/earnings context, and any missing ratios or analyst targets.
 Then provide a 5-expert panel analysis (David: Moat/TAM, Victor: Chart, Clara: DCF Valuation, Marcus: Macro, Sophia: Flows).
 All price and target values are in USD ($). Use null for any number you cannot verify. Write Korean text for summary, bullCase, bearCase and expert thesis.
 
@@ -1754,7 +1771,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 }`;
       const fallbackPrompt = prompt
         .replace(`Conduct a live Google Search for the US stock ticker: "${ticker}".`, `Analyze the US stock ticker: "${ticker}". You have NO internet access right now: use only the verified market data below and your general knowledge.`)
-        .replace('Find the exact real company name, real P/E, forward P/E, PEG, ROE (%), Short Float (%), analyst price targets, and the latest news or earnings.', 'Do NOT invent any numbers, price targets, news or earnings. Fill name/sector only if you are sure; use null for every number you cannot be certain about.')
+        .replace('Use search to find only what is NOT in the verified data: the exact company name, the latest news/earnings context, and any missing ratios or analyst targets.', 'Do NOT invent any numbers, price targets, news or earnings. Rely on the VERIFIED DATA above; fill name/sector only if you are sure; use null for every number you cannot be certain about.')
         .replace('"summary": "2-3 sentences based on real Google search findings"', '"summary": "2-3 sentences, only well-established facts about the business"');
       const r = await callGemini(prompt, { grounding: true, fallbackPrompt });
       if (!r) return null;
@@ -1815,6 +1832,180 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return cards.map((e, i) => ({ ...e, role: EXPERT_ROLES[i], avatar: EXPERT_AVATARS[i], color: EXPERT_COLORS[i] }));
     }
 
+    // 심층 데이터(실적·재무·애널리스트·수급·배당·뉴스) — 자체 프록시 필요
+    async function fetchDeep(ticker) {
+      const proxy = getProxyUrl();
+      if (!proxy) return null;
+      try {
+        return await fetchJsonWithTimeout(`${proxy}/api/deep?symbol=${encodeURIComponent(ticker.trim().toUpperCase())}`, 15000);
+      } catch (err) {
+        console.warn('자체 프록시 심층 데이터 호출 실패:', err.message);
+        return null;
+      }
+    }
+
+    // 마지막 분석의 원본 입력. AI 분석 버튼을 누르면 이 입력에 AI 결과를 합쳐 다시 구성한다.
+    let analysisInputs = null;
+
+    // 원본 입력(+AI 결과 g)으로 화면용 데이터를 구성한다. 가상 값은 만들지 않고 없는 값은 비워 둔다.
+    function composeAnalysis(inp, geminiInsight) {
+      const { upperTicker, market, fundamentals, deep, history, ind, tech } = inp;
+      const g = geminiInsight || {};
+      const f = fundamentals || {};
+      const price = market ? Number(market.price) : null;
+      const high52 = market && Number.isFinite(Number(market.high52)) ? Number(market.high52) : null;
+      const low52 = market && Number.isFinite(Number(market.low52)) ? Number(market.low52) : null;
+
+      const stockName = g.name || f.name || market?.name || '';
+      const stockSector = g.sector || f.sector || '';
+
+      const pe = pick(g.pe, f.pe);
+      const forwardPe = pick(g.forwardPe, f.forwardPe);
+      const peg = pick(g.peg, f.peg);
+      const roe = pick(g.roe, f.roe);
+      const shortFloat = pick(g.shortFloat, f.shortFloat);
+      const pSales = pick(f.pSales);
+      const pBook = pick(f.pBook);
+      const targetAvg = pick(g.targetAvg, f.targetAvg);
+      const targetMin = pick(g.targetMin, f.targetMin);
+      const targetMax = pick(g.targetMax, f.targetMax);
+      const upside = (targetAvg !== null && price !== null && price !== 0) ? (((targetAvg - price) / price) * 100) : null;
+
+      let summary = g.summary || '';
+      if (!summary && f.summary) summary = f.summary.length > 420 ? f.summary.slice(0, 420) + '…' : f.summary;
+
+      let experts, expertsNotice = '';
+      if (Array.isArray(g.experts) && g.experts.length > 0) {
+        experts = g.experts.map((e, idx) => ({
+          name: e.name || `전문가 ${idx + 1}`,
+          role: EXPERT_ROLES[idx] || "전문 애널리스트",
+          avatar: EXPERT_AVATARS[idx] || "fa-user",
+          color: EXPERT_COLORS[idx] || "text-cyan-400 bg-cyan-950/60 border-cyan-700/60",
+          stance: e.stance || '',
+          target: e.target || '',
+          thesis: e.thesis || ''
+        }));
+      } else {
+        experts = buildTemplateExperts({ tech, pe, shortFloat, low52 });
+        expertsNotice = '※ 전문가 의견은 [AI 심층 분석 실행] 버튼을 눌렀을 때만 Gemini로 생성됩니다(호출 1회당 유료). 지금은 실제 지표로 계산 가능한 항목만 표시하고 나머지는 비워 둡니다.';
+      }
+
+      let bullCase = Array.isArray(g.bullCase) ? g.bullCase : [];
+      let bearCase = Array.isArray(g.bearCase) ? g.bearCase : [];
+      if (!Array.isArray(g.bullCase)) {
+        bullCase = [];
+        if (tech.sma200Diff && isPositivePct(tech.sma200Diff)) bullCase.push(`200일선 대비 ${tech.sma200Diff} 위에서 거래 중`);
+        if (upside !== null && upside > 0) bullCase.push(`애널리스트 평균 목표가 $${targetAvg} (상승여력 ${upside.toFixed(1)}%)`);
+        const fin = deep?.financials || {};
+        if (fin.revenueGrowth != null && fin.revenueGrowth > 10) bullCase.push(`매출 성장률 ${fin.revenueGrowth}%`);
+        const lastSurprise = (deep?.earnings?.history || []).slice(-1)[0];
+        if (lastSurprise && lastSurprise.surprisePct != null && lastSurprise.surprisePct > 0) bullCase.push(`직전 분기 EPS 예상 상회 (+${lastSurprise.surprisePct}%)`);
+      }
+      if (!Array.isArray(g.bearCase)) {
+        bearCase = [];
+        if (tech.sma200Diff && !isPositivePct(tech.sma200Diff)) bearCase.push(`200일선 대비 ${tech.sma200Diff} 아래에서 거래 중`);
+        if (price !== null && high52 !== null) bearCase.push(`52주 고점($${high52.toFixed(2)}) 대비 ${pctDiff(price, high52)}`);
+        if (tech.rsi !== null && tech.rsi > 70) bearCase.push(`RSI ${tech.rsi} — 과열 구간`);
+        const fin = deep?.financials || {};
+        if (fin.debtToEquity != null && fin.debtToEquity > 150) bearCase.push(`부채비율(D/E) ${fin.debtToEquity}%`);
+        if (fin.freeCashflow != null && fin.freeCashflow < 0) bearCase.push(`잉여현금흐름 적자 (${fmtBig(fin.freeCashflow)})`);
+        const lastSurprise = (deep?.earnings?.history || []).slice(-1)[0];
+        if (lastSurprise && lastSurprise.surprisePct != null && lastSurprise.surprisePct < 0) bearCase.push(`직전 분기 EPS 예상 하회 (${lastSurprise.surprisePct}%)`);
+      }
+
+      const feedParts = [];
+      if (geminiInsight) feedParts.push(geminiInsight.__grounded ? 'Google Search' : 'Gemini(검색 없음)');
+      if (fundamentals) feedParts.push('Yahoo 재무(프록시)');
+      if (deep) feedParts.push('Yahoo 심층(프록시)');
+      if (market) feedParts.push('Yahoo 시세');
+      const dataFeed = feedParts.join(' + ');
+
+      return {
+        ticker: upperTicker,
+        name: stockName,
+        sector: stockSector,
+        price: price !== null ? price.toFixed(2) : '',
+        change: market ? (market.change || '') : '',
+        consensus: g.consensus || f.consensus || '',
+        summary,
+        targetAvg, targetMin, targetMax, upside,
+        rsi: tech.rsi,
+        sma20Diff: tech.sma20Diff,
+        sma50Diff: tech.sma50Diff,
+        sma200Diff: tech.sma200Diff,
+        pe, peg, roe, shortFloat,
+        history,
+        ind,
+        deep,
+        aiDone: !!geminiInsight,
+        hasMarket: !!market,
+        dataFeed,
+        expertsNotice,
+        finviz: [
+          { label: "P/E", val: fmtNum(pe) },
+          { label: "Forward P/E", val: fmtNum(forwardPe, 1) },
+          { label: "PEG", val: fmtNum(peg) },
+          { label: "P/S", val: fmtNum(pSales) },
+          { label: "P/B", val: fmtNum(pBook) },
+          { label: "ROE", val: fmtNum(roe, null, '%') },
+          { label: "52W High", val: high52 !== null ? `$${high52.toFixed(2)}` : '' },
+          { label: "52W Low", val: low52 !== null ? `$${low52.toFixed(2)}` : '' },
+          { label: "Short Float", val: fmtNum(shortFloat, null, '%') },
+          { label: "SMA20", val: tech.sma20Diff },
+          { label: "SMA50", val: tech.sma50Diff },
+          { label: "SMA200", val: tech.sma200Diff },
+          { label: "RSI (14)", val: fmtNum(tech.rsi) },
+          { label: "Target Price", val: targetAvg !== null ? `$${targetAvg}` : '' },
+          { label: "Data Feed", val: dataFeed }
+        ],
+        experts, bullCase, bearCase
+      };
+    }
+
+    // AI에게 넘길 '검증된 실제 데이터' 요약 (없는 값은 생략)
+    function buildVerifiedDataText(inp) {
+      if (!inp) return '';
+      const { market, fundamentals: f, deep, tech } = inp;
+      const lines = [];
+      const add = (label, v) => { if (v !== null && v !== undefined && v !== '') lines.push(`- ${label}: ${v}`); };
+      if (market) {
+        add('Price', `$${market.price} (${market.change})`);
+        add('52-week range', `$${market.low52} - $${market.high52}`);
+      }
+      add('RSI(14)', tech.rsi);
+      add('vs SMA20/50/200', [tech.sma20Diff, tech.sma50Diff, tech.sma200Diff].filter(Boolean).join(' / '));
+      if (f) {
+        add('P/E | Forward P/E | PEG', [f.pe, f.forwardPe, f.peg].map(v => v ?? '-').join(' | '));
+        add('P/S | P/B | ROE%', [f.pSales, f.pBook, f.roe].map(v => v ?? '-').join(' | '));
+        add('Short float %', f.shortFloat);
+        add('Analyst target mean/low/high', [f.targetAvg, f.targetMin, f.targetMax].map(v => v ?? '-').join(' / '));
+        add('Analyst consensus', f.consensus);
+        add('Market cap', f.marketCap ? fmtBig(f.marketCap) : '');
+      }
+      if (deep) {
+        const e = deep.earnings || {}, fin = deep.financials || {}, an = deep.analysts || {}, ow = deep.ownership || {}, dv = deep.dividends || {};
+        add('Next earnings date', e.nextDate);
+        const hist = (e.history || []).slice(-4).map(h => `${h.quarter}: actual ${h.epsActual ?? '-'} vs est ${h.epsEstimate ?? '-'} (${h.surprisePct ?? '-'}%)`).join('; ');
+        add('EPS history (last 4 quarters)', hist);
+        const trend = (e.trend || []).map(x => `${x.period}: EPS est ${x.epsAvg ?? '-'}, revenue est ${x.revenueAvg ? fmtBig(x.revenueAvg) : '-'}`).join('; ');
+        add('Estimates', trend);
+        add('Revenue / growth%', `${fin.totalRevenue ? fmtBig(fin.totalRevenue) : '-'} / ${fin.revenueGrowth ?? '-'}`);
+        add('Earnings growth%', fin.earningsGrowth);
+        add('Margins % (gross/operating/net)', [fin.grossMargin, fin.operatingMargin, fin.profitMargin].map(v => v ?? '-').join(' / '));
+        add('Cash / Debt / D-E%', `${fin.totalCash ? fmtBig(fin.totalCash) : '-'} / ${fin.totalDebt ? fmtBig(fin.totalDebt) : '-'} / ${fin.debtToEquity ?? '-'}`);
+        add('Free cash flow', fin.freeCashflow != null ? fmtBig(fin.freeCashflow) : '');
+        add('Beta', fin.beta);
+        const cur = (an.trend || [])[0];
+        if (cur) add('Analyst ratings (strongBuy/buy/hold/sell/strongSell)', [cur.strongBuy, cur.buy, cur.hold, cur.sell, cur.strongSell].join('/'));
+        add('Recent rating changes', (an.changes || []).slice(0, 3).map(c => `${c.date} ${c.firm}: ${c.from || '-'}→${c.to || '-'}`).join('; '));
+        add('Ownership % (insiders/institutions)', `${ow.insidersPct ?? '-'} / ${ow.institutionsPct ?? '-'}`);
+        if (ow.netInsider && ow.netInsider.netShares != null) add(`Insider net shares (${ow.netInsider.period || ''})`, ow.netInsider.netShares);
+        add('Dividend yield% / ex-date', dv.yield != null ? `${dv.yield} / ${dv.exDate || '-'}` : '');
+        add('Recent headlines', (deep.news || []).slice(0, 5).map(n => n.title).join(' | '));
+      }
+      return lines.join('\n');
+    }
+
     async function executeAnalysis(ticker) {
       const seq = ++analysisSeq;
       const loading = document.getElementById('loadingState');
@@ -1825,7 +2016,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
       const upperTicker = resolveTickerInput(ticker);
       tickerText.textContent = upperTicker;
-      loadingSubtext.textContent = '시세 및 재무 지표를 수집 중...';
+      loadingSubtext.textContent = '시세, 재무 지표, 실적·애널리스트·수급 데이터를 수집 중...';
       loading.classList.remove('hidden');
       dashboard.classList.add('hidden');
       if (analyzeBtn) analyzeBtn.disabled = true;
@@ -1838,10 +2029,11 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (btnLinkFool) btnLinkFool.href = `https://www.fool.com/search/solr.aspx?q=${encodeURIComponent(upperTicker)}`;
 
       try {
-        // 1. 시세 + 재무 지표 병렬 수집
-        const [chartData, fundamentals] = await Promise.all([
+        // 시세 + 재무 + 심층 데이터 병렬 수집 (AI는 호출하지 않는다 — 버튼을 눌렀을 때만)
+        const [chartData, fundamentals, deep] = await Promise.all([
           fetchRealYahooFinanceData(upperTicker),
-          fetchFundamentals(upperTicker)
+          fetchFundamentals(upperTicker),
+          fetchDeep(upperTicker)
         ]);
         if (seq !== analysisSeq) return;
 
@@ -1851,124 +2043,16 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           return;
         }
 
-        // 가상 데이터는 쓰지 않는다. 시세를 못 가져오면 해당 항목은 빈칸.
         const market = chartData && chartData.isLive ? chartData : null;
         const history = market ? market.history : [];
-        const price = market ? Number(market.price) : null;
-        const high52 = market && Number.isFinite(Number(market.high52)) ? Number(market.high52) : null;
-        const low52 = market && Number.isFinite(Number(market.low52)) ? Number(market.low52) : null;
-
-        // 2. 기술 지표 (실제 일봉으로 계산)
         const ind = computeIndicatorSeries(history);
         const tech = calculateRealIndicators(history, ind);
 
-        // 3. Gemini 구글 검색 (선택)
-        let geminiInsight = null;
-        if (getStoredApiKey('gemini_key')) {
-          loadingSubtext.textContent = '구글 실시간 검색 및 Motley Fool 해자 평가를 AI로 종합 채점 중...';
-          geminiInsight = await fetchGeminiGroundingAnalysis(upperTicker, market);
-          if (seq !== analysisSeq) return;
-        }
-
-        const g = geminiInsight || {};
-        const f = fundamentals || {};
-
-        const stockName = g.name || f.name || market?.name || '';
-        const stockSector = g.sector || f.sector || '';
-
-        const pe = pick(g.pe, f.pe);
-        const forwardPe = pick(g.forwardPe, f.forwardPe);
-        const peg = pick(g.peg, f.peg);
-        const roe = pick(g.roe, f.roe);
-        const shortFloat = pick(g.shortFloat, f.shortFloat);
-        const pSales = pick(f.pSales);
-        const pBook = pick(f.pBook);
-        const targetAvg = pick(g.targetAvg, f.targetAvg);
-        const targetMin = pick(g.targetMin, f.targetMin);
-        const targetMax = pick(g.targetMax, f.targetMax);
-        const upside = (targetAvg !== null && price !== null && price !== 0) ? (((targetAvg - price) / price) * 100) : null;
-
-        let summary = g.summary || '';
-        if (!summary && f.summary) summary = f.summary.length > 420 ? f.summary.slice(0, 420) + '…' : f.summary;
-
-        let experts, expertsNotice = '';
-        if (Array.isArray(g.experts) && g.experts.length > 0) {
-          experts = g.experts.map((e, idx) => ({
-            name: e.name || `전문가 ${idx + 1}`,
-            role: EXPERT_ROLES[idx] || "전문 애널리스트",
-            avatar: EXPERT_AVATARS[idx] || "fa-user",
-            color: EXPERT_COLORS[idx] || "text-cyan-400 bg-cyan-950/60 border-cyan-700/60",
-            stance: e.stance || '',
-            target: e.target || '',
-            thesis: e.thesis || ''
-          }));
-        } else {
-          experts = buildTemplateExperts({ tech, pe, shortFloat, low52 });
-          expertsNotice = '※ Gemini 키를 연결하면 전문가 의견이 채워집니다. 현재는 실제 지표로 계산 가능한 항목만 표시하고 나머지는 비워 둡니다.';
-        }
-
-        // 불/베어 케이스: Gemini 결과가 없으면 실제 수치로 확인되는 항목만 표시
-        let bullCase = Array.isArray(g.bullCase) ? g.bullCase : [];
-        let bearCase = Array.isArray(g.bearCase) ? g.bearCase : [];
-        if (!Array.isArray(g.bullCase)) {
-          bullCase = [];
-          if (tech.sma200Diff && isPositivePct(tech.sma200Diff)) bullCase.push(`200일선 대비 ${tech.sma200Diff} 위에서 거래 중`);
-          if (upside !== null && upside > 0) bullCase.push(`애널리스트 평균 목표가 $${targetAvg} (상승여력 ${upside.toFixed(1)}%)`);
-        }
-        if (!Array.isArray(g.bearCase)) {
-          bearCase = [];
-          if (tech.sma200Diff && !isPositivePct(tech.sma200Diff)) bearCase.push(`200일선 대비 ${tech.sma200Diff} 아래에서 거래 중`);
-          if (price !== null && high52 !== null) bearCase.push(`52주 고점($${high52.toFixed(2)}) 대비 ${pctDiff(price, high52)}`);
-          if (tech.rsi !== null && tech.rsi > 70) bearCase.push(`RSI ${tech.rsi} — 과열 구간`);
-        }
-
-        const feedParts = [];
-        if (geminiInsight) feedParts.push(geminiInsight.__grounded ? 'Google Search' : 'Gemini(검색 없음)');
-        if (fundamentals) feedParts.push('Yahoo 재무(프록시)');
-        if (market) feedParts.push('Yahoo 시세');
-        const dataFeed = feedParts.join(' + ');
-
-        const compositeData = {
-          ticker: upperTicker,
-          name: stockName,
-          sector: stockSector,
-          price: price !== null ? price.toFixed(2) : '',
-          change: market ? (market.change || '') : '',
-          consensus: g.consensus || f.consensus || '',
-          summary: summary,
-          targetAvg, targetMin, targetMax, upside,
-          rsi: tech.rsi,
-          sma20Diff: tech.sma20Diff,
-          sma50Diff: tech.sma50Diff,
-          sma200Diff: tech.sma200Diff,
-          pe, peg, roe, shortFloat,
-          history,
-          ind,
-          hasMarket: !!market,
-          dataFeed,
-          expertsNotice,
-          finviz: [
-            { label: "P/E", val: fmtNum(pe) },
-            { label: "Forward P/E", val: fmtNum(forwardPe, 1) },
-            { label: "PEG", val: fmtNum(peg) },
-            { label: "P/S", val: fmtNum(pSales) },
-            { label: "P/B", val: fmtNum(pBook) },
-            { label: "ROE", val: fmtNum(roe, null, '%') },
-            { label: "52W High", val: high52 !== null ? `$${high52.toFixed(2)}` : '' },
-            { label: "52W Low", val: low52 !== null ? `$${low52.toFixed(2)}` : '' },
-            { label: "Short Float", val: fmtNum(shortFloat, null, '%') },
-            { label: "SMA20", val: tech.sma20Diff },
-            { label: "SMA50", val: tech.sma50Diff },
-            { label: "SMA200", val: tech.sma200Diff },
-            { label: "RSI (14)", val: fmtNum(tech.rsi) },
-            { label: "Target Price", val: targetAvg !== null ? `$${targetAvg}` : '' },
-            { label: "Data Feed", val: dataFeed }
-          ],
-          experts, bullCase, bearCase
-        };
-
-        currentAnalysisData = compositeData;
-        renderAnalysisResult(compositeData);
+        analysisInputs = { upperTicker, market, fundamentals, deep, history, ind, tech };
+        currentAnalysisData = composeAnalysis(analysisInputs, null);
+        renderAnalysisResult(currentAnalysisData);
+        renderDeepAnalysis(deep);
+        updateAiButton();
 
         loading.classList.add('hidden');
         dashboard.classList.remove('hidden');
@@ -1976,10 +2060,11 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         renderProChart();
         renderMiniTrendPreview();
 
+        const name = currentAnalysisData.name;
         if (!market) {
           showToast('시세 데이터 없음', `${upperTicker}: 실시간 시세를 가져오지 못해 해당 항목을 비워 둡니다. 설정에서 자체 프록시 연결을 확인하세요.`, 'warning');
         } else {
-          showToast('데이터 분석 완료', `${upperTicker}${stockName ? ` (${stockName})` : ''}: ${dataFeed}`, 'success');
+          showToast('데이터 로드 완료', `${upperTicker}${name ? ` (${name})` : ''}: ${currentAnalysisData.dataFeed}`, 'success');
         }
       } catch (err) {
         console.error('analysis failed', err);
@@ -1990,6 +2075,222 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       } finally {
         if (seq === analysisSeq && analyzeBtn) analyzeBtn.disabled = false;
       }
+    }
+
+    function updateAiButton(running = false) {
+      const btn = document.getElementById('aiAnalyzeBtn');
+      if (!btn) return;
+      btn.disabled = running;
+      const label = btn.querySelector('span');
+      if (running) label.textContent = 'AI 분석 중...';
+      else label.textContent = currentAnalysisData && currentAnalysisData.aiDone ? 'AI 분석 다시 실행' : 'AI 심층 분석 실행';
+    }
+
+    // 버튼을 눌렀을 때만 Gemini를 호출한다 (호출 1회 = 유료). 실제 데이터를 함께 넘긴다.
+    async function runAiAnalysis() {
+      if (!analysisInputs) return;
+      if (!getStoredApiKey('gemini_key')) {
+        showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 분석을 실행할 수 있습니다.', 'info');
+        openApiSettingsModal();
+        return;
+      }
+      const seq = analysisSeq;
+      updateAiButton(true);
+      try {
+        const g = await fetchGeminiGroundingAnalysis(analysisInputs.upperTicker, analysisInputs.market, buildVerifiedDataText(analysisInputs));
+        if (seq !== analysisSeq) return;
+        if (g) {
+          currentAnalysisData = composeAnalysis(analysisInputs, g);
+          renderAnalysisResult(currentAnalysisData);
+          showToast('AI 분석 완료', `${analysisInputs.upperTicker}: ${currentAnalysisData.dataFeed}`, 'success');
+        }
+      } finally {
+        updateAiButton(false);
+      }
+    }
+
+    // ===== 심층 분석 (Yahoo Finance via 자체 프록시) =====
+    function fmtBig(v) {
+      const n = Number(v);
+      if (v === null || v === undefined || !Number.isFinite(n)) return '';
+      const abs = Math.abs(n), sign = n < 0 ? '-' : '';
+      if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
+      if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+      if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
+      if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+      return `${sign}$${abs.toFixed(0)}`;
+    }
+
+    function fmtShares(v) {
+      const n = Number(v);
+      if (v === null || v === undefined || !Number.isFinite(n)) return '';
+      const abs = Math.abs(n), sign = n < 0 ? '-' : '';
+      if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(2)}B`;
+      if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(2)}M`;
+      if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`;
+      return `${sign}${abs}`;
+    }
+
+    const hasVal = v => v !== null && v !== undefined && v !== '' && !(typeof v === 'number' && !Number.isFinite(v));
+
+    function metricRows(rows) {
+      const html = rows.filter(([, v]) => hasVal(v) && v !== '').map(([label, v, cls]) => `
+        <div class="flex items-center justify-between py-1.5 border-b border-slate-800/70 text-xs">
+          <span class="text-slate-400">${escapeHtml(label)}</span>
+          <span class="font-mono-numbers font-semibold ${cls || 'text-white'}">${escapeHtml(v)}</span>
+        </div>`).join('');
+      return html;
+    }
+
+    function deepCard(title, icon, color, body) {
+      if (!body || !body.trim()) return '';
+      return `
+        <div class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <div class="flex items-center gap-2 mb-3 border-b border-slate-800/80 pb-2">
+            <span class="w-7 h-7 rounded-lg ${color} flex items-center justify-center text-xs"><i class="fa-solid ${icon}"></i></span>
+            <h4 class="text-sm font-bold text-white">${escapeHtml(title)}</h4>
+          </div>
+          ${body}
+        </div>`;
+    }
+
+    function signCls(v) {
+      if (!Number.isFinite(v)) return 'text-white';
+      return v >= 0 ? 'text-emerald-400' : 'text-rose-400';
+    }
+
+    function tableHtml(headers, rows) {
+      if (!rows.length) return '';
+      return `
+        <div class="overflow-x-auto mt-3">
+          <table class="w-full text-[11px] font-mono-numbers text-slate-300">
+            <thead><tr class="text-slate-500 text-left">${headers.map((h, i) => `<th class="py-1 pr-2 font-sans font-medium ${i ? 'text-right' : ''}">${escapeHtml(h)}</th>`).join('')}</tr></thead>
+            <tbody>${rows.map(r => `<tr class="border-t border-slate-800/70">${r.map((c, i) => `<td class="py-1.5 pr-2 ${i ? 'text-right' : ''} ${c && c.cls ? c.cls : ''}">${escapeHtml(c && typeof c === 'object' ? c.text : c)}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+    }
+
+    const PERIOD_LABEL = { '0q': '이번 분기', '+1q': '다음 분기', '0y': '올해', '+1y': '내년' };
+
+    function renderDeepAnalysis(deep) {
+      const section = document.getElementById('deepSection');
+      const grid = document.getElementById('deepGrid');
+      if (!section || !grid) return;
+      if (!deep) {
+        section.classList.add('hidden');
+        grid.innerHTML = '';
+        return;
+      }
+      const e = deep.earnings || {}, fin = deep.financials || {}, an = deep.analysts || {}, ow = deep.ownership || {}, dv = deep.dividends || {};
+      const cards = [];
+
+      // 1. 실적
+      let body = '';
+      if (e.nextDate) body += `<div class="text-xs text-slate-400 mb-1">다음 실적 발표 예정: <strong class="text-cyan-300 font-mono-numbers">${escapeHtml(e.nextDate)}</strong></div>`;
+      const hist = (e.history || []).filter(h => hasVal(h.epsActual) || hasVal(h.epsEstimate));
+      body += tableHtml(['분기', '실제 EPS', '예상 EPS', '서프라이즈'], hist.map(h => [
+        h.quarter || '', hasVal(h.epsActual) ? String(h.epsActual) : '', hasVal(h.epsEstimate) ? String(h.epsEstimate) : '',
+        hasVal(h.surprisePct) ? { text: `${h.surprisePct >= 0 ? '+' : ''}${h.surprisePct}%`, cls: signCls(h.surprisePct) } : ''
+      ]));
+      const trend = (e.trend || []).filter(x => hasVal(x.epsAvg) || hasVal(x.revenueAvg));
+      if (trend.length) {
+        body += '<div class="text-[11px] text-slate-500 mt-3">애널리스트 전망</div>' + tableHtml(['기간', 'EPS 전망', '매출 전망', '매출 성장'], trend.map(x => [
+          PERIOD_LABEL[x.period] || x.period, hasVal(x.epsAvg) ? String(x.epsAvg) : '', hasVal(x.revenueAvg) ? fmtBig(x.revenueAvg) : '',
+          hasVal(x.revenueGrowth) ? { text: `${x.revenueGrowth >= 0 ? '+' : ''}${x.revenueGrowth}%`, cls: signCls(x.revenueGrowth) } : ''
+        ]));
+      }
+      cards.push(deepCard('실적 (Earnings)', 'fa-calendar-check', 'bg-amber-950 text-amber-400', body));
+
+      // 2. 재무 건전성
+      const pctStr = v => hasVal(v) ? `${v}%` : '';
+      body = metricRows([
+        ['매출 (TTM)', fmtBig(fin.totalRevenue)],
+        ['매출 성장률', pctStr(fin.revenueGrowth), signCls(fin.revenueGrowth)],
+        ['이익 성장률', pctStr(fin.earningsGrowth), signCls(fin.earningsGrowth)],
+        ['매출총이익률', pctStr(fin.grossMargin)],
+        ['영업이익률', pctStr(fin.operatingMargin)],
+        ['순이익률', pctStr(fin.profitMargin)],
+        ['ROE / ROA', hasVal(fin.returnOnEquity) || hasVal(fin.returnOnAssets) ? `${hasVal(fin.returnOnEquity) ? fin.returnOnEquity + '%' : '-'} / ${hasVal(fin.returnOnAssets) ? fin.returnOnAssets + '%' : '-'}` : ''],
+        ['보유 현금', fmtBig(fin.totalCash)],
+        ['총부채', fmtBig(fin.totalDebt)],
+        ['부채비율 (D/E)', pctStr(fin.debtToEquity)],
+        ['유동비율 / 당좌비율', hasVal(fin.currentRatio) || hasVal(fin.quickRatio) ? `${fin.currentRatio ?? '-'} / ${fin.quickRatio ?? '-'}` : ''],
+        ['영업현금흐름', hasVal(fin.operatingCashflow) ? fmtBig(fin.operatingCashflow) : '', signCls(fin.operatingCashflow)],
+        ['잉여현금흐름 (FCF)', hasVal(fin.freeCashflow) ? fmtBig(fin.freeCashflow) : '', signCls(fin.freeCashflow)],
+        ['베타', hasVal(fin.beta) ? String(fin.beta) : '']
+      ]);
+      const yearly = (fin.yearly || []).filter(y => hasVal(y.revenue) || hasVal(y.earnings));
+      body += tableHtml(['연도', '매출', '순이익'], yearly.map(y => [String(y.year ?? ''), fmtBig(y.revenue), fmtBig(y.earnings)]));
+      const quarterly = (fin.quarterly || []).filter(q => hasVal(q.revenue) || hasVal(q.earnings));
+      body += tableHtml(['분기', '매출', '순이익'], quarterly.map(q => [String(q.quarter ?? ''), fmtBig(q.revenue), fmtBig(q.earnings)]));
+      cards.push(deepCard('재무 건전성', 'fa-scale-balanced', 'bg-emerald-950 text-emerald-400', body));
+
+      // 3. 애널리스트
+      body = '';
+      const cur = (an.trend || [])[0];
+      if (cur) {
+        const parts = [
+          ['적극 매수', cur.strongBuy, 'bg-emerald-500'], ['매수', cur.buy, 'bg-emerald-300'], ['중립', cur.hold, 'bg-amber-400'],
+          ['매도', cur.sell, 'bg-rose-400'], ['적극 매도', cur.strongSell, 'bg-rose-600']
+        ];
+        const total = parts.reduce((s, [, v]) => s + (Number(v) || 0), 0);
+        if (total > 0) {
+          body += `<div class="text-xs text-slate-400 mb-1.5">투자의견 분포 (최근 월 기준, ${total}명${hasVal(an.count) ? ` / 목표가 제시 ${an.count}명` : ''})</div>
+            <div class="flex w-full h-3 rounded-full overflow-hidden bg-slate-800">${parts.map(([, v, c]) => (Number(v) > 0 ? `<div class="${c}" style="width:${(Number(v) / total) * 100}%"></div>` : '')).join('')}</div>
+            <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-slate-400">${parts.map(([l, v, c]) => `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full ${c}"></span>${l} ${Number(v) || 0}</span>`).join('')}</div>`;
+        }
+      }
+      const changes = (an.changes || []).filter(c => c.firm);
+      body += tableHtml(['날짜', '증권사', '변경', '의견'], changes.map(c => [
+        c.date || '', c.firm || '', `${c.from || ''}${c.from && c.to ? ' → ' : ''}${c.to || ''}`,
+        c.action === 'up' ? { text: '상향', cls: 'text-emerald-400' } : (c.action === 'down' ? { text: '하향', cls: 'text-rose-400' } : (c.action || ''))
+      ]));
+      cards.push(deepCard('애널리스트 의견', 'fa-user-tie', 'bg-cyan-950 text-cyan-400', body));
+
+      // 4. 수급·내부자
+      body = metricRows([
+        ['내부자 보유', pctStr(ow.insidersPct)],
+        ['기관 보유', pctStr(ow.institutionsPct)],
+        ['유통주식 대비 기관', pctStr(ow.institutionsFloatPct)],
+        ['보유 기관 수', hasVal(ow.institutionsCount) ? String(ow.institutionsCount) : '']
+      ]);
+      const ni = ow.netInsider || {};
+      if (hasVal(ni.netShares) || hasVal(ni.buyShares) || hasVal(ni.sellShares)) {
+        body += metricRows([
+          [`내부자 매수${ni.period ? ` (${ni.period})` : ''}`, hasVal(ni.buyShares) ? fmtShares(ni.buyShares) + '주' : ''],
+          ['내부자 매도', hasVal(ni.sellShares) ? fmtShares(ni.sellShares) + '주' : ''],
+          ['순매수', hasVal(ni.netShares) ? fmtShares(ni.netShares) + '주' : '', signCls(ni.netShares)]
+        ]);
+      }
+      const insts = (ow.topInstitutions || []).filter(o => o.org);
+      body += tableHtml(['주요 기관', '지분', '보유 주식'], insts.map(o => [o.org, hasVal(o.pct) ? `${o.pct}%` : '', fmtShares(o.position)]));
+      const insiders = (ow.insiderTransactions || []).filter(x => x.name);
+      body += tableHtml(['날짜', '내부자', '거래', '주식'], insiders.map(x => [x.date || '', `${x.name}${x.relation ? ` (${x.relation})` : ''}`, x.text || '', fmtShares(x.shares)]));
+      cards.push(deepCard('수급 · 내부자 거래', 'fa-people-group', 'bg-purple-950 text-purple-400', body));
+
+      // 5. 배당
+      body = metricRows([
+        ['배당수익률', hasVal(dv.yield) ? `${dv.yield}%` : ''],
+        ['연간 배당금', hasVal(dv.rate) ? `$${dv.rate}` : ''],
+        ['배당성향', pctStr(dv.payoutRatio)],
+        ['최근 배당락일', dv.exDate || '']
+      ]);
+      cards.push(deepCard('배당', 'fa-coins', 'bg-amber-950 text-amber-400', body));
+
+      // 6. 뉴스
+      const news = (deep.news || []).filter(n => n.title);
+      body = news.map(n => {
+        const date = n.time ? n.time.slice(0, 10) : '';
+        const title = n.link
+          ? `<a href="${escapeHtml(n.link)}" target="_blank" rel="noopener noreferrer" class="text-slate-200 hover:text-cyan-300">${escapeHtml(n.title)}</a>`
+          : `<span class="text-slate-200">${escapeHtml(n.title)}</span>`;
+        return `<li class="py-1.5 border-b border-slate-800/70 text-xs leading-snug">${title}<div class="text-[10px] text-slate-500 mt-0.5">${escapeHtml([n.publisher, date].filter(Boolean).join(' · '))}</div></li>`;
+      }).join('');
+      cards.push(deepCard('최신 뉴스', 'fa-newspaper', 'bg-blue-950 text-blue-400', body ? `<ul>${body}</ul>` : ''));
+
+      const html = cards.filter(Boolean).join('');
+      grid.innerHTML = html;
+      section.classList.toggle('hidden', !html);
     }
 
     function trendLabel(data) {
@@ -2646,7 +2947,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const prompt = `${persona.prompt}
 종목: ${d.name} (${d.ticker}), 현재가 ${d.price ? '$' + d.price : '(데이터 없음)'} ${d.change}.
 지표(빈 값은 데이터 없음): P/E ${fmtNum(d.pe)}, PEG ${fmtNum(d.peg)}, ROE ${fmtNum(d.roe, null, '%')}, Short Float ${fmtNum(d.shortFloat, null, '%')}, RSI ${fmtNum(d.rsi)}, SMA20 ${d.sma20Diff}, SMA50 ${d.sma50Diff}, SMA200 ${d.sma200Diff}, 애널리스트 목표가 ${d.targetAvg !== null ? '$' + d.targetAvg : ''}.
-위 숫자 외의 수치는 지어내지 말고, 모르면 모른다고 답하세요. 한국어로 간결하게(최대 8문장) 답하고, 투자 권유가 아님을 마지막에 한 줄로 밝히세요.
+아래 검증 데이터 외의 수치는 지어내지 말고, 모르면 모른다고 답하세요.\n검증 데이터:\n${buildVerifiedDataText(analysisInputs)} 한국어로 간결하게(최대 8문장) 답하고, 투자 권유가 아님을 마지막에 한 줄로 밝히세요.
 질문: ${question}`;
       const r = await callGemini(prompt, { grounding: true });
       sendBtn.disabled = false;
