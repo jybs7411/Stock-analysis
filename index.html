@@ -501,14 +501,23 @@
             <span class="text-xs text-slate-400"><i class="fa-solid fa-arrow-trend-up text-cyan-400 mr-1"></i>정밀 팩터 테이블</span>
           </div>
 
-          <!-- Finviz-style table -->
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs font-mono-numbers border-collapse border border-slate-800 text-slate-300">
-              <tbody id="finvizTableBody" class="divide-y divide-slate-800">
-                <!-- Dynamically populated rows -->
-              </tbody>
-            </table>
+          <!-- Metric cards with traffic-light rating -->
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-[11px] text-slate-400">
+            <div id="metricSummary" class="flex items-center gap-3"></div>
+            <div class="flex items-center gap-3">
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>좋음</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400"></span>보통</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span>주의</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span>위험</span>
+            </div>
           </div>
+          <div id="finvizTableBody" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+          <p class="text-[10px] text-slate-500 mt-3 leading-snug">※ 색상은 일반적인 경험칙 기준입니다. 업종·시장 상황에 따라 다르므로 참고용으로만 보세요. 투자 권유가 아닙니다.</p>
+          <details class="mt-3 group">
+            <summary class="cursor-pointer text-xs font-semibold text-cyan-300 hover:text-cyan-200 select-none"><i class="fa-solid fa-book-open mr-1"></i>지표 읽는 법 (펼치기)</summary>
+            <div id="metricGuideBody" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+          </details>
+          <p id="dataFeedNote" class="text-[10px] text-slate-500 mt-2"></p>
 
           <div class="mt-4 flex flex-wrap items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-800/80">
             <div><i class="fa-solid fa-circle-info text-cyan-400 mr-1"></i>P/E, PEG, Short Float, 52주 변동폭 및 20/50/200 이평선 배열 상태</div>
@@ -1126,8 +1135,11 @@
           </div>
 
           <div class="flex items-center gap-3">
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>강세/저평가</span>
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-400"></span>고평가/주의</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>좋음</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-300"></span>보통</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span>주의</span>
+            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-400"></span>위험</span>
+            <span class="text-slate-500">· 열 제목에 마우스를 올리면 기준이 보입니다</span>
           </div>
         </div>
       </section>
@@ -1920,6 +1932,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (market) feedParts.push('Yahoo 시세');
       const dataFeed = feedParts.join(' + ');
 
+      const pos52 = (price !== null && high52 !== null && low52 !== null && high52 > low52) ? Math.min(100, Math.max(0, ((price - low52) / (high52 - low52)) * 100)) : null;
+
       return {
         ticker: upperTicker,
         name: stockName,
@@ -1942,21 +1956,19 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         dataFeed,
         expertsNotice,
         finviz: [
-          { label: "P/E", val: fmtNum(pe) },
-          { label: "Forward P/E", val: fmtNum(forwardPe, 1) },
-          { label: "PEG", val: fmtNum(peg) },
-          { label: "P/S", val: fmtNum(pSales) },
-          { label: "P/B", val: fmtNum(pBook) },
-          { label: "ROE", val: fmtNum(roe, null, '%') },
-          { label: "52W High", val: high52 !== null ? `$${high52.toFixed(2)}` : '' },
-          { label: "52W Low", val: low52 !== null ? `$${low52.toFixed(2)}` : '' },
-          { label: "Short Float", val: fmtNum(shortFloat, null, '%') },
-          { label: "SMA20", val: tech.sma20Diff },
-          { label: "SMA50", val: tech.sma50Diff },
-          { label: "SMA200", val: tech.sma200Diff },
-          { label: "RSI (14)", val: fmtNum(tech.rsi) },
-          { label: "Target Price", val: targetAvg !== null ? `$${targetAvg}` : '' },
-          { label: "Data Feed", val: dataFeed }
+          { label: 'P/E', key: 'pe', raw: pe, val: fmtNum(pe) },
+          { label: 'Forward P/E', key: 'fpe', raw: forwardPe, val: fmtNum(forwardPe, 1) },
+          { label: 'PEG', key: 'peg', raw: peg, val: fmtNum(peg) },
+          { label: 'P/S', key: 'ps', raw: pSales, val: fmtNum(pSales) },
+          { label: 'P/B', key: 'pb', raw: pBook, val: fmtNum(pBook) },
+          { label: 'ROE', key: 'roe', raw: roe, val: fmtNum(roe, null, '%') },
+          { label: '52주 위치', key: 'pos52', raw: pos52, val: pos52 !== null ? `${pos52.toFixed(0)}%` : '', sub: (low52 !== null && high52 !== null) ? `저 $${low52.toFixed(2)} ~ 고 $${high52.toFixed(2)}` : '' },
+          { label: 'Short Float', key: 'shortFloat', raw: shortFloat, val: fmtNum(shortFloat, null, '%') },
+          { label: 'SMA20', key: 'sma20', raw: parseFloat(tech.sma20Diff), val: tech.sma20Diff },
+          { label: 'SMA50', key: 'sma50', raw: parseFloat(tech.sma50Diff), val: tech.sma50Diff },
+          { label: 'SMA200', key: 'sma200', raw: parseFloat(tech.sma200Diff), val: tech.sma200Diff },
+          { label: 'RSI (14)', key: 'rsi', raw: tech.rsi, val: fmtNum(tech.rsi) },
+          { label: '목표가 상승여력', key: 'upside', raw: upside, val: targetAvg !== null ? `$${targetAvg}${upside !== null ? ` (${upside >= 0 ? '+' : ''}${upside.toFixed(1)}%)` : ''}` : '' }
         ],
         experts, bullCase, bearCase
       };
@@ -2135,13 +2147,19 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     const hasVal = v => v !== null && v !== undefined && v !== '' && !(typeof v === 'number' && !Number.isFinite(v));
 
+    // rows: [라벨, 표시값, 색상클래스, rateMetric 결과(선택)]
     function metricRows(rows) {
-      const html = rows.filter(([, v]) => hasVal(v) && v !== '').map(([label, v, cls]) => `
-        <div class="flex items-center justify-between py-1.5 border-b border-slate-800/70 text-xs">
-          <span class="text-slate-400">${escapeHtml(label)}</span>
-          <span class="font-mono-numbers font-semibold ${cls || 'text-white'}">${escapeHtml(v)}</span>
+      return rows.filter(([, v]) => hasVal(v) && v !== '').map(([label, v, cls, r]) => `
+        <div class="py-1.5 border-b border-slate-800/70 text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-slate-400">${escapeHtml(label)}</span>
+            <span class="flex items-center gap-2">
+              <span class="font-mono-numbers font-semibold ${cls || 'text-white'}">${escapeHtml(v)}</span>
+              ${ratingBadge(r)}
+            </span>
+          </div>
+          ${r ? `${gaugeHtml(r.key, r.value)}<div class="text-[10px] ${r.meta.text} leading-snug">${escapeHtml(r.text)}</div>` : ''}
         </div>`).join('');
-      return html;
     }
 
     function deepCard(title, icon, color, body) {
@@ -2190,6 +2208,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       let body = '';
       if (e.nextDate) body += `<div class="text-xs text-slate-400 mb-1">다음 실적 발표 예정: <strong class="text-cyan-300 font-mono-numbers">${escapeHtml(e.nextDate)}</strong></div>`;
       const hist = (e.history || []).filter(h => hasVal(h.epsActual) || hasVal(h.epsEstimate));
+      const lastH = hist[hist.length - 1];
+      if (lastH && hasVal(lastH.surprisePct)) body += metricRows([['직전 분기 EPS 서프라이즈', `${lastH.surprisePct >= 0 ? '+' : ''}${lastH.surprisePct}%`, signCls(lastH.surprisePct), rateMetric('epsSurprise', lastH.surprisePct)]]);
       body += tableHtml(['분기', '실제 EPS', '예상 EPS', '서프라이즈'], hist.map(h => [
         h.quarter || '', hasVal(h.epsActual) ? String(h.epsActual) : '', hasVal(h.epsEstimate) ? String(h.epsEstimate) : '',
         hasVal(h.surprisePct) ? { text: `${h.surprisePct >= 0 ? '+' : ''}${h.surprisePct}%`, cls: signCls(h.surprisePct) } : ''
@@ -2207,19 +2227,19 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const pctStr = v => hasVal(v) ? `${v}%` : '';
       body = metricRows([
         ['매출 (TTM)', fmtBig(fin.totalRevenue)],
-        ['매출 성장률', pctStr(fin.revenueGrowth), signCls(fin.revenueGrowth)],
-        ['이익 성장률', pctStr(fin.earningsGrowth), signCls(fin.earningsGrowth)],
-        ['매출총이익률', pctStr(fin.grossMargin)],
-        ['영업이익률', pctStr(fin.operatingMargin)],
-        ['순이익률', pctStr(fin.profitMargin)],
-        ['ROE / ROA', hasVal(fin.returnOnEquity) || hasVal(fin.returnOnAssets) ? `${hasVal(fin.returnOnEquity) ? fin.returnOnEquity + '%' : '-'} / ${hasVal(fin.returnOnAssets) ? fin.returnOnAssets + '%' : '-'}` : ''],
+        ['매출 성장률', pctStr(fin.revenueGrowth), signCls(fin.revenueGrowth), rateMetric('revGrowth', fin.revenueGrowth)],
+        ['이익 성장률', pctStr(fin.earningsGrowth), signCls(fin.earningsGrowth), rateMetric('earnGrowth', fin.earningsGrowth)],
+        ['매출총이익률', pctStr(fin.grossMargin), '', rateMetric('grossMargin', fin.grossMargin)],
+        ['영업이익률', pctStr(fin.operatingMargin), '', rateMetric('opMargin', fin.operatingMargin)],
+        ['순이익률', pctStr(fin.profitMargin), '', rateMetric('netMargin', fin.profitMargin)],
+        ['ROE / ROA', hasVal(fin.returnOnEquity) || hasVal(fin.returnOnAssets) ? `${hasVal(fin.returnOnEquity) ? fin.returnOnEquity + '%' : '-'} / ${hasVal(fin.returnOnAssets) ? fin.returnOnAssets + '%' : '-'}` : '', '', rateMetric('roe', fin.returnOnEquity)],
         ['보유 현금', fmtBig(fin.totalCash)],
         ['총부채', fmtBig(fin.totalDebt)],
-        ['부채비율 (D/E)', pctStr(fin.debtToEquity)],
-        ['유동비율 / 당좌비율', hasVal(fin.currentRatio) || hasVal(fin.quickRatio) ? `${fin.currentRatio ?? '-'} / ${fin.quickRatio ?? '-'}` : ''],
+        ['부채비율 (D/E)', pctStr(fin.debtToEquity), '', rateMetric('de', fin.debtToEquity)],
+        ['유동비율 / 당좌비율', hasVal(fin.currentRatio) || hasVal(fin.quickRatio) ? `${fin.currentRatio ?? '-'} / ${fin.quickRatio ?? '-'}` : '', '', rateMetric('currentRatio', fin.currentRatio)],
         ['영업현금흐름', hasVal(fin.operatingCashflow) ? fmtBig(fin.operatingCashflow) : '', signCls(fin.operatingCashflow)],
-        ['잉여현금흐름 (FCF)', hasVal(fin.freeCashflow) ? fmtBig(fin.freeCashflow) : '', signCls(fin.freeCashflow)],
-        ['베타', hasVal(fin.beta) ? String(fin.beta) : '']
+        ['잉여현금흐름 (FCF)', hasVal(fin.freeCashflow) ? fmtBig(fin.freeCashflow) : '', signCls(fin.freeCashflow), rateMetric('fcf', fin.freeCashflow)],
+        ['베타', hasVal(fin.beta) ? String(fin.beta) : '', '', rateMetric('beta', fin.beta)]
       ]);
       const yearly = (fin.yearly || []).filter(y => hasVal(y.revenue) || hasVal(y.earnings));
       body += tableHtml(['연도', '매출', '순이익'], yearly.map(y => [String(y.year ?? ''), fmtBig(y.revenue), fmtBig(y.earnings)]));
@@ -2237,7 +2257,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         ];
         const total = parts.reduce((s, [, v]) => s + (Number(v) || 0), 0);
         if (total > 0) {
-          body += `<div class="text-xs text-slate-400 mb-1.5">투자의견 분포 (최근 월 기준, ${total}명${hasVal(an.count) ? ` / 목표가 제시 ${an.count}명` : ''})</div>
+          const buyRatio = ((Number(cur.strongBuy) || 0) + (Number(cur.buy) || 0)) / total * 100;
+          body += metricRows([['매수 의견 비율', `${buyRatio.toFixed(0)}%`, '', rateMetric('buyRatio', buyRatio)]]);
+          body += `<div class="text-xs text-slate-400 mt-3 mb-1.5">투자의견 분포 (최근 월 기준, ${total}명${hasVal(an.count) ? ` / 목표가 제시 ${an.count}명` : ''})</div>
             <div class="flex w-full h-3 rounded-full overflow-hidden bg-slate-800">${parts.map(([, v, c]) => (Number(v) > 0 ? `<div class="${c}" style="width:${(Number(v) / total) * 100}%"></div>` : '')).join('')}</div>
             <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-slate-400">${parts.map(([l, v, c]) => `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full ${c}"></span>${l} ${Number(v) || 0}</span>`).join('')}</div>`;
         }
@@ -2272,9 +2294,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
       // 5. 배당
       body = metricRows([
-        ['배당수익률', hasVal(dv.yield) ? `${dv.yield}%` : ''],
+        ['배당수익률', hasVal(dv.yield) ? `${dv.yield}%` : '', '', rateMetric('divYield', dv.yield)],
         ['연간 배당금', hasVal(dv.rate) ? `$${dv.rate}` : ''],
-        ['배당성향', pctStr(dv.payoutRatio)],
+        ['배당성향', pctStr(dv.payoutRatio), '', rateMetric('payout', dv.payoutRatio)],
         ['최근 배당락일', dv.exDate || '']
       ]);
       cards.push(deepCard('배당', 'fa-coins', 'bg-amber-950 text-amber-400', body));
@@ -2293,6 +2315,216 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const html = cards.filter(Boolean).join('');
       grid.innerHTML = html;
       section.classList.toggle('hidden', !html);
+    }
+
+    // ===== 지표 해석 가이드 =====
+    // 일반적인 경험칙 기준입니다. 업종·시장 상황에 따라 다르므로 참고용으로만 보세요.
+    const RATING_META = {
+      good: { label: '좋음', bar: 'bg-emerald-500', text: 'text-emerald-400', badge: 'bg-emerald-950 text-emerald-300 border-emerald-800', dot: 'bg-emerald-400' },
+      ok:   { label: '보통', bar: 'bg-sky-500',     text: 'text-sky-300',     badge: 'bg-sky-950 text-sky-300 border-sky-800',             dot: 'bg-sky-400' },
+      warn: { label: '주의', bar: 'bg-amber-500',   text: 'text-amber-400',   badge: 'bg-amber-950 text-amber-300 border-amber-800',       dot: 'bg-amber-400' },
+      bad:  { label: '위험', bar: 'bg-rose-500',    text: 'text-rose-400',    badge: 'bg-rose-950 text-rose-300 border-rose-800',          dot: 'bg-rose-400' },
+      info: { label: '참고', bar: 'bg-slate-500',   text: 'text-slate-300',   badge: 'bg-slate-800 text-slate-300 border-slate-700',       dot: 'bg-slate-400' }
+    };
+
+    // rules: 값이 `to` 미만인 첫 규칙을 적용. min/max: 게이지 표시 범위
+    const METRIC_GUIDE = {
+      pe: { name: 'P/E (주가수익비율)', unit: '배', min: 0, max: 60,
+        what: '지금 주가가 회사의 1년 순이익의 몇 배인지 나타냅니다. 낮을수록 이익에 비해 주가가 싸다는 뜻입니다.',
+        tip: '성장 기업(기술주)은 원래 높고 은행·소비재는 낮은 편이라, 같은 업종끼리 비교하세요.',
+        rules: [{ to: 0, rating: 'warn', text: '적자 상태라 해석이 어려움' }, { to: 15, rating: 'good', text: '이익 대비 저평가 구간' }, { to: 25, rating: 'ok', text: '평균적인 수준' }, { to: 40, rating: 'warn', text: '다소 비쌈 — 높은 성장이 필요' }, { to: Infinity, rating: 'bad', text: '고평가 구간 — 기대가 이미 가격에 반영됨' }] },
+      fpe: { name: 'Forward P/E (선행 PER)', unit: '배', min: 0, max: 60,
+        what: '내년 예상 이익을 기준으로 계산한 P/E입니다. 현재 P/E보다 낮으면 이익이 늘 것으로 기대한다는 뜻입니다.',
+        tip: '애널리스트 예상치라 틀릴 수 있습니다.',
+        rules: [{ to: 0, rating: 'warn', text: '적자 예상' }, { to: 15, rating: 'good', text: '예상 이익 대비 저평가' }, { to: 25, rating: 'ok', text: '평균적인 수준' }, { to: 40, rating: 'warn', text: '다소 비쌈' }, { to: Infinity, rating: 'bad', text: '예상 이익 대비도 고평가' }] },
+      peg: { name: 'PEG (성장 대비 가격)', unit: '', min: 0, max: 4,
+        what: 'P/E를 이익 성장률로 나눈 값입니다. 성장 속도까지 감안해 가격이 비싼지 봅니다. 1 이하면 성장에 비해 싸다고 봅니다.',
+        tip: '성장률 예측에 따라 크게 달라지니 보조 지표로만 쓰세요.',
+        rules: [{ to: 0, rating: 'warn', text: '성장률이 마이너스라 해석이 어려움' }, { to: 1, rating: 'good', text: '성장에 비해 저렴' }, { to: 2, rating: 'ok', text: '적정 수준' }, { to: 3, rating: 'warn', text: '성장에 비해 비쌈' }, { to: Infinity, rating: 'bad', text: '성장에 비해 많이 비쌈' }] },
+      ps: { name: 'P/S (주가매출비율)', unit: '배', min: 0, max: 15,
+        what: '시가총액이 연 매출의 몇 배인지입니다. 아직 이익이 적은 성장 기업을 볼 때 씁니다.',
+        tip: '소프트웨어처럼 마진이 높은 업종은 높아도 정상일 수 있습니다.',
+        rules: [{ to: 2, rating: 'good', text: '매출 대비 저렴' }, { to: 5, rating: 'ok', text: '평균적인 수준' }, { to: 10, rating: 'warn', text: '매출 대비 비쌈' }, { to: Infinity, rating: 'bad', text: '매출 대비 매우 비쌈' }] },
+      pb: { name: 'P/B (주가순자산비율)', unit: '배', min: 0, max: 10,
+        what: '회사가 가진 순자산(장부가)의 몇 배로 거래되는지입니다. 1 미만이면 장부가보다 싸게 거래된다는 뜻입니다.',
+        tip: '기술·브랜드 기업은 장부에 안 잡히는 가치가 커서 높은 게 보통입니다.',
+        rules: [{ to: 1, rating: 'good', text: '장부가보다 싸게 거래' }, { to: 3, rating: 'ok', text: '평균적인 수준' }, { to: 6, rating: 'warn', text: '장부가 대비 비쌈' }, { to: Infinity, rating: 'bad', text: '장부가 대비 매우 비쌈' }] },
+      roe: { name: 'ROE (자기자본이익률)', unit: '%', min: -10, max: 40,
+        what: '주주의 돈으로 1년에 몇 %의 이익을 냈는지입니다. 높을수록 장사를 잘하는 회사입니다.',
+        tip: '빚이나 자사주 매입으로 숫자가 부풀려져 매우 높게 나올 수도 있습니다.',
+        rules: [{ to: 0, rating: 'bad', text: '적자' }, { to: 8, rating: 'warn', text: '낮은 편' }, { to: 15, rating: 'ok', text: '무난한 수준' }, { to: Infinity, rating: 'good', text: '우수 (15% 이상)' }] },
+      shortFloat: { name: 'Short Float (공매도 비율)', unit: '%', min: 0, max: 30,
+        what: '시장에 유통되는 주식 중 "주가가 떨어진다"에 베팅(공매도)된 비율입니다.',
+        tip: '매우 높으면 하락 위험도 크지만, 주가가 오르면 한꺼번에 되사면서 급등하는 숏스퀴즈가 나올 수도 있습니다.',
+        rules: [{ to: 3, rating: 'good', text: '하락 베팅이 적음' }, { to: 10, rating: 'ok', text: '보통 수준' }, { to: 20, rating: 'warn', text: '하락 베팅이 많음 — 변동성 주의' }, { to: Infinity, rating: 'bad', text: '매우 높음 — 급락 위험 또는 숏스퀴즈 가능' }] },
+      sma20: { name: '20일 이동평균 대비', unit: '%', min: -15, max: 25,
+        what: '현재 주가가 최근 20일 평균 가격보다 몇 % 위(+)/아래(−)에 있는지입니다. 단기 추세를 봅니다.',
+        tip: '평균선 위면 단기 상승 흐름, 너무 많이 위면 과열일 수 있습니다.',
+        rules: [{ to: -5, rating: 'bad', text: '평균선보다 많이 아래 — 단기 하락세' }, { to: 0, rating: 'warn', text: '평균선 바로 아래 — 힘이 약함' }, { to: 10, rating: 'good', text: '평균선 위 — 단기 상승세' }, { to: Infinity, rating: 'warn', text: '단기 급등 — 조정 가능성' }] },
+      sma50: { name: '50일 이동평균 대비', unit: '%', min: -20, max: 30,
+        what: '현재 주가가 최근 50일(약 2~3개월) 평균 가격보다 몇 % 위/아래인지입니다. 중기 추세를 봅니다.',
+        tip: '20일선과 50일선이 모두 위에 있으면 추세가 강한 편입니다.',
+        rules: [{ to: -8, rating: 'bad', text: '중기 평균보다 많이 아래 — 중기 하락세' }, { to: 0, rating: 'warn', text: '중기 평균 아래 — 힘이 약함' }, { to: 15, rating: 'good', text: '중기 평균 위 — 중기 상승세' }, { to: Infinity, rating: 'warn', text: '중기 과열 — 조정 가능성' }] },
+      sma200: { name: '200일 이동평균 대비', unit: '%', min: -30, max: 50,
+        what: '현재 주가가 최근 200일(약 1년) 평균 가격보다 몇 % 위/아래인지입니다. 장기 추세를 봅니다. 이 선 위면 장기 상승 추세로 봅니다.',
+        tip: '아래로 내려가면 장기 하락 추세로 전환됐다고 해석하는 투자자가 많습니다.',
+        rules: [{ to: -10, rating: 'bad', text: '장기 평균보다 많이 아래 — 장기 하락세' }, { to: 0, rating: 'warn', text: '장기 평균 아래' }, { to: 30, rating: 'good', text: '장기 평균 위 — 장기 상승세' }, { to: Infinity, rating: 'warn', text: '장기 과열 — 조정 가능성' }] },
+      rsi: { name: 'RSI (상대강도지수)', unit: '', min: 0, max: 100,
+        what: '최근 14일간 오른 힘과 내린 힘을 0~100으로 나타냅니다. 70 이상이면 과열, 30 이하면 과매도로 봅니다.',
+        tip: '과열이라고 바로 떨어지는 건 아닙니다. 강한 상승장에서는 오래 70 위에 머물기도 합니다.',
+        rules: [{ to: 30, rating: 'ok', text: '과매도 — 많이 떨어져 반등 가능성 (추세 확인 필요)' }, { to: 70, rating: 'good', text: '중립 구간 — 과열도 침체도 아님' }, { to: 80, rating: 'warn', text: '과열 구간 — 단기 조정 가능성' }, { to: Infinity, rating: 'bad', text: '매우 과열 — 급락 주의' }] },
+      upside: { name: '목표가 상승여력', unit: '%', min: -30, max: 50,
+        what: '현재가에서 애널리스트 평균 목표가까지 남은 상승 여력입니다.',
+        tip: '목표가는 틀릴 수 있고, 의견을 낸 애널리스트가 적으면 신뢰도가 낮습니다.',
+        rules: [{ to: -5, rating: 'bad', text: '이미 목표가보다 비쌈' }, { to: 5, rating: 'warn', text: '목표가 근처 — 추가 여력 적음' }, { to: 20, rating: 'ok', text: '완만한 상승 여력' }, { to: Infinity, rating: 'good', text: '상승 여력 큼 (20% 이상)' }] },
+      pos52: { name: '52주 범위 내 위치', unit: '%', min: 0, max: 100,
+        what: '최근 1년 최저가(0%)~최고가(100%) 사이에서 현재가가 어디쯤인지입니다.',
+        tip: '낮다고 싸고 높다고 비싼 게 아닙니다. 추세와 함께 보세요.',
+        rules: [{ to: 20, rating: 'info', text: '1년 저점 부근 — 싸 보이지만 약세일 수 있음' }, { to: 80, rating: 'info', text: '1년 범위의 중간 구간' }, { to: Infinity, rating: 'info', text: '1년 고점 부근 — 강세지만 추격 매수는 주의' }] },
+      revGrowth: { name: '매출 성장률', unit: '%', min: -20, max: 50,
+        what: '작년 같은 기간보다 매출이 몇 % 늘었는지입니다.',
+        tip: '이익보다 매출 성장이 먼저 꺾이면 위험 신호입니다.',
+        rules: [{ to: 0, rating: 'bad', text: '매출 감소' }, { to: 5, rating: 'warn', text: '성장이 정체' }, { to: 15, rating: 'ok', text: '안정적인 성장' }, { to: Infinity, rating: 'good', text: '고성장 (15% 이상)' }] },
+      earnGrowth: { name: '이익 성장률', unit: '%', min: -30, max: 60,
+        what: '작년 같은 기간보다 순이익이 몇 % 늘었는지입니다.',
+        tip: '일회성 요인으로 크게 흔들릴 수 있습니다.',
+        rules: [{ to: 0, rating: 'bad', text: '이익 감소' }, { to: 5, rating: 'warn', text: '이익 정체' }, { to: 15, rating: 'ok', text: '안정적인 증가' }, { to: Infinity, rating: 'good', text: '이익 고성장 (15% 이상)' }] },
+      grossMargin: { name: '매출총이익률', unit: '%', min: 0, max: 100,
+        what: '매출에서 원가를 뺀 뒤 남는 비율입니다. 높을수록 제품에 가격 결정력이 있다는 뜻입니다.',
+        tip: '소프트웨어는 높고 소매·제조업은 낮은 게 정상이라 업종별로 보세요.',
+        rules: [{ to: 15, rating: 'bad', text: '매우 낮음 — 박리다매 구조' }, { to: 30, rating: 'warn', text: '낮은 편' }, { to: 50, rating: 'ok', text: '무난한 수준' }, { to: Infinity, rating: 'good', text: '높음 — 가격 결정력이 강함' }] },
+      opMargin: { name: '영업이익률', unit: '%', min: -20, max: 50,
+        what: '매출 중 본업으로 남기는 이익의 비율입니다.',
+        tip: '추세(해마다 오르는지)가 수치 자체보다 중요합니다.',
+        rules: [{ to: 0, rating: 'bad', text: '본업 적자' }, { to: 10, rating: 'warn', text: '낮은 편' }, { to: 20, rating: 'ok', text: '무난한 수준' }, { to: Infinity, rating: 'good', text: '우수 (20% 이상)' }] },
+      netMargin: { name: '순이익률', unit: '%', min: -20, max: 40,
+        what: '매출 중 세금·이자까지 내고 최종적으로 남는 이익의 비율입니다.',
+        tip: '일회성 손익이 섞일 수 있습니다.',
+        rules: [{ to: 0, rating: 'bad', text: '적자' }, { to: 5, rating: 'warn', text: '낮은 편' }, { to: 15, rating: 'ok', text: '무난한 수준' }, { to: Infinity, rating: 'good', text: '우수 (15% 이상)' }] },
+      de: { name: '부채비율 (D/E)', unit: '%', min: 0, max: 300,
+        what: '자기 돈(자본) 대비 빚의 비율입니다. 낮을수록 재무가 튼튼합니다.',
+        tip: '은행·금융사나 임대 사업은 원래 높습니다.',
+        rules: [{ to: 50, rating: 'good', text: '빚이 적음' }, { to: 100, rating: 'ok', text: '보통 수준' }, { to: 200, rating: 'warn', text: '빚이 많음' }, { to: Infinity, rating: 'bad', text: '빚이 매우 많음 — 금리 상승에 취약' }] },
+      currentRatio: { name: '유동비율', unit: '배', min: 0, max: 4,
+        what: '1년 안에 갚아야 할 빚 대비 1년 안에 현금화할 수 있는 자산의 배율입니다. 1 미만이면 단기 빚 갚기가 빠듯합니다.',
+        tip: '너무 높으면 돈을 놀리고 있다는 뜻일 수도 있습니다.',
+        rules: [{ to: 1, rating: 'bad', text: '단기 빚 갚기가 빠듯함' }, { to: 1.5, rating: 'ok', text: '무난한 수준' }, { to: Infinity, rating: 'good', text: '단기 자금 여유' }] },
+      fcf: { name: '잉여현금흐름 (FCF)', unit: '',
+        what: '영업으로 번 현금에서 설비 투자 등을 뺀 뒤 실제로 남는 현금입니다. 배당·자사주 매입·빚 상환의 원천입니다.',
+        tip: '성장 투자 때문에 일시적으로 마이너스인 기업도 있습니다.',
+        rules: [{ to: 0, rating: 'bad', text: '현금이 빠져나가는 중' }, { to: Infinity, rating: 'good', text: '현금이 남는 구조' }] },
+      beta: { name: '베타 (변동성)', unit: '', min: 0, max: 3,
+        what: '시장(S&P 500)이 1% 움직일 때 이 주식이 평균 몇 % 움직이는지입니다. 1이면 시장과 비슷, 클수록 출렁입니다.',
+        tip: '변동이 큰 건 오를 때도 크게 오른다는 뜻이라 나쁜 것만은 아닙니다.',
+        rules: [{ to: 0.8, rating: 'good', text: '시장보다 안정적' }, { to: 1.2, rating: 'ok', text: '시장과 비슷한 변동' }, { to: 1.8, rating: 'warn', text: '시장보다 많이 출렁임' }, { to: Infinity, rating: 'bad', text: '변동성이 매우 큼' }] },
+      divYield: { name: '배당수익률', unit: '%', min: 0, max: 10,
+        what: '주가 대비 1년에 받는 배당금의 비율입니다.',
+        tip: '너무 높으면 주가가 급락해서 높아 보이는 것일 수 있어 지속 가능성을 확인해야 합니다.',
+        rules: [{ to: 1, rating: 'info', text: '배당이 거의 없음' }, { to: 4, rating: 'good', text: '무난한 배당' }, { to: 7, rating: 'warn', text: '높은 편 — 지속 가능성 확인' }, { to: Infinity, rating: 'bad', text: '매우 높음 — 배당 삭감 위험' }] },
+      payout: { name: '배당성향', unit: '%', min: 0, max: 120,
+        what: '순이익 중 배당으로 나가는 비율입니다. 100%가 넘으면 번 돈보다 더 나눠주고 있다는 뜻입니다.',
+        tip: '리츠 등은 법적으로 높게 유지합니다.',
+        rules: [{ to: 60, rating: 'good', text: '여유 있는 배당' }, { to: 80, rating: 'warn', text: '부담이 커지는 수준' }, { to: Infinity, rating: 'bad', text: '배당 유지가 어려울 수 있음' }] },
+      buyRatio: { name: '매수 의견 비율', unit: '%', min: 0, max: 100,
+        what: '의견을 낸 애널리스트 중 "매수/적극 매수"를 준 비율입니다.',
+        tip: '애널리스트는 매수 의견이 많은 편이라 70%여도 특별히 낙관적인 건 아닙니다.',
+        rules: [{ to: 30, rating: 'bad', text: '매수 의견이 적음' }, { to: 50, rating: 'warn', text: '의견이 갈림' }, { to: 70, rating: 'ok', text: '매수 우세' }, { to: Infinity, rating: 'good', text: '매수 압도적' }] },
+      epsSurprise: { name: 'EPS 서프라이즈', unit: '%', min: -20, max: 30,
+        what: '실제 주당순이익(EPS)이 애널리스트 예상보다 몇 % 높거나 낮았는지입니다.',
+        tip: '연속으로 예상을 웃돌면 신뢰도가 높은 회사입니다.',
+        rules: [{ to: -5, rating: 'bad', text: '예상을 크게 하회' }, { to: 0, rating: 'warn', text: '예상을 소폭 하회' }, { to: 5, rating: 'ok', text: '예상 부합' }, { to: Infinity, rating: 'good', text: '예상을 크게 상회' }] }
+    };
+
+    function rateMetric(key, value) {
+      const g = METRIC_GUIDE[key];
+      const v = typeof value === 'string' ? parseFloat(value) : Number(value);
+      if (!g || value === null || value === undefined || value === '' || !Number.isFinite(v)) return null;
+      const rule = g.rules.find(r => v < r.to) || g.rules[g.rules.length - 1];
+      return { key, value: v, rating: rule.rating, text: rule.text, meta: RATING_META[rule.rating] };
+    }
+
+    // 텍스트 색상 (스크리너 셀용)
+    function ratingClass(key, value) {
+      const r = rateMetric(key, value);
+      if (!r) return 'text-slate-300';
+      return { good: 'text-emerald-400 font-bold', ok: 'text-slate-200', warn: 'text-amber-400', bad: 'text-rose-400 font-bold', info: 'text-slate-300' }[r.rating];
+    }
+
+    // 구간별 색상 막대 + 현재 위치 마커
+    function gaugeHtml(key, value) {
+      const g = METRIC_GUIDE[key];
+      const v = typeof value === 'string' ? parseFloat(value) : Number(value);
+      if (!g || g.min === undefined || !Number.isFinite(v)) return '';
+      const span = g.max - g.min;
+      let lo = g.min, segs = '';
+      for (const r of g.rules) {
+        const hi = Math.min(r.to, g.max);
+        if (hi > lo) {
+          segs += `<div class="${RATING_META[r.rating].bar} opacity-70" style="width:${((hi - lo) / span) * 100}%"></div>`;
+          lo = hi;
+        }
+        if (lo >= g.max) break;
+      }
+      const pos = Math.min(100, Math.max(0, ((v - g.min) / span) * 100));
+      return `<div class="relative mt-2 mb-1">
+        <div class="flex h-1.5 rounded-full overflow-hidden bg-slate-800">${segs}</div>
+        <div class="absolute -top-0.5 w-0.5 h-2.5 bg-white rounded shadow" style="left:calc(${pos}% - 1px)"></div>
+      </div>`;
+    }
+
+    function ratingBadge(r) {
+      if (!r) return '';
+      return `<span class="text-[10px] px-1.5 py-0.5 rounded border font-sans font-semibold ${r.meta.badge}" title="${escapeHtml(r.text)}">${r.meta.label}</span>`;
+    }
+
+    // 상단 요약: 좋음/보통/주의/위험 개수
+    function renderMetricSummary(items) {
+      const el = document.getElementById('metricSummary');
+      if (!el) return;
+      const counts = { good: 0, ok: 0, warn: 0, bad: 0 };
+      items.forEach(it => { const r = rateMetric(it.key, it.raw); if (r && counts[r.rating] !== undefined) counts[r.rating]++; });
+      const total = counts.good + counts.ok + counts.warn + counts.bad;
+      if (!total) { el.innerHTML = ''; return; }
+      el.innerHTML = ['good', 'ok', 'warn', 'bad'].map(k => `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full ${RATING_META[k].dot}"></span>${RATING_META[k].label} <strong class="text-white">${counts[k]}</strong></span>`).join('');
+    }
+
+    // 지표 설명서 (펼침 영역) — 한 번만 생성
+    function renderMetricGuide() {
+      const el = document.getElementById('metricGuideBody');
+      if (!el || el.dataset.ready) return;
+      el.dataset.ready = '1';
+      el.innerHTML = Object.keys(METRIC_GUIDE).map(k => {
+        const g = METRIC_GUIDE[k];
+        let prev = null;
+        const rows = g.rules.map(r => {
+          const range = prev === null ? (r.to === Infinity ? '전체' : `${r.to}${g.unit} 미만`) : (r.to === Infinity ? `${prev}${g.unit} 이상` : `${prev} ~ ${r.to}${g.unit}`);
+          prev = r.to;
+          return `<li class="flex items-start gap-2"><span class="mt-1 w-2 h-2 rounded-full shrink-0 ${RATING_META[r.rating].dot}"></span><span><strong class="text-slate-200">${escapeHtml(range)}</strong> — ${escapeHtml(r.text)}</span></li>`;
+        }).join('');
+        return `<div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
+          <div class="text-xs font-bold text-white">${escapeHtml(g.name)}</div>
+          <p class="text-[11px] text-slate-400 mt-1 leading-snug">${escapeHtml(g.what)}</p>
+          <ul class="mt-2 space-y-1 text-[11px] text-slate-400">${rows}</ul>
+          ${g.tip ? `<p class="text-[10px] text-slate-500 mt-2 leading-snug">💡 ${escapeHtml(g.tip)}</p>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    // 스크리너 헤더에 마우스를 올리면 기준을 보여준다
+    function initScreenerHeaderTips() {
+      const map = { pe: 'pe', peg: 'peg', roe: 'roe', shortFloat: 'shortFloat', rsi: 'rsi' };
+      Object.entries(map).forEach(([col, key]) => {
+        const el = document.getElementById(`sort-${col}`);
+        const g = METRIC_GUIDE[key];
+        if (!el || !g) return;
+        let prev = null;
+        const lines = g.rules.map(r => {
+          const range = prev === null ? `${r.to}${g.unit} 미만` : (r.to === Infinity ? `${prev}${g.unit} 이상` : `${prev}~${r.to}${g.unit}`);
+          prev = r.to;
+          return `${RATING_META[r.rating].label}: ${range} (${r.text})`;
+        });
+        el.parentElement.title = `${g.name}\n${g.what}\n\n${lines.join('\n')}`;
+      });
     }
 
     function trendLabel(data) {
@@ -2373,34 +2605,33 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         notice.classList.toggle('hidden', !data.expertsNotice);
       }
 
-      renderFinvizTable(data.finviz);
+      renderFinvizTable(data.finviz, data.dataFeed);
       renderExperts(data.experts);
       renderBullBear(data.bullCase, data.bearCase);
     }
 
-    function renderFinvizTable(finvizMetrics) {
-      const tbody = document.getElementById('finvizTableBody');
-      let html = '';
-      for (let i = 0; i < finvizMetrics.length; i += 4) {
-        html += `<tr class="border-b border-slate-800">`;
-        for (let j = 0; j < 4; j++) {
-          const item = finvizMetrics[i + j];
-          if (item) {
-            html += `
-              <td class="py-2.5 px-3 bg-slate-900/60 font-sans text-slate-400 border-r border-slate-800/80 font-medium">
-                ${escapeHtml(item.label)}
-              </td>
-              <td class="py-2.5 px-3 text-white font-bold border-r border-slate-800/80">
-                ${escapeHtml(item.val)}
-              </td>
-            `;
-          } else {
-            html += `<td colspan="2" class="border-r border-slate-800/80"></td>`;
-          }
-        }
-        html += `</tr>`;
-      }
-      tbody.innerHTML = html;
+    function renderFinvizTable(items, dataFeed = '') {
+      const grid = document.getElementById('finvizTableBody');
+      grid.innerHTML = items.map(it => {
+        const g = METRIC_GUIDE[it.key];
+        const r = rateMetric(it.key, it.raw);
+        const verdict = r ? r.text : '';
+        const border = r ? ({ good: 'border-emerald-900/70', ok: 'border-sky-900/60', warn: 'border-amber-900/60', bad: 'border-rose-900/70', info: 'border-slate-800' }[r.rating]) : 'border-slate-800';
+        return `
+          <div class="rounded-xl border ${border} bg-slate-900/50 p-3 flex flex-col" title="${escapeHtml(g ? g.what : '')}">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] text-slate-400 font-sans">${escapeHtml(g ? g.name : it.label)}</span>
+              ${ratingBadge(r)}
+            </div>
+            <div class="text-lg font-bold font-mono-numbers text-white mt-0.5 min-h-[1.75rem]">${escapeHtml(it.val)}</div>
+            ${r ? gaugeHtml(it.key, it.raw) : ''}
+            ${it.sub ? `<div class="text-[10px] text-slate-500 font-mono-numbers">${escapeHtml(it.sub)}</div>` : ''}
+            <p class="text-[10px] ${r ? r.meta.text : 'text-slate-500'} mt-1 leading-snug font-sans">${escapeHtml(verdict)}</p>
+          </div>`;
+      }).join('');
+      renderMetricSummary(items);
+      const note = document.getElementById('dataFeedNote');
+      if (note) note.textContent = dataFeed ? `데이터 출처: ${dataFeed}` : '';
     }
 
     function renderExperts(experts) {
@@ -3860,12 +4091,12 @@ SONY|Sony Group ADR|T
             <td class="py-3 px-3 border-r border-slate-800 text-slate-400 font-sans text-[11px] whitespace-nowrap">${escapeHtml(stock.sector)}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-right font-bold text-white">${Number.isFinite(stock.price) ? '$' + Number(stock.price).toFixed(2) : ''}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-right font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(stock.change)}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.pe) && stock.pe < 25 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${has(stock.pe) ? stock.pe : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.peg) && stock.peg < 1.5 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${has(stock.peg) ? stock.peg : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.roe) && stock.roe > 25 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${has(stock.roe) ? stock.roe + '%' : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.shortFloat) && stock.shortFloat > 3.0 ? 'text-rose-400 font-bold' : 'text-slate-300'}">${has(stock.shortFloat) ? stock.shortFloat + '%' : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.rsi) ? (stock.rsi > 60 ? 'text-amber-400' : (stock.rsi < 45 ? 'text-cyan-400 font-bold' : 'text-slate-300')) : 'text-slate-300'}">${has(stock.rsi) ? stock.rsi : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-center font-bold ${!stock.sma20Diff ? 'text-slate-500' : (above20 ? 'text-emerald-400' : 'text-rose-400')}">${escapeHtml(stock.sma20Diff)}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('pe', stock.pe)}">${has(stock.pe) ? stock.pe : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('peg', stock.peg)}">${has(stock.peg) ? stock.peg : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('roe', stock.roe)}">${has(stock.roe) ? stock.roe + '%' : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('shortFloat', stock.shortFloat)}">${has(stock.shortFloat) ? stock.shortFloat + '%' : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('rsi', stock.rsi)}">${has(stock.rsi) ? stock.rsi : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-center font-bold ${ratingClass('sma20', stock.sma20Diff)}">${escapeHtml(stock.sma20Diff)}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-center">
               ${cons ? `<span class="px-2 py-0.5 rounded text-[10px] border ${consensusBadge} whitespace-nowrap">${escapeHtml(cons)}</span>` : ''}
             </td>
@@ -3948,6 +4179,8 @@ SONY|Sony Group ADR|T
       // Default to JVA or NVDA
       syncIndicatorButtons();
       initChartInteraction();
+      renderMetricGuide();
+      initScreenerHeaderTips();
       executeAnalysis('JVA');
       runScreenerFilter();
     });
