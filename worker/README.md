@@ -1,0 +1,41 @@
+# PentAnalyst 자체 프록시 (Cloudflare Worker)
+
+브라우저에서 Yahoo Finance를 직접 호출하면 CORS로 막힙니다. 이 Worker가 대신 호출해 주고,
+`index.html`은 이 주소만 호출합니다. 무료 플랜(하루 10만 요청)으로 충분합니다.
+
+## 제공 API
+
+| 경로 | 설명 |
+| --- | --- |
+| `GET /api/health` | 동작 확인 |
+| `GET /api/chart?symbol=NVDA&range=1y` | Yahoo 일봉 차트 JSON (1분 캐시). 없는 티커는 404 |
+| `GET /api/fundamentals?symbol=NVDA` | P/E, Forward P/E, PEG, P/S, P/B, ROE, Short Float, 애널리스트 목표가(평균/최저/최고), 컨센서스, 섹터, 사업 개요 (6시간 캐시) |
+
+## 배포 (5분)
+
+```bash
+cd worker
+npm install -g wrangler        # 또는 npx wrangler ...
+wrangler login                 # 브라우저로 Cloudflare 로그인 (무료 계정)
+wrangler deploy                # 배포 완료 시 https://pentanalyst-proxy.<계정>.workers.dev 출력
+curl https://pentanalyst-proxy.<계정>.workers.dev/api/health
+```
+
+## 프론트엔드 연결
+
+1. `index.html`을 열고 우측 상단 **API 키 & 구글 검색 설정**을 클릭
+2. **자체 프록시 주소**에 위 Worker URL 입력 → **설정 저장**
+   (`index.html`의 `DEFAULT_PROXY_URL` 상수에 고정해 둘 수도 있습니다)
+
+## 보안
+
+- `wrangler.toml`의 `ALLOWED_ORIGIN`을 프론트엔드 도메인으로 바꾸면 다른 사이트에서 가져다 쓰지 못합니다.
+  (`index.html`을 파일(`file://`)로 열 때는 Origin이 `null`이라 `"*"`로 두어야 합니다.)
+- 심볼은 `^[A-Z0-9.\-^=]{1,15}$` 만 허용하며, 지정한 Yahoo 경로만 호출합니다 (오픈 프록시가 아닙니다).
+
+## 참고 / 한계
+
+- Yahoo Finance 비공식 엔드포인트라 정책이 바뀌면 동작이 달라질 수 있습니다. 재무 지표(`/api/fundamentals`)는
+  쿠키·crumb 인증이 필요해서 Worker가 자동으로 처리하며, 실패 시 한 번 재시도합니다.
+- 일부 값(PEG 등)은 Yahoo가 제공하지 않으면 `null`이고, 화면에는 `N/A`로 표시됩니다.
+- 개인 학습·참고용입니다. 투자 판단의 근거로 사용하지 마세요.
