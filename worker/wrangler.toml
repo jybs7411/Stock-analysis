@@ -1,0 +1,7 @@
+name = "pentanalyst-proxy"
+main = "index.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+# 프론트엔드를 올린 주소로 제한하세요 (예: "https://jybs7411.github.io"). "*" 이면 누구나 호출 가능.
+ALLOWED_ORIGIN = "*"

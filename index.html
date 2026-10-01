@@ -31,7 +31,7 @@
       font-family: 'Inter', sans-serif;
     }
     .font-mono-numbers {
-      font-family: 'JetBrains+Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
     }
     /* Custom scrollbars */
     ::-webkit-scrollbar {
@@ -103,7 +103,7 @@
         <button
           onclick="openApiSettingsModal()"
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 transition shadow"
-          title="Gemini 및 Finnhub 실시간 API 설정"
+          title="자체 프록시 및 Gemini API 설정"
         >
           <i class="fa-solid fa-key text-amber-400 text-xs"></i>
           <span class="font-semibold text-xs">API 키 & 구글 검색 설정</span>
@@ -120,19 +120,34 @@
           <span class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400">
             <i class="fa-solid fa-satellite-dish"></i>
           </span>
-          <h3 class="text-base font-bold text-white">실제 시장 데이터 & AI 연동 설정</h3>
+          <h3 class="text-base font-bold text-white">시장 데이터 프록시 & AI 연동 설정</h3>
         </div>
         <button onclick="closeApiSettingsModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
       <div class="space-y-4 text-xs text-slate-300">
-        <!-- Live Yahoo Finance Status -->
+        <!-- Data feed status -->
         <div class="p-3 rounded-xl bg-slate-950 border border-emerald-900/60 flex items-start gap-2.5">
           <i class="fa-solid fa-circle-check text-emerald-400 mt-0.5 text-sm"></i>
           <div>
-            <strong class="text-emerald-300 block">Yahoo Finance v8 공개 피드 활성화됨</strong>
-            <p class="text-[11px] text-slate-400 mt-0.5">별도 키 없이도 실제 미국 거래소의 실제 주가, 52주 고저가, 일별 캔들 및 거래량이 실시간 연동됩니다.</p>
+            <strong class="text-emerald-300 block">시세·재무 데이터: 자체 프록시(Cloudflare Worker) 권장</strong>
+            <p class="text-[11px] text-slate-400 mt-0.5">프록시를 연결하면 Yahoo Finance 실시간 시세, P/E·ROE·Short Float·애널리스트 목표가가 실제 값으로 표시됩니다. 미설정 시 불안정한 공개 프록시로 시세만 시도하고, 모두 실패하면 <strong class="text-amber-300">시뮬레이션 데이터</strong>로 표시됩니다.</p>
           </div>
+        </div>
+
+        <!-- Own proxy URL -->
+        <div>
+          <label class="block font-semibold text-white mb-1 flex items-center justify-between">
+            <span>자체 프록시 주소 (Worker URL):</span>
+            <span class="text-[10px] text-emerald-400">권장</span>
+          </label>
+          <input
+            type="url"
+            id="proxyUrlInput"
+            placeholder="https://pentanalyst-proxy.<계정>.workers.dev"
+            class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers outline-none focus:border-cyan-400"
+          />
+          <p class="text-[11px] text-slate-500 mt-1">레포의 <code>worker/</code> 폴더를 배포한 주소를 입력하세요. 배포 방법은 <code>worker/README.md</code>를 참고하세요.</p>
         </div>
 
         <!-- Gemini API Key (Optional Grounding) -->
@@ -152,20 +167,6 @@
           </p>
         </div>
 
-        <!-- Finnhub / FMP API Key (Optional) -->
-        <div>
-          <label class="block font-semibold text-white mb-1 flex items-center justify-between">
-            <span>Finnhub API 키:</span>
-            <span class="text-[10px] text-slate-400">선택 사항</span>
-          </label>
-          <input
-            type="password"
-            id="finnhubApiKeyInput"
-            placeholder="Finnhub 무료 API 키 (c...)"
-            class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers outline-none focus:border-cyan-400"
-          />
-          <p class="text-[11px] text-slate-500 mt-1">실시간 Finnhub 공식 호가 및 재무 지표를 추가로 보강합니다.</p>
-        </div>
       </div>
 
       <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
@@ -418,8 +419,8 @@
           </div>
           <div>
             <h4 class="text-sm font-bold text-white flex items-center gap-2">
-              Gemini 지능형 멀티모달 스튜디오
-              <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-900 text-cyan-300 border border-cyan-700">TTS · Image · Q&A</span>
+              멀티모달 스튜디오
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-900 text-cyan-300 border border-cyan-700">TTS · Image</span>
             </h4>
             <p class="text-xs text-slate-400">오디오 팟캐스트 브리핑 청취 또는 시각적 투자 인포그래픽을 원클릭으로 생성합니다.</p>
           </div>
@@ -432,7 +433,7 @@
             class="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-cyan-300 border border-cyan-700/50 hover:border-cyan-400 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow"
           >
             <i class="fa-solid fa-headphones"></i>
-            <span>오디오 브리핑 듣기 (Gemini TTS)</span>
+            <span>오디오 브리핑 듣기 (브라우저 TTS)</span>
           </button>
 
           <button
@@ -454,7 +455,7 @@
           </div>
           <div>
             <span class="text-xs font-bold text-white block">PentAnalyst 팟캐스트 모닝 브리핑</span>
-            <span id="audioStatusText" class="text-[11px] text-cyan-400 font-mono-numbers">Gemini 2.5 Flash TTS로 생성 중...</span>
+            <span id="audioStatusText" class="text-[11px] text-cyan-400 font-mono-numbers">브라우저 음성 엔진 준비 중...</span>
           </div>
         </div>
         <div class="flex items-center gap-3 w-full sm:w-auto">
@@ -467,8 +468,8 @@
       <div id="infographicPanel" class="hidden bg-slate-900/95 border border-purple-800/60 rounded-2xl p-5 shadow-2xl space-y-3">
         <div class="flex items-center justify-between border-b border-slate-800 pb-2">
           <div class="flex items-center gap-2">
-            <i class="fa-solid fa-sparkles text-purple-400"></i>
-            <h4 class="text-sm font-bold text-white">Gemini 3.1 Flash Image 투자 인포그래픽</h4>
+            <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
+            <h4 class="text-sm font-bold text-white">투자 인포그래픽 카드 (Canvas 렌더링)</h4>
           </div>
           <button onclick="closeInfographicPanel()" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -479,7 +480,7 @@
         <div id="infographicResult" class="hidden flex flex-col items-center">
           <img id="infographicImage" alt="AI Stock Infographic" class="rounded-xl border border-slate-700 max-h-[500px] w-auto object-contain shadow-2xl" />
           <div class="mt-3 flex items-center justify-between w-full text-xs text-slate-400">
-            <span>생성 모델: Gemini 3.1 Flash Image</span>
+            <span>브라우저 Canvas로 직접 렌더링</span>
             <a id="downloadImageBtn" download="Stock_Infographic.png" href="#" class="text-cyan-400 hover:underline flex items-center gap-1">
               <i class="fa-solid fa-download"></i> 고화질 이미지 다운로드
             </a>
@@ -537,7 +538,7 @@
             <!-- Target Price Card -->
             <div class="mt-4 p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
               <div class="flex justify-between items-center text-xs">
-                <span class="text-slate-400">5인 평균 목표 주가:</span>
+                <span class="text-slate-400">평균 목표 주가:</span>
                 <span id="dispAvgTarget" class="text-lg font-bold text-cyan-400 font-mono-numbers">$0.00</span>
               </div>
               <div class="flex justify-between items-center text-xs">
@@ -569,7 +570,7 @@
           <div>
             <div class="flex items-center gap-2.5">
               <span class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/40 text-cyan-400 flex items-center justify-center text-sm shadow">
-                <i class="fa-solid fa-chart-candlestick"></i>
+                <i class="fa-solid fa-chart-line"></i>
               </span>
               <h3 class="text-lg font-bold text-white tracking-wide">
                 Finviz 스타일 인터랙티브 프로 테크니컬 분석 차트
@@ -692,6 +693,8 @@
           </div>
         </div>
 
+        <p id="expertsNotice" class="hidden text-xs text-amber-300 bg-amber-950/40 border border-amber-800/60 rounded-lg px-3 py-2"></p>
+
         <div id="expertsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <!-- 5 Cards will be injected via JS -->
         </div>
@@ -747,11 +750,11 @@
               5인의 투자 위원회 인터랙티브 Q&A & 난상 토론
             </h3>
             <p class="text-xs text-slate-400 mt-1">
-              원하는 전문가를 지정하거나 위원회 전원에게 질문하여 실시간 Gemini 심층 답변과 논쟁을 확인하세요.
+              원하는 전문가를 지정하거나 위원회 전원에게 질문하세요. Gemini 키를 연결하면 구글 검색 기반 AI 답변을 받을 수 있습니다.
             </p>
           </div>
           <div class="text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-            <i class="fa-solid fa-brain text-purple-400 mr-1"></i> Gemini 3 Flash 추론 모드
+            <i class="fa-solid fa-brain text-purple-400 mr-1"></i> Gemini 키 연결 시 AI 답변 / 미연결 시 지표 기반 자동 응답
           </div>
         </div>
 
@@ -766,7 +769,7 @@
               <i class="fa-solid fa-seedling text-amber-400"></i> 데이비드 (해자)
             </button>
             <button type="button" onclick="selectChatTarget('victor')" data-target="victor" class="chat-target-btn px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500 flex items-center justify-center gap-1.5 transition">
-              <i class="fa-solid fa-chart-candlestick text-blue-400"></i> 빅터 (차트)
+              <i class="fa-solid fa-chart-line text-blue-400"></i> 빅터 (차트)
             </button>
             <button type="button" onclick="selectChatTarget('clara')" data-target="clara" class="chat-target-btn px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500 flex items-center justify-center gap-1.5 transition">
               <i class="fa-solid fa-scale-balanced text-emerald-400"></i> 클라라 (가치)
@@ -852,6 +855,7 @@
             <p class="text-slate-400 text-xs sm:text-sm mt-1">
               원클릭 프리셋을 적용하거나 원하는 재무·차트 조건(P/E, RSI, 숏 플로트, 이평선)을 설정하여 유망 종목을 발굴하세요.
             </p>
+            <p class="text-[11px] text-amber-300/90 mt-1"><i class="fa-solid fa-circle-info mr-1"></i>표의 가격·지표는 정적 스냅샷(참고용)이며 실시간이 아닙니다. 종목을 클릭하면 실시간 데이터로 분석합니다. 직접 등록한 종목은 실시간 값입니다.</p>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-xs text-slate-400 font-mono-numbers">발굴된 종목: <strong id="screenerMatchCount" class="text-cyan-400 font-bold text-sm">0</strong>개</span>
@@ -875,7 +879,7 @@
                 </span>
                 <i class="fa-solid fa-arrow-right text-[10px] text-slate-600 group-hover:text-amber-400 transition"></i>
               </div>
-              <p class="text-[11px] text-slate-400 mt-1 leading-snug">고성장, ROE > 20%, 혁신 테크 & AI 섹터 중심</p>
+              <p class="text-[11px] text-slate-400 mt-1 leading-snug">테크·반도체, ROE ≥ 20%, 20일선 상회</p>
             </button>
 
             <button type="button" onclick="applyScreenerPreset('finviz-squeeze')" class="preset-btn text-left p-3 rounded-xl bg-slate-950/80 hover:bg-rose-950/40 border border-slate-800 hover:border-rose-500/60 transition group">
@@ -895,17 +899,17 @@
                 </span>
                 <i class="fa-solid fa-arrow-right text-[10px] text-slate-600 group-hover:text-emerald-400 transition"></i>
               </div>
-              <p class="text-[11px] text-slate-400 mt-1 leading-snug">P/E &lt; 25, 견고한 배당 및 금융/필수소비재</p>
+              <p class="text-[11px] text-slate-400 mt-1 leading-snug">P/E &lt; 25, 금융·필수소비재 섹터</p>
             </button>
 
             <button type="button" onclick="applyScreenerPreset('rebound-chart')" class="preset-btn text-left p-3 rounded-xl bg-slate-950/80 hover:bg-cyan-950/40 border border-slate-800 hover:border-cyan-500/60 transition group">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-cyan-300 group-hover:text-cyan-200 flex items-center gap-1.5">
-                  <i class="fa-solid fa-chart-candlestick text-cyan-400"></i> RSI 바닥권 기술적 반등
+                  <i class="fa-solid fa-chart-line text-cyan-400"></i> RSI 바닥권 기술적 반등
                 </span>
                 <i class="fa-solid fa-arrow-right text-[10px] text-slate-600 group-hover:text-cyan-400 transition"></i>
               </div>
-              <p class="text-[11px] text-slate-400 mt-1 leading-snug">RSI 40~55 저평가 구간, 반등 모멘텀</p>
+              <p class="text-[11px] text-slate-400 mt-1 leading-snug">RSI 45~60 중립/반등 구간</p>
             </button>
           </div>
         </div>
@@ -977,6 +981,7 @@
               <option value="MEGA">Mega Cap ($200B+)</option>
               <option value="LARGE">Large Cap ($10B~$200B)</option>
               <option value="MID">Mid Cap ($2B~$10B)</option>
+              <option value="MICRO">Micro/Small Cap (&lt;$2B)</option>
             </select>
           </div>
 
@@ -1288,12 +1293,15 @@
       if (NAME_TO_TICKER_MAP[clean]) return NAME_TO_TICKER_MAP[clean];
       if (NAME_TO_TICKER_MAP[upper]) return NAME_TO_TICKER_MAP[upper];
 
-      // Match partial names in screener master data
-      const matchedMaster = SCREENER_MASTER_DATA.find(s =>
-        s.ticker.toUpperCase() === upper ||
-        s.name.toUpperCase().includes(upper)
-      );
-      if (matchedMaster) return matchedMaster.ticker;
+      // 1순위: 티커 정확 일치 (예: "MA"가 Amazon 이름의 부분 문자열로 오인되지 않도록)
+      const exact = SCREENER_MASTER_DATA.find(s => s.ticker.toUpperCase() === upper);
+      if (exact) return exact.ticker;
+
+      // 2순위: 기업명 부분 일치 — 3자 이상일 때만 (짧은 입력은 티커로 간주)
+      if (upper.length >= 3) {
+        const byName = SCREENER_MASTER_DATA.find(s => String(s.name).toUpperCase().includes(upper));
+        if (byName) return byName.ticker;
+      }
 
       return upper.replace(/[^A-Z0-9.\-]/g, '');
     }
@@ -1360,7 +1368,7 @@
           {
             name: "빅터 (Victor)",
             role: "Finviz 테크니컬 & 차트 분석가",
-            avatar: "fa-chart-candlestick",
+            avatar: "fa-chart-line",
             color: "text-blue-400 bg-blue-950/60 border-blue-700/60",
             stance: "BUY (52주 바닥권 지지)",
             target: "$4.80",
@@ -1404,8 +1412,48 @@
       hoverIndex: null
     };
 
+    // ===== Utilities =====
+    function escapeHtml(v) {
+      return String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    // 첫 번째 유한한 숫자를 반환 (없으면 null) — 가짜 기본값 대신 N/A 처리를 위해 사용
+    function pick(...vals) {
+      for (const v of vals) {
+        if (v === null || v === undefined || v === '') continue;
+        const n = Number(v);
+        if (Number.isFinite(n)) return n;
+      }
+      return null;
+    }
+
+    function fmtNum(v, digits = null, suffix = '') {
+      if (v === null || v === undefined || !Number.isFinite(Number(v))) return 'N/A';
+      return `${digits !== null ? Number(v).toFixed(digits) : v}${suffix}`;
+    }
+
+    function pctDiff(price, ref) {
+      if (!Number.isFinite(price) || !Number.isFinite(ref) || ref === 0) return 'N/A';
+      const d = ((price - ref) / ref) * 100;
+      return `${d >= 0 ? '+' : ''}${d.toFixed(1)}%`;
+    }
+
+    function isPositivePct(s) {
+      return typeof s === 'string' && s.startsWith('+');
+    }
+
+    function consensusClass(text) {
+      const t = String(text || '').toUpperCase();
+      if (t.includes('STRONG BUY')) return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+      if (t.includes('BUY')) return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
+      if (t.includes('HOLD') || t.includes('MONITOR')) return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+      if (t.includes('SELL') || t.includes('UNDERPERFORM')) return 'bg-rose-500/20 text-rose-300 border-rose-500/30';
+      return 'bg-slate-700/40 text-slate-300 border-slate-600/40';
+    }
+
     function updateGoogleSearchBannerState() {
       const key = getStoredApiKey('gemini_key');
+      const proxy = getProxyUrl();
       const icon = document.getElementById('googleSearchStatusIcon');
       const text = document.getElementById('googleSearchStatusText');
       const sourceLabel = document.getElementById('liveFeedSourceLabel');
@@ -1413,12 +1461,12 @@
       if (key) {
         icon.className = 'fa-solid fa-circle-check text-cyan-400 text-sm';
         text.innerHTML = '<strong class="text-cyan-300">구글 실시간 검색(Search Grounding) 연결됨</strong>: 최신 뉴스 및 모틀리 풀 공시가 AI로 자동 수집됩니다.';
-        sourceLabel.textContent = 'Google Search + Yahoo Live';
       } else {
         icon.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-sm';
-        text.innerHTML = '현재 <strong class="text-amber-300">구글 실시간 검색(Search Grounding)</strong> 미연결 상태입니다. (Yahoo Finance 시세 및 검증 데이터베이스로 작동 중)';
-        sourceLabel.textContent = 'Yahoo Finance Live';
+        text.innerHTML = '현재 <strong class="text-amber-300">구글 실시간 검색(Search Grounding)</strong> 미연결 상태입니다. (시세·재무 지표 기반 자동 분석으로 작동 중)';
       }
+      const feed = proxy ? 'Own Proxy · Yahoo' : 'Public Fallback · Yahoo';
+      sourceLabel.textContent = key ? `Google Search + ${feed}` : feed;
     }
 
     function getStoredApiKey(name) {
@@ -1430,9 +1478,19 @@
       else localStorage.removeItem(`pentanalyst_${name}`);
     }
 
+    // 배포한 자체 프록시(Cloudflare Worker) 주소를 여기에 고정할 수도 있고,
+    // 비워 두면 'API 키 & 구글 검색 설정' 창에서 입력한 값(localStorage)을 사용합니다.
+    const DEFAULT_PROXY_URL = '';
+    const GEMINI_MODEL = 'gemini-2.5-flash';
+
+    function getProxyUrl() {
+      const v = (getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL || '').trim();
+      return v.replace(/\/+$/, '');
+    }
+
     function openApiSettingsModal() {
       document.getElementById('geminiApiKeyInput').value = getStoredApiKey('gemini_key');
-      document.getElementById('finnhubApiKeyInput').value = getStoredApiKey('finnhub_key');
+      document.getElementById('proxyUrlInput').value = getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL;
       document.getElementById('apiSettingsModal').classList.remove('hidden');
     }
 
@@ -1440,178 +1498,316 @@
       document.getElementById('apiSettingsModal').classList.add('hidden');
     }
 
-    function saveApiSettings() {
+    async function saveApiSettings() {
       const gKey = document.getElementById('geminiApiKeyInput').value.trim();
-      const fKey = document.getElementById('finnhubApiKeyInput').value.trim();
+      let proxy = document.getElementById('proxyUrlInput').value.trim().replace(/\/+$/, '');
+      if (proxy && !/^https?:\/\//i.test(proxy)) {
+        showToast('주소 형식 오류', '프록시 주소는 https:// 로 시작해야 합니다.', 'warning');
+        return;
+      }
       setStoredApiKey('gemini_key', gKey);
-      setStoredApiKey('finnhub_key', fKey);
+      setStoredApiKey('proxy_url', proxy);
       updateGoogleSearchBannerState();
       closeApiSettingsModal();
-      showToast("설정 완료", "Gemini 구글 검색 연동 설정이 저장되었습니다. 이제 실시간 검색 분석이 활성화됩니다.", "success");
+
+      if (proxy) {
+        try {
+          const h = await fetchJsonWithTimeout(`${proxy}/api/health`, 6000);
+          showToast('프록시 연결 성공', `자체 프록시 응답 확인 (${h.service || 'ok'}). 실시간 시세·재무 지표를 사용합니다.`, 'success');
+        } catch (e) {
+          showToast('프록시 연결 실패', '주소 또는 Worker 배포 상태를 확인하세요. 공개 프록시로 대체 동작합니다.', 'error');
+        }
+      } else {
+        showToast('설정 저장', '설정이 저장되었습니다.', 'success');
+      }
       if (currentAnalysisData) executeAnalysis(currentAnalysisData.ticker);
     }
 
-    async function fetchRealYahooFinanceData(ticker) {
-      const upperTicker = ticker.trim().toUpperCase();
-      const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${upperTicker}?range=1y&interval=1d&includePrePost=false`;
-
-      // Multi-Proxy Pipeline with proper parsing for both raw and wrapped JSON
-      const proxyConfigs = [
-        { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, isWrapped: true },
-        { url: `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`, isWrapped: false },
-        { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, isWrapped: false },
-        { url: targetUrl, isWrapped: false }
-      ];
-
-      for (const config of proxyConfigs) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 4500);
-
-          const resp = await fetch(config.url, {
-            cache: 'no-cache',
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-
-          if (!resp.ok) continue;
-
-          let json = await resp.json();
-
-          // Handle allorigins.win { contents: "..." } string wrapping
-          if (config.isWrapped && json && json.contents) {
-            try {
-              json = JSON.parse(json.contents);
-            } catch (e) {
-              continue;
-            }
-          }
-
-          if (json && json.chart && json.chart.result && json.chart.result.length > 0) {
-            const res = json.chart.result[0];
-            const meta = res.meta;
-            const timestamps = res.timestamp || [];
-            const quotes = res.indicators?.quote?.[0] || {};
-            const opens = quotes.open || [];
-            const highs = quotes.high || [];
-            const lows = quotes.low || [];
-            const closes = quotes.close || [];
-            const volumes = quotes.volume || [];
-
-            const history = [];
-            for (let i = 0; i < timestamps.length; i++) {
-              if (closes[i] !== null && closes[i] !== undefined && !isNaN(closes[i])) {
-                const d = new Date(timestamps[i] * 1000);
-                const c = parseFloat(closes[i].toFixed(2));
-                const o = opens[i] ? parseFloat(opens[i].toFixed(2)) : c;
-                const h = highs[i] ? parseFloat(highs[i].toFixed(2)) : Math.max(o, c);
-                const l = lows[i] ? parseFloat(lows[i].toFixed(2)) : Math.min(o, c);
-                const v = volumes[i] ? volumes[i] : 50000;
-                history.push({
-                  date: d.toISOString().split('T')[0],
-                  open: o,
-                  high: h,
-                  low: l,
-                  close: c,
-                  volume: v
-                });
-              }
-            }
-
-            if (history.length > 0) {
-              const currentPrice = meta.regularMarketPrice || history[history.length - 1].close;
-              const prevClose = meta.chartPreviousClose || meta.previousClose || history[Math.max(0, history.length - 2)].close;
-              const changeAmount = currentPrice - prevClose;
-              const changePct = ((changeAmount / prevClose) * 100).toFixed(2);
-              const changeStr = `${changeAmount >= 0 ? '+' : ''}${changePct}%`;
-
-              return {
-                ticker: upperTicker,
-                name: meta.shortName || meta.symbol || upperTicker,
-                price: parseFloat(currentPrice.toFixed(2)),
-                change: changeStr,
-                high52: meta.fiftyTwoWeekHigh || Math.max(...history.map(c => c.high)),
-                low52: meta.fiftyTwoWeekLow || Math.min(...history.map(c => c.low)),
-                currency: meta.currency || 'USD',
-                history: history,
-                isLive: true
-              };
-            }
-          }
-        } catch (err) {
-          console.warn(`Proxy ${config.url} attempt finished:`, err.message);
+    // ===== Data layer =====
+    async function fetchJsonWithTimeout(url, ms = 6000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ms);
+      try {
+        const resp = await fetch(url, { signal: controller.signal, cache: 'no-cache' });
+        if (!resp.ok) {
+          const err = new Error(`HTTP ${resp.status}`);
+          err.status = resp.status;
+          throw err;
         }
+        return await resp.json();
+      } finally {
+        clearTimeout(timer);
       }
-      return null;
     }
 
-    function calculateRealIndicators(history) {
-      if (!history || history.length === 0) return { rsi: 50, sma20Diff: "+0.0%", sma20: 0, sma50: 0, sma200: 0 };
+    function parseYahooChart(json, upperTicker) {
+      const res = json?.chart?.result?.[0];
+      if (!res) return null;
+      const meta = res.meta || {};
+      const ts = res.timestamp || [];
+      const q = res.indicators?.quote?.[0] || {};
+
+      const history = [];
+      for (let i = 0; i < ts.length; i++) {
+        const c = q.close?.[i];
+        if (c === null || c === undefined || isNaN(c)) continue;
+        const o = q.open?.[i] ?? c;
+        const h = q.high?.[i] ?? Math.max(o, c);
+        const l = q.low?.[i] ?? Math.min(o, c);
+        history.push({
+          date: new Date(ts[i] * 1000).toISOString().split('T')[0],
+          open: parseFloat(o.toFixed(2)),
+          high: parseFloat(h.toFixed(2)),
+          low: parseFloat(l.toFixed(2)),
+          close: parseFloat(c.toFixed(2)),
+          volume: q.volume?.[i] ?? 0
+        });
+      }
+      if (history.length === 0) return null;
+
+      const n = history.length;
+      const currentPrice = meta.regularMarketPrice ?? history[n - 1].close;
+      // 주의: range=1y 요청에서 meta.chartPreviousClose 는 '1년 전 종가'이므로 사용하지 않고 전일 캔들 종가를 사용
+      const prevClose = n >= 2 ? history[n - 2].close : currentPrice;
+      const changePct = prevClose ? ((currentPrice - prevClose) / prevClose) * 100 : 0;
+
+      return {
+        ticker: upperTicker,
+        name: meta.shortName || meta.longName || meta.symbol || upperTicker,
+        price: parseFloat(currentPrice.toFixed(2)),
+        change: `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%`,
+        high52: meta.fiftyTwoWeekHigh ?? Math.max(...history.map(c => c.high)),
+        low52: meta.fiftyTwoWeekLow ?? Math.min(...history.map(c => c.low)),
+        currency: meta.currency || 'USD',
+        history: history,
+        isLive: true
+      };
+    }
+
+    // 1순위: 자체 프록시(/api/chart). 2순위: 공개 CORS 프록시(병렬 경쟁). 모두 실패 시 null.
+    // 프록시가 404(존재하지 않는 티커)를 돌려주면 { notFound: true }.
+    async function fetchRealYahooFinanceData(ticker) {
+      const sym = ticker.trim().toUpperCase();
+      const proxy = getProxyUrl();
+
+      if (proxy) {
+        try {
+          const json = await fetchJsonWithTimeout(`${proxy}/api/chart?symbol=${encodeURIComponent(sym)}&range=1y`, 10000);
+          const parsed = parseYahooChart(json, sym);
+          if (parsed) return parsed;
+        } catch (err) {
+          if (err.status === 404) return { notFound: true };
+          console.warn('자체 프록시 차트 호출 실패:', err.message);
+        }
+      }
+
+      const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1y&interval=1d&includePrePost=false`;
+      const publicProxies = [
+        { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, wrapped: true },
+        { url: `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`, wrapped: false },
+        { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, wrapped: false }
+      ];
+      const attempts = publicProxies.map(async cfg => {
+        let json = await fetchJsonWithTimeout(cfg.url, 6000);
+        if (cfg.wrapped && json && typeof json.contents === 'string') json = JSON.parse(json.contents);
+        const parsed = parseYahooChart(json, sym);
+        if (!parsed) throw new Error('empty');
+        return parsed;
+      });
+      try {
+        return await Promise.any(attempts);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // 재무 지표(P/E, ROE, Short Float, 애널리스트 목표가 등) — 자체 프록시가 있어야 가능
+    async function fetchFundamentals(ticker) {
+      const proxy = getProxyUrl();
+      if (!proxy) return null;
+      try {
+        return await fetchJsonWithTimeout(`${proxy}/api/fundamentals?symbol=${encodeURIComponent(ticker.trim().toUpperCase())}`, 10000);
+      } catch (err) {
+        console.warn('자체 프록시 재무 호출 실패:', err.message);
+        return null;
+      }
+    }
+
+    // ===== Technical indicators =====
+    function smaSeries(values, p) {
+      const out = new Array(values.length).fill(null);
+      let sum = 0;
+      for (let i = 0; i < values.length; i++) {
+        sum += values[i];
+        if (i >= p) sum -= values[i - p];
+        if (i >= p - 1) out[i] = sum / p;
+      }
+      return out;
+    }
+
+    // null 이 섞인 배열도 허용 (MACD 시그널선 계산용)
+    function emaSeries(values, p) {
+      const out = new Array(values.length).fill(null);
+      const k = 2 / (p + 1);
+      let prev = null, count = 0, sum = 0;
+      for (let i = 0; i < values.length; i++) {
+        const v = values[i];
+        if (v === null || v === undefined) continue;
+        if (prev === null) {
+          sum += v;
+          count++;
+          if (count === p) { prev = sum / p; out[i] = prev; }
+        } else {
+          prev = v * k + prev * (1 - k);
+          out[i] = prev;
+        }
+      }
+      return out;
+    }
+
+    // Wilder 평활 RSI
+    function rsiSeries(closes, p = 14) {
+      const out = new Array(closes.length).fill(null);
+      if (closes.length <= p) return out;
+      let gain = 0, loss = 0;
+      for (let i = 1; i <= p; i++) {
+        const d = closes[i] - closes[i - 1];
+        if (d >= 0) gain += d; else loss -= d;
+      }
+      let avgGain = gain / p, avgLoss = loss / p;
+      out[p] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+      for (let i = p + 1; i < closes.length; i++) {
+        const d = closes[i] - closes[i - 1];
+        avgGain = (avgGain * (p - 1) + (d > 0 ? d : 0)) / p;
+        avgLoss = (avgLoss * (p - 1) + (d < 0 ? -d : 0)) / p;
+        out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+      }
+      return out;
+    }
+
+    function macdSeries(closes) {
+      const e12 = emaSeries(closes, 12);
+      const e26 = emaSeries(closes, 26);
+      const macd = closes.map((_, i) => (e12[i] !== null && e26[i] !== null) ? e12[i] - e26[i] : null);
+      const signal = emaSeries(macd, 9);
+      const hist = macd.map((m, i) => (m !== null && signal[i] !== null) ? m - signal[i] : null);
+      return { macd, signal, hist };
+    }
+
+    function bollingerSeries(closes, p = 20, k = 2) {
+      const mid = smaSeries(closes, p);
+      const upper = new Array(closes.length).fill(null);
+      const lower = new Array(closes.length).fill(null);
+      for (let i = p - 1; i < closes.length; i++) {
+        let v = 0;
+        for (let j = i - p + 1; j <= i; j++) v += (closes[j] - mid[i]) ** 2;
+        const sd = Math.sqrt(v / p);
+        upper[i] = mid[i] + k * sd;
+        lower[i] = mid[i] - k * sd;
+      }
+      return { mid, upper, lower };
+    }
+
+    function computeIndicatorSeries(history) {
       const closes = history.map(h => h.close);
-      const n = closes.length;
-      const lastClose = closes[n - 1];
+      return {
+        sma20: smaSeries(closes, 20),
+        sma50: smaSeries(closes, 50),
+        sma200: smaSeries(closes, 200),
+        bb: bollingerSeries(closes, 20, 2),
+        rsi: rsiSeries(closes, 14),
+        macd: macdSeries(closes),
+        volMa20: smaSeries(history.map(h => h.volume || 0), 20)
+      };
+    }
 
-      // Wilder's RSI (14)
-      let rsi = 50;
-      if (n >= 15) {
-        let gains = 0, losses = 0;
-        for (let i = n - 14; i < n; i++) {
-          const diff = closes[i] - closes[i - 1];
-          if (diff >= 0) gains += diff;
-          else losses += Math.abs(diff);
-        }
-        let avgGain = gains / 14;
-        let avgLoss = losses / 14;
-        if (avgLoss === 0) rsi = 100;
-        else {
-          const rs = avgGain / avgLoss;
-          rsi = parseFloat((100 - (100 / (1 + rs))).toFixed(1));
-        }
+    function calculateRealIndicators(history, ind) {
+      if (!history || history.length === 0) {
+        return { rsi: null, sma20Diff: 'N/A', sma50Diff: 'N/A', sma200Diff: 'N/A', sma20: null, sma50: null, sma200: null };
       }
+      ind = ind || computeIndicatorSeries(history);
+      const n = history.length;
+      const last = history[n - 1].close;
+      const rsiVal = ind.rsi[n - 1];
+      return {
+        rsi: rsiVal === null ? null : parseFloat(rsiVal.toFixed(1)),
+        sma20: ind.sma20[n - 1],
+        sma50: ind.sma50[n - 1],
+        sma200: ind.sma200[n - 1],
+        sma20Diff: pctDiff(last, ind.sma20[n - 1]),
+        sma50Diff: pctDiff(last, ind.sma50[n - 1]),
+        sma200Diff: pctDiff(last, ind.sma200[n - 1])
+      };
+    }
 
-      function getSMA(period) {
-        if (n < period) return lastClose;
-        const slice = closes.slice(-period);
-        const sum = slice.reduce((a, b) => a + b, 0);
-        return parseFloat((sum / period).toFixed(2));
+    // ===== Gemini =====
+    function extractJson(text) {
+      if (!text) return null;
+      const cleaned = text.replace(/```json|```/gi, '').trim();
+      const a = cleaned.indexOf('{');
+      const b = cleaned.lastIndexOf('}');
+      if (a === -1 || b === -1 || b <= a) return null;
+      try { return JSON.parse(cleaned.slice(a, b + 1)); } catch (e) { return null; }
+    }
+
+    async function callGemini(prompt, { grounding = false } = {}) {
+      const apiKey = getStoredApiKey('gemini_key');
+      if (!apiKey) return null;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+      const body = { contents: [{ parts: [{ text: prompt }] }] };
+      // 주의: googleSearch 도구는 responseMimeType: application/json 과 함께 쓸 수 없으므로 JSON 모드를 쓰지 않는다.
+      if (grounding) body.tools = [{ googleSearch: {} }];
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 45000);
+      try {
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+        if (!resp.ok) {
+          let detail = '';
+          try { detail = (await resp.json())?.error?.message || ''; } catch (e) {}
+          console.warn(`Gemini 호출 실패 (HTTP ${resp.status}):`, detail);
+          return { error: detail || `HTTP ${resp.status}` };
+        }
+        const j = await resp.json();
+        const parts = j?.candidates?.[0]?.content?.parts || [];
+        return { text: parts.map(p => p.text || '').join('') };
+      } catch (e) {
+        console.warn('Gemini 호출 예외:', e);
+        return { error: e.message };
+      } finally {
+        clearTimeout(timer);
       }
-
-      const sma20 = getSMA(20);
-      const sma50 = getSMA(50);
-      const sma200 = getSMA(200);
-      const diff20 = (((lastClose - sma20) / sma20) * 100).toFixed(1);
-      const sma20Diff = `${diff20 >= 0 ? '+' : ''}${diff20}%`;
-
-      return { rsi, sma20Diff, sma20, sma50, sma200 };
     }
 
     async function fetchGeminiGroundingAnalysis(ticker, realMarket) {
-      const apiKey = getStoredApiKey('gemini_key');
-      if (!apiKey) return null;
-
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      if (!getStoredApiKey('gemini_key')) return null;
       const prompt = `Conduct a live Google Search for the US stock ticker: "${ticker}".
-Find the exact real company name, actual current stock price ($), real P/E, PEG, ROE, Short Float %, and the latest news or earnings.
+Verified market data (from exchange feed): last price $${realMarket.price}, 52-week range $${realMarket.low52} - $${realMarket.high52}.
+Find the exact real company name, real P/E, forward P/E, PEG, ROE (%), Short Float (%), analyst price targets, and the latest news or earnings.
 Then provide a 5-expert panel analysis (David: Moat/TAM, Victor: Chart, Clara: DCF Valuation, Marcus: Macro, Sophia: Flows).
-Ensure all price and target values are in USD ($).
+All price and target values are in USD ($). Use null for any number you cannot verify. Write Korean text for summary, bullCase, bearCase and expert thesis.
 
-Return STRICT JSON ONLY format:
+Return STRICT JSON ONLY (no markdown fences, no commentary):
 {
   "name": "Exact Real Company Name",
   "sector": "Real Sector",
-  "price": number,
-  "pe": number,
-  "forwardPe": number,
-  "peg": number,
-  "roe": number,
-  "shortFloat": number,
+  "pe": number|null,
+  "forwardPe": number|null,
+  "peg": number|null,
+  "roe": number|null,
+  "shortFloat": number|null,
   "consensus": "STRONG BUY / BUY / HOLD / UNDERPERFORM",
   "summary": "2-3 sentences based on real Google search findings",
-  "targetAvg": number,
-  "targetMin": number,
-  "targetMax": number,
-  "bullCase": ["Real catalyst 1", "Real catalyst 2", "Real catalyst 3"],
-  "bearCase": ["Real risk 1", "Real risk 2", "Real risk 3"],
+  "targetAvg": number|null,
+  "targetMin": number|null,
+  "targetMax": number|null,
+  "bullCase": ["catalyst 1", "catalyst 2", "catalyst 3"],
+  "bearCase": ["risk 1", "risk 2", "risk 3"],
   "experts": [
     {"name": "데이비드 (David)", "stance": "BUY", "target": "$...", "thesis": "..."},
     {"name": "빅터 (Victor)", "stance": "...", "target": "$...", "thesis": "..."},
@@ -1620,215 +1816,243 @@ Return STRICT JSON ONLY format:
     {"name": "소피아 (Sophia)", "stance": "...", "target": "$...", "thesis": "..."}
   ]
 }`;
-
-      try {
-        const resp = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            tools: [{ googleSearch: {} }],
-            generationConfig: { responseMimeType: "application/json" }
-          })
-        });
-
-        if (!resp.ok) return null;
-        const resJson = await resp.json();
-        const text = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          const parsed = JSON.parse(text);
-          return parsed;
-        }
-      } catch (e) {
-        console.warn("Gemini Grounding API call failed:", e);
+      const r = await callGemini(prompt, { grounding: true });
+      if (!r) return null;
+      if (r.error) {
+        showToast('Gemini 호출 실패', `구글 검색 분석을 건너뜁니다: ${r.error}`, 'warning');
+        return null;
       }
-      return null;
+      const parsed = extractJson(r.text);
+      if (!parsed) {
+        showToast('Gemini 응답 오류', 'JSON 형식을 해석하지 못해 구글 검색 분석을 건너뜁니다.', 'warning');
+        return null;
+      }
+      return parsed;
+    }
+
+    // ===== Main analysis pipeline =====
+    let analysisSeq = 0;
+
+    const EXPERT_COLORS = [
+      "text-amber-400 bg-amber-950/60 border-amber-700/60",
+      "text-blue-400 bg-blue-950/60 border-blue-700/60",
+      "text-emerald-400 bg-emerald-950/60 border-emerald-700/60",
+      "text-purple-400 bg-purple-950/60 border-purple-700/60",
+      "text-pink-400 bg-pink-950/60 border-pink-700/60"
+    ];
+    const EXPERT_AVATARS = ["fa-seedling", "fa-chart-line", "fa-scale-balanced", "fa-shield-halved", "fa-robot"];
+    const EXPERT_ROLES = [
+      "Motley Fool 해자 & 장기 성장 분석가",
+      "Finviz 테크니컬 & 차트 분석가",
+      "DCF & 정통 가치평가 애널리스트",
+      "매크로 & 지정학 리스크 매니저",
+      "퀀트 & 숏/수급 추적 전문가"
+    ];
+
+    function buildTemplateExperts({ stockName, tech, pe, shortFloat, low52 }) {
+      const rsiTxt = tech.rsi === null ? 'N/A' : tech.rsi;
+      return [
+        {
+          name: "데이비드 (David)", stance: "정성 평가 (자동 템플릿)", target: "N/A",
+          thesis: `${stockName}의 해자·장기 성장성은 정량 지표만으로 판단할 수 없습니다. Gemini 키를 연결하면 최신 뉴스와 사업 구조를 반영한 의견을 제공합니다.`
+        },
+        {
+          name: "빅터 (Victor)", stance: tech.rsi !== null && tech.rsi > 70 ? "OVERBOUGHT (과열 주의)" : (tech.rsi !== null && tech.rsi < 30 ? "OVERSOLD (과매도)" : "NEUTRAL (추세 관찰)"), target: "N/A",
+          thesis: `실제 일봉 기준 RSI ${rsiTxt}, 20일선 괴리율 ${tech.sma20Diff}, 50일선 ${tech.sma50Diff}, 200일선 ${tech.sma200Diff}입니다. 52주 저점 $${Number(low52).toFixed(2)} 부근이 주요 지지 구간입니다.`
+        },
+        {
+          name: "클라라 (Clara)", stance: pe === null ? "밸류에이션 데이터 없음" : (pe < 15 ? "VALUE (저평가 구간)" : (pe > 40 ? "EXPENSIVE (고평가 구간)" : "FAIR (적정 구간)")), target: "N/A",
+          thesis: pe === null ? "P/E 데이터를 확인할 수 없습니다. 자체 프록시를 연결하면 실제 재무 지표가 표시됩니다." : `현재 P/E ${pe}배입니다. 동종 업계 평균 및 성장률(PEG)과 함께 비교해야 합니다.`
+        },
+        {
+          name: "마커스 (Marcus)", stance: "MONITOR (거시 변수)", target: "N/A",
+          thesis: "금리 경로, 환율, 원자재·공급망 비용이 마진에 미치는 영향을 점검해야 합니다. (자동 템플릿 문구)"
+        },
+        {
+          name: "소피아 (Sophia)", stance: shortFloat === null ? "수급 데이터 없음" : (shortFloat > 10 ? "SQUEEZE WATCH (공매도 높음)" : "NORMAL (수급 보통)"), target: "N/A",
+          thesis: shortFloat === null ? "Short Float 데이터를 확인할 수 없습니다." : `Short Float ${shortFloat}% 수준입니다. 거래량 급증 여부를 함께 확인하세요.`
+        }
+      ].map((e, i) => ({ ...e, role: EXPERT_ROLES[i], avatar: EXPERT_AVATARS[i], color: EXPERT_COLORS[i] }));
     }
 
     async function executeAnalysis(ticker) {
+      const seq = ++analysisSeq;
       const loading = document.getElementById('loadingState');
       const dashboard = document.getElementById('dashboardSection');
       const tickerText = document.getElementById('loadingTickerText');
       const loadingSubtext = document.getElementById('loadingSubtext');
+      const analyzeBtn = document.getElementById('analyzeBtn');
 
       const upperTicker = resolveTickerInput(ticker);
       tickerText.textContent = upperTicker;
-      loadingSubtext.textContent = '실제 미국 증권거래소(Yahoo Finance v8) 및 데이터베이스에서 실시간 가격 및 지표를 수집 중...';
+      loadingSubtext.textContent = '시세 및 재무 지표를 수집 중...';
       loading.classList.remove('hidden');
       dashboard.classList.add('hidden');
+      if (analyzeBtn) analyzeBtn.disabled = true;
 
-      // Update external quick verification links
       const btnLinkGoogle = document.getElementById('btnLinkGoogle');
       const btnLinkFinviz = document.getElementById('btnLinkFinviz');
       const btnLinkFool = document.getElementById('btnLinkFool');
-      if (btnLinkGoogle) btnLinkGoogle.href = `https://www.google.com/search?q=${upperTicker}+stock+price+news`;
-      if (btnLinkFinviz) btnLinkFinviz.href = `https://finviz.com/quote.ashx?t=${upperTicker}`;
-      if (btnLinkFool) btnLinkFool.href = `https://www.fool.com/search/solr.aspx?q=${upperTicker}`;
+      if (btnLinkGoogle) btnLinkGoogle.href = `https://www.google.com/search?q=${encodeURIComponent(upperTicker)}+stock+price+news`;
+      if (btnLinkFinviz) btnLinkFinviz.href = `https://finviz.com/quote.ashx?t=${encodeURIComponent(upperTicker)}`;
+      if (btnLinkFool) btnLinkFool.href = `https://www.fool.com/search/solr.aspx?q=${encodeURIComponent(upperTicker)}`;
 
-      // 1. Fetch real market data
-      let realMarket = await fetchRealYahooFinanceData(upperTicker);
+      try {
+        // 1. 시세 + 재무 지표 병렬 수집
+        const [chartData, fundamentals] = await Promise.all([
+          fetchRealYahooFinanceData(upperTicker),
+          fetchFundamentals(upperTicker)
+        ]);
+        if (seq !== analysisSeq) return;
 
-      // If network proxy fails, use verified known profiles (like JVA) or smart generator
-      if (!realMarket) {
-        realMarket = generateDynamicStockData(upperTicker);
+        if (chartData && chartData.notFound) {
+          loading.classList.add('hidden');
+          showToast('티커를 찾을 수 없음', `"${upperTicker}" 종목 데이터를 찾지 못했습니다. 티커를 확인해 주세요.`, 'error');
+          return;
+        }
+
+        // 실시간 수집 실패 시 시뮬레이션 데이터로 대체 (화면에 명확히 표시)
+        let realMarket = chartData;
+        if (!realMarket) realMarket = generateDynamicStockData(upperTicker);
+        const isSimulated = !realMarket.isLive;
+
+        const price = Number(realMarket.price) || 10;
+        const high52 = realMarket.high52 !== undefined ? Number(realMarket.high52) : Number((price * 1.15).toFixed(2));
+        const low52 = realMarket.low52 !== undefined ? Number(realMarket.low52) : Number((price * 0.75).toFixed(2));
+
+        // 2. 기술 지표 (실제 일봉으로 계산)
+        const ind = computeIndicatorSeries(realMarket.history);
+        const tech = calculateRealIndicators(realMarket.history, ind);
+
+        // 3. Gemini 구글 검색 (선택)
+        let geminiInsight = null;
+        if (getStoredApiKey('gemini_key')) {
+          loadingSubtext.textContent = '구글 실시간 검색 및 Motley Fool 해자 평가를 AI로 종합 채점 중...';
+          geminiInsight = await fetchGeminiGroundingAnalysis(upperTicker, realMarket);
+          if (seq !== analysisSeq) return;
+        }
+
+        const g = geminiInsight || {};
+        const f = fundamentals || {};
+        const vp = KNOWN_STOCK_PROFILES[upperTicker];
+
+        const stockName = g.name || f.name || vp?.name || realMarket.name || `${upperTicker}`;
+        const stockSector = g.sector || f.sector || vp?.sector || realMarket.sector || 'N/A';
+
+        const pe = pick(g.pe, f.pe, vp?.pe, realMarket.pe);
+        const forwardPe = pick(g.forwardPe, f.forwardPe, vp?.forwardPe);
+        const peg = pick(g.peg, f.peg, vp?.peg, realMarket.peg);
+        const roe = pick(g.roe, f.roe, vp?.roe, realMarket.roe);
+        const shortFloat = pick(g.shortFloat, f.shortFloat, vp?.shortFloat, realMarket.shortFloat);
+        const pSales = pick(f.pSales, vp?.pSales);
+        const pBook = pick(f.pBook, vp?.pBook);
+        const targetAvg = pick(g.targetAvg, f.targetAvg, vp?.targetAvg);
+        const targetMin = pick(g.targetMin, f.targetMin, vp?.targetMin);
+        const targetMax = pick(g.targetMax, f.targetMax, vp?.targetMax);
+        const upside = targetAvg !== null ? (((targetAvg - price) / price) * 100) : null;
+
+        let summary = g.summary || vp?.summary || '';
+        if (!summary && f.summary) summary = f.summary.length > 420 ? f.summary.slice(0, 420) + '…' : f.summary;
+        if (!summary) summary = `${stockName}(${upperTicker})는 미국 증시에서 $${price.toFixed(2)}에 거래 중이며, 52주 변동폭($${low52.toFixed(2)} ~ $${high52.toFixed(2)}) 내에 있습니다.`;
+
+        let experts, expertsNotice = '';
+        if (Array.isArray(g.experts) && g.experts.length > 0) {
+          experts = g.experts.map((e, idx) => ({
+            name: e.name || `전문가 ${idx + 1}`,
+            role: EXPERT_ROLES[idx] || "전문 애널리스트",
+            avatar: EXPERT_AVATARS[idx] || "fa-user",
+            color: EXPERT_COLORS[idx] || "text-cyan-400 bg-cyan-950/60 border-cyan-700/60",
+            stance: e.stance || 'N/A',
+            target: e.target || 'N/A',
+            thesis: e.thesis || ''
+          }));
+        } else if (vp) {
+          experts = vp.experts;
+          expertsNotice = '※ 이 종목의 전문가 의견은 사전 작성된 프로필(스냅샷)입니다. 최신 의견은 Gemini 키를 연결하세요.';
+        } else {
+          experts = buildTemplateExperts({ stockName, tech, pe, shortFloat, low52 });
+          expertsNotice = '※ Gemini 키가 없어 정량 지표 기반 자동 템플릿 의견을 표시합니다. 목표가는 제공되지 않습니다.';
+        }
+
+        const bullCase = g.bullCase || vp?.bullCase || [
+          tech.sma200Diff !== 'N/A' && isPositivePct(tech.sma200Diff) ? `200일선 대비 ${tech.sma200Diff} 위에서 거래되는 장기 상승 추세` : `52주 저점($${low52.toFixed(2)}) 대비 ${pctDiff(price, low52)} 위치`,
+          pe !== null ? `P/E ${pe}배 수준의 밸류에이션` : '밸류에이션 데이터는 프록시/Gemini 연결 시 표시됩니다',
+          targetAvg !== null ? `애널리스트 평균 목표가 $${targetAvg} (상승여력 ${upside.toFixed(1)}%)` : '애널리스트 목표가 데이터 없음'
+        ];
+        const bearCase = g.bearCase || vp?.bearCase || [
+          `52주 고점($${high52.toFixed(2)}) 대비 ${pctDiff(price, high52)} 수준`,
+          shortFloat !== null ? `Short Float ${shortFloat}%` : '공매도 데이터 없음',
+          tech.rsi !== null ? `RSI ${tech.rsi} — ${tech.rsi > 70 ? '과열 구간' : (tech.rsi < 30 ? '과매도 구간' : '중립 구간')}` : 'RSI 계산 불가(데이터 부족)'
+        ];
+
+        const feedParts = [];
+        if (geminiInsight) feedParts.push('Google Search');
+        if (fundamentals) feedParts.push('Yahoo 재무(프록시)');
+        feedParts.push(isSimulated ? '시뮬레이션 시세' : 'Yahoo 시세');
+        const dataFeed = feedParts.join(' + ');
+
+        const compositeData = {
+          ticker: upperTicker,
+          name: stockName,
+          sector: stockSector,
+          price: price.toFixed(2),
+          change: realMarket.change || '+0.00%',
+          consensus: g.consensus || f.consensus || vp?.consensus || 'N/A',
+          summary: summary,
+          targetAvg, targetMin, targetMax, upside,
+          rsi: tech.rsi,
+          sma20Diff: tech.sma20Diff,
+          sma50Diff: tech.sma50Diff,
+          sma200Diff: tech.sma200Diff,
+          pe, peg, roe, shortFloat,
+          history: realMarket.history,
+          ind,
+          isSimulated,
+          dataFeed,
+          expertsNotice,
+          finviz: [
+            { label: "P/E", val: fmtNum(pe) },
+            { label: "Forward P/E", val: fmtNum(forwardPe, 1) },
+            { label: "PEG", val: fmtNum(peg) },
+            { label: "P/S", val: fmtNum(pSales) },
+            { label: "P/B", val: fmtNum(pBook) },
+            { label: "ROE", val: fmtNum(roe, null, '%') },
+            { label: "52W High", val: `$${high52.toFixed(2)}` },
+            { label: "52W Low", val: `$${low52.toFixed(2)}` },
+            { label: "Short Float", val: fmtNum(shortFloat, null, '%') },
+            { label: "SMA20", val: tech.sma20Diff },
+            { label: "SMA50", val: tech.sma50Diff },
+            { label: "SMA200", val: tech.sma200Diff },
+            { label: "RSI (14)", val: fmtNum(tech.rsi) },
+            { label: "Target Price", val: targetAvg !== null ? `$${targetAvg}` : 'N/A' },
+            { label: "Data Feed", val: dataFeed }
+          ],
+          experts, bullCase, bearCase
+        };
+
+        currentAnalysisData = compositeData;
+        renderAnalysisResult(compositeData);
+
+        loading.classList.add('hidden');
+        dashboard.classList.remove('hidden');
+
+        renderProChart();
+        renderMiniTrendPreview();
+
+        if (isSimulated) {
+          showToast('시뮬레이션 데이터', `${compositeData.ticker}: 실시간 시세를 가져오지 못해 가상 데이터로 표시합니다. 설정에서 자체 프록시를 연결하세요.`, 'warning');
+        } else {
+          showToast('데이터 분석 완료', `${compositeData.ticker} (${compositeData.name}): ${dataFeed}`, 'success');
+        }
+      } catch (err) {
+        console.error('analysis failed', err);
+        if (seq === analysisSeq) {
+          loading.classList.add('hidden');
+          showToast('분석 오류', `분석 중 오류가 발생했습니다: ${err.message}`, 'error');
+        }
+      } finally {
+        if (seq === analysisSeq && analyzeBtn) analyzeBtn.disabled = false;
       }
-
-      const price = Number(realMarket.price) || 10;
-      const high52 = realMarket.high52 !== undefined ? Number(realMarket.high52) : Number((price * 1.15).toFixed(2));
-      const low52 = realMarket.low52 !== undefined ? Number(realMarket.low52) : Number((price * 0.75).toFixed(2));
-
-      // 2. Calculate technical indicators
-      const tech = calculateRealIndicators(realMarket.history);
-
-      // 3. Try Gemini Google Search Grounding for live financial ratios & news
-      loadingSubtext.textContent = '구글 실시간 검색 및 Motley Fool 해자 평가를 AI로 종합 채점 중...';
-      const geminiInsight = await fetchGeminiGroundingAnalysis(upperTicker, realMarket);
-
-      // Determine verified company identity
-      const verifiedProfile = KNOWN_STOCK_PROFILES[upperTicker];
-      const stockName = geminiInsight?.name || verifiedProfile?.name || realMarket.name || `${upperTicker} Inc.`;
-      const stockSector = geminiInsight?.sector || verifiedProfile?.sector || realMarket.sector || 'Technology & Growth';
-
-      const pe = Number(geminiInsight?.pe || verifiedProfile?.pe || realMarket.pe) || 15.5;
-      const peg = Number(geminiInsight?.peg || verifiedProfile?.peg || realMarket.peg) || 1.15;
-      const roe = Number(geminiInsight?.roe || verifiedProfile?.roe || realMarket.roe) || 14.5;
-      const shortFloat = Number(geminiInsight?.shortFloat || verifiedProfile?.shortFloat || realMarket.shortFloat) || 2.1;
-      const targetAvg = Number(geminiInsight?.targetAvg || verifiedProfile?.targetAvg) || parseFloat((price * 1.25).toFixed(2));
-      const targetMin = Number(geminiInsight?.targetMin || verifiedProfile?.targetMin) || parseFloat((price * 0.85).toFixed(2));
-      const targetMax = Number(geminiInsight?.targetMax || verifiedProfile?.targetMax) || parseFloat((price * 1.45).toFixed(2));
-      const upside = (((targetAvg - price) / price) * 100).toFixed(1);
-
-      const compositeData = {
-        ticker: upperTicker,
-        name: stockName,
-        sector: stockSector,
-        price: price.toFixed(2),
-        change: realMarket.change || '+0.00%',
-        consensus: geminiInsight?.consensus || verifiedProfile?.consensus || 'HOLD',
-        summary: geminiInsight?.summary || verifiedProfile?.summary || `${stockName}(${upperTicker})는 미국 증시에서 $${price.toFixed(2)}에 거래 중이며, 52주 변동폭($${low52.toFixed(2)} ~ $${high52.toFixed(2)}) 내에서 거래되고 있습니다.`,
-        targetAvg: targetAvg,
-        targetMin: targetMin,
-        targetMax: targetMax,
-        upside: upside,
-        rsi: tech.rsi || verifiedProfile?.rsi || 50,
-        sma20Diff: tech.sma20Diff || verifiedProfile?.sma20Diff || '+0.0%',
-        pe: pe,
-        peg: peg,
-        roe: roe,
-        shortFloat: shortFloat,
-        history: realMarket.history,
-        finviz: [
-          { label: "P/E", val: pe, hint: "주가수익비율" },
-          { label: "Forward P/E", val: geminiInsight?.forwardPe || (pe * 0.9).toFixed(1), hint: "선행 PER" },
-          { label: "PEG", val: peg, hint: "성장성 대비 가치" },
-          { label: "P/S", val: verifiedProfile?.pSales || "0.85", hint: "매출 대비 주가" },
-          { label: "P/B", val: verifiedProfile?.pBook || "1.45", hint: "순자산비율" },
-          { label: "ROE", val: `${roe}%`, hint: "자기자본이익률" },
-          { label: "52W High", val: `$${high52.toFixed(2)}`, hint: "실제 52주 최고가" },
-          { label: "52W Low", val: `$${low52.toFixed(2)}`, hint: "실제 52주 최저가" },
-          { label: "Short Float", val: `${shortFloat}%`, hint: "공매도 비중" },
-          { label: "SMA20", val: tech.sma20Diff, hint: "실제 20일선 괴리율" },
-          { label: "SMA50", val: "+3.2%", hint: "50일 이평선 괴리율" },
-          { label: "SMA200", val: "+8.4%", hint: "200일 이평선 괴리율" },
-          { label: "RSI (14)", val: tech.rsi, hint: "실제 계산된 RSI" },
-          { label: "Target Price", val: `$${targetAvg}`, hint: "애널리스트 목표가" },
-          { label: "Data Feed", val: geminiInsight ? "Google Search Grounded" : (realMarket.isLive ? "Yahoo Live" : "Verified Profile"), hint: "실시간 피드 출처" }
-        ],
-        experts: geminiInsight?.experts?.map((e, idx) => {
-          const defaultColors = [
-            "text-amber-400 bg-amber-950/60 border-amber-700/60",
-            "text-blue-400 bg-blue-950/60 border-blue-700/60",
-            "text-emerald-400 bg-emerald-950/60 border-emerald-700/60",
-            "text-purple-400 bg-purple-950/60 border-purple-700/60",
-            "text-pink-400 bg-pink-950/60 border-pink-700/60"
-          ];
-          const defaultAvatars = ["fa-seedling", "fa-chart-candlestick", "fa-scale-balanced", "fa-shield-halved", "fa-robot"];
-          const defaultRoles = [
-            "Motley Fool 해자 & 장기 성장 분석가",
-            "Finviz 테크니컬 & 차트 분석가",
-            "DCF & 정통 가치평가 애널리스트",
-            "매크로 & 지정학 리스크 매니저",
-            "퀀트 & 숏/수급 추적 전문가"
-          ];
-          return {
-            name: e.name,
-            role: defaultRoles[idx] || "전문 애널리스트",
-            avatar: defaultAvatars[idx] || "fa-user",
-            color: defaultColors[idx] || "text-cyan-400 bg-cyan-950/60 border-cyan-700/60",
-            stance: e.stance,
-            target: e.target,
-            thesis: e.thesis
-          };
-        }) || (verifiedProfile ? verifiedProfile.experts : [
-          {
-            name: "데이비드 (David)",
-            role: "Motley Fool 해자 & 장기 성장 분석가",
-            avatar: "fa-seedling",
-            color: "text-amber-400 bg-amber-950/60 border-amber-700/60",
-            stance: "BUY (5년 장기 복리)",
-            target: `$${(price * 1.30).toFixed(2)}`,
-            thesis: `${stockName}의 비즈니스 모델과 업계 내 입지를 평가할 때, 일시적 경기 순환을 극복할 독자적 제품력을 지니고 있습니다.`
-          },
-          {
-            name: "빅터 (Victor)",
-            role: "Finviz 테크니컬 & 차트 분석가",
-            avatar: "fa-chart-candlestick",
-            color: "text-blue-400 bg-blue-950/60 border-blue-700/60",
-            stance: tech.rsi > 60 ? "OVERBOUGHT (숨고르기)" : "BUY (지지선 반등)",
-            target: `$${(price * 1.20).toFixed(2)}`,
-            thesis: `실제 캔들 차트 분석 결과 RSI ${tech.rsi}, 20일선 괴리율 ${tech.sma20Diff}을 기록 중입니다. $${low52.toFixed(2)} 바닥 지지선이 견고합니다.`
-          },
-          {
-            name: "클라라 (Clara)",
-            role: "DCF & 정통 가치평가 애널리스트",
-            avatar: "fa-scale-balanced",
-            color: "text-emerald-400 bg-emerald-950/60 border-emerald-700/60",
-            stance: "ACCUMULATE (가치 매수)",
-            target: `$${(price * 1.15).toFixed(2)}`,
-            thesis: `실제 P/E ${pe}배 수준으로 동종 섹터 대비 안전마진이 확보된 구간입니다.`
-          },
-          {
-            name: "마커스 (Marcus)",
-            role: "매크로 & 지정학 리스크 매니저",
-            avatar: "fa-shield-halved",
-            color: "text-purple-400 bg-purple-950/60 border-purple-700/60",
-            stance: "MONITOR (거시 변수)",
-            target: `$${(price * 1.05).toFixed(2)}`,
-            thesis: `글로벌 금리 경로와 인플레이션 비용 상승에 따른 마진 영향을 분할 매수로 대응해야 합니다.`
-          },
-          {
-            name: "소피아 (Sophia)",
-            role: "퀀트 & 숏/수급 추적 전문가",
-            avatar: "fa-robot",
-            color: "text-pink-400 bg-pink-950/60 border-pink-700/60",
-            stance: "BUY (수급 탄력)",
-            target: `$${(price * 1.25).toFixed(2)}`,
-            thesis: `Short Float ${shortFloat}% 수준이며, 거래량 급증 시 상방 탄력이 빠르게 발생할 수 있습니다.`
-          }
-        ]),
-        bullCase: geminiInsight?.bullCase || (verifiedProfile ? verifiedProfile.bullCase : [
-          "52주 최저가 대비 견고한 기술적 반등 지지선 구축",
-          "합리적인 밸류에이션(P/E)과 업계 내 특화된 유통망",
-          "기관 및 스마트머니의 저점 매수세 유입 가능성"
-        ]),
-        bearCase: geminiInsight?.bearCase || (verifiedProfile ? verifiedProfile.bearCase : [
-          "원자재 및 공급망 비용 변동성에 따른 마진 압박",
-          "시가총액 및 일일 거래량 제한에 따른 높은 슬리피지 리스크",
-          "거시경제 침체 시 소비재/성장주 전반의 수요 둔화 우려"
-        ])
-      };
-
-      currentAnalysisData = compositeData;
-      renderAnalysisResult(compositeData);
-
-      loading.classList.add('hidden');
-      dashboard.classList.remove('hidden');
-
-      renderProChart();
-      renderMiniTrendPreview();
-
-      const sourceMsg = geminiInsight ? "구글 실시간 검색(Google Search) + 야후 시세 연동 완료" : (realMarket.isLive ? "Yahoo Finance 실제 시세 연동 완료" : `${stockName} 실제 검증 데이터 로드 완료`);
-      showToast("데이터 분석 완료", `${compositeData.ticker} (${compositeData.name}): ${sourceMsg}`, "success");
     }
 
     function generateDynamicStockData(ticker) {
@@ -1840,7 +2064,7 @@ Return STRICT JSON ONLY format:
         const history = [];
         let baseClose = p.price * 0.9;
         const now = new Date();
-        for (let i = 60; i >= 0; i--) {
+        for (let i = 251; i >= 0; i--) {
           const d = new Date(now);
           d.setDate(d.getDate() - i);
           const dayVar = (Math.sin(i * 0.3) * 0.015) + ((Math.random() - 0.48) * 0.02);
@@ -1890,7 +2114,7 @@ Return STRICT JSON ONLY format:
       const history = [];
       let baseClose = price * 0.88;
       const now = new Date();
-      for (let i = 60; i >= 0; i--) {
+      for (let i = 251; i >= 0; i--) {
         const d = new Date(now);
         d.setDate(d.getDate() - i);
         const dayVariance = (Math.sin(i * 0.45) * 0.02) + ((Math.random() - 0.46) * 0.03);
@@ -1926,6 +2150,17 @@ Return STRICT JSON ONLY format:
       };
     }
 
+    function trendLabel(data) {
+      const p = Number(data.price);
+      const ind = data.ind;
+      const n = data.history.length;
+      const s20 = ind?.sma20[n - 1], s50 = ind?.sma50[n - 1];
+      if (s20 == null) return { text: '데이터 부족', cls: 'bg-slate-800 text-slate-300 border-slate-700' };
+      if (s50 != null && p > s20 && s20 > s50) return { text: '상승 추세', cls: 'bg-emerald-950 text-emerald-400 border-emerald-800' };
+      if (s50 != null && p < s20 && s20 < s50) return { text: '하락 추세', cls: 'bg-rose-950 text-rose-400 border-rose-800' };
+      return { text: '횡보 / 혼조', cls: 'bg-amber-950 text-amber-300 border-amber-800' };
+    }
+
     function renderAnalysisResult(data) {
       document.getElementById('dispTicker').textContent = data.ticker;
       document.getElementById('dispCompanyName').textContent = data.name;
@@ -1935,15 +2170,67 @@ Return STRICT JSON ONLY format:
 
       const changeEl = document.getElementById('dispChange');
       changeEl.textContent = data.change;
-      changeEl.className = data.change.startsWith('+') ? 'text-sm font-semibold font-mono-numbers text-emerald-400' : 'text-sm font-semibold font-mono-numbers text-rose-400';
+      changeEl.className = isPositivePct(data.change) ? 'text-sm font-semibold font-mono-numbers text-emerald-400' : 'text-sm font-semibold font-mono-numbers text-rose-400';
 
-      document.getElementById('dispConsensusBadge').textContent = data.consensus;
-      document.getElementById('dispAvgTarget').textContent = `$${data.targetAvg}`;
-      document.getElementById('dispTargetUpside').textContent = `+${data.upside}%`;
-      document.getElementById('targetMin').textContent = `최저: $${data.targetMin}`;
-      document.getElementById('targetMax').textContent = `최고: $${data.targetMax}`;
-      document.getElementById('dispRSI').textContent = data.rsi;
-      document.getElementById('dispSMA200').textContent = `상회 (${data.sma20Diff})`;
+      // 데이터 출처 배지 (시뮬레이션이면 경고색)
+      const badge = document.getElementById('dispDataBadge');
+      if (data.isSimulated) {
+        badge.className = 'text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-mono-numbers flex items-center gap-1';
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>SIMULATED DATA';
+      } else {
+        badge.className = 'text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono-numbers flex items-center gap-1';
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>LIVE MARKET';
+      }
+
+      const cons = document.getElementById('dispConsensusBadge');
+      cons.textContent = data.consensus;
+      cons.className = `px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${consensusClass(data.consensus)}`;
+
+      const price = Number(data.price);
+      document.getElementById('dispAvgTarget').textContent = data.targetAvg !== null ? `$${data.targetAvg}` : 'N/A';
+      const upEl = document.getElementById('dispTargetUpside');
+      if (data.upside === null) {
+        upEl.textContent = 'N/A';
+        upEl.className = 'font-bold text-slate-400 font-mono-numbers';
+      } else {
+        upEl.textContent = `${data.upside >= 0 ? '+' : ''}${data.upside.toFixed(1)}%`;
+        upEl.className = `font-bold font-mono-numbers ${data.upside >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      }
+      document.getElementById('targetMin').textContent = `최저: ${data.targetMin !== null ? '$' + data.targetMin : 'N/A'}`;
+      document.getElementById('targetMax').textContent = `최고: ${data.targetMax !== null ? '$' + data.targetMax : 'N/A'}`;
+      // 막대: 목표가 범위 안에서 '현재가'의 위치
+      const bar = document.getElementById('targetBar');
+      if (data.targetMin !== null && data.targetMax !== null && data.targetMax > data.targetMin) {
+        const pos = Math.min(100, Math.max(0, ((price - data.targetMin) / (data.targetMax - data.targetMin)) * 100));
+        bar.style.width = `${pos.toFixed(0)}%`;
+      } else {
+        bar.style.width = '0%';
+      }
+
+      document.getElementById('dispRSI').textContent = fmtNum(data.rsi);
+      const smaEl = document.getElementById('dispSMA200');
+      if (data.sma200Diff === 'N/A') {
+        smaEl.textContent = 'N/A';
+        smaEl.className = 'text-slate-400';
+      } else {
+        const up = isPositivePct(data.sma200Diff);
+        smaEl.textContent = `${up ? '상회' : '하회'} (${data.sma200Diff})`;
+        smaEl.className = up ? 'text-emerald-400' : 'text-rose-400';
+      }
+
+      const tr = trendLabel(data);
+      const trendBadge = document.getElementById('chartTrendBadge');
+      trendBadge.textContent = tr.text;
+      trendBadge.className = `text-xs px-2 py-0.5 rounded border ${tr.cls}`;
+      const patternBadge = document.getElementById('chartPatternBadge');
+      patternBadge.textContent = `빅터의 분석: ${tr.text}`;
+      patternBadge.className = `text-xs px-2.5 py-0.5 rounded-full border font-semibold ${tr.cls}`;
+
+      const notice = document.getElementById('expertsNotice');
+      if (notice) {
+        notice.textContent = data.expertsNotice || '';
+        notice.classList.toggle('hidden', !data.expertsNotice);
+      }
 
       renderFinvizTable(data.finviz);
       renderExperts(data.experts);
@@ -1960,10 +2247,10 @@ Return STRICT JSON ONLY format:
           if (item) {
             html += `
               <td class="py-2.5 px-3 bg-slate-900/60 font-sans text-slate-400 border-r border-slate-800/80 font-medium">
-                ${item.label}
+                ${escapeHtml(item.label)}
               </td>
-              <td class="py-2.5 px-3 text-white font-bold border-r border-slate-800/80">
-                ${item.val}
+              <td class="py-2.5 px-3 ${item.val === 'N/A' ? 'text-slate-500' : 'text-white'} font-bold border-r border-slate-800/80">
+                ${escapeHtml(item.val)}
               </td>
             `;
           } else {
@@ -1982,30 +2269,30 @@ Return STRICT JSON ONLY format:
           <div>
             <div class="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
               <div class="flex items-center gap-2.5">
-                <span class="w-8 h-8 rounded-xl ${exp.color} border flex items-center justify-center text-sm shadow">
-                  <i class="fa-solid ${exp.avatar}"></i>
+                <span class="w-8 h-8 rounded-xl ${escapeHtml(exp.color)} border flex items-center justify-center text-sm shadow">
+                  <i class="fa-solid ${escapeHtml(exp.avatar)}"></i>
                 </span>
                 <div>
-                  <h4 class="text-sm font-bold text-white">${exp.name}</h4>
-                  <span class="text-[10px] text-slate-400 block">${exp.role}</span>
+                  <h4 class="text-sm font-bold text-white">${escapeHtml(exp.name)}</h4>
+                  <span class="text-[10px] text-slate-400 block">${escapeHtml(exp.role)}</span>
                 </div>
               </div>
               <span class="text-xs font-mono-numbers font-bold text-cyan-400 bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">
-                목표: ${exp.target}
+                목표: ${escapeHtml(exp.target)}
               </span>
             </div>
             <div class="mb-3">
               <span class="px-2 py-0.5 rounded text-[10px] font-bold border bg-cyan-950/80 text-cyan-300 border-cyan-800">
-                ${exp.stance}
+                ${escapeHtml(exp.stance)}
               </span>
             </div>
             <p class="text-xs text-slate-300 leading-relaxed font-sans">
-              "${exp.thesis}"
+              "${escapeHtml(exp.thesis)}"
             </p>
           </div>
           <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
             <span>Finviz/Fool 검증</span>
-            <button onclick="setExpertForQuestion('${exp.name}')" class="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1">
+            <button data-name="${escapeHtml(exp.name)}" onclick="setExpertForQuestion(this.dataset.name)" class="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1">
               <span>직접 질문</span>
               <i class="fa-solid fa-arrow-right text-[10px]"></i>
             </button>
@@ -2018,14 +2305,14 @@ Return STRICT JSON ONLY format:
       document.getElementById('bullPointsList').innerHTML = bulls.map(b => `
         <li class="flex items-start gap-2.5">
           <i class="fa-solid fa-circle-check text-emerald-400 mt-1 text-xs"></i>
-          <span>${b}</span>
+          <span>${escapeHtml(b)}</span>
         </li>
       `).join('');
 
       document.getElementById('bearPointsList').innerHTML = bears.map(b => `
         <li class="flex items-start gap-2.5">
           <i class="fa-solid fa-triangle-exclamation text-rose-400 mt-1 text-xs"></i>
-          <span>${b}</span>
+          <span>${escapeHtml(b)}</span>
         </li>
       `).join('');
     }
@@ -2045,19 +2332,17 @@ Return STRICT JSON ONLY format:
       renderProChart();
     }
 
+    function syncIndicatorButtons() {
+      Object.keys(chartState.indicators).forEach(ind => {
+        const btn = document.getElementById(`btn-${ind}`);
+        if (btn) btn.classList.toggle('opacity-40', !chartState.indicators[ind]);
+      });
+    }
+
     function toggleIndicator(ind) {
       chartState.indicators[ind] = !chartState.indicators[ind];
-      const btn = document.getElementById(`btn-${ind}`);
-      if (btn) {
-        if (chartState.indicators[ind]) {
-          btn.classList.add('bg-cyan-950/60', 'text-cyan-300', 'border-cyan-500/50');
-          btn.classList.remove('bg-slate-900', 'text-slate-400', 'border-slate-700');
-        } else {
-          btn.classList.remove('bg-cyan-950/60', 'text-cyan-300', 'border-cyan-500/50');
-          btn.classList.add('bg-slate-900', 'text-slate-400', 'border-slate-700');
-        }
-      }
-      renderProChart();
+      syncIndicatorButtons();
+      drawChart(chartState.hoverIndex);
     }
 
     function setSubChart(type) {
@@ -2079,183 +2364,280 @@ Return STRICT JSON ONLY format:
         legend.textContent = '과매수: 70 | 과매도: 30';
       } else if (type === 'volume') {
         title.textContent = '거래량 (Volume)';
-        legend.textContent = '20일 평균 거래량 밴드';
+        legend.textContent = '노란선: 20일 평균 거래량';
       } else {
         title.textContent = 'MACD (12, 26, 9)';
-        legend.textContent = '시그널 크로스 & 오실레이터 히스토그램';
+        legend.textContent = '청록: MACD | 주황: 시그널 | 막대: 히스토그램';
       }
-      renderProChart();
+      drawChart(chartState.hoverIndex);
+    }
+
+    // ---- Pro chart ----
+    let chartGeom = null;
+    const CHART_MARGIN_R = 54;
+
+    function fmtVol(v) {
+      if (!v) return '--';
+      if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
+      if (v >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
+      if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+      return String(v);
     }
 
     function renderProChart() {
       if (!currentAnalysisData || !currentAnalysisData.history) return;
-
       const mainCanvas = document.getElementById('mainCandleCanvas');
       const subCanvas = document.getElementById('subIndicatorCanvas');
       if (!mainCanvas || !subCanvas) return;
 
-      const mainCtx = mainCanvas.getContext('2d');
-      const subCtx = subCanvas.getContext('2d');
-
       const dpr = window.devicePixelRatio || 1;
-      mainCanvas.width = mainCanvas.parentElement.clientWidth * dpr;
-      mainCanvas.height = mainCanvas.parentElement.clientHeight * dpr;
-      subCanvas.width = subCanvas.parentElement.clientWidth * dpr;
-      subCanvas.height = subCanvas.parentElement.clientHeight * dpr;
-
-      mainCtx.scale(dpr, dpr);
-      subCtx.scale(dpr, dpr);
-
       const w = mainCanvas.parentElement.clientWidth;
       const h = mainCanvas.parentElement.clientHeight;
       const subW = subCanvas.parentElement.clientWidth;
       const subH = subCanvas.parentElement.clientHeight;
+      if (!w || !h) return; // 숨겨진 탭
 
-      // Slice data based on timeframe
-      let candles = currentAnalysisData.history;
-      if (chartState.timeframe === '1M') candles = candles.slice(-22);
-      else if (chartState.timeframe === '3M') candles = candles.slice(-44);
-      else if (chartState.timeframe === '6M') candles = candles.slice(-60);
+      mainCanvas.width = w * dpr;
+      mainCanvas.height = h * dpr;
+      subCanvas.width = subW * dpr;
+      subCanvas.height = subH * dpr;
 
-      const n = candles.length;
-      if (n === 0) return;
+      const history = currentAnalysisData.history;
+      const total = history.length;
+      const bars = { '1M': 22, '3M': 63, '6M': 126, '1Y': total }[chartState.timeframe] || total;
+      const start = Math.max(0, total - bars);
 
-      let minP = Infinity;
-      let maxP = -Infinity;
-      let maxVol = 0;
+      chartGeom = { dpr, w, h, subW, subH, start, n: total - start, pw: Math.max(10, w - CHART_MARGIN_R) };
+      chartState.hoverIndex = null;
+      drawChart(null);
+    }
 
-      candles.forEach(c => {
-        if (c.low < minP) minP = c.low;
-        if (c.high > maxP) maxP = c.high;
-        if (c.volume > maxVol) maxVol = c.volume;
-      });
+    function drawChart(hoverIdx) {
+      if (!chartGeom || !currentAnalysisData) return;
+      const mainCanvas = document.getElementById('mainCandleCanvas');
+      const subCanvas = document.getElementById('subIndicatorCanvas');
+      const mctx = mainCanvas.getContext('2d');
+      const sctx = subCanvas.getContext('2d');
+      const { dpr, w, h, subW, subH, start, n, pw } = chartGeom;
+      const history = currentAnalysisData.history;
+      const ind = currentAnalysisData.ind;
+      const candles = history.slice(start);
+      const step = pw / n;
+      const candleW = Math.max(1.5, Math.min(14, step * 0.7));
+      const xOf = i => i * step + step / 2;
 
-      const pad = (maxP - minP) * 0.1 || 1;
-      minP -= pad;
-      maxP += pad;
+      mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      mctx.clearRect(0, 0, w, h);
+      sctx.clearRect(0, 0, subW, subH);
 
-      mainCtx.clearRect(0, 0, w, h);
-      subCtx.clearRect(0, 0, subW, subH);
-
-      // Draw Grid
-      mainCtx.strokeStyle = '#1e293b';
-      mainCtx.lineWidth = 1;
-      for (let y = 30; y < h; y += 40) {
-        mainCtx.beginPath();
-        mainCtx.moveTo(0, y);
-        mainCtx.lineTo(w, y);
-        mainCtx.stroke();
-      }
-
-      const candleW = Math.max(3, (w / n) * 0.65);
-      const step = w / n;
-
-      // Draw Candlesticks
-      candles.forEach((c, idx) => {
-        const x = idx * step + step / 2;
-        const yOpen = h - ((c.open - minP) / (maxP - minP)) * h;
-        const yClose = h - ((c.close - minP) / (maxP - minP)) * h;
-        const yHigh = h - ((c.high - minP) / (maxP - minP)) * h;
-        const yLow = h - ((c.low - minP) / (maxP - minP)) * h;
-
-        const isBull = c.close >= c.open;
-        mainCtx.strokeStyle = isBull ? '#10b981' : '#f43f5e';
-        mainCtx.fillStyle = isBull ? '#10b981' : '#f43f5e';
-
-        // High-Low Wick
-        mainCtx.lineWidth = 1.5;
-        mainCtx.beginPath();
-        mainCtx.moveTo(x, yHigh);
-        mainCtx.lineTo(x, yLow);
-        mainCtx.stroke();
-
-        // Candle Body
-        const top = Math.min(yOpen, yClose);
-        const bodyH = Math.max(2, Math.abs(yClose - yOpen));
-        mainCtx.fillRect(x - candleW / 2, top, candleW, bodyH);
-      });
-
-      // Draw Moving Average lines
-      function drawSMA(period, color) {
-        mainCtx.strokeStyle = color;
-        mainCtx.lineWidth = 1.8;
-        mainCtx.beginPath();
-        let started = false;
+      // price range
+      let minP = Infinity, maxP = -Infinity;
+      candles.forEach(c => { if (c.low < minP) minP = c.low; if (c.high > maxP) maxP = c.high; });
+      if (chartState.indicators.bb) {
         for (let i = 0; i < n; i++) {
-          if (i < period - 1) continue;
-          let sum = 0;
-          for (let k = 0; k < period; k++) sum += candles[i - k].close;
-          const avg = sum / period;
-          const x = i * step + step / 2;
-          const y = h - ((avg - minP) / (maxP - minP)) * h;
-          if (!started) {
-            mainCtx.moveTo(x, y);
-            started = true;
-          } else {
-            mainCtx.lineTo(x, y);
-          }
+          const u = ind.bb.upper[start + i], l = ind.bb.lower[start + i];
+          if (u !== null && u > maxP) maxP = u;
+          if (l !== null && l < minP) minP = l;
         }
-        mainCtx.stroke();
+      }
+      const pad = (maxP - minP) * 0.08 || 1;
+      minP -= pad; maxP += pad;
+      const padTop = 8, padBottom = 8;
+      const yOf = p => padTop + (1 - (p - minP) / (maxP - minP)) * (h - padTop - padBottom);
+
+      // grid + price axis
+      mctx.font = '10px "JetBrains Mono", monospace';
+      mctx.textAlign = 'left';
+      mctx.textBaseline = 'middle';
+      for (let k = 0; k <= 5; k++) {
+        const p = minP + ((maxP - minP) * k) / 5;
+        const y = yOf(p);
+        mctx.strokeStyle = '#1e293b';
+        mctx.lineWidth = 1;
+        mctx.beginPath(); mctx.moveTo(0, y); mctx.lineTo(pw, y); mctx.stroke();
+        mctx.fillStyle = '#64748b';
+        mctx.fillText(p.toFixed(p < 10 ? 2 : 1), pw + 6, y);
       }
 
-      if (chartState.indicators.sma20) drawSMA(5, '#f59e0b');
-      if (chartState.indicators.sma50) drawSMA(12, '#38bdf8');
-      if (chartState.indicators.sma200) drawSMA(24, '#a855f7');
+      // Bollinger bands
+      if (chartState.indicators.bb) {
+        const drawBand = (arr, color) => {
+          mctx.strokeStyle = color; mctx.lineWidth = 1; mctx.setLineDash([4, 3]);
+          mctx.beginPath(); let s = false;
+          for (let i = 0; i < n; i++) {
+            const v = arr[start + i]; if (v === null) continue;
+            if (!s) { mctx.moveTo(xOf(i), yOf(v)); s = true; } else mctx.lineTo(xOf(i), yOf(v));
+          }
+          mctx.stroke(); mctx.setLineDash([]);
+        };
+        drawBand(ind.bb.upper, 'rgba(6,182,212,0.7)');
+        drawBand(ind.bb.lower, 'rgba(6,182,212,0.7)');
+      }
 
-      // Sub-chart rendering (RSI / Volume / MACD)
-      subCtx.strokeStyle = '#1e293b';
-      subCtx.lineWidth = 1;
-      subCtx.beginPath();
-      subCtx.moveTo(0, subH * 0.3);
-      subCtx.lineTo(subW, subH * 0.3);
-      subCtx.moveTo(0, subH * 0.7);
-      subCtx.lineTo(subW, subH * 0.7);
-      subCtx.stroke();
+      // Support / Resistance (표시 구간의 최고/최저 종가 기준)
+      if (chartState.indicators.sr) {
+        let hi = -Infinity, lo = Infinity;
+        candles.forEach(c => { if (c.high > hi) hi = c.high; if (c.low < lo) lo = c.low; });
+        [[hi, '저항', '#fb7185'], [lo, '지지', '#34d399']].forEach(([v, label, color]) => {
+          mctx.strokeStyle = color; mctx.lineWidth = 1; mctx.setLineDash([6, 4]);
+          mctx.beginPath(); mctx.moveTo(0, yOf(v)); mctx.lineTo(pw, yOf(v)); mctx.stroke();
+          mctx.setLineDash([]);
+          mctx.fillStyle = color; mctx.textAlign = 'left';
+          mctx.fillText(`${label} ${v.toFixed(2)}`, 6, yOf(v) - 7);
+        });
+      }
+
+      // candles
+      candles.forEach((c, i) => {
+        const x = xOf(i);
+        const isBull = c.close >= c.open;
+        const color = isBull ? '#10b981' : '#f43f5e';
+        mctx.strokeStyle = color; mctx.fillStyle = color;
+        mctx.lineWidth = 1;
+        mctx.beginPath(); mctx.moveTo(x, yOf(c.high)); mctx.lineTo(x, yOf(c.low)); mctx.stroke();
+        const top = Math.min(yOf(c.open), yOf(c.close));
+        mctx.fillRect(x - candleW / 2, top, candleW, Math.max(1, Math.abs(yOf(c.close) - yOf(c.open))));
+      });
+
+      // SMAs (전체 히스토리로 계산한 값을 표시 구간만큼 그림)
+      const drawLine = (arr, color) => {
+        mctx.strokeStyle = color; mctx.lineWidth = 1.6;
+        mctx.beginPath(); let s = false;
+        for (let i = 0; i < n; i++) {
+          const v = arr[start + i]; if (v === null) continue;
+          if (!s) { mctx.moveTo(xOf(i), yOf(v)); s = true; } else mctx.lineTo(xOf(i), yOf(v));
+        }
+        mctx.stroke();
+      };
+      if (chartState.indicators.sma20) drawLine(ind.sma20, '#f59e0b');
+      if (chartState.indicators.sma50) drawLine(ind.sma50, '#38bdf8');
+      if (chartState.indicators.sma200) drawLine(ind.sma200, '#a855f7');
+
+      // last price tag
+      const lastC = candles[n - 1];
+      mctx.strokeStyle = '#475569'; mctx.setLineDash([2, 3]); mctx.lineWidth = 1;
+      mctx.beginPath(); mctx.moveTo(0, yOf(lastC.close)); mctx.lineTo(pw, yOf(lastC.close)); mctx.stroke(); mctx.setLineDash([]);
+      mctx.fillStyle = lastC.close >= lastC.open ? '#10b981' : '#f43f5e';
+      mctx.fillRect(pw + 2, yOf(lastC.close) - 8, CHART_MARGIN_R - 4, 16);
+      mctx.fillStyle = '#0a0f1d'; mctx.textAlign = 'left';
+      mctx.fillText(lastC.close.toFixed(2), pw + 5, yOf(lastC.close));
+
+      // ---- sub chart ----
+      sctx.font = '10px "JetBrains Mono", monospace';
+      sctx.textBaseline = 'middle';
+      const sPadT = 14, sPadB = 4;
+      const subY = (v, lo, hi) => sPadT + (1 - (v - lo) / (hi - lo || 1)) * (subH - sPadT - sPadB);
+      const subLine = (arr, lo, hi, color, width = 1.6) => {
+        sctx.strokeStyle = color; sctx.lineWidth = width; sctx.beginPath(); let s = false;
+        for (let i = 0; i < n; i++) {
+          const v = arr[start + i]; if (v === null || v === undefined) continue;
+          const y = subY(v, lo, hi);
+          if (!s) { sctx.moveTo(xOf(i), y); s = true; } else sctx.lineTo(xOf(i), y);
+        }
+        sctx.stroke();
+      };
 
       if (chartState.subChart === 'rsi') {
-        subCtx.strokeStyle = '#06b6d4';
-        subCtx.lineWidth = 2;
-        subCtx.beginPath();
-        candles.forEach((c, idx) => {
-          const x = idx * step + step / 2;
-          const simulatedRsi = 40 + Math.sin(idx * 0.3) * 22;
-          const y = subH - (simulatedRsi / 100) * subH;
-          if (idx === 0) subCtx.moveTo(x, y);
-          else subCtx.lineTo(x, y);
+        [30, 70].forEach(level => {
+          sctx.strokeStyle = '#334155'; sctx.setLineDash([4, 3]); sctx.lineWidth = 1;
+          sctx.beginPath(); sctx.moveTo(0, subY(level, 0, 100)); sctx.lineTo(pw, subY(level, 0, 100)); sctx.stroke();
+          sctx.setLineDash([]);
+          sctx.fillStyle = '#64748b'; sctx.fillText(level, pw + 6, subY(level, 0, 100));
         });
-        subCtx.stroke();
+        subLine(ind.rsi, 0, 100, '#06b6d4', 1.8);
       } else if (chartState.subChart === 'volume') {
-        candles.forEach((c, idx) => {
-          const x = idx * step + step / 2;
-          const barH = (c.volume / maxVol) * (subH * 0.85);
-          const isBull = c.close >= c.open;
-          subCtx.fillStyle = isBull ? 'rgba(16, 185, 129, 0.65)' : 'rgba(244, 63, 94, 0.65)';
-          subCtx.fillRect(x - candleW / 2, subH - barH, candleW, barH);
+        let maxVol = 0;
+        candles.forEach(c => { if (c.volume > maxVol) maxVol = c.volume; });
+        maxVol = maxVol || 1;
+        candles.forEach((c, i) => {
+          const barH = (c.volume / maxVol) * (subH - sPadT - sPadB);
+          sctx.fillStyle = c.close >= c.open ? 'rgba(16,185,129,0.65)' : 'rgba(244,63,94,0.65)';
+          sctx.fillRect(xOf(i) - candleW / 2, subH - sPadB - barH, candleW, barH);
         });
+        subLine(ind.volMa20, 0, maxVol, '#f59e0b', 1.4);
+        sctx.fillStyle = '#64748b'; sctx.fillText(fmtVol(maxVol), pw + 6, sPadT);
       } else {
-        // MACD Histogram
-        candles.forEach((c, idx) => {
-          const x = idx * step + step / 2;
-          const macdVal = Math.sin(idx * 0.35) * 2.5;
-          const barH = Math.abs(macdVal) * 8;
-          subCtx.fillStyle = macdVal >= 0 ? '#10b981' : '#f43f5e';
-          if (macdVal >= 0) subCtx.fillRect(x - 2, subH / 2 - barH, 4, barH);
-          else subCtx.fillRect(x - 2, subH / 2, 4, barH);
-        });
+        let maxAbs = 0.0001;
+        for (let i = 0; i < n; i++) {
+          [ind.macd.macd[start + i], ind.macd.signal[start + i], ind.macd.hist[start + i]].forEach(v => {
+            if (v !== null && Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
+          });
+        }
+        const zeroY = subY(0, -maxAbs, maxAbs);
+        sctx.strokeStyle = '#334155'; sctx.lineWidth = 1;
+        sctx.beginPath(); sctx.moveTo(0, zeroY); sctx.lineTo(pw, zeroY); sctx.stroke();
+        for (let i = 0; i < n; i++) {
+          const v = ind.macd.hist[start + i]; if (v === null) continue;
+          sctx.fillStyle = v >= 0 ? 'rgba(16,185,129,0.65)' : 'rgba(244,63,94,0.65)';
+          const y = subY(v, -maxAbs, maxAbs);
+          sctx.fillRect(xOf(i) - Math.max(1, candleW / 2), Math.min(y, zeroY), Math.max(2, candleW), Math.abs(y - zeroY));
+        }
+        subLine(ind.macd.macd, -maxAbs, maxAbs, '#06b6d4');
+        subLine(ind.macd.signal, -maxAbs, maxAbs, '#f59e0b');
       }
 
-      // Update HUD with latest candle
-      const last = candles[candles.length - 1];
-      document.getElementById('hudDate').textContent = `DATE: ${last.date}`;
-      document.getElementById('hudOpen').textContent = `$${last.open.toFixed(2)}`;
-      document.getElementById('hudHigh').textContent = `$${last.high.toFixed(2)}`;
-      document.getElementById('hudLow').textContent = `$${last.low.toFixed(2)}`;
-      document.getElementById('hudClose').textContent = `$${last.close.toFixed(2)}`;
-      document.getElementById('hudVol').textContent = `${(last.volume / 1000000).toFixed(1)}M`;
-      document.getElementById('hudRsi').textContent = currentAnalysisData.rsi;
-      document.getElementById('hudSma20').textContent = `$${(last.close * 0.98).toFixed(2)}`;
-      document.getElementById('hudSma50').textContent = `$${(last.close * 0.94).toFixed(2)}`;
-      document.getElementById('hudSma200').textContent = `$${(last.close * 0.88).toFixed(2)}`;
+      // ---- crosshair ----
+      const idx = (hoverIdx !== null && hoverIdx >= 0 && hoverIdx < n) ? hoverIdx : null;
+      if (idx !== null) {
+        const x = xOf(idx);
+        const c = candles[idx];
+        [[mctx, h], [sctx, subH]].forEach(([ctx, hh]) => {
+          ctx.strokeStyle = 'rgba(148,163,184,0.6)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, hh); ctx.stroke(); ctx.setLineDash([]);
+        });
+        const cy = yOf(c.close);
+        mctx.strokeStyle = 'rgba(148,163,184,0.4)'; mctx.setLineDash([3, 3]);
+        mctx.beginPath(); mctx.moveTo(0, cy); mctx.lineTo(pw, cy); mctx.stroke(); mctx.setLineDash([]);
+      }
+
+      updateChartHud(start + (idx !== null ? idx : n - 1));
+    }
+
+    function updateChartHud(absIdx) {
+      const history = currentAnalysisData.history;
+      const ind = currentAnalysisData.ind;
+      const c = history[absIdx];
+      if (!c) return;
+      const prev = absIdx > 0 ? history[absIdx - 1].close : c.open;
+      const chg = prev ? ((c.close - prev) / prev) * 100 : 0;
+      const money = v => (v === null || v === undefined) ? '--' : `$${v.toFixed(2)}`;
+
+      document.getElementById('hudDate').textContent = `DATE: ${c.date}`;
+      document.getElementById('hudOpen').textContent = money(c.open);
+      document.getElementById('hudHigh').textContent = money(c.high);
+      document.getElementById('hudLow').textContent = money(c.low);
+      document.getElementById('hudClose').textContent = money(c.close);
+      const chgEl = document.getElementById('hudChange');
+      chgEl.textContent = `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`;
+      chgEl.className = `font-bold ${chg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      document.getElementById('hudVol').textContent = fmtVol(c.volume);
+      document.getElementById('hudSma20').textContent = money(ind.sma20[absIdx]);
+      document.getElementById('hudSma50').textContent = money(ind.sma50[absIdx]);
+      document.getElementById('hudSma200').textContent = money(ind.sma200[absIdx]);
+      document.getElementById('hudRsi').textContent = ind.rsi[absIdx] === null ? '--' : ind.rsi[absIdx].toFixed(1);
+    }
+
+    let hoverFrame = null;
+    function handleChartPointer(clientX) {
+      if (!chartGeom) return;
+      const rect = document.getElementById('mainCandleCanvas').getBoundingClientRect();
+      const x = clientX - rect.left;
+      let idx = Math.floor(x / (chartGeom.pw / chartGeom.n));
+      idx = (x < 0 || x > chartGeom.pw) ? null : Math.min(chartGeom.n - 1, Math.max(0, idx));
+      if (idx === chartState.hoverIndex) return;
+      chartState.hoverIndex = idx;
+      if (hoverFrame) cancelAnimationFrame(hoverFrame);
+      hoverFrame = requestAnimationFrame(() => drawChart(chartState.hoverIndex));
+    }
+
+    function initChartInteraction() {
+      const box = document.getElementById('proChartContainer');
+      if (!box) return;
+      box.addEventListener('mousemove', e => handleChartPointer(e.clientX));
+      box.addEventListener('mouseleave', () => { chartState.hoverIndex = null; drawChart(null); });
+      box.addEventListener('touchmove', e => { if (e.touches[0]) handleChartPointer(e.touches[0].clientX); }, { passive: true });
+      box.addEventListener('touchend', () => { chartState.hoverIndex = null; drawChart(null); });
     }
 
     function renderMiniTrendPreview() {
@@ -2264,18 +2646,21 @@ Return STRICT JSON ONLY format:
       const ctx = canvas.getContext('2d');
       const w = canvas.parentElement.clientWidth;
       const h = canvas.parentElement.clientHeight;
+      if (!w || !h) return;
       canvas.width = w;
       canvas.height = h;
 
       ctx.clearRect(0, 0, w, h);
       const history = currentAnalysisData.history;
-      if (!history || history.length === 0) return;
+      if (!history || history.length < 2) return;
 
       let min = Infinity, max = -Infinity;
       history.forEach(hItem => {
         if (hItem.close < min) min = hItem.close;
         if (hItem.close > max) max = hItem.close;
       });
+      const range = (max - min) || 1;
+      const yOf = v => h - ((v - min) / range) * (h - 20) - 10;
 
       const grad = ctx.createLinearGradient(0, 0, 0, h);
       grad.addColorStop(0, 'rgba(6, 182, 212, 0.35)');
@@ -2284,23 +2669,17 @@ Return STRICT JSON ONLY format:
       ctx.beginPath();
       history.forEach((pt, i) => {
         const x = (i / (history.length - 1)) * w;
-        const y = h - ((pt.close - min) / (max - min)) * (h - 20) - 10;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        if (i === 0) ctx.moveTo(x, yOf(pt.close)); else ctx.lineTo(x, yOf(pt.close));
       });
-
       ctx.lineTo(w, h);
       ctx.lineTo(0, h);
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Top line
       ctx.beginPath();
       history.forEach((pt, i) => {
         const x = (i / (history.length - 1)) * w;
-        const y = h - ((pt.close - min) / (max - min)) * (h - 20) - 10;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        if (i === 0) ctx.moveTo(x, yOf(pt.close)); else ctx.lineTo(x, yOf(pt.close));
       });
       ctx.strokeStyle = '#06b6d4';
       ctx.lineWidth = 2.5;
@@ -2339,46 +2718,87 @@ Return STRICT JSON ONLY format:
       input.focus();
     }
 
-    function handleExpertQuestion(e) {
+    const CHAT_PERSONAS = {
+      roundtable: { label: '5인의 위원회 종합 결론', prompt: '데이비드(해자/장기성장), 빅터(차트), 클라라(가치평가), 마커스(매크로), 소피아(수급) 5명이 각자 2문장 이내로 의견을 말하고, 마지막에 "종합 결론:" 한 줄로 정리하세요.' },
+      david: { label: '데이비드 (해자 & 성장)', prompt: 'Motley Fool 스타일의 해자·장기 성장 분석가 데이비드로서 답하세요.' },
+      victor: { label: '빅터 (차트 & 기술)', prompt: 'Finviz 스타일의 기술적 분석가 빅터로서 답하세요.' },
+      clara: { label: '클라라 (가치 & DCF)', prompt: 'DCF·가치평가 애널리스트 클라라로서 답하세요.' },
+      marcus: { label: '마커스 (매크로 & 리스크)', prompt: '매크로·지정학 리스크 매니저 마커스로서 답하세요.' },
+      sophia: { label: '소피아 (수급 & 숏)', prompt: '퀀트·공매도·수급 전문가 소피아로서 답하세요.' }
+    };
+
+    function templateAnswer(target, d, question) {
+      const rsi = fmtNum(d.rsi), pe = fmtNum(d.pe), sf = fmtNum(d.shortFloat, null, '%');
+      const lines = {
+        david: `${d.name}의 장기 경쟁력은 정량 지표만으로 판단하기 어렵습니다. 현재 ROE ${fmtNum(d.roe, null, '%')}, 섹터 ${d.sector}. 사업 구조와 해자는 Gemini 연결 시 최신 정보로 답변드릴 수 있습니다.`,
+        victor: `RSI ${rsi}, 20일선 ${d.sma20Diff}, 50일선 ${d.sma50Diff}, 200일선 ${d.sma200Diff}. ${d.sma20Diff !== 'N/A' && isPositivePct(d.sma20Diff) ? '단기 추세는 20일선 위에 있습니다.' : '단기 추세는 20일선 아래라 반등 확인이 필요합니다.'}`,
+        clara: `현재 P/E ${pe}, PEG ${fmtNum(d.peg)}입니다. 적정가 산출에는 현금흐름 가정이 필요해 자동 응답으로는 숫자를 제시하지 않습니다.${d.targetAvg !== null ? ` 참고로 애널리스트 평균 목표가는 $${d.targetAvg}입니다.` : ''}`,
+        marcus: `금리·환율·원자재 등 거시 변수가 ${d.name}의 마진에 주는 영향을 점검해야 합니다. 구체적 시나리오는 Gemini 연결 시 최신 뉴스와 함께 제공됩니다.`,
+        sophia: `Short Float ${sf}. 거래량이 20일 평균 대비 급증하는지 차트의 거래량 탭에서 확인해 보세요.`
+      };
+      if (target === 'roundtable') {
+        return Object.values(lines).join('\n') + '\n\n종합 결론: 개별 지표를 확인한 뒤 분할 접근을 고려하되, 최종 판단은 본인의 몫입니다.';
+      }
+      return lines[target];
+    }
+
+    function appendChatBubble(role, label, text) {
+      const box = document.getElementById('expertChatHistory');
+      const wrap = document.createElement('div');
+      wrap.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
+      const bubble = document.createElement('div');
+      bubble.className = role === 'user'
+        ? 'bg-cyan-950/80 border border-cyan-700/60 text-slate-100 rounded-xl px-4 py-2.5 max-w-lg text-xs leading-relaxed'
+        : 'bg-slate-900 border border-slate-700 text-slate-200 rounded-xl px-4 py-3 max-w-lg text-xs leading-relaxed space-y-1 shadow';
+      const lab = document.createElement('span');
+      lab.className = role === 'user' ? 'font-bold text-cyan-300 block mb-0.5' : 'font-bold text-amber-300 block';
+      lab.textContent = label;
+      const body = document.createElement('p');
+      body.className = 'whitespace-pre-wrap';
+      body.textContent = text;
+      bubble.appendChild(lab);
+      bubble.appendChild(body);
+      wrap.appendChild(bubble);
+      box.appendChild(wrap);
+      box.scrollTop = box.scrollHeight;
+      return body;
+    }
+
+    async function handleExpertQuestion(e) {
       e.preventDefault();
       const input = document.getElementById('expertQuestionInput');
       const question = input.value.trim();
-      if (!question || !currentAnalysisData) return;
-
-      const historyBox = document.getElementById('expertChatHistory');
-      const userBubble = document.createElement('div');
-      userBubble.className = 'flex justify-end';
-      userBubble.innerHTML = `
-        <div class="bg-cyan-950/80 border border-cyan-700/60 text-slate-100 rounded-xl px-4 py-2.5 max-w-lg text-xs leading-relaxed">
-          <span class="font-bold text-cyan-300 block mb-0.5">투자자 질문:</span>
-          ${question}
-        </div>
-      `;
-      historyBox.appendChild(userBubble);
+      if (!question) return;
+      if (!currentAnalysisData) {
+        showToast('분석 필요', '먼저 종목 분석을 실행해 주세요.', 'info');
+        return;
+      }
+      const d = currentAnalysisData;
+      const persona = CHAT_PERSONAS[activeChatTarget] || CHAT_PERSONAS.roundtable;
       input.value = '';
+      appendChatBubble('user', '투자자 질문:', question);
 
-      // Generate simulated expert answer
-      const aiBubble = document.createElement('div');
-      aiBubble.className = 'flex justify-start';
-      const targetNames = {
-        'roundtable': '5인의 위원회 종합 결론',
-        'david': '데이비드 (해자 & 성장)',
-        'victor': '빅터 (차트 & 기술)',
-        'clara': '클라라 (가치 & DCF)',
-        'marcus': '마커스 (매크로 & 리스크)',
-        'sophia': '소피아 (수급 & 숏)'
-      };
+      if (!getStoredApiKey('gemini_key')) {
+        appendChatBubble('ai', persona.label + ' (지표 기반 자동 응답)', templateAnswer(activeChatTarget, d, question));
+        return;
+      }
 
-      aiBubble.innerHTML = `
-        <div class="bg-slate-900 border border-slate-700 text-slate-200 rounded-xl px-4 py-3 max-w-lg text-xs leading-relaxed space-y-1 shadow">
-          <span class="font-bold text-amber-300 block"><i class="fa-solid fa-robot mr-1"></i>${targetNames[activeChatTarget]}:</span>
-          <p>
-            ${currentAnalysisData.ticker}의 현재 주가($${currentAnalysisData.price})와 Finviz 지표(P/E ${currentAnalysisData.pe}, RSI ${currentAnalysisData.rsi})를 감안할 때, "${question}"에 대해 5인 위원회는 단기적인 지지선($${currentAnalysisData.targetMin}) 방어 확인 후 분할 매수 접근이 가장 합리적인 전략이라고 판단합니다.
-          </p>
-        </div>
-      `;
-      historyBox.appendChild(aiBubble);
-      historyBox.scrollTop = historyBox.scrollHeight;
+      const bodyEl = appendChatBubble('ai', persona.label, '답변 생성 중...');
+      const sendBtn = document.getElementById('sendQuestionBtn');
+      sendBtn.disabled = true;
+      const prompt = `${persona.prompt}
+종목: ${d.name} (${d.ticker}), 현재가 $${d.price} (${d.change}), 52주 구간 데이터 기준.
+지표: P/E ${fmtNum(d.pe)}, PEG ${fmtNum(d.peg)}, ROE ${fmtNum(d.roe, null, '%')}, Short Float ${fmtNum(d.shortFloat, null, '%')}, RSI ${fmtNum(d.rsi)}, SMA20 ${d.sma20Diff}, SMA50 ${d.sma50Diff}, SMA200 ${d.sma200Diff}, 애널리스트 목표가 ${d.targetAvg !== null ? '$' + d.targetAvg : '없음'}.
+위 숫자 외의 수치는 지어내지 말고, 모르면 모른다고 답하세요. 한국어로 간결하게(최대 8문장) 답하고, 투자 권유가 아님을 마지막에 한 줄로 밝히세요.
+질문: ${question}`;
+      const r = await callGemini(prompt, { grounding: true });
+      sendBtn.disabled = false;
+      if (!r || r.error) {
+        bodyEl.textContent = `Gemini 호출 실패${r?.error ? ` (${r.error})` : ''}. 지표 기반 자동 응답으로 대체합니다.\n\n` + templateAnswer(activeChatTarget, d, question);
+      } else {
+        bodyEl.textContent = r.text.trim() || '(빈 응답)';
+      }
+      document.getElementById('expertChatHistory').scrollTop = document.getElementById('expertChatHistory').scrollHeight;
     }
 
     function generateAudioBriefing() {
@@ -2390,7 +2810,7 @@ Return STRICT JSON ONLY format:
       if ('speechSynthesis' in window) {
         audioStatus.textContent = '브라우저 음성 엔진으로 브리핑 재생 중...';
         const msg = new SpeechSynthesisUtterance();
-        msg.text = `PentAnalyst 모닝 브리핑입니다. 분석 종목은 ${currentAnalysisData.name}, 티커는 ${currentAnalysisData.ticker}입니다. 현재 주가는 ${currentAnalysisData.price} 달러이며, 5인 전문가 종합 컨센서스는 ${currentAnalysisData.consensus}입니다. 5인 평균 목표 주가는 ${currentAnalysisData.targetAvg} 달러입니다.`;
+        msg.text = `PentAnalyst 모닝 브리핑입니다. 분석 종목은 ${currentAnalysisData.name}, 티커는 ${currentAnalysisData.ticker}입니다. 현재 주가는 ${currentAnalysisData.price} 달러이며, 5인 전문가 종합 컨센서스는 ${currentAnalysisData.consensus}입니다. ${currentAnalysisData.targetAvg !== null ? `애널리스트 평균 목표 주가는 ${currentAnalysisData.targetAvg} 달러입니다.` : '목표 주가 데이터는 없습니다.'}`;
         msg.lang = 'ko-KR';
         msg.rate = 1.0;
         window.speechSynthesis.cancel();
@@ -2444,9 +2864,9 @@ Return STRICT JSON ONLY format:
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 20px Inter, sans-serif';
         ctx.fillText(`현재가: $${currentAnalysisData.price}`, 40, 160);
-        ctx.fillText(`5인 목표가: $${currentAnalysisData.targetAvg}`, 40, 200);
-        ctx.fillText(`P/E: ${currentAnalysisData.pe} | PEG: ${currentAnalysisData.peg}`, 40, 240);
-        ctx.fillText(`RSI: ${currentAnalysisData.rsi} | ROE: ${currentAnalysisData.roe}%`, 40, 280);
+        ctx.fillText(`목표가: ${currentAnalysisData.targetAvg !== null ? '$' + currentAnalysisData.targetAvg : 'N/A'}`, 40, 200);
+        ctx.fillText(`P/E: ${fmtNum(currentAnalysisData.pe)} | PEG: ${fmtNum(currentAnalysisData.peg)}`, 40, 240);
+        ctx.fillText(`RSI: ${fmtNum(currentAnalysisData.rsi)} | ROE: ${fmtNum(currentAnalysisData.roe, null, '%')}`, 40, 280);
         ctx.fillText(`컨센서스: ${currentAnalysisData.consensus}`, 40, 320);
 
         // Bull thesis preview
@@ -2481,7 +2901,8 @@ Return STRICT JSON ONLY format:
       sortBy: 'marketCapVal',
       sortDir: 'desc',
       searchKeyword: '',
-      currentCategory: 'ALL'
+      currentCategory: 'ALL',
+      extra: { sectors: null, minRoe: null }
     };
 
     // Comprehensive US Large/Mega/Mid-Cap Database (60+ S&P 500 & Nasdaq Leaders + JVA)
@@ -2554,6 +2975,36 @@ Return STRICT JSON ONLY format:
       { ticker: "RTX", name: "RTX Corporation", sector: "Energy", capCategory: "LARGE", marketCapVal: 160, marketCap: "$160B", price: 121.00, change: "+1.10%", pe: 32.0, peg: 2.05, roe: 12.5, shortFloat: 0.85, rsi: 57.0, sma20Diff: "+2.5%", consensus: "BUY" }
     ];
 
+    function capCategoryFromVal(billions) {
+      if (!Number.isFinite(billions)) return 'LARGE';
+      if (billions >= 200) return 'MEGA';
+      if (billions >= 10) return 'LARGE';
+      if (billions >= 2) return 'MID';
+      return 'MICRO';
+    }
+    // 시가총액 수치와 분류가 어긋나지 않도록 일괄 재계산
+    SCREENER_MASTER_DATA.forEach(s => { s.capCategory = capCategoryFromVal(s.marketCapVal); });
+
+    function mapYahooSector(sector, industry) {
+      const s = String(sector || ''), i = String(industry || '');
+      if (/semiconductor/i.test(i)) return 'Semiconductors';
+      if (/auto/i.test(i)) return 'Automotive';
+      if (/Technology/i.test(s)) return 'Tech';
+      if (/Healthcare/i.test(s)) return 'Healthcare';
+      if (/Financial/i.test(s)) return 'Finance';
+      if (/Consumer/i.test(s)) return 'Consumer';
+      if (/Energy|Industrial|Utilities|Basic Materials|Real Estate/i.test(s)) return 'Energy';
+      if (/Communication/i.test(s)) return 'Communication';
+      return 'Tech';
+    }
+
+    function formatMarketCap(billions) {
+      if (!Number.isFinite(billions)) return 'N/A';
+      if (billions >= 1000) return `$${(billions / 1000).toFixed(1)}T`;
+      if (billions >= 1) return `$${billions.toFixed(0)}B`;
+      return `$${(billions * 1000).toFixed(0)}M`;
+    }
+
     // Screener Live Search Handler
     function handleScreenerLiveSearch() {
       const keyword = document.getElementById('screenerSearchKeyword').value.trim().toUpperCase();
@@ -2562,15 +3013,16 @@ Return STRICT JSON ONLY format:
       runScreenerFilter();
     }
 
-    function addCustomTickerToScreener() {
+    // 실제 시세·재무(프록시)를 조회해 스크리너에 등록. 조회에 실패하면 가짜 데이터를 만들지 않고 안내만 한다.
+    async function addCustomTickerToScreener() {
       const input = document.getElementById('screenerSearchKeyword');
-      const ticker = input.value.trim().toUpperCase();
-      if (!ticker) {
+      const raw = input.value.trim();
+      if (!raw) {
         showToast("입력 필요", "추가할 미국 주식 티커를 입력해주세요.", "info");
         return;
       }
+      const ticker = resolveTickerInput(raw);
 
-      // Check if already in database
       const existing = SCREENER_MASTER_DATA.find(s => s.ticker === ticker);
       if (existing) {
         showToast("이미 등록됨", `${ticker}는 이미 스크리너 데이터베이스에 포함되어 있습니다.`, "info");
@@ -2580,25 +3032,34 @@ Return STRICT JSON ONLY format:
         return;
       }
 
-      // Dynamically generate procedural data for custom ticker and unshift to top
-      const base = generateDynamicStockData(ticker);
-      const isPos = base.change.startsWith('+');
+      showToast("조회 중", `${ticker}의 실시간 시세를 조회하고 있습니다...`, "info");
+      const [market, f] = await Promise.all([fetchRealYahooFinanceData(ticker), fetchFundamentals(ticker)]);
+      if (!market || market.notFound) {
+        showToast("등록 실패", market && market.notFound
+          ? `"${ticker}" 종목을 찾을 수 없습니다.`
+          : "실시간 시세를 가져오지 못했습니다. 설정에서 자체 프록시를 연결해 주세요.", "error");
+        return;
+      }
+
+      const tech = calculateRealIndicators(market.history);
+      const fx = f || {};
+      const mcapB = Number.isFinite(fx.marketCap) ? fx.marketCap / 1e9 : null;
       const newEntry = {
-        ticker: base.ticker,
-        name: base.name,
-        sector: "Tech",
-        capCategory: "LARGE",
-        marketCapVal: 85,
-        marketCap: "$85B",
-        price: parseFloat(base.price),
-        change: base.change,
-        pe: parseFloat(base.pe),
-        peg: parseFloat(base.peg),
-        roe: parseFloat(base.roe),
-        shortFloat: parseFloat(base.shortFloat),
-        rsi: parseFloat(base.rsi),
-        sma20Diff: base.sma20Diff,
-        consensus: base.consensus
+        ticker: market.ticker,
+        name: fx.name || market.name,
+        sector: mapYahooSector(fx.sector, fx.industry),
+        capCategory: capCategoryFromVal(mcapB),
+        marketCapVal: mcapB ?? 0,
+        marketCap: formatMarketCap(mcapB),
+        price: market.price,
+        change: market.change,
+        pe: pick(fx.pe),
+        peg: pick(fx.peg),
+        roe: pick(fx.roe),
+        shortFloat: pick(fx.shortFloat),
+        rsi: tech.rsi,
+        sma20Diff: tech.sma20Diff,
+        consensus: fx.consensus || 'N/A'
       };
 
       SCREENER_MASTER_DATA.unshift(newEntry);
@@ -2606,7 +3067,7 @@ Return STRICT JSON ONLY format:
       screenerState.searchKeyword = '';
       screenerState.page = 1;
       runScreenerFilter();
-      showToast("종목 추가 완료", `${ticker}의 Finviz 메트릭 및 5인 의견이 스크리너에 등록되었습니다!`, "success");
+      showToast("종목 추가 완료", `${ticker}의 실시간 지표가 스크리너에 등록되었습니다.`, "success");
     }
 
     function loadThemedStocks(theme) {
@@ -2616,16 +3077,17 @@ Return STRICT JSON ONLY format:
       screenerState.page = 1;
 
       if (theme === 'TECH') {
-        document.getElementById('filterSector').value = 'Semiconductors';
+        screenerState.extra.sectors = ['Tech', 'Semiconductors'];
         showToast("테마 로드", "빅테크 및 반도체 섹터 주식을 불러왔습니다.", "info");
       } else if (theme === 'VALUE') {
         document.getElementById('filterPE').value = 'UNDER_25';
-        showToast("테마 로드", "P/E 25배 미만의 저평가 가치/금융주를 정렬했습니다.", "info");
+        screenerState.extra.sectors = ['Finance', 'Consumer'];
+        showToast("테마 로드", "P/E 25배 미만의 금융/필수소비재 가치주를 불러왔습니다.", "info");
       } else if (theme === 'GROWTH') {
         document.getElementById('filterSMA20').value = 'ABOVE';
         showToast("테마 로드", "20일선 위에서 질주 중인 모멘텀 성장주를 불러왔습니다.", "info");
       } else {
-        showToast("전체 로드", "미국 주요 S&P 500 & 나스닥 리더 60+개 전종목을 표시합니다.", "info");
+        showToast("전체 로드", "스크리너에 등록된 전종목을 표시합니다.", "info");
       }
       runScreenerFilter();
     }
@@ -2638,7 +3100,6 @@ Return STRICT JSON ONLY format:
         screenerState.sortDir = (column === 'ticker' || column === 'name' || column === 'sector') ? 'asc' : 'desc';
       }
 
-      // Update sort arrow icons
       ['ticker', 'name', 'sector', 'price', 'change', 'pe', 'peg', 'roe', 'shortFloat', 'rsi'].forEach(col => {
         const el = document.getElementById(`sort-${col}`);
         if (el) {
@@ -2675,38 +3136,51 @@ Return STRICT JSON ONLY format:
       const shortFloat = document.getElementById('filterShortFloat').value;
       const sma20 = document.getElementById('filterSMA20').value;
       const kw = screenerState.searchKeyword;
+      const extra = screenerState.extra;
+      const has = v => Number.isFinite(v);
 
-      // 1. Filter
       let filtered = SCREENER_MASTER_DATA.filter(item => {
-        // Keyword Search
         if (kw) {
           const matchTicker = item.ticker.toUpperCase().includes(kw);
-          const matchName = item.name.toUpperCase().includes(kw);
+          const matchName = String(item.name || '').toUpperCase().includes(kw);
           if (!matchTicker && !matchName) return false;
         }
 
         if (sector !== 'ALL' && item.sector !== sector) return false;
         if (cap !== 'ALL' && item.capCategory !== cap) return false;
+        if (extra.sectors && !extra.sectors.includes(item.sector)) return false;
+        if (extra.minRoe !== null && !(has(item.roe) && item.roe >= extra.minRoe)) return false;
 
-        if (pe === 'UNDER_25' && item.pe >= 25) return false;
-        if (pe === '25_TO_50' && (item.pe < 25 || item.pe > 50)) return false;
-        if (pe === 'OVER_50' && item.pe <= 50) return false;
+        if (pe !== 'ALL') {
+          if (!has(item.pe)) return false;
+          if (pe === 'UNDER_25' && item.pe >= 25) return false;
+          if (pe === '25_TO_50' && (item.pe < 25 || item.pe > 50)) return false;
+          if (pe === 'OVER_50' && item.pe <= 50) return false;
+        }
 
-        if (rsi === 'OVERSOLD' && item.rsi >= 45) return false;
-        if (rsi === 'NEUTRAL' && (item.rsi < 45 || item.rsi > 60)) return false;
-        if (rsi === 'OVERBOUGHT' && item.rsi <= 60) return false;
+        if (rsi !== 'ALL') {
+          if (!has(item.rsi)) return false;
+          if (rsi === 'OVERSOLD' && item.rsi >= 45) return false;
+          if (rsi === 'NEUTRAL' && (item.rsi < 45 || item.rsi > 60)) return false;
+          if (rsi === 'OVERBOUGHT' && item.rsi <= 60) return false;
+        }
 
-        if (shortFloat === 'LOW' && item.shortFloat >= 2.0) return false;
-        if (shortFloat === 'HIGH' && item.shortFloat <= 3.0) return false;
+        if (shortFloat !== 'ALL') {
+          if (!has(item.shortFloat)) return false;
+          if (shortFloat === 'LOW' && item.shortFloat >= 2.0) return false;
+          if (shortFloat === 'HIGH' && item.shortFloat <= 3.0) return false;
+        }
 
-        const isAbove20 = item.sma20Diff.startsWith('+');
-        if (sma20 === 'ABOVE' && !isAbove20) return false;
-        if (sma20 === 'BELOW' && isAbove20) return false;
+        if (sma20 !== 'ALL') {
+          if (item.sma20Diff === 'N/A') return false;
+          const isAbove20 = isPositivePct(item.sma20Diff);
+          if (sma20 === 'ABOVE' && !isAbove20) return false;
+          if (sma20 === 'BELOW' && isAbove20) return false;
+        }
 
         return true;
       });
 
-      // 2. Sort
       const col = screenerState.sortBy;
       const dir = screenerState.sortDir === 'asc' ? 1 : -1;
 
@@ -2715,17 +3189,21 @@ Return STRICT JSON ONLY format:
         let valB = b[col];
 
         if (col === 'change') {
-          valA = parseFloat(a.change.replace('%', ''));
-          valB = parseFloat(b.change.replace('%', ''));
+          valA = parseFloat(String(a.change).replace('%', ''));
+          valB = parseFloat(String(b.change).replace('%', ''));
         }
 
-        if (typeof valA === 'string') {
+        if (typeof valA === 'string' && typeof valB === 'string') {
           return valA.localeCompare(valB) * dir;
         }
-        return ((valA || 0) - (valB || 0)) * dir;
+        // 값이 없는 항목(null)은 항상 맨 아래로
+        const na = !Number.isFinite(valA), nb = !Number.isFinite(valB);
+        if (na && nb) return 0;
+        if (na) return 1;
+        if (nb) return -1;
+        return (valA - valB) * dir;
       });
 
-      // 3. Paginate
       const totalCount = filtered.length;
       const pageSize = screenerState.pageSize;
       const totalPages = Math.ceil(totalCount / pageSize) || 1;
@@ -2747,7 +3225,6 @@ Return STRICT JSON ONLY format:
       const endIdx = Math.min(startIndex + stocks.length, totalCount);
       paginationInfo.textContent = `${totalCount === 0 ? 0 : startIndex + 1}-${endIdx} / 총 ${totalCount}개 종목`;
 
-      // Render Pagination Buttons
       let pageBtnsHtml = '';
       if (totalPages > 1) {
         pageBtnsHtml += `
@@ -2784,51 +3261,57 @@ Return STRICT JSON ONLY format:
               <i class="fa-solid fa-magnifying-glass text-2xl mb-2 text-cyan-400 block animate-bounce"></i>
               일치하는 종목이 없습니다.
               <br class="hidden sm:block">
-              상단 검색창에 티커를 입력하고 <strong class="text-cyan-300">[스크리너에 종목 등록]</strong>을 누르면 어떤 미국 주식이든 즉시 추가할 수 있습니다.
+              상단 검색창에 티커를 입력하고 <strong class="text-cyan-300">[스크리너에 종목 등록]</strong>을 누르면 실시간 시세를 조회해 추가합니다. (자체 프록시 필요)
             </td>
           </tr>
         `;
         return;
       }
 
+      const dash = '<span class="text-slate-600">—</span>';
+      const has = v => Number.isFinite(v);
+
       tbody.innerHTML = stocks.map(stock => {
-        const isPos = stock.change.startsWith('+');
-        const above20 = stock.sma20Diff.startsWith('+');
+        const isPos = isPositivePct(stock.change);
+        const above20 = isPositivePct(stock.sma20Diff);
+        const t = escapeHtml(stock.ticker);
 
         let consensusBadge = 'bg-slate-800 text-slate-300 border-slate-700';
-        if (stock.consensus.includes('STRONG BUY')) {
+        const cons = String(stock.consensus || 'N/A');
+        if (cons.includes('STRONG BUY')) {
           consensusBadge = 'bg-emerald-950 text-emerald-300 border-emerald-800 font-bold';
-        } else if (stock.consensus.includes('BUY')) {
+        } else if (cons.includes('BUY')) {
           consensusBadge = 'bg-cyan-950 text-cyan-300 border-cyan-800 font-semibold';
-        } else if (stock.consensus.includes('HOLD')) {
+        } else if (cons.includes('HOLD')) {
           consensusBadge = 'bg-amber-950 text-amber-300 border-amber-800 font-medium';
         }
 
         return `
-          <tr class="hover:bg-slate-900/60 transition group cursor-pointer" onclick="selectScreenerStock('${stock.ticker}')">
+          <tr class="hover:bg-slate-900/60 transition group cursor-pointer" data-ticker="${t}" onclick="selectScreenerStock(this.dataset.ticker)">
             <td class="py-3 px-3 border-r border-slate-800 font-bold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-1.5">
-              <span>${stock.ticker}</span>
-              <span class="text-[10px] text-slate-500">(${stock.marketCap})</span>
+              <span>${t}</span>
+              <span class="text-[10px] text-slate-500">(${escapeHtml(stock.marketCap)})</span>
             </td>
-            <td class="py-3 px-3 border-r border-slate-800 text-white font-sans text-xs whitespace-nowrap">${stock.name}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-slate-400 font-sans text-[11px] whitespace-nowrap">${stock.sector}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right font-bold text-white">$${stock.price.toFixed(2)}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}">${stock.change}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${stock.pe < 25 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${stock.pe}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${stock.peg < 1.5 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${stock.peg}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${stock.roe > 25 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${stock.roe}%</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${stock.shortFloat > 3.0 ? 'text-rose-400 font-bold' : 'text-slate-300'}">${stock.shortFloat}%</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${stock.rsi > 60 ? 'text-amber-400' : (stock.rsi < 45 ? 'text-cyan-400 font-bold' : 'text-slate-300')}">${stock.rsi}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-center font-bold ${above20 ? 'text-emerald-400' : 'text-rose-400'}">${stock.sma20Diff}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-white font-sans text-xs whitespace-nowrap">${escapeHtml(stock.name)}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-slate-400 font-sans text-[11px] whitespace-nowrap">${escapeHtml(stock.sector)}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right font-bold text-white">$${Number(stock.price).toFixed(2)}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(stock.change)}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.pe) && stock.pe < 25 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${has(stock.pe) ? stock.pe : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.peg) && stock.peg < 1.5 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${has(stock.peg) ? stock.peg : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.roe) && stock.roe > 25 ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${has(stock.roe) ? stock.roe + '%' : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.shortFloat) && stock.shortFloat > 3.0 ? 'text-rose-400 font-bold' : 'text-slate-300'}">${has(stock.shortFloat) ? stock.shortFloat + '%' : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-right ${has(stock.rsi) ? (stock.rsi > 60 ? 'text-amber-400' : (stock.rsi < 45 ? 'text-cyan-400 font-bold' : 'text-slate-300')) : 'text-slate-300'}">${has(stock.rsi) ? stock.rsi : dash}</td>
+            <td class="py-3 px-3 border-r border-slate-800 text-center font-bold ${stock.sma20Diff === 'N/A' ? 'text-slate-500' : (above20 ? 'text-emerald-400' : 'text-rose-400')}">${escapeHtml(stock.sma20Diff)}</td>
             <td class="py-3 px-3 border-r border-slate-800 text-center">
               <span class="px-2 py-0.5 rounded text-[10px] border ${consensusBadge} whitespace-nowrap">
-                ${stock.consensus}
+                ${escapeHtml(cons)}
               </span>
             </td>
             <td class="py-3 px-3 text-center">
               <button
                 type="button"
-                onclick="event.stopPropagation(); selectScreenerStock('${stock.ticker}')"
+                data-ticker="${t}"
+                onclick="event.stopPropagation(); selectScreenerStock(this.dataset.ticker)"
                 class="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white font-bold rounded-lg text-[11px] font-sans flex items-center gap-1 mx-auto transition shadow"
               >
                 <span>5인 분석</span>
@@ -2841,9 +3324,7 @@ Return STRICT JSON ONLY format:
     }
 
     function selectScreenerStock(ticker) {
-      switchAppTab('analysis');
       quickSearch(ticker);
-      showToast("스크리너 연동", `${ticker}의 5인 심층 분석 터미널로 즉시 전환되었습니다.`, "success");
     }
 
     function applyScreenerPreset(preset) {
@@ -2852,19 +3333,21 @@ Return STRICT JSON ONLY format:
       screenerState.searchKeyword = '';
 
       if (preset === 'fool-growth') {
-        document.getElementById('filterSector').value = 'Tech';
+        screenerState.extra.sectors = ['Tech', 'Semiconductors'];
+        screenerState.extra.minRoe = 20;
         document.getElementById('filterSMA20').value = 'ABOVE';
-        showToast("프리셋 적용", "모틀리 풀 5년 슈퍼 성장주 조건이 설정되었습니다.", "info");
+        showToast("프리셋 적용", "테크·반도체 + ROE 20% 이상 + 20일선 상회 조건이 설정되었습니다.", "info");
       } else if (preset === 'finviz-squeeze') {
         document.getElementById('filterShortFloat').value = 'HIGH';
         document.getElementById('filterSMA20').value = 'ABOVE';
         showToast("프리셋 적용", "숏스퀴즈 및 모멘텀 돌파 조건이 설정되었습니다.", "info");
       } else if (preset === 'buffett-value') {
         document.getElementById('filterPE').value = 'UNDER_25';
-        showToast("프리셋 적용", "버핏식 저평가 배당 가치주 조건이 설정되었습니다.", "info");
+        screenerState.extra.sectors = ['Finance', 'Consumer'];
+        showToast("프리셋 적용", "P/E 25 미만 + 금융/필수소비재 조건이 설정되었습니다.", "info");
       } else if (preset === 'rebound-chart') {
         document.getElementById('filterRSI').value = 'NEUTRAL';
-        showToast("프리셋 적용", "RSI 바닥권 기술적 반등 조건이 설정되었습니다.", "info");
+        showToast("프리셋 적용", "RSI 45~60 중립/반등 구간 조건이 설정되었습니다.", "info");
       }
 
       screenerState.page = 1;
@@ -2880,6 +3363,7 @@ Return STRICT JSON ONLY format:
       document.getElementById('filterSMA20').value = 'ALL';
       document.getElementById('screenerSearchKeyword').value = '';
       screenerState.searchKeyword = '';
+      screenerState.extra = { sectors: null, minRoe: null };
       screenerState.page = 1;
 
       if (shouldRender) {
@@ -2898,6 +3382,8 @@ Return STRICT JSON ONLY format:
     window.addEventListener('DOMContentLoaded', () => {
       updateGoogleSearchBannerState();
       // Default to JVA or NVDA
+      syncIndicatorButtons();
+      initChartInteraction();
       executeAnalysis('JVA');
       runScreenerFilter();
     });
