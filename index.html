@@ -210,7 +210,8 @@
       <div class="absolute -right-10 -bottom-10 opacity-5 pointer-events-none text-9xl text-cyan-400">
         <i class="fa-solid fa-chart-line"></i>
       </div>
-      <div class="max-w-3xl">
+      <div class="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] gap-6 lg:gap-8 items-start">
+      <div class="max-w-3xl min-w-0">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800 text-cyan-400 text-xs font-semibold mb-3">
           <i class="fa-solid fa-users-viewfinder"></i> 5인의 독자적 투자 위원회
         </div>
@@ -219,7 +220,7 @@
           <span class="text-cyan-400">5명의 전문가</span>가 Motley Fool과 Finviz 기법으로 전방위 분석합니다.
         </h1>
         <p class="text-slate-400 text-sm mt-2">
-          경제적 해자(Moat)와 장기 성장 펀더멘털부터 20/50/200일 이평선, 숏 플로트, 밸류에이션 모델까지 달러($) 단위로 즉시 해부합니다.
+          경제적 해자(Moat)와 장기 성장 펀더멘털부터 20/50/200일 이평선, 숏 플로트, 밸류에이션 모델까지 종목의 거래 통화 단위로 즉시 해부합니다.
         </p>
 
         <!-- Search Input Bar -->
@@ -353,6 +354,21 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- 최근 검색한 종목 (브라우저에 저장) -->
+      <aside id="recentPanel" class="rounded-2xl bg-slate-950/70 border border-slate-800 flex flex-col lg:max-h-[600px] min-w-0">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+          <div class="flex items-center gap-2 text-sm font-bold text-white">
+            <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
+            <span>내가 검색한 종목</span>
+            <span id="recentCount" class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono-numbers">0</span>
+          </div>
+          <button type="button" id="recentClearBtn" onclick="clearRecentSearches()" class="hidden text-[11px] text-slate-500 hover:text-rose-300 transition"><i class="fa-regular fa-trash-can mr-1"></i>전체 삭제</button>
+        </div>
+        <div id="recentList" class="overflow-y-auto flex-1 divide-y divide-slate-800/70"></div>
+        <p class="px-4 py-2 border-t border-slate-800 text-[10px] text-slate-500 leading-snug">이 브라우저에만 저장됩니다. 가격·등락률은 <strong class="text-slate-400">검색한 시점</strong> 값이며, 클릭하면 최신 데이터로 다시 분석합니다.</p>
+      </aside>
       </div>
     </section>
 
@@ -1378,6 +1394,83 @@
       return upper.replace(/[^A-Z0-9.\-]/g, '');
     }
 
+    // ===== 검색 기록 (localStorage) =====
+    const RECENT_KEY = 'pentanalyst_recent_searches';
+    const RECENT_MAX = 40;
+
+    function loadRecentSearches() {
+      try {
+        const arr = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+        return Array.isArray(arr) ? arr.filter(r => r && typeof r.symbol === 'string') : [];
+      } catch (e) { return []; }
+    }
+    function saveRecentSearches(list) {
+      try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) { /* 저장 불가 환경에서도 동작 */ }
+    }
+    function recordSearch(symbol, market, name) {
+      const list = loadRecentSearches().filter(r => r.symbol !== symbol);
+      list.unshift({
+        symbol,
+        name: name || (market && market.name) || '',
+        currency: (market && market.currency) || 'USD',
+        price: market && Number.isFinite(Number(market.price)) ? Number(market.price) : null,
+        change: (market && market.change) || '',
+        t: Date.now()
+      });
+      saveRecentSearches(list);
+      renderRecentSearches();
+    }
+    function removeRecentSearch(symbol) {
+      saveRecentSearches(loadRecentSearches().filter(r => r.symbol !== symbol));
+      renderRecentSearches();
+    }
+    function clearRecentSearches() {
+      if (!loadRecentSearches().length) return;
+      if (!confirm('검색 기록을 모두 삭제할까요?')) return;
+      saveRecentSearches([]);
+      renderRecentSearches();
+    }
+    function timeAgo(ts) {
+      const diff = Math.max(0, Date.now() - ts);
+      const m = Math.floor(diff / 60000);
+      if (m < 1) return '방금 전';
+      if (m < 60) return `${m}분 전`;
+      const h = Math.floor(m / 60);
+      if (h < 24) return `${h}시간 전`;
+      const d = Math.floor(h / 24);
+      if (d < 30) return `${d}일 전`;
+      return new Date(ts).toISOString().slice(0, 10);
+    }
+    function renderRecentSearches() {
+      const box = document.getElementById('recentList');
+      if (!box) return;
+      const list = loadRecentSearches();
+      document.getElementById('recentCount').textContent = list.length;
+      document.getElementById('recentClearBtn').classList.toggle('hidden', !list.length);
+      if (!list.length) {
+        box.innerHTML = '<div class="px-4 py-10 text-center text-xs text-slate-500 leading-relaxed"><i class="fa-regular fa-compass text-2xl text-slate-700 block mb-2"></i>아직 검색한 종목이 없습니다.<br>종목을 검색하면 여기에 쌓여서<br>나중에 다시 찾아볼 수 있습니다.</div>';
+        return;
+      }
+      box.innerHTML = list.map(r => {
+        const up = isPositivePct(r.change);
+        return `
+        <div class="recent-item group flex items-center gap-2 px-4 py-2.5 hover:bg-slate-800/60 cursor-pointer transition" data-symbol="${escapeHtml(r.symbol)}" onclick="quickSearch(this.dataset.symbol)">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-baseline gap-2">
+              <span class="font-mono-numbers font-bold text-cyan-300 text-sm group-hover:text-cyan-200">${escapeHtml(r.symbol)}</span>
+              <span class="text-[11px] text-slate-400 truncate">${escapeHtml(r.name)}</span>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] font-mono-numbers mt-0.5">
+              ${r.price !== null ? `<span class="text-slate-200">${escapeHtml(fmtPx(r.price, r.currency))}</span>` : ''}
+              ${r.change ? `<span class="${up ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(r.change)}</span>` : ''}
+              <span class="text-slate-600 font-sans">· ${timeAgo(r.t)}</span>
+            </div>
+          </div>
+          <button type="button" data-symbol="${escapeHtml(r.symbol)}" onclick="event.stopPropagation(); removeRecentSearch(this.dataset.symbol)" title="목록에서 삭제" class="shrink-0 w-6 h-6 rounded text-slate-600 hover:text-rose-300 hover:bg-slate-800 opacity-60 group-hover:opacity-100 transition"><i class="fa-solid fa-xmark text-xs"></i></button>
+        </div>`;
+      }).join('');
+    }
+
     // ===== 회사명/티커 검색 (Yahoo 검색 — 전 세계 거래소, 자동완성) =====
     const searchCache = new Map();
     let suggestState = { items: [], active: -1, seq: 0, timer: null, query: '' };
@@ -1554,7 +1647,13 @@
         else if (e.key === 'Escape') { hideSuggest(); }
       });
       input.addEventListener('blur', () => setTimeout(hideSuggest, 120));
-      input.addEventListener('focus', () => { if (suggestState.items.length && input.value.trim()) renderSuggest(false); });
+      input.addEventListener('focus', () => {
+        if (input.value.trim()) { if (suggestState.items.length) renderSuggest(false); return; }
+        const recent = loadRecentSearches().slice(0, 8).map(r => ({ symbol: r.symbol, name: r.name, exchange: '최근', type: 'RECENT' }));
+        if (!recent.length) return;
+        suggestState.items = recent; suggestState.query = ''; suggestState.active = -1;
+        renderSuggest(false);
+      });
     }
 
     async function handleStockAnalysis(e) {
@@ -2267,7 +2366,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return lines.join('\n');
     }
 
-    async function executeAnalysis(ticker) {
+    async function executeAnalysis(ticker, opts = {}) {
       const seq = ++analysisSeq;
       const loading = document.getElementById('loadingState');
       const dashboard = document.getElementById('dashboardSection');
@@ -2317,6 +2416,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         renderAnalysisResult(currentAnalysisData);
         renderDeepAnalysis(deep);
         updateAiButton();
+        if (market && !opts.noRecord) recordSearch(upperTicker, market, currentAnalysisData.name);
 
         loading.classList.add('hidden');
         dashboard.classList.remove('hidden');
@@ -4433,7 +4533,8 @@ SONY|Sony Group ADR|T
       initSearchSuggest();
       renderMetricGuide();
       initScreenerHeaderTips();
-      executeAnalysis('JVA');
+      renderRecentSearches();
+      executeAnalysis('JVA', { noRecord: true }); // 첫 화면용 기본 종목은 검색 기록에 남기지 않음
       runScreenerFilter();
     });
   </script>
