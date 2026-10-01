@@ -891,7 +891,7 @@
     <!-- TAB 2: SMART STOCK SCREENER VIEW -->
     <div id="view-screener" class="hidden space-y-6">
       <!-- Screener Hero & Preset Bar -->
-      <section class="bg-gradient-to-r from-slate-900 via-[#131e32] to-[#122338] border border-slate-800 rounded-2xl p-6 lg:p-8 shadow-2xl">
+      <section class="bg-gradient-to-r from-slate-900 via-[#131e32] to-[#122338] border border-slate-800 rounded-2xl p-5 lg:p-7 shadow-2xl">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
           <div>
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-950/60 border border-amber-700/60 text-amber-400 text-xs font-semibold mb-2">
@@ -899,71 +899,43 @@
             </div>
             <h2 class="text-2xl font-extrabold text-white tracking-tight">스마트 주식 스크리너 (Pro Screener)</h2>
             <p class="text-slate-400 text-xs sm:text-sm mt-1">
-              원클릭 프리셋을 적용하거나 원하는 재무·차트 조건(P/E, RSI, 숏 플로트, 이평선)을 설정하여 유망 종목을 발굴하세요.
+              원클릭 프리셋을 누르거나, 아래 필터(기본정보·재무·기술)를 조합해 조건에 맞는 종목을 찾아보세요.
             </p>
-            <p class="text-[11px] text-slate-400 mt-1"><i class="fa-solid fa-circle-info mr-1 text-cyan-400"></i>가격·지표는 자체 프록시로 실시간 조회해 채우며, 조회하지 못한 값은 빈칸입니다.</p>
+            <p class="text-[11px] text-slate-400 mt-1"><i class="fa-solid fa-circle-info mr-1 text-cyan-400"></i>가격·지표는 자체 프록시로 실시간 조회해 채우며, 조회하지 못한 값은 빈칸입니다. 값이 없는 종목은 해당 필터에서 제외됩니다.</p>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <span class="text-xs text-slate-400 font-mono-numbers">발굴된 종목: <strong id="screenerMatchCount" class="text-cyan-400 font-bold text-sm">0</strong>개</span>
             <span id="screenerStatus" class="text-[11px] text-cyan-300"></span>
             <button id="screenerLoadAllBtn" onclick="loadAllScreener()" class="hidden px-2.5 py-1.5 rounded-lg bg-cyan-900/60 hover:bg-cyan-800 border border-cyan-700/60 text-[11px] text-cyan-200 transition">전체 불러오기</button>
-            <button onclick="resetScreenerFilters()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 hover:text-white transition flex items-center gap-1.5">
-              <i class="fa-solid fa-rotate-right text-xs"></i> 필터 초기화
-            </button>
           </div>
         </div>
+        <p id="screenerHint" class="hidden mt-3 text-[11px] text-amber-300 bg-amber-950/40 border border-amber-800/60 rounded-lg px-3 py-1.5"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i><span></span></p>
 
         <!-- Strategy Presets -->
-        <div class="mt-5 space-y-2">
-          <div class="flex items-center gap-2 text-xs font-bold text-slate-300">
+        <div class="mt-5 space-y-3">
+          <div class="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-300">
             <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
-            <span>원클릭 추천 투자 전략 프리셋:</span>
+            <span>원클릭 추천 프리셋</span>
+            <span class="text-[11px] font-normal text-slate-500">누르면 필터·보기·정렬이 한 번에 설정됩니다 (점수 높은 순)</span>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-            <button type="button" onclick="applyScreenerPreset('fool-growth')" class="preset-btn text-left p-3 rounded-xl bg-slate-950/80 hover:bg-amber-950/40 border border-slate-800 hover:border-amber-500/60 transition group">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-amber-300 group-hover:text-amber-200 flex items-center gap-1.5">
-                  <i class="fa-solid fa-rocket text-amber-400"></i> 모틀리 풀 5년 슈퍼 성장주
-                </span>
-                <i class="fa-solid fa-arrow-right text-[10px] text-slate-600 group-hover:text-amber-400 transition"></i>
-              </div>
-              <p class="text-[11px] text-slate-400 mt-1 leading-snug">테크·반도체, ROE ≥ 20%, 20일선 상회</p>
-            </button>
+          <div id="screenerPresets" class="space-y-3"><!-- JS --></div>
 
-            <button type="button" onclick="applyScreenerPreset('finviz-squeeze')" class="preset-btn text-left p-3 rounded-xl bg-slate-950/80 hover:bg-rose-950/40 border border-slate-800 hover:border-rose-500/60 transition group">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-rose-300 group-hover:text-rose-200 flex items-center gap-1.5">
-                  <i class="fa-solid fa-fire-flame-curved text-rose-400"></i> 숏스퀴즈 & 모멘텀 돌파
-                </span>
-                <i class="fa-solid fa-arrow-right text-[10px] text-slate-600 group-hover:text-rose-400 transition"></i>
-              </div>
-              <p class="text-[11px] text-slate-400 mt-1 leading-snug">Short Float > 3%, 20일선 상회 돌파형</p>
-            </button>
-
-            <button type="button" onclick="applyScreenerPreset('buffett-value')" class="preset-btn text-left p-3 rounded-xl bg-slate-950/80 hover:bg-emerald-950/40 border border-slate-800 hover:border-emerald-500/60 transition group">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-emerald-300 group-hover:text-emerald-200 flex items-center gap-1.5">
-                  <i class="fa-solid fa-shield-halved text-emerald-400"></i> 버핏식 저평가 배당 가치주
-                </span>
-                <i class="fa-solid fa-arrow-right text-[10px] text-slate-600 group-hover:text-emerald-400 transition"></i>
-              </div>
-              <p class="text-[11px] text-slate-400 mt-1 leading-snug">P/E &lt; 25, 금융·필수소비재 섹터</p>
-            </button>
-
-            <button type="button" onclick="applyScreenerPreset('rebound-chart')" class="preset-btn text-left p-3 rounded-xl bg-slate-950/80 hover:bg-cyan-950/40 border border-slate-800 hover:border-cyan-500/60 transition group">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-cyan-300 group-hover:text-cyan-200 flex items-center gap-1.5">
-                  <i class="fa-solid fa-chart-line text-cyan-400"></i> RSI 바닥권 기술적 반등
-                </span>
-                <i class="fa-solid fa-arrow-right text-[10px] text-slate-600 group-hover:text-cyan-400 transition"></i>
-              </div>
-              <p class="text-[11px] text-slate-400 mt-1 leading-snug">RSI 45~60 중립/반등 구간</p>
-            </button>
+          <!-- 내 프리셋 -->
+          <div class="pt-3 border-t border-slate-800/80 flex flex-col gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-bookmark text-cyan-400"></i>내 프리셋</span>
+              <input id="screenerPresetName" type="text" maxlength="24" placeholder="프리셋 이름" onkeydown="if(event.key==='Enter') saveCurrentScreenerPreset()" class="w-36 px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-400 transition" />
+              <button type="button" onclick="saveCurrentScreenerPreset()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 hover:text-white transition whitespace-nowrap"><i class="fa-solid fa-floppy-disk mr-1 text-cyan-400"></i>현재 필터를 내 프리셋으로 저장</button>
+            </div>
+            <div id="screenerUserPresets" class="flex flex-wrap items-center gap-1.5"><!-- JS --></div>
           </div>
         </div>
+      </section>
 
+      <!-- Filters -->
+      <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
         <!-- Universal Stock Search & Instant Add Tool -->
-        <div class="mt-5 p-4 rounded-xl bg-slate-950/90 border border-cyan-900/50 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="p-3 rounded-xl bg-slate-950/90 border border-cyan-900/50 flex flex-col md:flex-row items-center justify-between gap-3">
           <div class="flex-1 w-full">
             <div class="flex items-center gap-2 mb-1.5">
               <i class="fa-solid fa-layer-group text-cyan-400 text-xs"></i>
@@ -1003,138 +975,58 @@
           </div>
         </div>
 
-        <!-- Filter Controls Form -->
-        <div class="mt-4 pt-4 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
-          <!-- Sector -->
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">섹터 (Sector)</label>
-            <select id="filterSector" onchange="runScreenerFilter()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-white outline-none focus:border-cyan-400 transition">
-              <option value="ALL">전체 섹터</option>
-              <option value="Tech">Technology & Cloud</option>
-              <option value="Semiconductors">Semiconductors & AI</option>
-              <option value="Automotive">Auto & Clean Tech</option>
-              <option value="Healthcare">Healthcare & Biotech</option>
-              <option value="Finance">Financials & Payments</option>
-              <option value="Consumer">Consumer & Retail</option>
-              <option value="Energy">Energy & Industrial</option>
-              <option value="Communication">Media & Telecom</option>
-            </select>
+        <!-- Filter tabs -->
+        <div>
+          <div id="screenerFilterTabs" class="flex items-center gap-1 border-b border-slate-800 mb-3 overflow-x-auto">
+            <button type="button" data-tab="desc" onclick="setScreenerFilterTab('desc')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-cyan-300 border-cyan-400 flex items-center gap-1.5">기본정보 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Descriptive</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
+            <button type="button" data-tab="fund" onclick="setScreenerFilterTab('fund')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-slate-400 border-transparent flex items-center gap-1.5">재무 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Fundamental</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
+            <button type="button" data-tab="tech" onclick="setScreenerFilterTab('tech')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-slate-400 border-transparent flex items-center gap-1.5">기술 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Technical</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
           </div>
+          <div id="screenerFilterGrid"><!-- JS: 탭별 필터 select --></div>
+        </div>
 
-          <!-- Market Cap -->
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">시가총액 (Market Cap)</label>
-            <select id="filterMarketCap" onchange="runScreenerFilter()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-white outline-none focus:border-cyan-400 transition">
-              <option value="ALL">전체</option>
-              <option value="MEGA">Mega Cap ($200B+)</option>
-              <option value="LARGE">Large Cap ($10B~$200B)</option>
-              <option value="MID">Mid Cap ($2B~$10B)</option>
-              <option value="MICRO">Micro/Small Cap (&lt;$2B)</option>
-            </select>
-          </div>
-
-          <!-- Valuation P/E -->
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">밸류에이션 (P/E)</label>
-            <select id="filterPE" onchange="runScreenerFilter()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-white outline-none focus:border-cyan-400 transition">
-              <option value="ALL">전체</option>
-              <option value="UNDER_25">저평가 (P/E &lt; 25)</option>
-              <option value="25_TO_50">적정 성장 (25 ~ 50)</option>
-              <option value="OVER_50">고성장 프리미엄 (&gt; 50)</option>
-            </select>
-          </div>
-
-          <!-- RSI (14) -->
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">RSI (14) 강도</label>
-            <select id="filterRSI" onchange="runScreenerFilter()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-white outline-none focus:border-cyan-400 transition">
-              <option value="ALL">전체</option>
-              <option value="OVERSOLD">과매도권 (&lt; 45)</option>
-              <option value="NEUTRAL">중립/반등 (45 ~ 60)</option>
-              <option value="OVERBOUGHT">강세/과열 (&gt; 60)</option>
-            </select>
-          </div>
-
-          <!-- Short Float -->
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">공매도율 (Short Float)</label>
-            <select id="filterShortFloat" onchange="runScreenerFilter()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-white outline-none focus:border-cyan-400 transition">
-              <option value="ALL">전체</option>
-              <option value="LOW">안정적 (&lt; 2%)</option>
-              <option value="HIGH">숏스퀴즈 잠재 (&gt; 3%)</option>
-            </select>
-          </div>
-
-          <!-- SMA 20 Trend -->
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">20일 이평선 (SMA 20)</label>
-            <select id="filterSMA20" onchange="runScreenerFilter()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-white outline-none focus:border-cyan-400 transition">
-              <option value="ALL">전체</option>
-              <option value="ABOVE">20 SMA 상회 (강세)</option>
-              <option value="BELOW">20 SMA 하회 (약세)</option>
-            </select>
-          </div>
+        <!-- Active filter chips -->
+        <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800/80">
+          <span class="text-[11px] font-bold text-slate-400">적용된 필터</span>
+          <div id="screenerChips" class="flex flex-wrap items-center gap-1.5"></div>
+          <button type="button" onclick="resetScreenerFilters()" class="ml-auto px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 hover:text-white transition flex items-center gap-1.5 whitespace-nowrap">
+            <i class="fa-solid fa-rotate-right text-xs"></i> 필터 초기화
+          </button>
         </div>
       </section>
 
       <!-- Screener Results Table (Finviz Style) -->
       <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-700/50 text-cyan-400 flex items-center justify-center text-xs">
               <i class="fa-solid fa-list-check"></i>
             </span>
             <h3 class="text-base font-bold text-white">스크리닝 결과 목록</h3>
-            <span class="text-xs text-slate-500">| 컬럼 제목을 클릭하여 정렬할 수 있습니다.</span>
+            <span class="text-xs text-slate-500">| 열 제목을 클릭하면 정렬됩니다.</span>
           </div>
-          <div class="flex items-center gap-3 text-xs text-slate-400">
-            <span>페이지당 표시:</span>
-            <select id="screenerPageSize" onchange="changePageSize(this.value)" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white outline-none">
-              <option value="15">15개씩</option>
-              <option value="30">30개씩</option>
-              <option value="50" selected>50개씩</option>
-              <option value="100">100개씩 (전체)</option>
-            </select>
+          <div class="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+            <div class="flex items-center gap-1.5">
+              <span class="text-slate-500">보기:</span>
+              <div id="screenerViewTabs" class="flex flex-wrap items-center gap-1.5"></div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span>페이지당 표시:</span>
+              <select id="screenerPageSize" onchange="changePageSize(this.value)" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white outline-none">
+                <option value="15">15개씩</option>
+                <option value="30">30개씩</option>
+                <option value="50" selected>50개씩</option>
+                <option value="100">100개씩</option>
+              </select>
+            </div>
           </div>
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-xs font-mono-numbers border-collapse border border-slate-800 text-slate-300">
+          <table id="screenerTable" class="w-full text-xs font-mono-numbers border-collapse border border-slate-800 text-slate-300">
             <thead>
-              <tr class="bg-slate-950/70 border-b border-slate-800 text-slate-400 text-left select-none">
-                <th onclick="sortScreenerBy('ticker')" class="py-3 px-3 border-r border-slate-800 font-sans cursor-pointer hover:text-cyan-300 transition">
-                  티커 <span id="sort-ticker">↕</span>
-                </th>
-                <th onclick="sortScreenerBy('name')" class="py-3 px-3 border-r border-slate-800 font-sans cursor-pointer hover:text-cyan-300 transition">
-                  종목명 <span id="sort-name">↕</span>
-                </th>
-                <th onclick="sortScreenerBy('sector')" class="py-3 px-3 border-r border-slate-800 font-sans cursor-pointer hover:text-cyan-300 transition">
-                  섹터 <span id="sort-sector">↕</span>
-                </th>
-                <th onclick="sortScreenerBy('price')" class="py-3 px-3 border-r border-slate-800 font-sans text-right cursor-pointer hover:text-cyan-300 transition">
-                  현재가 ($) <span id="sort-price">↕</span>
-                </th>
-                <th onclick="sortScreenerBy('change')" class="py-3 px-3 border-r border-slate-800 font-sans text-right cursor-pointer hover:text-cyan-300 transition">
-                  등락률 <span id="sort-change">↕</span>
-                </th>
-                <th onclick="sortScreenerBy('pe')" class="py-3 px-3 border-r border-slate-800 font-sans text-right cursor-pointer hover:text-cyan-300 transition">
-                  P/E <span id="sort-pe">↕</span>
-                </th>
-                <th onclick="sortScreenerBy('peg')" class="py-3 px-3 border-r border-slate-800 font-sans text-right cursor-pointer hover:text-cyan-300 transition">
-                  PEG <span id="sort-peg">↕</span>
-                </th>
-                <th onclick="sortScreenerBy('roe')" class="py-3 px-3 border-r border-slate-800 font-sans text-right cursor-pointer hover:text-cyan-300 transition">
-                  ROE <span id="sort-roe">↕</span>
-                </th>
-                <th onclick="sortScreenerBy('shortFloat')" class="py-3 px-3 border-r border-slate-800 font-sans text-right cursor-pointer hover:text-cyan-300 transition">
-                  Short Float <span id="sort-shortFloat">↕</span>
-                </th>
-                <th onclick="sortScreenerBy('rsi')" class="py-3 px-3 border-r border-slate-800 font-sans text-right cursor-pointer hover:text-cyan-300 transition">
-                  RSI (14) <span id="sort-rsi">↕</span>
-                </th>
-                <th class="py-3 px-3 border-r border-slate-800 font-sans text-center">SMA 20</th>
-                <th class="py-3 px-3 border-r border-slate-800 font-sans text-center">5인 컨센서스</th>
-                <th class="py-3 px-3 font-sans text-center">액션</th>
+              <tr id="screenerHeadRow" class="bg-slate-950/70 border-b border-slate-800 text-slate-400 text-left select-none">
+                <!-- Dynamically populated header (보기에 따라 달라짐) -->
               </tr>
             </thead>
             <tbody id="screenerTableBody" class="divide-y divide-slate-800/80">
@@ -1154,7 +1046,7 @@
             <!-- Dynamically populated page buttons -->
           </div>
 
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
             <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>좋음</span>
             <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-300"></span>보통</span>
             <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span>주의</span>
@@ -1162,6 +1054,7 @@
             <span class="text-slate-500">· 열 제목에 마우스를 올리면 기준이 보입니다</span>
           </div>
         </div>
+        <p class="text-[10px] text-slate-500 leading-relaxed">점수(0~100)는 값이 있는 지표만으로 계산한 참고용 상대 점수입니다. 프리셋을 쓰면 그 프리셋의 점수(퀄리티·가치·모멘텀), 아니면 계산 가능한 세 점수의 평균이며, 지표가 2개 미만이면 빈칸입니다.</p>
       </section>
     </div>
     <!-- END OF TAB 2 -->
@@ -2861,20 +2754,23 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }).join('');
     }
 
-    // 스크리너 헤더에 마우스를 올리면 기준을 보여준다
+    // 스크리너 헤더에 마우스를 올리면 기준을 보여준다 (보기에 따라 헤더가 바뀌므로 th[data-key] 기준)
     function initScreenerHeaderTips() {
-      const map = { pe: 'pe', peg: 'peg', roe: 'roe', shortFloat: 'shortFloat', rsi: 'rsi' };
-      Object.entries(map).forEach(([col, key]) => {
-        const el = document.getElementById(`sort-${col}`);
-        const g = METRIC_GUIDE[key];
-        if (!el || !g) return;
-        let prev = null;
-        const lines = g.rules.map(r => {
-          const range = prev === null ? `${r.to}${g.unit} 미만` : (r.to === Infinity ? `${prev}${g.unit} 이상` : `${prev}~${r.to}${g.unit}`);
-          prev = r.to;
-          return `${RATING_META[r.rating].label}: ${range} (${r.text})`;
-        });
-        el.parentElement.title = `${g.name}\n${g.what}\n\n${lines.join('\n')}`;
+      document.querySelectorAll('#screenerHeadRow th[data-key]').forEach(th => {
+        const c = SCREENER_COLS[th.dataset.key];
+        if (!c) return;
+        const g = c.guide && METRIC_GUIDE[c.guide];
+        if (g) {
+          let prev = null;
+          const lines = g.rules.map(r => {
+            const range = prev === null ? `${r.to}${g.unit} 미만` : (r.to === Infinity ? `${prev}${g.unit} 이상` : `${prev}~${r.to}${g.unit}`);
+            prev = r.to;
+            return `${RATING_META[r.rating].label}: ${range} (${r.text})`;
+          });
+          th.title = `${g.name}\n${g.what}\n\n${lines.join('\n')}`;
+        } else if (c.tip) {
+          th.title = `${c.label}\n${c.tip}`;
+        }
       });
     }
 
@@ -3645,8 +3541,10 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       sortBy: 'rank',
       sortDir: 'asc',
       searchKeyword: '',
-      currentCategory: 'ALL',
-      extra: { sectors: null, minRoe: null }
+      tab: 'desc',      // 필터 탭: desc(기본정보) | fund(재무) | tech(기술)
+      view: 'overview', // 표 보기: overview | valuation | fundamental | technical
+      filters: {},      // { 필터ID: 옵션키 } — FILTER_DEFS 참고
+      preset: null      // 마지막으로 적용한 프리셋 { src, id, score, filters } (필터가 그대로일 때만 "활성")
     };
 
     // Comprehensive US Large/Mega/Mid-Cap Database (60+ S&P 500 & Nasdaq Leaders + JVA)
@@ -4011,8 +3909,19 @@ SONY|Sony Group ADR|T
 
     // 실시간 값이 채워지기 전의 기본값 (빈칸). rank = 기본 표시 순서
     const SCREENER_BLANK = {
-      capCategory: null, marketCapVal: null, marketCap: '', price: null, change: '',
+      capCategory: null, marketCapVal: null, marketCap: '', price: null, change: '', chgPct: null,
       pe: null, peg: null, roe: null, shortFloat: null, rsi: null, sma20Diff: '', consensus: '',
+      // 재무 (아래 일부는 Worker 최신 버전이 있어야 채워짐)
+      fpe: null, pS: null, pB: null, pFcf: null, divYield: null, payout: null, beta: null, roa: null,
+      grossMargin: null, opMargin: null, profitMargin: null, revGrowth: null, epsGrowth: null,
+      de: null, currentRatio: null, quickRatio: null, fcf: null, fcfYield: null,
+      insiderPct: null, instPct: null, recMean: null, numAnalysts: null, targetAvg: null, targetUpside: null,
+      country: null, industry: null, sectorRaw: null, fundOk: false,
+      // 기술 (일봉 1년치에서 계산)
+      perf1w: null, perf1m: null, perf3m: null, perf6m: null, perfYtd: null, perf1y: null,
+      sma20Pct: null, sma50Pct: null, sma200Pct: null, maAlign: null, atrPct: null,
+      fromHigh52: null, fromLow52: null, fromHigh20: null, fromLow20: null, fromHigh50: null, fromLow50: null,
+      break20: null, avgVol: null, relVol: null, gapPct: null, macdState: null, squeeze: null, pullback: null, volSurge: null,
       loaded: false, loading: false, missing: false, searched: false
     };
     SCREENER_MASTER_DATA.forEach((s, i) => Object.assign(s, SCREENER_BLANK, { rank: i }));
@@ -4052,15 +3961,175 @@ SONY|Sony Group ADR|T
       runScreenerFilter();
     }
 
+    // @@PURE-BEGIN (순수 계산 함수 — 테스트에서 추출해 실행)
+    // 일봉(history: {t,date,open,high,low,close,volume}[], 마지막 = 최신)에서 스크리너용 기술 값을 계산한다.
+    // 막대가 부족하면 해당 값은 null. 계산에는 최근 260봉만 사용(5년치가 들어와도 같은 결과).
+    function screenerTechFields(history, market) {
+      const out = {
+        chgPct: null, perf1w: null, perf1m: null, perf3m: null, perf6m: null, perfYtd: null, perf1y: null,
+        sma20Pct: null, sma50Pct: null, sma200Pct: null, maAlign: null, rsi: null, sma20Diff: '', atrPct: null,
+        fromHigh52: null, fromLow52: null, fromHigh20: null, fromLow20: null, fromHigh50: null, fromLow50: null,
+        break20: null, avgVol: null, relVol: null, gapPct: null, macdState: null, squeeze: null, pullback: null, volSurge: null
+      };
+      if (!Array.isArray(history) || history.length === 0) return out;
+      const ok = Number.isFinite;
+      const all = history;
+      // 일봉이 아닌 데이터(주봉·월봉 등)가 들어오면 모든 기술 값이 틀리므로 계산하지 않는다 (최근 봉 간격의 중앙값이 3일 초과)
+      const gaps = [];
+      for (let i = Math.max(1, all.length - 10); i < all.length; i++) if (ok(all[i].t) && ok(all[i - 1].t)) gaps.push(all[i].t - all[i - 1].t);
+      gaps.sort((a, b) => a - b);
+      if (gaps.length && gaps[Math.floor(gaps.length / 2)] > 3 * 86400) return out;
+      const h = all.slice(-260);
+      const n = h.length;
+      const closes = h.map(b => b.close);
+      const px = closes[n - 1];
+      if (!ok(px) || px <= 0) return out;
+      const ind = computeIndicatorSeries(h);
+      const tech = calculateRealIndicators(h, ind);
+      out.rsi = Math.max(...closes) === Math.min(...closes) ? null : tech.rsi; // 가격이 한 번도 안 움직였으면 RSI는 정의되지 않음
+      out.sma20Diff = tech.sma20Diff;
+
+      // 당일 등락률
+      const mc = market && typeof market.change === 'string' ? parseFloat(market.change) : NaN;
+      out.chgPct = ok(mc) ? mc : (n >= 2 && closes[n - 2] > 0 ? (px / closes[n - 2] - 1) * 100 : null);
+
+      // 기간별 성과: 1주=5봉, 1개월=21봉, 3개월=63봉, 6개월=126봉
+      const back = k => (n > k && closes[n - 1 - k] > 0) ? (px / closes[n - 1 - k] - 1) * 100 : null;
+      out.perf1w = back(5); out.perf1m = back(21); out.perf3m = back(63); out.perf6m = back(126);
+      // 연초 대비: 직전 연도의 마지막 종가 기준 (그 시점 봉이 없으면 null)
+      const lastYear = Number(String(all[all.length - 1].date || '').slice(0, 4));
+      if (ok(lastYear)) {
+        for (let i = all.length - 2; i >= 0; i--) {
+          const y = Number(String(all[i].date || '').slice(0, 4));
+          if (ok(y) && y < lastYear) { if (all[i].close > 0) out.perfYtd = (px / all[i].close - 1) * 100; break; }
+        }
+      }
+      // 1년: 최신 봉 시각 - 365일 이전의 마지막 봉 (1y 요청은 첫 봉이 그 직후이므로 6일 이내면 첫 봉 사용). 시각이 없으면 252봉.
+      const lastT = all[all.length - 1].t;
+      if (ok(lastT)) {
+        const target = lastT - 365 * 86400;
+        let idx = -1;
+        for (let i = all.length - 1; i >= 0; i--) { if (all[i].t <= target) { idx = i; break; } }
+        if (idx < 0 && all[0].t - target <= 6 * 86400) idx = 0;
+        if (idx >= 0 && all[idx].close > 0) out.perf1y = (px / all[idx].close - 1) * 100;
+      } else if (all.length > 252 && all[all.length - 253].close > 0) {
+        out.perf1y = (px / all[all.length - 253].close - 1) * 100;
+      }
+
+      // 이동평균 대비 위치(%) / 정배열
+      const s20 = ind.sma20[n - 1], s50 = ind.sma50[n - 1], s200 = ind.sma200[n - 1];
+      const dev = s => (ok(s) && s > 0) ? (px / s - 1) * 100 : null;
+      out.sma20Pct = dev(s20); out.sma50Pct = dev(s50); out.sma200Pct = dev(s200);
+      if (ok(s20) && ok(s50) && ok(s200)) out.maAlign = (s20 > s50 && s50 > s200) ? 'bull' : (s20 < s50 && s50 < s200) ? 'bear' : 'mixed';
+
+      // ATR(14, Wilder) / 종가
+      if (n >= 15) {
+        const tr = i => Math.max(h[i].high - h[i].low, Math.abs(h[i].high - closes[i - 1]), Math.abs(h[i].low - closes[i - 1]));
+        let atr = 0;
+        for (let i = 1; i <= 14; i++) atr += tr(i);
+        atr /= 14;
+        for (let i = 15; i < n; i++) atr = (atr * 13 + tr(i)) / 14;
+        if (ok(atr)) out.atrPct = atr / px * 100;
+      }
+
+      // 52주 고점/저점 대비 (메타값과 일봉 중 더 극단적인 값, 현재가는 항상 범위 안)
+      const bars52 = h.slice(-252);
+      let hi = pick(market && market.high52), lo = pick(market && market.low52);
+      if (bars52.length >= 60) {
+        const hh = Math.max(...bars52.map(b => b.high)), ll = Math.min(...bars52.map(b => b.low));
+        hi = hi === null ? hh : Math.max(hi, hh);
+        lo = lo === null ? ll : Math.min(lo, ll);
+      }
+      if (hi !== null && hi > 0) out.fromHigh52 = (px / Math.max(hi, px) - 1) * 100;
+      if (lo !== null && lo > 0) out.fromLow52 = (px / Math.min(lo, px) - 1) * 100;
+
+      // 20/50일 고저점 (오늘을 제외한 직전 N봉 기준 → 돌파하면 0보다 큼)
+      const priorHigh = k => n >= k + 1 ? Math.max(...h.slice(n - 1 - k, n - 1).map(b => b.high)) : null;
+      const priorLow = k => n >= k + 1 ? Math.min(...h.slice(n - 1 - k, n - 1).map(b => b.low)) : null;
+      const ph20 = priorHigh(20), pl20 = priorLow(20), ph50 = priorHigh(50), pl50 = priorLow(50);
+      if (ph20 > 0) { out.fromHigh20 = (px / ph20 - 1) * 100; out.break20 = px > ph20; }
+      if (pl20 > 0) out.fromLow20 = (px / pl20 - 1) * 100;
+      if (ph50 > 0) out.fromHigh50 = (px / ph50 - 1) * 100;
+      if (pl50 > 0) out.fromLow50 = (px / pl50 - 1) * 100;
+
+      // 거래량: 직전 63봉 평균(최소 20봉), 상대 거래량(오늘 거래량이 0이면 계산하지 않음), 갭
+      const volNow = h[n - 1].volume;
+      const priorVols = h.slice(Math.max(0, n - 1 - 63), n - 1).map(b => b.volume || 0);
+      if (priorVols.length >= 20) {
+        const av = priorVols.reduce((a, b) => a + b, 0) / priorVols.length;
+        if (av > 0) {
+          out.avgVol = av;
+          if (ok(volNow) && volNow > 0) out.relVol = volNow / av;
+        }
+      }
+      if (n >= 2 && closes[n - 2] > 0 && ok(h[n - 1].open)) out.gapPct = (h[n - 1].open / closes[n - 2] - 1) * 100;
+
+      // MACD 히스토그램 상태 (직전 3봉 이내 부호 전환 = 크로스 직후)
+      const hist = ind.macd.hist;
+      const hNow = hist[n - 1];
+      if (ok(hNow) && hNow !== 0) {
+        const prev = [hist[n - 2], hist[n - 3], hist[n - 4]].filter(ok);
+        out.macdState = hNow > 0 ? (prev.some(v => v <= 0) ? 'bullCross' : 'bull') : (prev.some(v => v >= 0) ? 'bearCross' : 'bear');
+      }
+
+      // 볼린저 스퀴즈: 밴드폭(20,2)이 최근 126봉 중 하위 20%
+      const bb = ind.bb;
+      const bw = i => (ok(bb.mid[i]) && bb.mid[i] > 0) ? (bb.upper[i] - bb.lower[i]) / bb.mid[i] : null;
+      const win = [];
+      for (let i = Math.max(0, n - 126); i < n; i++) { const b = bw(i); if (b !== null) win.push(b); }
+      const bwNow = bw(n - 1);
+      if (bwNow !== null && win.length >= 60) {
+        const mx = Math.max(...win), mn = Math.min(...win);
+        out.squeeze = mx > mn && win.filter(v => v < bwNow).length / win.length <= 0.2;
+      }
+
+      // 스윙 셋업
+      if (out.maAlign !== null && ok(s20) && ok(s50)) out.pullback = out.maAlign === 'bull' && Math.abs(px / s20 - 1) <= 0.025 && px >= s50;
+      if (out.relVol !== null && out.chgPct !== null) out.volSurge = out.relVol >= 1.5 && out.chgPct >= 2;
+      return out;
+    }
+
+    // 컨센서스 문구 → 평균 의견 점수(1=적극 매수 … 5=적극 매도). Worker가 recommendationMean을 못 줄 때만 사용.
+    const REC_FROM_CONSENSUS = { 'STRONG BUY': 1.3, 'BUY': 2.0, 'HOLD': 3.0, 'UNDERPERFORM': 4.0, 'SELL': 4.7 };
+
+    // Worker /api/fundamentals 응답(fx) → 스크리너 재무 값. 값이 없으면 null (가짜 값으로 채우지 않음).
+    function screenerFundFields(fx, px) {
+      const f = fx || {};
+      const price = Number.isFinite(px) && px > 0 ? px : null;
+      const mcap = pick(f.marketCap);
+      const fcf = pick(f.freeCashflow);
+      // 배당수익률: 배당금/현재가, 없으면 Worker가 준 %값. 새 Worker 응답인데 배당 항목이 모두 비어 있으면(=Yahoo가 무배당 종목은 생략) 0%.
+      const dr = pick(f.dividendRate), dyp = pick(f.dividendYieldPct);
+      const hasDetail = [f.avgVolume, f.beta, f.pSales, f.forwardPe, f.pe].some(Number.isFinite);
+      let divYield = null;
+      if (dr !== null && price) divYield = dr / price * 100;
+      else if (dyp !== null) divYield = dyp;
+      else if (hasDetail && 'dividendYieldPct' in f) divYield = 0;
+      const targetAvg = pick(f.targetAvg);
+      return {
+        fpe: pick(f.forwardPe), pS: pick(f.pSales), pB: pick(f.pBook),
+        divYield, payout: pick(f.payoutRatio), beta: pick(f.beta), roa: pick(f.roa),
+        grossMargin: pick(f.grossMargin), opMargin: pick(f.opMargin), profitMargin: pick(f.profitMargin),
+        revGrowth: pick(f.revGrowth), epsGrowth: pick(f.epsGrowth),
+        de: pick(f.debtToEquity), currentRatio: pick(f.currentRatio), quickRatio: pick(f.quickRatio),
+        fcf, pFcf: (mcap !== null && fcf !== null && fcf > 0) ? mcap / fcf : null,
+        fcfYield: (mcap !== null && mcap > 0 && fcf !== null) ? fcf / mcap * 100 : null,
+        insiderPct: pick(f.insiderPct), instPct: pick(f.instPct),
+        recMean: pick(f.recMean, REC_FROM_CONSENSUS[f.consensus]),
+        numAnalysts: pick(f.numAnalysts), targetAvg,
+        targetUpside: (targetAvg !== null && price) ? (targetAvg / price - 1) * 100 : null,
+        country: f.country || null, industry: f.industry || null, sectorRaw: f.sector || null
+      };
+    }
+    // @@PURE-END
+
     // 실시간 시세·재무 값을 스크리너 항목에 반영
     function applyLiveToEntry(entry, market, f) {
       const fx = f || {};
-      const tech = calculateRealIndicators(market.history);
       const mcapB = Number.isFinite(fx.marketCap) ? fx.marketCap / 1e9 : null;
       entry.price = market.price;
       entry.change = market.change;
-      entry.rsi = tech.rsi;
-      entry.sma20Diff = tech.sma20Diff;
+      Object.assign(entry, screenerTechFields(market.history, market));
       entry.pe = pick(fx.pe);
       entry.peg = pick(fx.peg);
       entry.roe = pick(fx.roe);
@@ -4069,6 +4138,10 @@ SONY|Sony Group ADR|T
       entry.marketCap = formatMarketCap(mcapB);
       entry.capCategory = capCategoryFromVal(mcapB);
       entry.consensus = fx.consensus || '';
+      Object.assign(entry, screenerFundFields(fx, market.price));
+      // 평균 거래량: 일봉 계산값 우선, 없으면 Yahoo 3개월 평균
+      if (entry.avgVol === null) entry.avgVol = pick(fx.avgVolume);
+      entry.fundOk = !!f;
       if (fx.name) entry.name = fx.name;
       if (fx.sector) entry.sector = mapYahooSector(fx.sector, fx.industry);
     }
@@ -4078,25 +4151,39 @@ SONY|Sony Group ADR|T
     let screenerActive = 0;
     let screenerDoneSinceRender = 0;
     const SCREENER_CONCURRENCY = 5;
+    // Worker 최신 버전에서만 채워지는 값들 (옛 Worker가 배포돼 있으면 모두 비어 있음)
+    const SCREENER_NEW_FUND_FIELDS = ['beta', 'roa', 'grossMargin', 'opMargin', 'profitMargin', 'revGrowth', 'epsGrowth', 'de', 'currentRatio', 'fcf', 'insiderPct', 'instPct', 'payout', 'numAnalysts', 'country'];
 
     function updateScreenerStatus() {
       const el = document.getElementById('screenerStatus');
       const btn = document.getElementById('screenerLoadAllBtn');
+      const hintEl = document.getElementById('screenerHint');
       if (!el) return;
       const valid = SCREENER_MASTER_DATA.filter(e => !e.missing);
-      const loaded = valid.filter(e => e.loaded).length;
+      const loadedList = valid.filter(e => e.loaded);
+      const loaded = loadedList.length;
       const pending = screenerQueue.length + screenerActive;
       const hasProxy = !!getProxyUrl();
       let text = '';
+      let hint = '';
       if (!hasProxy) {
         text = '자체 프록시를 연결하면 가격·지표가 채워집니다';
       } else {
         text = `불러옴 ${loaded}/${valid.length}`;
         if (pending) text += ` · 로딩 중 ${pending}`;
-        const dataFilter = ['filterMarketCap', 'filterPE', 'filterRSI', 'filterShortFloat', 'filterSMA20'].some(id => document.getElementById(id).value !== 'ALL') || screenerState.extra.minRoe !== null;
-        if (dataFilter && loaded < valid.length) text += ' · 지표 필터는 불러온 종목에만 적용됩니다';
+        const active = activeScreenerFilters().filter(a => screenerNeeds(a).length > 0);
+        if (active.length) {
+          if (loaded < valid.length) text += ' · 필터는 불러온 종목에만 적용됩니다';
+          const lacking = loadedList.filter(e => active.some(a => screenerNeeds(a).some(k => isBlankScreenerVal(e[k])))).length;
+          if (lacking) text += ` · 필터에 필요한 값이 없는 ${lacking}개 종목은 제외됨 (재무 필터는 값이 있는 종목에만 적용)`;
+        }
+        const withFund = loadedList.filter(e => e.fundOk);
+        if (withFund.length && !withFund.some(e => SCREENER_NEW_FUND_FIELDS.some(k => Number.isFinite(e[k]) || (k === 'country' && e[k])))) {
+          hint = 'Worker를 최신 코드로 다시 배포하면 새 재무 필터 값이 채워집니다';
+        }
       }
       el.textContent = text;
+      if (hintEl) { const hs = hintEl.querySelector('span'); if (hs) hs.textContent = hint; hintEl.classList.toggle('hidden', !hint); }
       if (btn) btn.classList.toggle('hidden', !hasProxy || loaded >= valid.length || pending > 0);
     }
 
@@ -4124,7 +4211,8 @@ SONY|Sony Group ADR|T
         screenerActive++;
         (async () => {
           try {
-            const [market, f] = await Promise.all([fetchRealYahooFinanceData(entry.ticker, '6mo'), fetchFundamentals(entry.ticker)]);
+            // 일봉 1년치 (SMA200·52주·1년 성과 계산용)
+            const [market, f] = await Promise.all([fetchRealYahooFinanceData(entry.ticker, '1y'), fetchFundamentals(entry.ticker)]);
             if (market && market.notFound) entry.missing = true;
             else if (market) applyLiveToEntry(entry, market, f);
           } catch (e) { /* 실패한 종목은 빈칸으로 둔다 */ }
@@ -4195,7 +4283,7 @@ SONY|Sony Group ADR|T
       }
 
       showToast("조회 중", `${ticker}의 실시간 시세를 조회하고 있습니다...`, "info");
-      const [market, f] = await Promise.all([fetchRealYahooFinanceData(ticker, '6mo'), fetchFundamentals(ticker)]);
+      const [market, f] = await Promise.all([fetchRealYahooFinanceData(ticker, '1y'), fetchFundamentals(ticker)]);
       if (!market || market.notFound) {
         showToast("등록 실패", market && market.notFound
           ? `"${ticker}" 종목을 찾을 수 없습니다.`
@@ -4211,49 +4299,588 @@ SONY|Sony Group ADR|T
       showToast("종목 추가 완료", `${ticker}의 실시간 지표가 스크리너에 등록되었습니다.`, "success");
     }
 
+    // ======================================================================
+    // 필터 정의 (데이터 기반). 옵션 형태:
+    //   { k, label, min?, max?, minX?, maxX? } → entry[field] 가 범위 안일 때 통과 (null/NaN 은 제외, X = 경계값 제외)
+    //   { k, label, fn(entry), field? }        → 사용자 정의 조건 (field = 값이 없으면 제외되는 필드, 상태바 안내용)
+    // state.filters = { 필터ID: 옵션키 }
+    // ======================================================================
+    // @@PURE-BEGIN
+    const FILTER_DEFS = (() => {
+      const gt = (v, u = '', l) => ({ k: 'gt' + v, label: l || `${v}${u} 초과`, min: v, minX: true });
+      const ge = (v, u = '', l) => ({ k: 'ge' + v, label: l || `${v}${u} 이상`, min: v });
+      const lt = (v, u = '', l) => ({ k: 'lt' + v, label: l || `${v}${u} 미만`, max: v, maxX: true });
+      const le = (v, u = '', l) => ({ k: 'le' + v, label: l || `${v}${u} 이하`, max: v });
+      const rng = (a, b, u = '', l) => ({ k: `r${a}_${b}`, label: l || `${a}~${b}${u}`, min: a, max: b });
+      const ltPos = (v, u = '') => ({ k: 'lt' + v, label: `${v}${u} 미만 (흑자)`, min: 0, minX: true, max: v, maxX: true }); // 적자(음수)는 제외
+      const cat = (field, val, label) => ({ k: String(val), label, fn: e => e[field] === val, field });
+      const flag = (k, label, fn, field) => ({ k, label, fn, field });
+      const perf = extra => [gt(0, '%', '상승 (0% 초과)'), gt(10, '%'), ...(extra || []), gt(20, '%'), lt(0, '%', '하락 (0% 미만)'), lt(-10, '%'), lt(-20, '%')];
+      const smaOpts = () => [gt(0, '%', '상회 (위)'), lt(0, '%', '하회 (아래)'), rng(-5, 5, '%', '±5% 이내'), ge(10, '%', '10% 이상 상회')];
+      return [
+        // ---------------- 기본정보 ----------------
+        { id: 'sector', tab: 'desc', label: '섹터 (Sector)', field: 'sector', tip: '업종 대분류입니다. (Yahoo 분류를 8개 묶음으로 단순화)', opts: [
+          cat('sector', 'Tech', 'Technology & Cloud'), cat('sector', 'Semiconductors', 'Semiconductors & AI'), cat('sector', 'Automotive', 'Auto & Clean Tech'),
+          cat('sector', 'Healthcare', 'Healthcare & Biotech'), cat('sector', 'Finance', 'Financials & Payments'), cat('sector', 'Consumer', 'Consumer & Retail'),
+          cat('sector', 'Energy', 'Energy & Industrial'), cat('sector', 'Communication', 'Media & Telecom'),
+          flag('TECHSEMI', '빅테크 + 반도체', e => e.sector === 'Tech' || e.sector === 'Semiconductors', 'sector'),
+          flag('FINCONS', '금융 + 소비재', e => e.sector === 'Finance' || e.sector === 'Consumer', 'sector')] },
+        { id: 'industry', tab: 'desc', label: '세부 업종 (Industry)', field: 'industry', dynamic: true, tip: 'Yahoo가 분류한 세부 업종입니다. 불러온 종목에서 자동으로 채워집니다.', opts: [] },
+        { id: 'mcap', tab: 'desc', label: '시가총액 (Market Cap)', field: 'marketCapVal', tip: '회사 전체의 시장 가치입니다. 클수록 안정적이고 작을수록 변동이 큽니다. (단위: 10억 달러)', opts: [
+          ge(200, 'B', 'Mega ($200B 이상)'), { k: 'large', label: 'Large ($10B~$200B)', min: 10, max: 200, maxX: true },
+          { k: 'mid', label: 'Mid ($2B~$10B)', min: 2, max: 10, maxX: true }, { k: 'small', label: 'Small ($300M~$2B)', min: 0.3, max: 2, maxX: true },
+          { k: 'micro', label: 'Micro ($300M 미만)', max: 0.3, maxX: true },
+          ge(10, 'B', 'Large 이상 ($10B+)'), ge(2, 'B', 'Mid 이상 ($2B+)'), lt(2, 'B', '$2B 미만 (소형주)')] },
+        { id: 'divy', tab: 'desc', label: '배당수익률 (Dividend)', field: 'divYield', guide: 'divYield', opts: [
+          { k: 'none', label: '없음 (무배당)', fn: e => e.divYield === 0, field: 'divYield' }, gt(0, '%', '있음 (0% 초과)'), gt(1, '%'), gt(2, '%'), gt(3, '%'), gt(5, '%')] },
+        { id: 'short', tab: 'desc', label: '공매도율 (Short Float)', field: 'shortFloat', guide: 'shortFloat', opts: [lt(2, '%'), lt(5, '%'), gt(5, '%'), gt(10, '%'), gt(15, '%'), gt(20, '%')] },
+        { id: 'rec', tab: 'desc', label: '애널리스트 의견 (Consensus)', field: 'recMean', tip: '애널리스트 평균 의견 점수입니다. 1=적극 매수, 3=보유, 5=적극 매도.', opts: [
+          le(1.5, '', 'Strong Buy (≤1.5)'), le(2, '', 'Buy 이상 (≤2.0)'), le(2.5, '', 'Buy~Hold 이상 (≤2.5)'), ge(3.5, '', 'Sell 우려 (≥3.5)')] },
+        { id: 'upside', tab: 'desc', label: '목표가 상승여력 (Target)', field: 'targetUpside', guide: 'upside', opts: [ge(10, '%'), ge(20, '%'), ge(50, '%'), lt(0, '%', '목표가 하회 (여력 없음)')] },
+        { id: 'avgvol', tab: 'desc', label: '평균 거래량 (Avg Volume)', field: 'avgVol', tip: '최근 약 3개월 하루 평균 거래량(주)입니다. 클수록 사고팔기 쉽습니다.', opts: [
+          gt(2e5, '', '20만주 초과'), gt(5e5, '', '50만주 초과'), gt(1e6, '', '100만주 초과'), gt(2e6, '', '200만주 초과'), gt(5e6, '', '500만주 초과')] },
+        { id: 'relvol', tab: 'desc', label: '상대 거래량 (Rel Volume)', field: 'relVol', tip: '오늘 거래량이 평소(최근 63거래일 평균)의 몇 배인지입니다. 장중에는 하루가 끝나지 않아 낮게 나옵니다.', opts: [gt(1.2, '배'), gt(1.5, '배'), gt(2, '배'), gt(3, '배'), lt(0.5, '배')] },
+        { id: 'price', tab: 'desc', label: '주가 (Price)', field: 'price', tip: '현재 주가(달러)입니다.', opts: [lt(10, '달러'), rng(10, 50, '달러'), rng(50, 100, '달러'), gt(100, '달러'), gt(200, '달러')] },
+        { id: 'country', tab: 'desc', label: '국가 (Country)', field: 'country', tip: '본사 소재 국가입니다. (Worker 최신 버전 필요)', opts: [
+          flag('us', '미국', e => e.country === 'United States', 'country'), flag('adr', '해외 (ADR)', e => !!e.country && e.country !== 'United States', 'country')] },
+
+        // ---------------- 재무 ----------------
+        { id: 'pe', tab: 'fund', label: 'P/E (주가수익비율)', field: 'pe', guide: 'pe', opts: [ltPos(10), ltPos(15), ltPos(20), ltPos(25), ltPos(30), ltPos(50), gt(50), gt(0, '', '흑자 (P/E 산출)')] },
+        { id: 'fpe', tab: 'fund', label: 'Forward P/E', field: 'fpe', guide: 'fpe', opts: [ltPos(10), ltPos(15), ltPos(20), ltPos(25), ltPos(30)] },
+        { id: 'peg', tab: 'fund', label: 'PEG', field: 'peg', guide: 'peg', opts: [ltPos(1), ltPos(1.5), ltPos(2), ltPos(3)] },
+        { id: 'ps', tab: 'fund', label: 'P/S (주가매출비율)', field: 'pS', guide: 'ps', opts: [ltPos(1), ltPos(2), ltPos(5), ltPos(10)] },
+        { id: 'pb', tab: 'fund', label: 'P/B (주가순자산비율)', field: 'pB', guide: 'pb', opts: [ltPos(1), ltPos(2), ltPos(3), ltPos(5)] },
+        { id: 'pfcf', tab: 'fund', label: 'P/FCF (주가잉여현금흐름)', field: 'pFcf', tip: '시가총액이 1년 잉여현금흐름의 몇 배인지입니다. 낮을수록 현금 창출력에 비해 저렴합니다. (FCF 적자 종목은 제외)', opts: [lt(15), lt(25), lt(40)] },
+        { id: 'fcfy', tab: 'fund', label: 'FCF 수익률 (FCF Yield)', field: 'fcfYield', tip: '시가총액 대비 잉여현금흐름의 비율입니다. 높을수록 현금을 잘 버는 주식입니다.', opts: [gt(2, '%'), gt(5, '%'), gt(8, '%')] },
+        { id: 'roe', tab: 'fund', label: 'ROE (자기자본이익률)', field: 'roe', guide: 'roe', opts: [gt(10, '%'), gt(15, '%'), gt(20, '%'), gt(30, '%'), lt(0, '%', '적자 (0% 미만)')] },
+        { id: 'roa', tab: 'fund', label: 'ROA (총자산이익률)', field: 'roa', tip: '회사가 가진 모든 자산으로 몇 %의 이익을 냈는지입니다.', opts: [gt(5, '%'), gt(10, '%'), gt(15, '%')] },
+        { id: 'gm', tab: 'fund', label: '매출총이익률 (Gross Margin)', field: 'grossMargin', guide: 'grossMargin', opts: [gt(30, '%'), gt(50, '%'), gt(70, '%')] },
+        { id: 'om', tab: 'fund', label: '영업이익률 (Operating Margin)', field: 'opMargin', guide: 'opMargin', opts: [gt(10, '%'), gt(15, '%'), gt(20, '%'), gt(30, '%')] },
+        { id: 'pm', tab: 'fund', label: '순이익률 (Profit Margin)', field: 'profitMargin', guide: 'netMargin', opts: [gt(5, '%'), gt(10, '%'), gt(20, '%')] },
+        { id: 'revg', tab: 'fund', label: '매출 성장률 (Sales YoY)', field: 'revGrowth', guide: 'revGrowth', opts: [gt(5, '%'), gt(10, '%'), gt(20, '%'), gt(30, '%'), gt(50, '%'), lt(0, '%', '감소 (0% 미만)')] },
+        { id: 'epsg', tab: 'fund', label: '이익 성장률 (EPS YoY)', field: 'epsGrowth', guide: 'earnGrowth', opts: [gt(5, '%'), gt(10, '%'), gt(20, '%'), gt(50, '%'), lt(0, '%', '감소 (0% 미만)')] },
+        { id: 'de', tab: 'fund', label: '부채비율 (Debt/Equity)', field: 'de', guide: 'de', opts: [lt(30, '%'), lt(50, '%'), lt(100, '%'), lt(150, '%'), gt(200, '%')] },
+        { id: 'cr', tab: 'fund', label: '유동비율 (Current Ratio)', field: 'currentRatio', guide: 'currentRatio', opts: [gt(1, '배'), gt(1.5, '배'), gt(2, '배'), lt(1, '배')] },
+        { id: 'insider', tab: 'fund', label: '내부자 보유 (Insider Own)', field: 'insiderPct', tip: '임원·대주주가 들고 있는 지분 비율입니다. 높으면 경영진과 이해관계가 같다고 봅니다.', opts: [gt(5, '%'), gt(10, '%'), gt(20, '%')] },
+        { id: 'inst', tab: 'fund', label: '기관 보유 (Inst Own)', field: 'instPct', tip: '연기금·펀드 등 기관이 들고 있는 지분 비율입니다.', opts: [gt(50, '%'), gt(70, '%')] },
+        { id: 'payout', tab: 'fund', label: '배당성향 (Payout)', field: 'payout', guide: 'payout', opts: [lt(30, '%'), lt(60, '%'), lt(70, '%'), lt(100, '%')] },
+
+        // ---------------- 기술 ----------------
+        { id: 'p1w', tab: 'tech', label: '성과 1주 (Perf Week)', field: 'perf1w', tip: '최근 5거래일 수익률입니다.', opts: perf() },
+        { id: 'p1m', tab: 'tech', label: '성과 1개월 (Perf Month)', field: 'perf1m', tip: '최근 21거래일 수익률입니다.', opts: perf() },
+        { id: 'p3m', tab: 'tech', label: '성과 3개월 (Perf Quarter)', field: 'perf3m', tip: '최근 63거래일 수익률입니다.', opts: perf([gt(15, '%')]) },
+        { id: 'p6m', tab: 'tech', label: '성과 6개월 (Perf Half)', field: 'perf6m', tip: '최근 126거래일 수익률입니다.', opts: perf() },
+        { id: 'pytd', tab: 'tech', label: '성과 연초대비 (Perf YTD)', field: 'perfYtd', tip: '작년 마지막 종가 대비 수익률입니다.', opts: perf() },
+        { id: 'p1y', tab: 'tech', label: '성과 1년 (Perf Year)', field: 'perf1y', tip: '1년 전 대비 수익률입니다.', opts: perf() },
+        { id: 'rsi', tab: 'tech', label: 'RSI (14)', field: 'rsi', guide: 'rsi', opts: [gt(70, '', '과매수 (70 초과)'), gt(60), rng(45, 60, '', '중립 (45~60)'), rng(35, 60, '', '눌림목권 (35~60)'), lt(40), lt(35), lt(30, '', '과매도 (30 미만)')] },
+        { id: 'sma20', tab: 'tech', label: '20일선 대비 (SMA20)', field: 'sma20Pct', guide: 'sma20', opts: smaOpts() },
+        { id: 'sma50', tab: 'tech', label: '50일선 대비 (SMA50)', field: 'sma50Pct', guide: 'sma50', opts: smaOpts() },
+        { id: 'sma200', tab: 'tech', label: '200일선 대비 (SMA200)', field: 'sma200Pct', guide: 'sma200', opts: smaOpts() },
+        { id: 'maalign', tab: 'tech', label: '이평선 배열 (MA Alignment)', field: 'maAlign', tip: '정배열 = 20일선 > 50일선 > 200일선 (상승 추세), 역배열 = 반대 (하락 추세).', opts: [
+          flag('bull', '정배열 (20>50>200)', e => e.maAlign === 'bull', 'maAlign'), flag('bear', '역배열 (20<50<200)', e => e.maAlign === 'bear', 'maAlign')] },
+        { id: 'hi52', tab: 'tech', label: '52주 고점 대비 (vs High)', field: 'fromHigh52', tip: '1년 최고가에서 얼마나 떨어져 있는지입니다. 0%에 가까울수록 신고가 부근입니다.', opts: [
+          ge(-0.5, '', '신고가 갱신 (-0.5% 이내)'), ge(-5, '', '고점 5% 이내'), ge(-10, '', '고점 10% 이내'), ge(-20, '', '고점 20% 이내'), ge(-25, '', '고점 25% 이내'), le(-30, '', '30% 이상 하락')] },
+        { id: 'lo52', tab: 'tech', label: '52주 저점 대비 (vs Low)', field: 'fromLow52', tip: '1년 최저가에서 얼마나 올라와 있는지입니다. 낮을수록 바닥권입니다.', opts: [lt(10, '%', '저점 위 10% 미만'), lt(25, '%', '저점 위 25% 미만'), ge(100, '%', '저점 대비 100% 이상')] },
+        { id: 'hilo', tab: 'tech', label: '20일/50일 고저점', tip: '직전 20일(또는 50일) 중 최고가를 넘으면 돌파, 최저가를 깨면 이탈입니다. (오늘 제외)', opts: [
+          flag('h20', '20일 고점 돌파', e => e.fromHigh20 > 0, 'fromHigh20'), flag('l20', '20일 저점 이탈', e => e.fromLow20 < 0, 'fromLow20'),
+          flag('h50', '50일 고점 돌파', e => e.fromHigh50 > 0, 'fromHigh50'), flag('l50', '50일 저점 이탈', e => e.fromLow50 < 0, 'fromLow50')] },
+        { id: 'atr', tab: 'tech', label: '변동성 ATR% (Volatility)', field: 'atrPct', tip: '하루 평균 변동폭(14일 ATR)이 주가의 몇 %인지입니다. 클수록 출렁입니다.', opts: [lt(2, '%'), rng(2, 4, '%'), gt(4, '%'), gt(6, '%')] },
+        { id: 'beta', tab: 'tech', label: '베타 (Beta)', field: 'beta', guide: 'beta', opts: [lt(0.8), lt(1), gt(1.2), gt(1.5), gt(2)] },
+        { id: 'gap', tab: 'tech', label: '갭 (Gap)', field: 'gapPct', tip: '오늘 시가가 어제 종가 대비 얼마나 뛰었거나 떨어졌는지입니다.', opts: [gt(2, '%'), gt(5, '%'), lt(-2, '%'), lt(-5, '%')] },
+        { id: 'chg', tab: 'tech', label: '당일 등락률 (Change)', field: 'chgPct', tip: '오늘(또는 직전 거래일) 등락률입니다.', opts: [gt(0, '%', '상승'), gt(3, '%'), gt(5, '%'), lt(-3, '%'), lt(-5, '%')] },
+        { id: 'macd', tab: 'tech', label: 'MACD', tip: 'MACD 히스토그램 방향입니다. 골든크로스 직후 = 최근 3거래일 안에 (-)에서 (+)로 바뀐 상태.', opts: [
+          flag('bullCross', '골든크로스 직후', e => e.macdState === 'bullCross', 'macdState'), flag('up', '상승 (히스토그램 +)', e => e.macdState === 'bull' || e.macdState === 'bullCross', 'macdState'),
+          flag('down', '하락 (히스토그램 -)', e => e.macdState === 'bear' || e.macdState === 'bearCross', 'macdState'), flag('bearCross', '데드크로스 직후', e => e.macdState === 'bearCross', 'macdState')] },
+        { id: 'setup', tab: 'tech', label: '스윙 셋업 (Setup)', tip: '자주 쓰이는 매매 패턴입니다. 돌파 = 20일 고점 돌파, 눌림목 = 정배열 상승 추세에서 20일선 근처까지 조정, 스퀴즈 = 변동폭이 한껏 좁아진 상태, 거래량 급증 = 평소 1.5배 이상 거래되며 2% 이상 상승.', opts: [
+          flag('break20', '20일 고점 돌파', e => e.break20 === true, 'break20'), flag('pullback', '정배열 눌림목', e => e.pullback === true, 'pullback'),
+          flag('squeeze', '볼린저 스퀴즈', e => e.squeeze === true, 'squeeze'), flag('volSurge', '거래량 급증 상승', e => e.volSurge === true, 'volSurge')] }
+      ];
+    })();
+    const FILTER_BY_ID = {};
+    FILTER_DEFS.forEach(d => { d.optMap = {}; d.opts.forEach(o => { d.optMap[o.k] = o; }); FILTER_BY_ID[d.id] = d; });
+
+    // 필터 ID + 옵션 키 → 옵션 (알 수 없으면 null). 세부 업종은 값 자체가 키.
+    function screenerOpt(def, key) {
+      if (!def || key === null || key === undefined || key === '') return null;
+      if (def.dynamic) return { k: key, label: String(key), fn: e => e[def.field] === key, field: def.field };
+      return def.optMap[key] || null;
+    }
+    const isBlankScreenerVal = v => v === null || v === undefined || v === '' || (typeof v === 'number' && !Number.isFinite(v));
+    // 이 필터 조건이 판단에 필요한 필드 (값이 없으면 그 종목은 제외됨)
+    const screenerNeeds = a => a.opt.field ? [a.opt.field] : (a.def.field ? [a.def.field] : []);
+
+    function optMatches(def, opt, e) {
+      if (opt.fn) return !!opt.fn(e);
+      const v = e[def.field];
+      if (typeof v !== 'number' || !Number.isFinite(v)) return false;
+      if (opt.min !== undefined && !(opt.minX ? v > opt.min : v >= opt.min)) return false;
+      if (opt.max !== undefined && !(opt.maxX ? v < opt.max : v <= opt.max)) return false;
+      return true;
+    }
+
+    // 필터 상태 → [{def, opt}] (FILTER_DEFS 순서, 알 수 없는 키는 무시)
+    function activeScreenerFilters(filters = screenerState.filters) {
+      const out = [];
+      FILTER_DEFS.forEach(def => {
+        const opt = screenerOpt(def, filters[def.id]);
+        if (opt) out.push({ def, opt });
+      });
+      return out;
+    }
+    function screenerPass(e, filters) {
+      return activeScreenerFilters(filters).every(a => optMatches(a.def, a.opt, e));
+    }
+
+    // ---- 점수 (0~100) ----
+    // 값이 있는 지표만으로 가중 평균하고, 계산 가능한 지표가 2개 미만이면 null.
+    // lin(v, lo, hi): lo → 0점, hi → 100점으로 선형 변환(범위 밖은 고정). lo > hi 이면 낮을수록 좋은 지표.
+    //  퀄리티: ROE 0→30%, 영업이익률 0→30%, 매출총이익률 20→70%, 매출성장 0→30%, 이익성장 0→30%, 부채비율 200→20%, FCF 흑자 100/적자 0
+    //  가치:   P/E 40→8 (적자 0), Fwd P/E 35→8 (적자 0), PEG 3→0.5 (음수 0), P/FCF 50→10 (FCF 적자 0), FCF 수익률 0→8%, P/S 12→1
+    //  모멘텀: 3개월 -10→30%, 6개월 -10→50%, 200일선 대비 -10→30%, 52주 고점 대비 -30→0%, RSI 57.5 근처가 만점(±27.5 밖은 0), 상대거래량 0.7→2.0배(가중치 0.5)
+    const lin = (v, lo, hi) => Math.max(0, Math.min(1, (v - lo) / (hi - lo))) * 100;
+    const withNum = (v, fn) => Number.isFinite(v) ? fn(v) : null;
+    const SCORE_FACTORS = {
+      quality: [
+        [1, e => withNum(e.roe, v => lin(v, 0, 30))],
+        [1, e => withNum(e.opMargin, v => lin(v, 0, 30))],
+        [1, e => withNum(e.grossMargin, v => lin(v, 20, 70))],
+        [1, e => withNum(e.revGrowth, v => lin(v, 0, 30))],
+        [1, e => withNum(e.epsGrowth, v => lin(v, 0, 30))],
+        [1, e => withNum(e.de, v => lin(v, 200, 20))],
+        [1, e => withNum(e.fcf, v => v > 0 ? 100 : 0)]
+      ],
+      value: [
+        [1, e => withNum(e.pe, v => v > 0 ? lin(v, 40, 8) : 0)],
+        [1, e => withNum(e.fpe, v => v > 0 ? lin(v, 35, 8) : 0)],
+        [1, e => withNum(e.peg, v => v > 0 ? lin(v, 3, 0.5) : 0)],
+        [1, e => Number.isFinite(e.pFcf) ? lin(e.pFcf, 50, 10) : (Number.isFinite(e.fcf) && e.fcf <= 0 ? 0 : null)],
+        [1, e => withNum(e.fcfYield, v => lin(v, 0, 8))],
+        [1, e => withNum(e.pS, v => v > 0 ? lin(v, 12, 1) : null)]
+      ],
+      momentum: [
+        [1, e => withNum(e.perf3m, v => lin(v, -10, 30))],
+        [1, e => withNum(e.perf6m, v => lin(v, -10, 50))],
+        [1, e => withNum(e.sma200Pct, v => lin(v, -10, 30))],
+        [1, e => withNum(e.fromHigh52, v => lin(v, -30, 0))],
+        [1, e => withNum(e.rsi, v => lin(Math.abs(v - 57.5), 27.5, 5))],
+        [0.5, e => withNum(e.relVol, v => lin(v, 0.7, 2))]
+      ]
+    };
+    // kind = 'quality' | 'value' | 'momentum' | 없으면 계산 가능한 세 점수의 평균
+    function scoreOf(e, kind) {
+      const one = k => {
+        let sw = 0, s = 0, n = 0;
+        for (const [w, fn] of SCORE_FACTORS[k]) {
+          const v = fn(e);
+          if (v !== null && Number.isFinite(v)) { s += w * v; sw += w; n++; }
+        }
+        return n >= 2 ? s / sw : null;
+      };
+      if (SCORE_FACTORS[kind]) { const r = one(kind); return r === null ? null : Math.round(r); }
+      const parts = ['quality', 'value', 'momentum'].map(one).filter(v => v !== null);
+      return parts.length ? Math.round(parts.reduce((a, b) => a + b, 0) / parts.length) : null;
+    }
+    // @@PURE-END
+    const SCORE_LABEL = { quality: '퀄리티', value: '가치', momentum: '모멘텀' };
+
+    // ======================================================================
+    // 표 보기(View) / 컬럼 정의
+    // ======================================================================
+    const SCREENER_VIEWS = {
+      overview:    { label: '개요',       cols: ['sector', 'pe', 'peg', 'roe', 'shortFloat', 'rsi', 'sma20Pct', 'recMean'] },
+      valuation:   { label: '밸류에이션', cols: ['marketCapVal', 'pe', 'fpe', 'peg', 'pS', 'pB', 'pFcf', 'divYield', 'targetUpside'] },
+      fundamental: { label: '재무',       cols: ['roe', 'roa', 'revGrowth', 'epsGrowth', 'opMargin', 'profitMargin', 'de', 'currentRatio', 'fcfYield'] },
+      technical:   { label: '기술',       cols: ['perf1w', 'perf1m', 'perf3m', 'perf1y', 'sma20Pct', 'sma50Pct', 'sma200Pct', 'rsi', 'atrPct', 'fromHigh52', 'relVol', 'beta'] }
+    };
+    const screenerViewCols = v => ['ticker', 'name', 'price', 'change', ...(SCREENER_VIEWS[v] || SCREENER_VIEWS.overview).cols, 'score', 'action'];
+
+    const scrFin = Number.isFinite;
+    const scrFmt = (v, d = 1, suf = '') => scrFin(v) ? `${v.toFixed(d)}${suf}` : '';
+    const scrSigned = (v, d = 1, suf = '%') => scrFin(v) ? `${v > 0 ? '+' : ''}${v.toFixed(d)}${suf}` : '';
+    const scrSignCls = v => !scrFin(v) ? 'text-slate-300' : v > 0 ? 'text-emerald-400' : v < 0 ? 'text-rose-400' : 'text-slate-300';
+    const SCR_TD = 'py-2.5 px-2 border-r border-slate-800';
+
+    const SCREENER_COLS = (() => {
+      // rate = METRIC_GUIDE 키 (신호등 색), sign = 부호 색(성과 등), d = 소수점, suf = 단위
+      const col = (label, field, o = {}) => ({
+        label, al: o.al || 'r', val: e => e[field], tip: o.tip, guide: o.rate,
+        txt: e => o.signed ? scrSigned(e[field], o.d ?? 1, o.suf ?? '%') : scrFmt(e[field], o.d ?? 1, o.suf || ''),
+        cls: e => o.rate ? ratingClass(o.rate, e[field]) : (o.sign ? scrSignCls(e[field]) : 'text-slate-300')
+      });
+      const consBadge = c => {
+        if (c.includes('STRONG BUY')) return 'bg-emerald-950 text-emerald-300 border-emerald-800 font-bold';
+        if (c.includes('BUY')) return 'bg-cyan-950 text-cyan-300 border-cyan-800 font-semibold';
+        if (c.includes('HOLD')) return 'bg-amber-950 text-amber-300 border-amber-800 font-medium';
+        return 'bg-slate-800 text-slate-300 border-slate-700';
+      };
+      return {
+        rank: { label: '', val: e => e.rank },
+        ticker: { label: '티커', al: 'l', sticky: true, val: e => e.ticker, html: e => {
+          const t = escapeHtml(e.ticker);
+          return `<td class="py-2.5 px-2 border-r border-slate-800 font-bold text-cyan-400 group-hover:text-cyan-300 sticky left-0 z-10 bg-[#131e32] group-hover:bg-[#1a2740]"><div class="flex items-center gap-1.5 whitespace-nowrap"><span>${t}</span>${e.marketCap ? `<span class="text-[10px] text-slate-500 font-normal">(${escapeHtml(e.marketCap)})</span>` : ''}${e.searched ? '<span class="text-[9px] px-1 rounded bg-cyan-900 text-cyan-300 font-sans font-normal">검색</span>' : ''}</div></td>`;
+        } },
+        name: { label: '종목명', al: 'l', val: e => e.name, html: e => `<td class="${SCR_TD} text-white font-sans text-xs whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title="${escapeHtml(e.name)}">${escapeHtml(e.name)}</td>` },
+        price: { label: '현재가 ($)', val: e => e.price, html: e => `<td class="${SCR_TD} text-right font-bold text-white">${scrFin(e.price) ? '$' + Number(e.price).toFixed(2) : ''}</td>` },
+        change: { label: '등락률', val: e => e.chgPct, html: e => `<td class="${SCR_TD} text-right font-semibold ${scrSignCls(e.chgPct)}">${scrFin(e.chgPct) ? scrSigned(e.chgPct, 2) : escapeHtml(e.change)}</td>`, tip: '오늘(또는 직전 거래일) 등락률입니다.' },
+        sector: { label: '섹터', al: 'l', val: e => e.sector, html: e => `<td class="${SCR_TD} text-slate-400 font-sans text-[11px] whitespace-nowrap">${escapeHtml(e.sector)}</td>` },
+        marketCapVal: { label: '시총', val: e => e.marketCapVal, html: e => `<td class="${SCR_TD} text-right text-slate-300">${escapeHtml(e.marketCap)}</td>`, tip: '시가총액 (회사 전체의 시장 가치)' },
+        pe: col('P/E', 'pe', { rate: 'pe' }),
+        fpe: col('Fwd P/E', 'fpe', { rate: 'fpe' }),
+        peg: col('PEG', 'peg', { rate: 'peg', d: 2 }),
+        pS: col('P/S', 'pS', { rate: 'ps' }),
+        pB: col('P/B', 'pB', { rate: 'pb' }),
+        pFcf: col('P/FCF', 'pFcf', { tip: '시가총액 ÷ 잉여현금흐름 (FCF 적자 종목은 빈칸)' }),
+        divYield: col('배당률', 'divYield', { rate: 'divYield', d: 2, suf: '%' }),
+        targetUpside: col('목표가 여력', 'targetUpside', { rate: 'upside', signed: true }),
+        roe: col('ROE', 'roe', { rate: 'roe', suf: '%' }),
+        roa: col('ROA', 'roa', { suf: '%', sign: true, tip: '총자산이익률 — 회사가 가진 모든 자산으로 낸 이익의 비율' }),
+        revGrowth: col('매출성장', 'revGrowth', { rate: 'revGrowth', suf: '%' }),
+        epsGrowth: col('이익성장', 'epsGrowth', { rate: 'earnGrowth', suf: '%' }),
+        opMargin: col('영업이익률', 'opMargin', { rate: 'opMargin', suf: '%' }),
+        profitMargin: col('순이익률', 'profitMargin', { rate: 'netMargin', suf: '%' }),
+        de: col('D/E', 'de', { rate: 'de', d: 0, suf: '%' }),
+        currentRatio: col('유동비율', 'currentRatio', { rate: 'currentRatio', d: 2 }),
+        fcfYield: col('FCF 수익률', 'fcfYield', { sign: true, signed: true, tip: '잉여현금흐름 ÷ 시가총액 — 높을수록 현금을 잘 버는 주식' }),
+        shortFloat: col('Short Float', 'shortFloat', { rate: 'shortFloat', suf: '%' }),
+        rsi: col('RSI (14)', 'rsi', { rate: 'rsi' }),
+        sma20Pct: col('SMA20', 'sma20Pct', { rate: 'sma20', signed: true, al: 'r' }),
+        sma50Pct: col('SMA50', 'sma50Pct', { rate: 'sma50', signed: true }),
+        sma200Pct: col('SMA200', 'sma200Pct', { rate: 'sma200', signed: true }),
+        recMean: { label: '5인 컨센서스', al: 'c', val: e => e.recMean ?? null, html: e => {
+          const c = String(e.consensus || '');
+          return `<td class="${SCR_TD} text-center">${c ? `<span class="px-2 py-0.5 rounded text-[10px] border ${consBadge(c)} whitespace-nowrap">${escapeHtml(c)}</span>` : ''}</td>`;
+        }, tip: '애널리스트 평균 의견 (정렬: 평균 점수, 1=적극 매수)' },
+        perf1w: col('1주', 'perf1w', { sign: true, signed: true, tip: '최근 5거래일 수익률' }),
+        perf1m: col('1개월', 'perf1m', { sign: true, signed: true, tip: '최근 21거래일 수익률' }),
+        perf3m: col('3개월', 'perf3m', { sign: true, signed: true, tip: '최근 63거래일 수익률' }),
+        perf1y: col('1년', 'perf1y', { sign: true, signed: true, tip: '1년 전 대비 수익률' }),
+        atrPct: col('ATR%', 'atrPct', { suf: '%', tip: '14일 평균 변동폭 ÷ 주가 — 하루 변동성의 크기' }),
+        fromHigh52: col('52주 고점 대비', 'fromHigh52', { signed: true, tip: '1년 최고가 대비 현재가 (0%에 가까울수록 신고가 부근)' }),
+        relVol: col('상대거래량', 'relVol', { d: 2, suf: '배', tip: '오늘 거래량 ÷ 최근 63일 평균 거래량 (장중에는 낮게 나옴)' }),
+        beta: col('베타', 'beta', { rate: 'beta', d: 2 }),
+        score: { label: '점수', al: 'c', val: e => e._score, tip: '0~100 참고용 점수. 프리셋을 쓰면 그 프리셋의 점수(퀄리티·가치·모멘텀), 아니면 계산 가능한 세 점수의 평균입니다. 값이 있는 지표만으로 계산하며 지표가 2개 미만이면 빈칸입니다.', html: e => {
+          const s = e._score;
+          const cls = !scrFin(s) ? 'text-slate-500' : s >= 70 ? 'text-emerald-400' : s >= 50 ? 'text-sky-300' : s >= 30 ? 'text-amber-400' : 'text-rose-400';
+          return `<td class="${SCR_TD} text-center font-bold ${cls}">${scrFin(s) ? s : ''}</td>`;
+        } },
+        action: { label: '액션', al: 'c', sort: false, html: e => `<td class="py-2.5 px-2 text-center"><button type="button" data-ticker="${escapeHtml(e.ticker)}" onclick="event.stopPropagation(); selectScreenerStock(this.dataset.ticker)" class="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white font-bold rounded-lg text-[11px] font-sans flex items-center gap-1 mx-auto transition shadow whitespace-nowrap"><span>5인 분석</span><i class="fa-solid fa-arrow-right text-[10px]"></i></button></td>` }
+      };
+    })();
+
+    // ======================================================================
+    // 원클릭 프리셋 (장기 / 스윙 / 이벤트) — 필터 + 보기 + 정렬 + 점수 종류
+    // ======================================================================
+    const SCREENER_PRESET_GROUPS = [
+      { tag: '장기 투자', icon: 'fa-seedling', color: 'text-emerald-300' },
+      { tag: '스윙', icon: 'fa-chart-line', color: 'text-cyan-300' },
+      { tag: '이벤트', icon: 'fa-bolt', color: 'text-amber-300' }
+    ];
+    const SCREENER_PRESETS = [
+      { id: 'quality-growth', tag: '장기 투자', name: '퀄리티 성장', desc: '돈 잘 벌고 빚 적은 성장 우량주', score: 'quality', view: 'fundamental',
+        filters: { roe: 'gt15', om: 'gt15', revg: 'gt10', de: 'lt100', mcap: 'ge2', sma200: 'gt0' } },
+      { id: 'value-quality', tag: '장기 투자', name: '가치 + 퀄리티', desc: '싸면서 튼튼한 대형 우량주', score: 'value', view: 'valuation',
+        filters: { pe: 'lt20', roe: 'gt15', de: 'lt100', om: 'gt10', fcfy: 'gt2', mcap: 'ge10' } },
+      { id: 'dividend', tag: '장기 투자', name: '배당 우량', desc: '배당이 안정적인 대형주 (상승 추세)', score: 'quality', view: 'valuation',
+        filters: { divy: 'gt2', payout: 'lt70', roe: 'gt10', de: 'lt150', mcap: 'ge10', sma200: 'gt0' } },
+      { id: 'fool-growth', tag: '장기 투자', name: '슈퍼 성장 (모틀리 풀)', desc: '매출이 빠르게 크는 고마진 성장주', score: 'momentum', view: 'fundamental',
+        filters: { revg: 'gt20', gm: 'gt50', sma50: 'gt0', hi52: 'ge-25' } },
+      { id: 'defensive', tag: '장기 투자', name: '방어형 우량', desc: '시장보다 덜 출렁이는 수익성 좋은 배당주', score: 'quality', view: 'fundamental',
+        filters: { beta: 'lt1', roe: 'gt15', om: 'gt15', divy: 'gt0' } },
+      { id: 'pullback', tag: '스윙', name: '정배열 눌림목', desc: '상승 추세 속 20일선까지 쉬어가는 종목', score: 'momentum', view: 'technical',
+        filters: { setup: 'pullback', rsi: 'r35_60', avgvol: 'gt500000', mcap: 'ge2' } },
+      { id: 'breakout20', tag: '스윙', name: '20일 고점 돌파', desc: '거래량 실린 단기 돌파', score: 'momentum', view: 'technical',
+        filters: { setup: 'break20', relvol: 'gt1.2', sma50: 'gt0' } },
+      { id: 'new-high', tag: '스윙', name: '52주 신고가 모멘텀', desc: '1년 고점 부근에서 달리는 강한 종목', score: 'momentum', view: 'technical',
+        filters: { hi52: 'ge-5', p3m: 'gt15', maalign: 'bull' } },
+      { id: 'bb-squeeze', tag: '스윙', name: '볼린저 스퀴즈', desc: '변동폭이 좁아진 뒤 터질 준비를 하는 종목', score: 'momentum', view: 'technical',
+        filters: { setup: 'squeeze', sma50: 'gt0', mcap: 'ge2' } },
+      { id: 'oversold-bounce', tag: '스윙', name: '우량주 과매도 반등', desc: '장기 추세가 살아있는 대형주의 단기 급락', score: 'quality', view: 'technical',
+        filters: { rsi: 'lt35', sma200: 'gt0', mcap: 'ge10', rec: 'le2' } },
+      { id: 'short-squeeze', tag: '이벤트', name: '숏스퀴즈 후보', desc: '공매도가 많은데 주가가 오르며 거래량이 터짐', score: 'momentum', view: 'overview',
+        filters: { short: 'gt10', relvol: 'gt1.5', sma20: 'gt0' } },
+      { id: 'analyst-undervalued', tag: '이벤트', name: '애널리스트 저평가', desc: '목표가 대비 여력이 큰 대형 상승 추세주', score: 'value', view: 'valuation',
+        filters: { upside: 'ge20', rec: 'le2', pe: 'lt30', mcap: 'ge10', sma200: 'gt0' } }
+    ];
+    // 예전 프리셋 ID 호환
+    const SCREENER_PRESET_ALIAS = { 'finviz-squeeze': 'short-squeeze', 'buffett-value': 'value-quality', 'rebound-chart': 'oversold-bounce' };
+
+    const SCREENER_PRESET_KEY = 'pentanalyst_screener_presets';
+    let userScreenerPresets = [];
+
+    function loadUserPresets() {
+      try {
+        const raw = localStorage.getItem(SCREENER_PRESET_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        userScreenerPresets = Array.isArray(arr) ? arr.filter(p => p && typeof p.name === 'string' && p.name && p.filters && typeof p.filters === 'object') : [];
+      } catch (e) { userScreenerPresets = []; }
+    }
+    function saveUserPresets() {
+      try { localStorage.setItem(SCREENER_PRESET_KEY, JSON.stringify(userScreenerPresets)); return true; } catch (e) { return false; }
+    }
+
+    // 저장된/외부 필터에서 알 수 없는 필터·옵션 키는 조용히 버린다
+    function sanitizeScreenerFilters(obj) {
+      const out = {};
+      Object.keys(obj || {}).forEach(id => {
+        const def = FILTER_BY_ID[id];
+        if (def && screenerOpt(def, obj[id])) out[id] = obj[id];
+      });
+      return out;
+    }
+    function sameScreenerFilters(a, b) {
+      const ka = Object.keys(a || {}).sort(), kb = Object.keys(b || {}).sort();
+      return ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k]);
+    }
+    // 프리셋을 적용한 뒤 필터가 그대로일 때만 "활성" (칩을 지우면 비활성 → 점수는 평균으로)
+    function currentScreenerPreset() {
+      const p = screenerState.preset;
+      return p && sameScreenerFilters(p.filters, screenerState.filters) ? p : null;
+    }
+    const currentScoreKind = () => { const p = currentScreenerPreset(); return p ? p.score : null; };
+
+    const baseFilterLabel = def => def.label.replace(/\s*\(.*\)\s*$/, '');
+    const filterTip = def => { const g = def.guide && METRIC_GUIDE[def.guide]; return g ? `${g.name}\n${g.what}` : (def.tip || ''); };
+    const presetSummary = filters => activeScreenerFilters(filters).map(a => `${baseFilterLabel(a.def)} ${a.opt.label}`).join(' · ');
+
+    // ======================================================================
+    // UI 렌더링
+    // ======================================================================
+    let screenerUIReady = false;
+    let screenerIndustrySig = '';
+    let screenerHeadSig = '';
+
+    function ensureScreenerUI() {
+      if (screenerUIReady) return;
+      if (!document.getElementById('screenerFilterGrid')) return;
+      screenerUIReady = true;
+      loadUserPresets();
+      renderScreenerFilterPanel();
+      renderScreenerPresets();
+      renderScreenerViewTabs();
+      refreshScreenerControls();
+    }
+
+    function renderScreenerFilterPanel() {
+      const grid = document.getElementById('screenerFilterGrid');
+      if (!grid) return;
+      const sel = 'w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-cyan-400 transition';
+      grid.innerHTML = ['desc', 'fund', 'tech'].map(tab => `
+        <div data-panel="${tab}" class="${tab === screenerState.tab ? '' : 'hidden '}grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-3 gap-y-2.5">
+          ${FILTER_DEFS.filter(d => d.tab === tab).map(d => `
+            <label class="block min-w-0">
+              <span class="block text-[11px] text-slate-400 font-semibold mb-1 truncate" title="${escapeHtml(filterTip(d))}">${escapeHtml(d.label)}</span>
+              <select data-fid="${d.id}" onchange="setScreenerFilter(this.dataset.fid, this.value)" class="${sel}">
+                <option value="">전체</option>${d.dynamic ? '' : d.opts.map(o => `<option value="${escapeHtml(o.k)}">${escapeHtml(o.label)}</option>`).join('')}
+              </select>
+            </label>`).join('')}
+        </div>`).join('');
+    }
+
+    // 세부 업종 옵션은 불러온 종목에서 동적으로 만든다 (바뀐 경우에만 다시 그림)
+    function refreshIndustryOptions() {
+      const select = document.querySelector('#screenerFilterGrid select[data-fid="industry"]');
+      if (!select || document.activeElement === select) return; // 열어 둔 드롭다운은 건드리지 않고 다음 갱신 때 반영
+      const set = new Set();
+      SCREENER_MASTER_DATA.forEach(e => { if (e.industry && !e.missing) set.add(e.industry); });
+      const cur = screenerState.filters.industry;
+      if (cur) set.add(cur);
+      const list = [...set].sort((a, b) => a.localeCompare(b));
+      const sig = list.join('|');
+      if (sig === screenerIndustrySig) return;
+      screenerIndustrySig = sig;
+      select.innerHTML = `<option value="">${list.length ? '전체' : '전체 (불러온 뒤 표시)'}</option>` + list.map(i => `<option value="${escapeHtml(i)}">${escapeHtml(i)}</option>`).join('');
+      select.value = cur || '';
+    }
+
+    function renderScreenerPresets() {
+      const box = document.getElementById('screenerPresets');
+      if (!box) return;
+      box.innerHTML = SCREENER_PRESET_GROUPS.map(g => `
+        <div>
+          <div class="flex items-center gap-1.5 text-[11px] font-bold ${g.color} mb-1.5"><i class="fa-solid ${g.icon}"></i>${g.tag}</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
+            ${SCREENER_PRESETS.filter(p => p.tag === g.tag).map(p => `
+              <button type="button" data-pid="${p.id}" onclick="applyScreenerPreset(this.dataset.pid)" class="preset-btn text-left p-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/60 transition group">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs font-bold text-white group-hover:text-cyan-200">${escapeHtml(p.name)}</span>
+                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 whitespace-nowrap">${SCORE_LABEL[p.score]} 점수</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1 leading-snug">${escapeHtml(p.desc)}</p>
+                <p class="text-[10px] text-slate-500 mt-1 leading-snug">${escapeHtml(presetSummary(p.filters))}</p>
+              </button>`).join('')}
+          </div>
+        </div>`).join('');
+    }
+
+    function renderScreenerUserPresets() {
+      const box = document.getElementById('screenerUserPresets');
+      if (!box) return;
+      const cur = currentScreenerPreset();
+      box.innerHTML = userScreenerPresets.length ? userScreenerPresets.map((p, i) => {
+        const active = cur && cur.src === 'user' && cur.id === p.name;
+        return `<span class="inline-flex items-center rounded-lg border ${active ? 'border-cyan-500 bg-cyan-950/50 text-cyan-200' : 'border-slate-700 bg-slate-900 text-slate-300'} text-[11px] overflow-hidden" title="${escapeHtml(presetSummary(sanitizeScreenerFilters(p.filters)))}">
+          <button type="button" data-idx="${i}" onclick="applyUserScreenerPreset(Number(this.dataset.idx))" class="px-2.5 py-1 hover:text-white">${escapeHtml(p.name)}</button>
+          <button type="button" data-idx="${i}" onclick="deleteUserScreenerPreset(Number(this.dataset.idx))" class="px-1.5 py-1 text-slate-500 hover:text-rose-400 border-l border-slate-700" title="삭제"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+        </span>`;
+      }).join('') : '<span class="text-[11px] text-slate-500">저장된 프리셋이 없습니다. 필터를 설정한 뒤 이름을 입력해 저장하세요.</span>';
+    }
+
+    function renderScreenerViewTabs() {
+      const box = document.getElementById('screenerViewTabs');
+      if (!box) return;
+      box.innerHTML = Object.keys(SCREENER_VIEWS).map(k => `<button type="button" data-view="${k}" onclick="setScreenerView(this.dataset.view)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition ${k === screenerState.view ? 'bg-cyan-950 text-cyan-300 border-cyan-700' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'}">${SCREENER_VIEWS[k].label}</button>`).join('');
+    }
+
+    // 필터 선택값·탭 배지·칩·프리셋 강조 등 컨트롤 전체를 현재 상태에 맞춘다
+    function refreshScreenerControls() {
+      if (!screenerUIReady) return;
+      refreshIndustryOptions();
+      const f = screenerState.filters;
+      document.querySelectorAll('#screenerFilterGrid select[data-fid]').forEach(s => {
+        const v = f[s.dataset.fid] || '';
+        s.value = v;
+        if (s.value !== v) s.value = '';
+        s.classList.toggle('border-cyan-500', !!s.value);
+        s.classList.toggle('border-slate-700', !s.value);
+      });
+      const active = activeScreenerFilters();
+      ['desc', 'fund', 'tech'].forEach(tab => {
+        const btn = document.querySelector(`#screenerFilterTabs button[data-tab="${tab}"]`);
+        const panel = document.querySelector(`#screenerFilterGrid [data-panel="${tab}"]`);
+        const cnt = active.filter(a => a.def.tab === tab).length;
+        if (btn) {
+          const on = tab === screenerState.tab;
+          btn.className = `px-4 py-2 text-xs font-bold border-b-2 -mb-px transition flex items-center gap-1.5 ${on ? 'text-cyan-300 border-cyan-400' : 'text-slate-400 border-transparent hover:text-white'}`;
+          const badge = btn.querySelector('[data-badge]');
+          badge.textContent = cnt;
+          badge.classList.toggle('hidden', cnt === 0);
+        }
+        if (panel) panel.classList.toggle('hidden', tab !== screenerState.tab);
+      });
+      const chips = document.getElementById('screenerChips');
+      if (chips) {
+        chips.innerHTML = active.length ? active.map(a => `<button type="button" data-fid="${a.def.id}" onclick="removeScreenerFilter(this.dataset.fid)" class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-cyan-950/60 border border-cyan-800 text-[11px] text-cyan-200 hover:bg-rose-950/60 hover:border-rose-800 hover:text-rose-200 transition" title="클릭하면 이 조건을 해제합니다"><span><span class="text-cyan-400/80">${escapeHtml(baseFilterLabel(a.def))}:</span> ${escapeHtml(a.opt.label)}</span><i class="fa-solid fa-xmark text-[9px]"></i></button>`).join('')
+          : '<span class="text-[11px] text-slate-500">적용된 필터가 없습니다 — 위에서 조건을 고르거나 프리셋을 눌러보세요.</span>';
+      }
+      const cur = currentScreenerPreset();
+      document.querySelectorAll('#screenerPresets .preset-btn').forEach(b => {
+        const on = !!cur && cur.src === 'builtin' && cur.id === b.dataset.pid;
+        b.classList.toggle('border-cyan-500', on);
+        b.classList.toggle('bg-cyan-950/40', on);
+        b.classList.toggle('ring-1', on);
+        b.classList.toggle('ring-cyan-500/50', on);
+        b.classList.toggle('border-slate-800', !on);
+      });
+      renderScreenerUserPresets();
+      renderScreenerViewTabs();
+    }
+
+    function setScreenerFilterTab(tab) {
+      screenerState.tab = tab;
+      refreshScreenerControls();
+    }
+
+    function setScreenerFilter(id, key) {
+      if (!FILTER_BY_ID[id]) return;
+      if (key) screenerState.filters[id] = key; else delete screenerState.filters[id];
+      screenerState.page = 1;
+      refreshScreenerControls();
+      runScreenerFilter();
+    }
+    function removeScreenerFilter(id) { setScreenerFilter(id, ''); }
+
+    function setScreenerView(view) {
+      if (!SCREENER_VIEWS[view]) return;
+      screenerState.view = view;
+      // 현재 정렬 기준이 새 보기에 없으면 기본 순서로
+      if (screenerState.sortBy !== 'rank' && !screenerViewCols(view).includes(screenerState.sortBy)) { screenerState.sortBy = 'rank'; screenerState.sortDir = 'asc'; }
+      screenerState.page = 1;
+      refreshScreenerControls();
+      runScreenerFilter();
+    }
+
+    function applyScreenerPreset(id) {
+      const p = SCREENER_PRESETS.find(x => x.id === (SCREENER_PRESET_ALIAS[id] || id));
+      if (!p) return;
+      resetScreenerFilters(false);
+      screenerState.filters = sanitizeScreenerFilters(p.filters);
+      screenerState.view = p.view || 'overview';
+      screenerState.sortBy = 'score';
+      screenerState.sortDir = 'desc';
+      screenerState.preset = { src: 'builtin', id: p.id, score: p.score, filters: { ...screenerState.filters } };
+      refreshScreenerControls();
+      runScreenerFilter();
+      const valid = SCREENER_MASTER_DATA.filter(e => !e.missing);
+      const loaded = valid.filter(e => e.loaded).length;
+      showToast('프리셋 적용', `${p.name}: ${presetSummary(p.filters)}${getProxyUrl() && loaded < valid.length ? ` — 불러온 종목(${loaded}/${valid.length}) 기준입니다. 전체를 보려면 "전체 불러오기"를 누르세요.` : ''}`, 'info');
+    }
+
+    function saveCurrentScreenerPreset() {
+      const input = document.getElementById('screenerPresetName');
+      const name = (input ? input.value : '').trim().slice(0, 24);
+      if (!Object.keys(screenerState.filters).length) { showToast('저장할 필터 없음', '먼저 필터를 하나 이상 설정해 주세요.', 'info'); return; }
+      if (!name) { showToast('이름 필요', '프리셋 이름을 입력해 주세요.', 'info'); if (input) input.focus(); return; }
+      const idx = userScreenerPresets.findIndex(p => p.name === name);
+      if (idx >= 0 && !confirm(`"${name}" 프리셋이 이미 있습니다. 덮어쓸까요?`)) return;
+      const entry = { name, filters: { ...screenerState.filters }, view: screenerState.view, sortBy: screenerState.sortBy, sortDir: screenerState.sortDir, score: currentScoreKind(), savedAt: new Date().toISOString() };
+      if (idx >= 0) userScreenerPresets[idx] = entry; else userScreenerPresets.push(entry);
+      const stored = saveUserPresets();
+      screenerState.preset = { src: 'user', id: name, score: entry.score, filters: { ...entry.filters } };
+      if (input) input.value = '';
+      refreshScreenerControls();
+      runScreenerFilter();
+      showToast('프리셋 저장', stored ? `"${name}" 프리셋을 저장했습니다.` : `"${name}" 프리셋을 만들었지만 이 브라우저에서는 저장이 막혀 있어 이번 접속 동안만 유지됩니다.`, stored ? 'success' : 'warning');
+    }
+
+    function applyUserScreenerPreset(i) {
+      const p = userScreenerPresets[i];
+      if (!p) return;
+      resetScreenerFilters(false);
+      screenerState.filters = sanitizeScreenerFilters(p.filters);
+      if (SCREENER_VIEWS[p.view]) screenerState.view = p.view;
+      if (p.sortBy && (p.sortBy === 'rank' || SCREENER_COLS[p.sortBy])) { screenerState.sortBy = p.sortBy; screenerState.sortDir = p.sortDir === 'asc' ? 'asc' : 'desc'; }
+      const score = SCORE_FACTORS[p.score] ? p.score : null;
+      screenerState.preset = { src: 'user', id: p.name, score, filters: { ...screenerState.filters } };
+      refreshScreenerControls();
+      runScreenerFilter();
+    }
+
+    function deleteUserScreenerPreset(i) {
+      const p = userScreenerPresets[i];
+      if (!p) return;
+      userScreenerPresets.splice(i, 1);
+      saveUserPresets();
+      refreshScreenerControls();
+    }
+
     function loadThemedStocks(theme) {
       resetScreenerFilters(false);
       document.getElementById('screenerSearchKeyword').value = '';
-      screenerState.searchKeyword = '';
-      screenerState.page = 1;
-
       if (theme === 'TECH') {
-        screenerState.extra.sectors = ['Tech', 'Semiconductors'];
+        screenerState.filters.sector = 'TECHSEMI';
         showToast("테마 로드", "빅테크 및 반도체 섹터 주식을 불러왔습니다.", "info");
       } else if (theme === 'VALUE') {
-        document.getElementById('filterPE').value = 'UNDER_25';
-        screenerState.extra.sectors = ['Finance', 'Consumer'];
+        screenerState.filters.sector = 'FINCONS';
+        screenerState.filters.pe = 'lt25';
         showToast("테마 로드", "P/E 25배 미만의 금융/필수소비재 가치주를 불러왔습니다.", "info");
       } else if (theme === 'GROWTH') {
-        document.getElementById('filterSMA20').value = 'ABOVE';
+        screenerState.filters.sma20 = 'gt0';
         showToast("테마 로드", "20일선 위에서 질주 중인 모멘텀 성장주를 불러왔습니다.", "info");
       } else {
         showToast("전체 로드", "스크리너의 전종목을 표시합니다. (실시간 값은 화면에 보이는 종목부터 불러옵니다)", "info");
       }
+      refreshScreenerControls();
       runScreenerFilter();
     }
 
     function sortScreenerBy(column) {
+      if (column !== 'rank' && !(SCREENER_COLS[column] && SCREENER_COLS[column].sort !== false)) return;
       if (screenerState.sortBy === column) {
         screenerState.sortDir = screenerState.sortDir === 'asc' ? 'desc' : 'asc';
       } else {
         screenerState.sortBy = column;
-        screenerState.sortDir = (column === 'ticker' || column === 'name' || column === 'sector') ? 'asc' : 'desc';
+        screenerState.sortDir = ['ticker', 'name', 'sector', 'recMean'].includes(column) ? 'asc' : 'desc';
       }
-
-      ['ticker', 'name', 'sector', 'price', 'change', 'pe', 'peg', 'roe', 'shortFloat', 'rsi'].forEach(col => {
-        const el = document.getElementById(`sort-${col}`);
-        if (el) {
-          if (col === column) {
-            el.textContent = screenerState.sortDir === 'asc' ? '▲' : '▼';
-            el.className = 'text-cyan-400 font-bold';
-          } else {
-            el.textContent = '↕';
-            el.className = 'text-slate-600';
-          }
-        }
-      });
-
       screenerState.page = 1;
       runScreenerFilter();
     }
@@ -4270,15 +4897,11 @@ SONY|Sony Group ADR|T
     }
 
     function runScreenerFilter() {
-      const sector = document.getElementById('filterSector').value;
-      const cap = document.getElementById('filterMarketCap').value;
-      const pe = document.getElementById('filterPE').value;
-      const rsi = document.getElementById('filterRSI').value;
-      const shortFloat = document.getElementById('filterShortFloat').value;
-      const sma20 = document.getElementById('filterSMA20').value;
+      ensureScreenerUI();
+      refreshIndustryOptions();
       const kw = screenerState.searchKeyword;
-      const extra = screenerState.extra;
-      const has = v => Number.isFinite(v);
+      const active = activeScreenerFilters();
+      const kind = currentScoreKind();
 
       let filtered = SCREENER_MASTER_DATA.filter(item => {
         if (item.missing) return false;
@@ -4287,57 +4910,15 @@ SONY|Sony Group ADR|T
           const matchName = String(item.name || '').toUpperCase().includes(kw);
           if (!matchTicker && !matchName) return false;
         }
-
-        if (sector !== 'ALL' && item.sector !== sector) return false;
-        if (cap !== 'ALL' && item.capCategory !== cap) return false;
-        if (extra.sectors && !extra.sectors.includes(item.sector)) return false;
-        if (extra.minRoe !== null && !(has(item.roe) && item.roe >= extra.minRoe)) return false;
-
-        if (pe !== 'ALL') {
-          if (!has(item.pe)) return false;
-          if (pe === 'UNDER_25' && item.pe >= 25) return false;
-          if (pe === '25_TO_50' && (item.pe < 25 || item.pe > 50)) return false;
-          if (pe === 'OVER_50' && item.pe <= 50) return false;
-        }
-
-        if (rsi !== 'ALL') {
-          if (!has(item.rsi)) return false;
-          if (rsi === 'OVERSOLD' && item.rsi >= 45) return false;
-          if (rsi === 'NEUTRAL' && (item.rsi < 45 || item.rsi > 60)) return false;
-          if (rsi === 'OVERBOUGHT' && item.rsi <= 60) return false;
-        }
-
-        if (shortFloat !== 'ALL') {
-          if (!has(item.shortFloat)) return false;
-          if (shortFloat === 'LOW' && item.shortFloat >= 2.0) return false;
-          if (shortFloat === 'HIGH' && item.shortFloat <= 3.0) return false;
-        }
-
-        if (sma20 !== 'ALL') {
-          if (!item.sma20Diff) return false;
-          const isAbove20 = isPositivePct(item.sma20Diff);
-          if (sma20 === 'ABOVE' && !isAbove20) return false;
-          if (sma20 === 'BELOW' && isAbove20) return false;
-        }
-
-        return true;
+        return active.every(a => optMatches(a.def, a.opt, item));
       });
+      filtered.forEach(e => { e._score = scoreOf(e, kind); });
 
-      const col = screenerState.sortBy;
+      const colDef = SCREENER_COLS[screenerState.sortBy] || SCREENER_COLS.rank;
       const dir = screenerState.sortDir === 'asc' ? 1 : -1;
-
       filtered.sort((a, b) => {
-        let valA = a[col];
-        let valB = b[col];
-
-        if (col === 'change') {
-          valA = parseFloat(String(a.change).replace('%', ''));
-          valB = parseFloat(String(b.change).replace('%', ''));
-        }
-
-        if (typeof valA === 'string' && typeof valB === 'string') {
-          return valA.localeCompare(valB) * dir;
-        }
+        const valA = colDef.val(a), valB = colDef.val(b);
+        if (typeof valA === 'string' && typeof valB === 'string') return valA.localeCompare(valB) * dir;
         // 값이 없는 항목(null)은 항상 맨 아래로
         const na = !Number.isFinite(valA), nb = !Number.isFinite(valB);
         if (na && nb) return 0;
@@ -4354,10 +4935,29 @@ SONY|Sony Group ADR|T
       const startIndex = (screenerState.page - 1) * pageSize;
       const pageStocks = filtered.slice(startIndex, startIndex + pageSize);
 
+      renderScreenerHeader(kind);
       renderScreenerTable(pageStocks, totalCount, startIndex, totalPages);
       // 화면에 보이는 종목의 실시간 값을 우선 불러온다
       enqueueScreener(pageStocks, true);
       updateScreenerStatus();
+    }
+
+    // 헤더는 보기/정렬/점수 종류가 바뀔 때만 다시 그린다 (호버 툴팁이 깜빡이지 않도록)
+    function renderScreenerHeader(kind) {
+      const row = document.getElementById('screenerHeadRow');
+      if (!row) return;
+      const sig = [screenerState.view, screenerState.sortBy, screenerState.sortDir, kind || ''].join('|');
+      if (sig === screenerHeadSig) return;
+      screenerHeadSig = sig;
+      row.innerHTML = screenerViewCols(screenerState.view).map(k => {
+        const c = SCREENER_COLS[k];
+        const sortable = c.sort !== false;
+        const on = screenerState.sortBy === k;
+        const ind = sortable ? `<span id="sort-${k}" class="${on ? 'text-cyan-400 font-bold' : 'text-slate-600'}">${on ? (screenerState.sortDir === 'asc' ? '▲' : '▼') : '↕'}</span>` : '';
+        const label = k === 'score' ? `점수${kind ? `<span class="block text-[9px] font-normal text-slate-500">${SCORE_LABEL[kind]}</span>` : '<span class="block text-[9px] font-normal text-slate-500">종합</span>'}` : c.label;
+        return `<th data-key="${k}" ${sortable ? `onclick="sortScreenerBy('${k}')"` : ''} class="py-2.5 px-2 border-r border-slate-800 font-sans whitespace-nowrap ${c.al === 'r' ? 'text-right' : c.al === 'c' ? 'text-center' : ''} ${sortable ? 'cursor-pointer hover:text-cyan-300' : ''} ${k === 'ticker' ? 'sticky left-0 z-20 bg-slate-950' : ''} transition">${label} ${ind}</th>`;
+      }).join('');
+      initScreenerHeaderTips();
     }
 
     function renderScreenerTable(stocks, totalCount, startIndex, totalPages) {
@@ -4399,71 +4999,32 @@ SONY|Sony Group ADR|T
       }
       pageButtonsContainer.innerHTML = pageBtnsHtml;
 
+      const cols = screenerViewCols(screenerState.view);
       if (!stocks || stocks.length === 0) {
+        const filtered = Object.keys(screenerState.filters).length > 0;
         tbody.innerHTML = `
           <tr>
-            <td colspan="13" class="py-12 text-center text-slate-400 font-sans">
+            <td colspan="${cols.length}" class="py-12 text-center text-slate-400 font-sans">
               <i class="fa-solid fa-magnifying-glass text-2xl mb-2 text-cyan-400 block animate-bounce"></i>
               일치하는 종목이 없습니다.
               <br class="hidden sm:block">
-              상단 검색창에 티커를 입력하고 <strong class="text-cyan-300">[스크리너에 종목 등록]</strong>을 누르면 실시간 시세를 조회해 추가합니다. (자체 프록시 필요)
+              ${filtered
+                ? '아직 불러오지 않은 종목은 값이 없어 필터에 걸리지 않습니다. <strong class="text-cyan-300">[전체 불러오기]</strong>로 전체 종목을 불러오거나 조건을 완화해 보세요.'
+                : '상단 검색창에 티커를 입력하고 <strong class="text-cyan-300">[스크리너에 종목 등록]</strong>을 누르면 실시간 시세를 조회해 추가합니다. (자체 프록시 필요)'}
             </td>
           </tr>
         `;
         return;
       }
 
-      const dash = '';
-      const has = v => Number.isFinite(v);
-
       tbody.innerHTML = stocks.map(stock => {
-        const isPos = isPositivePct(stock.change);
-        const above20 = isPositivePct(stock.sma20Diff);
         const t = escapeHtml(stock.ticker);
-
-        let consensusBadge = 'bg-slate-800 text-slate-300 border-slate-700';
-        const cons = String(stock.consensus || '');
-        if (cons.includes('STRONG BUY')) {
-          consensusBadge = 'bg-emerald-950 text-emerald-300 border-emerald-800 font-bold';
-        } else if (cons.includes('BUY')) {
-          consensusBadge = 'bg-cyan-950 text-cyan-300 border-cyan-800 font-semibold';
-        } else if (cons.includes('HOLD')) {
-          consensusBadge = 'bg-amber-950 text-amber-300 border-amber-800 font-medium';
-        }
-
-        return `
-          <tr class="hover:bg-slate-900/60 transition group cursor-pointer" data-ticker="${t}" onclick="selectScreenerStock(this.dataset.ticker)">
-            <td class="py-3 px-3 border-r border-slate-800 font-bold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-1.5">
-              <span>${t}</span>
-              ${stock.marketCap ? `<span class="text-[10px] text-slate-500">(${escapeHtml(stock.marketCap)})</span>` : ''}
-              ${stock.searched ? '<span class="text-[9px] px-1 rounded bg-cyan-900 text-cyan-300 font-sans">검색</span>' : ''}
-            </td>
-            <td class="py-3 px-3 border-r border-slate-800 text-white font-sans text-xs whitespace-nowrap">${escapeHtml(stock.name)}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-slate-400 font-sans text-[11px] whitespace-nowrap">${escapeHtml(stock.sector)}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right font-bold text-white">${Number.isFinite(stock.price) ? '$' + Number(stock.price).toFixed(2) : ''}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(stock.change)}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('pe', stock.pe)}">${has(stock.pe) ? stock.pe : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('peg', stock.peg)}">${has(stock.peg) ? stock.peg : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('roe', stock.roe)}">${has(stock.roe) ? stock.roe + '%' : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('shortFloat', stock.shortFloat)}">${has(stock.shortFloat) ? stock.shortFloat + '%' : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-right ${ratingClass('rsi', stock.rsi)}">${has(stock.rsi) ? stock.rsi : dash}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-center font-bold ${ratingClass('sma20', stock.sma20Diff)}">${escapeHtml(stock.sma20Diff)}</td>
-            <td class="py-3 px-3 border-r border-slate-800 text-center">
-              ${cons ? `<span class="px-2 py-0.5 rounded text-[10px] border ${consensusBadge} whitespace-nowrap">${escapeHtml(cons)}</span>` : ''}
-            </td>
-            <td class="py-3 px-3 text-center">
-              <button
-                type="button"
-                data-ticker="${t}"
-                onclick="event.stopPropagation(); selectScreenerStock(this.dataset.ticker)"
-                class="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white font-bold rounded-lg text-[11px] font-sans flex items-center gap-1 mx-auto transition shadow"
-              >
-                <span>5인 분석</span>
-                <i class="fa-solid fa-arrow-right text-[10px]"></i>
-              </button>
-            </td>
-          </tr>
-        `;
+        const cells = cols.map(k => {
+          const c = SCREENER_COLS[k];
+          if (c.html) return c.html(stock);
+          return `<td class="${SCR_TD} ${c.al === 'r' ? 'text-right' : c.al === 'c' ? 'text-center' : ''} ${c.cls(stock)}">${escapeHtml(c.txt(stock))}</td>`;
+        }).join('');
+        return `<tr class="hover:bg-slate-900/60 transition group cursor-pointer" data-ticker="${t}" onclick="selectScreenerStock(this.dataset.ticker)">${cells}</tr>`;
       }).join('');
     }
 
@@ -4471,48 +5032,18 @@ SONY|Sony Group ADR|T
       quickSearch(ticker);
     }
 
-    function applyScreenerPreset(preset) {
-      resetScreenerFilters(false);
-      document.getElementById('screenerSearchKeyword').value = '';
-      screenerState.searchKeyword = '';
-
-      if (preset === 'fool-growth') {
-        screenerState.extra.sectors = ['Tech', 'Semiconductors'];
-        screenerState.extra.minRoe = 20;
-        document.getElementById('filterSMA20').value = 'ABOVE';
-        showToast("프리셋 적용", "테크·반도체 + ROE 20% 이상 + 20일선 상회 조건이 설정되었습니다.", "info");
-      } else if (preset === 'finviz-squeeze') {
-        document.getElementById('filterShortFloat').value = 'HIGH';
-        document.getElementById('filterSMA20').value = 'ABOVE';
-        showToast("프리셋 적용", "숏스퀴즈 및 모멘텀 돌파 조건이 설정되었습니다.", "info");
-      } else if (preset === 'buffett-value') {
-        document.getElementById('filterPE').value = 'UNDER_25';
-        screenerState.extra.sectors = ['Finance', 'Consumer'];
-        showToast("프리셋 적용", "P/E 25 미만 + 금융/필수소비재 조건이 설정되었습니다.", "info");
-      } else if (preset === 'rebound-chart') {
-        document.getElementById('filterRSI').value = 'NEUTRAL';
-        showToast("프리셋 적용", "RSI 45~60 중립/반등 구간 조건이 설정되었습니다.", "info");
-      }
-
-      screenerState.page = 1;
-      runScreenerFilter();
-    }
-
     function resetScreenerFilters(shouldRender = true) {
-      document.getElementById('filterSector').value = 'ALL';
-      document.getElementById('filterMarketCap').value = 'ALL';
-      document.getElementById('filterPE').value = 'ALL';
-      document.getElementById('filterRSI').value = 'ALL';
-      document.getElementById('filterShortFloat').value = 'ALL';
-      document.getElementById('filterSMA20').value = 'ALL';
-      document.getElementById('screenerSearchKeyword').value = '';
+      const kwInput = document.getElementById('screenerSearchKeyword');
+      if (kwInput) kwInput.value = '';
       screenerState.searchKeyword = '';
-      screenerState.extra = { sectors: null, minRoe: null };
+      screenerState.filters = {};
+      screenerState.preset = null;
       screenerState.sortBy = 'rank';
       screenerState.sortDir = 'asc';
       screenerState.page = 1;
 
       if (shouldRender) {
+        refreshScreenerControls();
         runScreenerFilter();
         showToast("필터 리셋", "스크리너 필터가 초기화되었습니다.", "info");
       }
