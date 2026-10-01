@@ -8,7 +8,8 @@
 | 경로 | 설명 |
 | --- | --- |
 | `GET /api/health` | 동작 확인 |
-| `GET /api/chart?symbol=NVDA&range=1y` | Yahoo 일봉 차트 JSON (1분 캐시). 없는 티커는 404 |
+| `GET /api/chart?symbol=NVDA&range=1y&interval=1d` | Yahoo 차트 JSON (1분 캐시). `interval`은 `1d`(일봉)·`1wk`(주봉)·`1mo`(월봉), `range`는 `1mo`~`10y`·`max`. 없는 티커는 404 |
+| `GET /api/search?q=basf` | 회사명·티커 검색 (전 세계 거래소, 주식·ETF·지수·코인). `[{symbol, name, exchange, type}]` (1시간 캐시) |
 | `GET /api/deep?symbol=NVDA` | 심층 분석용: 실적(EPS 서프라이즈·전망·다음 발표일), 재무(성장률·마진·부채·FCF·연/분기 매출), 애널리스트(의견 분포·상향/하향), 수급(기관·내부자 보유·거래), 배당, 최신 뉴스 (1시간 캐시) |
 | `GET /api/fundamentals?symbol=NVDA` | P/E, Forward P/E, PEG, P/S, P/B, ROE, Short Float, 애널리스트 목표가(평균/최저/최고), 컨센서스, 섹터·업종, 사업 개요 + 스크리너 필터용 값: 베타, 배당(수익률·배당금·배당성향), ROA, 매출총이익률·영업이익률·순이익률, 매출/이익 성장률, 부채비율(%), 유동·당좌비율, FCF, 총매출, 애널리스트 평균 점수·수, 내부자/기관 보유율, 유통주식수, 평균 거래량, 국가·거래소·통화, EPS(실적/예상). 값이 없으면 `null`, 비율은 12.3 = 12.3% (6시간 캐시, 추가 업스트림 요청 없음) |
 
