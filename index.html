@@ -1672,38 +1672,52 @@
       try { return JSON.parse(cleaned.slice(a, b + 1)); } catch (e) { return null; }
     }
 
-    async function callGemini(prompt, { grounding = false } = {}) {
+    // grounding=true 인 호출이 한도/권한 오류(429·403·400)로 실패하면, 검색 없이 한 번 더 시도한다.
+    // (무료 키는 구글 검색 grounding 이 막혀 있거나 한도가 매우 작을 수 있음)
+    // 검색 없는 재시도에는 fallbackPrompt 를 사용 — 검색한 것처럼 지어내지 않도록 프롬프트를 바꾼다.
+    async function callGemini(prompt, { grounding = false, fallbackPrompt = null } = {}) {
       const apiKey = getStoredApiKey('gemini_key');
       if (!apiKey) return null;
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-      const body = { contents: [{ parts: [{ text: prompt }] }] };
-      // 주의: googleSearch 도구는 responseMimeType: application/json 과 함께 쓸 수 없으므로 JSON 모드를 쓰지 않는다.
-      if (grounding) body.tools = [{ googleSearch: {} }];
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 45000);
-      try {
-        const resp = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify(body),
-          signal: controller.signal
-        });
-        if (!resp.ok) {
-          let detail = '';
-          try { detail = (await resp.json())?.error?.message || ''; } catch (e) {}
-          console.warn(`Gemini 호출 실패 (HTTP ${resp.status}):`, detail);
-          return { error: detail || `HTTP ${resp.status}` };
+      const request = async (text, useSearch) => {
+        const body = { contents: [{ parts: [{ text }] }] };
+        // 주의: googleSearch 도구는 responseMimeType: application/json 과 함께 쓰지 않는다 (JSON 모드 미사용).
+        if (useSearch) body.tools = [{ googleSearch: {} }];
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 45000);
+        try {
+          const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify(body),
+            signal: controller.signal
+          });
+          if (!resp.ok) {
+            let detail = '';
+            try { detail = (await resp.json())?.error?.message || ''; } catch (e) {}
+            console.warn(`Gemini 호출 실패 (HTTP ${resp.status}, search=${useSearch}):`, detail);
+            return { error: detail || `HTTP ${resp.status}`, status: resp.status };
+          }
+          const j = await resp.json();
+          const parts = j?.candidates?.[0]?.content?.parts || [];
+          return { text: parts.map(p => p.text || '').join('') };
+        } catch (e) {
+          console.warn('Gemini 호출 예외:', e);
+          return { error: e.message, status: 0 };
+        } finally {
+          clearTimeout(timer);
         }
-        const j = await resp.json();
-        const parts = j?.candidates?.[0]?.content?.parts || [];
-        return { text: parts.map(p => p.text || '').join('') };
-      } catch (e) {
-        console.warn('Gemini 호출 예외:', e);
-        return { error: e.message };
-      } finally {
-        clearTimeout(timer);
+      };
+
+      let r = await request(prompt, grounding);
+      if (r.error && grounding && [429, 403, 400].includes(r.status)) {
+        const noSearchPrompt = fallbackPrompt || `${prompt}\n\n(참고: 지금은 인터넷 검색을 쓸 수 없습니다. 검색한 것처럼 말하지 말고, 확실하지 않은 최신 사실은 모른다고 답하세요.)`;
+        const retry = await request(noSearchPrompt, false);
+        if (!retry.error) return { ...retry, fallback: true };
+        r = retry.status === 429 || r.status !== 429 ? retry : r; // 한도 초과 메시지를 우선 보여준다
       }
+      return r;
     }
 
     async function fetchGeminiGroundingAnalysis(ticker, realMarket) {
@@ -1738,17 +1752,23 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     {"name": "소피아 (Sophia)", "stance": "...", "target": "$...", "thesis": "..."}
   ]
 }`;
-      const r = await callGemini(prompt, { grounding: true });
+      const fallbackPrompt = prompt
+        .replace(`Conduct a live Google Search for the US stock ticker: "${ticker}".`, `Analyze the US stock ticker: "${ticker}". You have NO internet access right now: use only the verified market data below and your general knowledge.`)
+        .replace('Find the exact real company name, real P/E, forward P/E, PEG, ROE (%), Short Float (%), analyst price targets, and the latest news or earnings.', 'Do NOT invent any numbers, price targets, news or earnings. Fill name/sector only if you are sure; use null for every number you cannot be certain about.')
+        .replace('"summary": "2-3 sentences based on real Google search findings"', '"summary": "2-3 sentences, only well-established facts about the business"');
+      const r = await callGemini(prompt, { grounding: true, fallbackPrompt });
       if (!r) return null;
       if (r.error) {
-        showToast('Gemini 호출 실패', `구글 검색 분석을 건너뜁니다: ${r.error}`, 'warning');
+        showToast('Gemini 호출 실패', `AI 분석을 건너뜁니다: ${r.error}`, 'warning');
         return null;
       }
       const parsed = extractJson(r.text);
       if (!parsed) {
-        showToast('Gemini 응답 오류', 'JSON 형식을 해석하지 못해 구글 검색 분석을 건너뜁니다.', 'warning');
+        showToast('Gemini 응답 오류', 'JSON 형식을 해석하지 못해 AI 분석을 건너뜁니다.', 'warning');
         return null;
       }
+      parsed.__grounded = !r.fallback;
+      if (r.fallback) showToast('검색 없이 분석', '구글 검색 한도/권한 문제로 검색 없이 분석했습니다. 최신 뉴스·목표가는 반영되지 않습니다.', 'info');
       return parsed;
     }
 
@@ -1903,7 +1923,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         }
 
         const feedParts = [];
-        if (geminiInsight) feedParts.push('Google Search');
+        if (geminiInsight) feedParts.push(geminiInsight.__grounded ? 'Google Search' : 'Gemini(검색 없음)');
         if (fundamentals) feedParts.push('Yahoo 재무(프록시)');
         if (market) feedParts.push('Yahoo 시세');
         const dataFeed = feedParts.join(' + ');
@@ -2633,7 +2653,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (!r || r.error) {
         bodyEl.textContent = `Gemini 호출 실패${r?.error ? ` (${r.error})` : ''}. 지표 기반 자동 응답으로 대체합니다.\n\n` + templateAnswer(activeChatTarget, d);
       } else {
-        bodyEl.textContent = r.text.trim() || '(빈 응답)';
+        bodyEl.textContent = (r.text.trim() || '(빈 응답)') + (r.fallback ? '\n\n※ 구글 검색 한도/권한 문제로 검색 없이 답변했습니다.' : '');
       }
       document.getElementById('expertChatHistory').scrollTop = document.getElementById('expertChatHistory').scrollHeight;
     }
