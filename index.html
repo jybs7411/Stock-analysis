@@ -149,6 +149,10 @@
         <span>Finviz × Fool 스마트 스크리너</span>
       </button>
 
+      <button onclick="switchAppTab('bdw')" id="tabBtn-bdw" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-fire text-orange-400"></i><span>불단왕 매매법</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-orange-950 text-orange-300 text-[10px] font-bold border border-orange-800/80">NEW</span>
+      </button>
       <button onclick="switchAppTab('prevday')" id="tabBtn-prevday" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
         <i class="fa-solid fa-clock-rotate-left text-violet-400"></i><span>전일 복기</span>
         <span class="ml-1 px-1.5 py-0.5 rounded-full bg-violet-950 text-violet-300 text-[10px] font-bold border border-violet-800/80">NEW</span>
@@ -1090,6 +1094,27 @@
     </div>
     <!-- END OF TAB 2 -->
 
+    <!-- TAB: 불단왕 매매법 (modules: bdw-notes, bdw) -->
+    <div id="view-bdw" class="hidden space-y-5">
+      <section class="bg-gradient-to-r from-slate-900 via-[#131e32] to-[#1f1a14] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-xl">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-950/60 border border-orange-700/60 text-orange-300 text-xs font-semibold mb-2"><i class="fa-solid fa-fire"></i> 불장단타왕 무료 강의 1~5강 기반</div>
+            <h2 class="text-2xl font-extrabold text-white tracking-tight">불단왕 매매법</h2>
+            <p class="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl">사이클(이평선 정배열/역배열) → 매물대(VPVR)·이평선·박스/채널 → RSI 과열 단계·다이버전스·트랩 → 근거 중첩 체크리스트 → 손절·시간 손절·심법. 강의는 코인 선물 중심이라, 주식에 그대로 적용되는 부분과 그렇지 않은 부분을 구분해 정리했습니다.</p>
+          </div>
+        </div>
+        <div class="mt-4 flex flex-wrap gap-2" id="bdwSubTabs">
+          <button type="button" data-bdw="analyze" onclick="bdwSwitch('analyze')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-magnifying-glass-chart mr-1.5"></i>종목 분석 (불단왕식 판독)</button>
+          <button type="button" data-bdw="notes" onclick="bdwSwitch('notes')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-book-open mr-1.5"></i>강의 정리 (1~5강)</button>
+          <button type="button" data-bdw="tools" onclick="bdwSwitch('tools')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-calculator mr-1.5"></i>계산기 · 매매일지</button>
+        </div>
+      </section>
+      <div id="bdwPane-analyze"><div id="bdwAnalyzeRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div></div>
+      <div id="bdwPane-notes" class="hidden"><div id="bdwNotesRoot"></div></div>
+      <div id="bdwPane-tools" class="hidden"><div id="bdwToolsRoot"></div></div>
+    </div>
+
     <!-- TAB 3: 전일 복기 (module: prevday) -->
     <div id="view-prevday" class="hidden space-y-6">
       <div id="prevdayRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
@@ -1179,6 +1204,7 @@
     const APP_TABS = {
       analysis: { on: 'bg-cyan-950 text-cyan-300 border-cyan-700/80 shadow-md shadow-cyan-950/50' },
       screener: { on: 'bg-amber-950 text-amber-300 border-amber-700/80 shadow-md shadow-amber-950/50' },
+      bdw: { on: 'bg-orange-950 text-orange-300 border-orange-700/80 shadow-md shadow-orange-950/50' },
       prevday: { on: 'bg-violet-950 text-violet-300 border-violet-700/80 shadow-md shadow-violet-950/50' },
       fx: { on: 'bg-emerald-950 text-emerald-300 border-emerald-700/80 shadow-md shadow-emerald-950/50' },
       market: { on: 'bg-sky-950 text-sky-300 border-sky-700/80 shadow-md shadow-sky-950/50' }
@@ -7481,6 +7507,12 @@ SONY|Sony Group ADR|T
     });
   </script>
   <!-- 기능 모듈: 각 모듈은 자기 script 블록 안에서만 작업한다 (메인 스크립트의 전역 함수를 호출해 사용) -->
+  <script id="mod-bdw-notes">
+    // (불단왕: 탭 셸 · 강의 정리 · 계산기/매매일지 모듈)
+  </script>
+  <script id="mod-bdw">
+    // (불단왕: 종목 분석 모듈)
+  </script>
   <script id="mod-prevday">
     // =====================================================================
     // 전일 복기 모듈 — 가장 최근에 '완전히 마감된' 정규장 하루를 5분봉으로 되짚는다 (Al Brooks 프라이스 액션 어휘).
