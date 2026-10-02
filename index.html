@@ -1306,6 +1306,13 @@
     function tabSearchGo(ticker) {
       const input = document.getElementById('tabSearchInput');
       input.value = ''; tabSearchState.items = []; tabSearchRender(); tabSearchToggle();
+      // 불단왕·전일 복기 탭에서 검색하면 그 탭 안에서 바로 분석한다 (종목 분석 탭으로 넘어가지 않음)
+      if (activeAppTab === 'bdw' && typeof window.bdwAnalyzeTicker === 'function') {
+        bdwSwitch('analyze'); window.bdwAnalyzeTicker(ticker); return;
+      }
+      if (activeAppTab === 'prevday' && typeof pdAnalyze === 'function') {
+        pdAnalyze(ticker); return;
+      }
       const main = document.getElementById('tickerInput'); if (main) main.value = ticker;
       switchAppTab('analysis'); executeAnalysis(ticker);
     }
