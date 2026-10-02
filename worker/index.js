@@ -7,6 +7,8 @@
  * Endpoints
  *   GET /api/health                              -> { ok: true, service: "pentanalyst-proxy" }
  *   GET /api/chart?symbol=NVDA&range=1y&interval=1d -> Yahoo v8 chart JSON 그대로 (interval: 1d | 1wk | 1mo)
+ *   GET /api/spark?symbols=SPY,QQQ&range=3mo&interval=1d -> 여러 종목의 종가 시계열을 한 번에 {SYM:{t,c,prev,price,currency}} (최대 120종목)
+ *   GET /api/quotes?symbols=AAPL,MSFT            -> 여러 종목 현재 시세·시가총액·등락률 (최대 60종목)
  *   GET /api/search?q=basf                       -> 회사명/티커 검색 (전 세계 거래소) [{symbol,name,exchange,type}]
  *   GET /api/fundamentals?symbol=NVDA            -> 정리된 재무 지표 JSON
  *   GET /api/deep?symbol=NVDA                    -> 실적·재무·애널리스트·수급·배당·뉴스 (심층 분석용)
@@ -18,8 +20,9 @@
 const YAHOO = 'https://query1.finance.yahoo.com';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const SYMBOL_RE = /^[A-Z0-9.\-^=]{1,15}$/;
-const RANGES = new Set(['1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'max']);
-const INTERVALS = new Set(['1d', '1wk', '1mo']);
+// 분봉: 1m 은 최근 7일(range 5d 이하), 2m~90m 은 최근 60일(range 1mo 이하)까지만 Yahoo 가 제공
+const RANGES = new Set(['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']);
+const INTERVALS = new Set(['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1d', '1wk', '1mo']);
 const SEARCH_TYPES = new Set(['EQUITY', 'ETF', 'INDEX', 'CRYPTOCURRENCY']);
 
 // Yahoo crumb/cookie (isolate 메모리에 캐시)
@@ -315,6 +318,89 @@ async function searchSymbols(query) {
   return mapSearch(await resp.json());
 }
 
+// ---- 여러 종목 한 번에: 종가 시계열(spark) / 시세(quotes) ----
+function chartToSpark(json) {
+  const r = json && json.chart && json.chart.result && json.chart.result[0];
+  if (!r) return null;
+  const q = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
+  const t = r.timestamp || [], c = q.close || [];
+  const meta = r.meta || {};
+  const tt = [], cc = [];
+  for (let i = 0; i < t.length; i++) if (c[i] !== null && c[i] !== undefined && Number.isFinite(c[i])) { tt.push(t[i]); cc.push(c[i]); }
+  if (!cc.length) return null;
+  return { t: tt, c: cc, prev: num(meta.chartPreviousClose), price: num(meta.regularMarketPrice), currency: meta.currency || null };
+}
+
+export function mapSpark(data) {
+  const out = {};
+  const results = (data && data.spark && data.spark.result) || [];
+  results.forEach(item => {
+    const sym = item && item.symbol;
+    const resp = item && item.response && item.response[0];
+    if (!sym || !resp) return;
+    const m = chartToSpark({ chart: { result: [resp] } });
+    if (m) out[sym] = m;
+  });
+  return out;
+}
+
+async function fetchSparkAll(symbols, range, interval) {
+  const out = {};
+  const chunks = [];
+  for (let i = 0; i < symbols.length; i += 20) chunks.push(symbols.slice(i, i + 20));
+  await Promise.all(chunks.map(async chunk => {
+    try {
+      const resp = await fetch(`${YAHOO}/v8/finance/spark?symbols=${encodeURIComponent(chunk.join(','))}&range=${range}&interval=${interval}`, { headers: { 'User-Agent': UA } });
+      if (resp.ok) Object.assign(out, mapSpark(await resp.json()));
+    } catch (e) { /* 아래 개별 조회로 보충 */ }
+  }));
+  // spark 가 못 준 종목은 개별 차트로 보충 (Workers 무료 플랜 서브요청 한도를 고려해 최대 25개)
+  const missing = symbols.filter(s => !out[s]).slice(0, 25);
+  await Promise.all(missing.map(async sym => {
+    try {
+      const resp = await fetch(`${YAHOO}/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=${interval}&includePrePost=false`, { headers: { 'User-Agent': UA } });
+      if (resp.ok) { const m = chartToSpark(await resp.json()); if (m) out[sym] = m; }
+    } catch (e) { /* 이 종목은 비워 둠 */ }
+  }));
+  return out;
+}
+
+export function mapQuote(q) {
+  return {
+    symbol: q.symbol,
+    name: q.shortName || q.longName || null,
+    price: num(q.regularMarketPrice),
+    change: num(q.regularMarketChange),
+    changePct: num(q.regularMarketChangePercent),
+    prevClose: num(q.regularMarketPreviousClose),
+    open: num(q.regularMarketOpen), high: num(q.regularMarketDayHigh), low: num(q.regularMarketDayLow),
+    volume: num(q.regularMarketVolume), avgVolume: num(q.averageDailyVolume3Month),
+    marketCap: num(q.marketCap),
+    high52: num(q.fiftyTwoWeekHigh), low52: num(q.fiftyTwoWeekLow),
+    ma50: num(q.fiftyDayAverage), ma200: num(q.twoHundredDayAverage),
+    pe: num(q.trailingPE), forwardPe: num(q.forwardPE),
+    currency: q.currency || null, exchange: q.fullExchangeName || q.exchange || null,
+    type: q.quoteType || null, marketState: q.marketState || null,
+    time: num(q.regularMarketTime)
+  };
+}
+
+async function fetchQuotes(symbols, retry = true) {
+  const { crumb, cookie } = await getCrumb(!retry);
+  const resp = await fetch(`${YAHOO}/v7/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}&crumb=${encodeURIComponent(crumb)}`, { headers: { 'User-Agent': UA, Cookie: cookie } });
+  if ((resp.status === 401 || resp.status === 403) && retry) { crumbCache = null; return fetchQuotes(symbols, false); }
+  if (!resp.ok) throw new Error(`yahoo quote ${resp.status}`);
+  const data = await resp.json();
+  return ((data && data.quoteResponse && data.quoteResponse.result) || []).map(mapQuote);
+}
+
+function parseSymbols(url, max) {
+  const list = (url.searchParams.get('symbols') || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
+  const uniq = [...new Set(list)];
+  if (!uniq.length || uniq.length > max || !uniq.every(x => SYMBOL_RE.test(x))) return null;
+  return uniq;
+}
+
 async function cached(request, ctx, ttl, producer) {
   const cache = typeof caches !== 'undefined' ? caches.default : null;
   if (cache) {
@@ -350,6 +436,22 @@ export default {
       if (q.length < 1) return json({ error: 'invalid query' }, 400, request, env);
       try {
         return await cached(request, ctx, 3600, async () => json({ query: q, results: await searchSymbols(q) }, 200, request, env, 3600));
+      } catch (err) {
+        return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
+      }
+    }
+
+    if (url.pathname === '/api/spark' || url.pathname === '/api/quotes') {
+      const isSpark = url.pathname === '/api/spark';
+      const symbols = parseSymbols(url, isSpark ? 120 : 60);
+      if (!symbols) return json({ error: 'invalid symbols' }, 400, request, env);
+      try {
+        if (isSpark) {
+          const range = RANGES.has(url.searchParams.get('range')) ? url.searchParams.get('range') : '3mo';
+          const interval = INTERVALS.has(url.searchParams.get('interval')) ? url.searchParams.get('interval') : '1d';
+          return await cached(request, ctx, 60, async () => json(await fetchSparkAll(symbols, range, interval), 200, request, env, 60));
+        }
+        return await cached(request, ctx, 30, async () => json({ quotes: await fetchQuotes(symbols) }, 200, request, env, 30));
       } catch (err) {
         return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
       }

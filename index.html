@@ -183,7 +183,7 @@
 
   <!-- Main View Tabs Navigation -->
   <div class="bg-[#0b1220] border-b border-slate-800 px-4 lg:px-8">
-    <div class="max-w-7xl mx-auto flex items-center gap-3 py-2.5">
+    <div class="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3 py-2.5 overflow-x-auto whitespace-nowrap">
       <button
         onclick="switchAppTab('analysis')"
         id="tabBtn-analysis"
@@ -200,7 +200,19 @@
       >
         <i class="fa-solid fa-filter text-amber-400"></i>
         <span>Finviz × Fool 스마트 스크리너</span>
-        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-amber-950 text-amber-300 text-[10px] font-bold border border-amber-800/80">NEW</span>
+      </button>
+
+      <button onclick="switchAppTab('prevday')" id="tabBtn-prevday" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-clock-rotate-left text-violet-400"></i><span>전일 복기</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-violet-950 text-violet-300 text-[10px] font-bold border border-violet-800/80">NEW</span>
+      </button>
+      <button onclick="switchAppTab('fx')" id="tabBtn-fx" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 text-[10px] font-bold border border-emerald-800/80">NEW</span>
+      </button>
+      <button onclick="switchAppTab('market')" id="tabBtn-market" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장 · 매크로</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-sky-950 text-sky-300 text-[10px] font-bold border border-sky-800/80">NEW</span>
       </button>
     </div>
   </div>
@@ -1040,6 +1052,19 @@
     </div>
     <!-- END OF TAB 2 -->
 
+    <!-- TAB 3: 전일 복기 (module: prevday) -->
+    <div id="view-prevday" class="hidden space-y-6">
+      <div id="prevdayRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
+    </div>
+    <!-- TAB 4: 환율 (module: fx) -->
+    <div id="view-fx" class="hidden space-y-6">
+      <div id="fxRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
+    </div>
+    <!-- TAB 5: 시장 · 매크로 (module: market) -->
+    <div id="view-market" class="hidden space-y-6">
+      <div id="marketRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
+    </div>
+
   </main>
 
   <footer class="border-t border-slate-800 bg-[#0b101c] py-6 px-4 text-center text-xs text-slate-500">
@@ -1112,42 +1137,31 @@
       }
     }
 
+    // 탭 정의: 각 탭은 view-<id> 영역과 tabBtn-<id> 버튼을 가진다. 모듈은 TAB_HOOKS[id] 에 '탭이 열릴 때' 실행할 함수를 등록한다.
+    const APP_TABS = {
+      analysis: { on: 'bg-cyan-950 text-cyan-300 border-cyan-700/80 shadow-md shadow-cyan-950/50' },
+      screener: { on: 'bg-amber-950 text-amber-300 border-amber-700/80 shadow-md shadow-amber-950/50' },
+      prevday: { on: 'bg-violet-950 text-violet-300 border-violet-700/80 shadow-md shadow-violet-950/50' },
+      fx: { on: 'bg-emerald-950 text-emerald-300 border-emerald-700/80 shadow-md shadow-emerald-950/50' },
+      market: { on: 'bg-sky-950 text-sky-300 border-sky-700/80 shadow-md shadow-sky-950/50' }
+    };
+    const TAB_HOOKS = {};
+    let activeAppTab = 'analysis';
+
     function switchAppTab(tab) {
-      const viewAnalysis = document.getElementById('view-analysis');
-      const viewScreener = document.getElementById('view-screener');
-      const btnAnalysis = document.getElementById('tabBtn-analysis');
-      const btnScreener = document.getElementById('tabBtn-screener');
-
-      if (tab === 'analysis') {
-        if (viewAnalysis) viewAnalysis.classList.remove('hidden');
-        if (viewScreener) viewScreener.classList.add('hidden');
-
-        if (btnAnalysis) {
-          btnAnalysis.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-cyan-950 text-cyan-300 border border-cyan-700/80 shadow-md shadow-cyan-950/50 transition';
-        }
-        if (btnScreener) {
-          btnScreener.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition';
-        }
-
-        if (currentAnalysisData) {
-          setTimeout(() => {
-            chResize(true);
-            renderMiniTrendPreview();
-          }, 50);
-        }
-      } else {
-        if (viewAnalysis) viewAnalysis.classList.add('hidden');
-        if (viewScreener) viewScreener.classList.remove('hidden');
-
-        if (btnAnalysis) {
-          btnAnalysis.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition';
-        }
-        if (btnScreener) {
-          btnScreener.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-950 text-amber-300 border border-amber-700/80 shadow-md shadow-amber-950/50 transition';
-        }
-
+      if (!APP_TABS[tab]) tab = 'analysis';
+      activeAppTab = tab;
+      Object.keys(APP_TABS).forEach(id => {
+        const view = document.getElementById(`view-${id}`), btn = document.getElementById(`tabBtn-${id}`);
+        if (view) view.classList.toggle('hidden', id !== tab);
+        if (btn) btn.className = `flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm transition border ${id === tab ? 'font-bold ' + APP_TABS[id].on : 'font-semibold bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'}`;
+      });
+      if (tab === 'analysis' && currentAnalysisData) {
+        setTimeout(() => { chResize(true); renderMiniTrendPreview(); }, 50);
+      } else if (tab === 'screener') {
         runScreenerFilter();
       }
+      if (TAB_HOOKS[tab]) { try { TAB_HOOKS[tab](); } catch (e) { console.error(`탭(${tab}) 초기화 실패`, e); } }
     }
 
     function quickSearch(ticker) {
@@ -1810,6 +1824,30 @@
         console.warn('자체 프록시 재무 호출 실패:', err.message);
         return null;
       }
+    }
+
+    // 여러 종목을 한 번에: 종가 시계열 {SYM:{t:[],c:[],prev,price,currency}} (자체 프록시 필요, 없으면 null)
+    async function fetchSpark(symbols, range = '3mo', interval = '1d') {
+      const proxy = getProxyUrl();
+      if (!proxy || !symbols.length) return null;
+      const out = {};
+      const chunks = [];
+      for (let i = 0; i < symbols.length; i += 100) chunks.push(symbols.slice(i, i + 100));
+      try {
+        await Promise.all(chunks.map(async ch => Object.assign(out, await fetchJsonWithTimeout(`${proxy}/api/spark?symbols=${encodeURIComponent(ch.join(','))}&range=${range}&interval=${interval}`, 20000))));
+      } catch (e) { console.warn('spark 호출 실패:', e.message); if (!Object.keys(out).length) return null; }
+      return out;
+    }
+    // 여러 종목의 현재 시세·시가총액·등락률 → 배열 (50개씩 나눠 병렬, 자체 프록시 필요)
+    async function fetchQuotes(symbols) {
+      const proxy = getProxyUrl();
+      if (!proxy || !symbols.length) return null;
+      const chunks = [];
+      for (let i = 0; i < symbols.length; i += 50) chunks.push(symbols.slice(i, i + 50));
+      try {
+        const parts = await Promise.all(chunks.map(ch => fetchJsonWithTimeout(`${proxy}/api/quotes?symbols=${encodeURIComponent(ch.join(','))}`, 20000).then(j => j.quotes || [])));
+        return parts.flat();
+      } catch (e) { console.warn('quotes 호출 실패:', e.message); return null; }
     }
 
     // ===== Technical indicators =====
@@ -7089,6 +7127,16 @@ SONY|Sony Group ADR|T
       executeAnalysis('JVA', { noRecord: true }); // 첫 화면용 기본 종목은 검색 기록에 남기지 않음
       runScreenerFilter();
     });
+  </script>
+  <!-- 기능 모듈: 각 모듈은 자기 script 블록 안에서만 작업한다 (메인 스크립트의 전역 함수를 호출해 사용) -->
+  <script id="mod-prevday">
+    // (전일 복기 모듈)
+  </script>
+  <script id="mod-fx">
+    // (환율 모듈)
+  </script>
+  <script id="mod-market">
+    // (시장·매크로 모듈)
   </script>
 </body>
 </html>
