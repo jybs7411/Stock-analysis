@@ -258,7 +258,16 @@
             class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers outline-none focus:border-cyan-400"
           />
           <p class="text-[11px] text-slate-500 mt-1">유료 키는 아래 <strong>검색 Grounding</strong> 호출(AI 분석 버튼, 전문가 채팅)에만 쓰이고, 불단왕·전일 복기·환율·시장 해설 등 나머지는 모두 무료 키로 호출됩니다. 유료 키로 검색이 막히면 무료 키로 검색 없이 다시 시도합니다.</p>
-          <label class="mt-2 flex items-start gap-2 cursor-pointer select-none">
+          <label class="block font-semibold text-white mt-3 mb-1">Gemini 모델 이름 <span class="text-[10px] text-slate-500 font-normal">(비우면 기본값 사용)</span></label>
+          <input
+            type="text"
+            id="geminiModelInput"
+            placeholder="기본값: gemini-3.8-flash"
+            autocomplete="off" spellcheck="false"
+            class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers outline-none focus:border-cyan-400"
+          />
+          <p class="text-[11px] text-slate-500 mt-1">AI Studio의 모델 목록에 나오는 이름 그대로 입력하세요 (예: <code>gemini-3.8-flash</code>). 이름이 틀리면 AI 호출이 오류로 실패하므로, 비워 두면 기본값으로 돌아갑니다.</p>
+          <label class="mt-3 flex items-start gap-2 cursor-pointer select-none">
             <input type="checkbox" id="geminiGroundingInput" class="mt-0.5 accent-cyan-500">
             <span class="text-[11px] text-slate-400"><strong class="text-slate-200">구글 검색 Grounding 사용</strong> <span class="text-amber-400">(유료 · 기본 꺼짐)</span> — 켜면 최신 뉴스·실적을 검색해 반영하지만, 무료 키로는 막히거나 한도가 매우 작을 수 있습니다. 막히면 자동으로 검색 없이 다시 시도합니다.</span>
           </label>
@@ -1848,7 +1857,8 @@
     // 배포한 자체 프록시(Cloudflare Worker) 주소를 여기에 고정할 수도 있고,
     // 비워 두면 'API 키 & 구글 검색 설정' 창에서 입력한 값(localStorage)을 사용합니다.
     const DEFAULT_PROXY_URL = '';
-    const GEMINI_MODEL = 'gemini-3.8-flash';
+    const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash';
+    const geminiModel = () => (getStoredApiKey('gemini_model') || GEMINI_DEFAULT_MODEL).replace(/[^A-Za-z0-9._-]/g, '');
 
     function getProxyUrl() {
       const v = (getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL || '').trim();
@@ -1858,6 +1868,7 @@
     function openApiSettingsModal() {
       document.getElementById('geminiApiKeyInput').value = getStoredApiKey('gemini_key');
       document.getElementById('geminiPaidKeyInput').value = getStoredApiKey('gemini_key_paid');
+      document.getElementById('geminiModelInput').value = getStoredApiKey('gemini_model');
       document.getElementById('geminiGroundingInput').checked = geminiGroundingOn();
       document.getElementById('proxyUrlInput').value = getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL;
       document.getElementById('apiSettingsModal').classList.remove('hidden');
@@ -1877,6 +1888,7 @@
       }
       setStoredApiKey('gemini_key', gKey);
       setStoredApiKey('gemini_key_paid', gPaid);
+      setStoredApiKey('gemini_model', document.getElementById('geminiModelInput').value.trim());
       setStoredApiKey('gemini_grounding', document.getElementById('geminiGroundingInput').checked ? '1' : '');
       setStoredApiKey('proxy_url', proxy);
       updateGoogleSearchBannerState();
@@ -2186,7 +2198,7 @@
       const wantSearch = grounding && geminiGroundingOn();
       // 키 선택: 검색 Grounding 호출만 유료 키(없으면 무료 키), 그 밖의 모든 호출은 무료 키 — 유료 키는 쓰는 만큼 과금되므로 다른 곳에는 쓰지 않는다.
       if (!wantSearch && !free) return { error: '무료 Gemini 키가 없습니다 (유료 키는 검색 Grounding 전용이라 이 기능에는 쓰지 않습니다).', status: 0 };
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel()}:generateContent`;
 
       const request = async (text, useSearch, apiKey) => {
         const keyUsed = apiKey === free ? '무료 키' : '유료 키';
