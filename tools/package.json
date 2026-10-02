@@ -1,0 +1,10 @@
+{
+  "name": "pentanalyst-build",
+  "private": true,
+  "description": "index.html 을 폰에서 쓰기 좋은 배포본(docs/)으로 만드는 도구",
+  "scripts": { "build": "python3 build.py" },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.4.0",
+    "tailwindcss": "^3.4.19"
+  }
+}
