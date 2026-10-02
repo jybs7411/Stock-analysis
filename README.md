@@ -32,9 +32,13 @@
 1. **올리기** (둘 중 하나, 본인만 쓰는 경우)
    - **Cloudflare Pages**: Workers & Pages → Create → Pages → 이 GitHub 저장소 연결, 빌드 명령 없음, **출력 디렉터리 `docs`**. (비공개 저장소도 무료)
    - **GitHub Pages**: 저장소 Settings → Pages → Branch 를 이 브랜치, 폴더 `/docs` 로 지정. (비공개 저장소는 유료 플랜 필요)
-   - **Pages 메뉴가 안 보이는 경우**: Cloudflare가 Pages를 Workers로 합치는 중이라 Pages 만들기 화면이 숨겨져 있을 수 있습니다. Workers & Pages → Create → **Import a repository**(Workers Builds)로 이 저장소를 연결하세요. **Root directory를 `site`로 지정**하세요(`site/wrangler.jsonc`가 `docs/`를 정적 파일로 올리도록 설정되어 있습니다). 빌드 명령은 비우고, 배포 명령은 기본값(`npx wrangler deploy`)을 쓰면 됩니다. 시세 프록시 Worker(`pentanalyst-proxy`)에는 이 설정을 연결하지 마세요 — 연결하면 프록시가 정적 화면으로 덮어써집니다.
+   - **Pages 메뉴가 안 보이는 경우**: Cloudflare가 Pages를 Workers로 합치는 중이라 Pages 만들기 화면이 숨겨져 있을 수 있습니다. Workers & Pages → Create → **Import a repository**(Workers Builds)로 이 저장소를 연결하세요. **Root directory를 `site`로 지정**하세요(`site/wrangler.jsonc`가 `docs/`를 정적 파일로 올리도록 설정되어 있습니다). 빌드 명령은 비우고, 배포 명령은 기본값(`npx wrangler deploy`)을 쓰면 됩니다. 시세 프록시 Worker(`pentanalyst-proxy`)에는 이 설정을 연결하지 마세요 — 프록시는 저장소 루트의 `wrangler.jsonc`로 배포됩니다(아래).
 2. **폰 크롬**에서 올라간 주소(https)를 열고 메뉴(⋮) → **홈 화면에 추가 / 앱 설치**.
 3. 처음 한 번 우측 상단 **API 키 & 구글 검색 설정**에 Worker 주소(와 Gemini 키)를 입력합니다. (폰 브라우저에만 저장되며 PC와 동기화되지 않습니다.)
 
 `index.html` 을 고친 뒤에는 `cd tools && npm install && python3 build.py` 로 `docs/` 를 다시 만들어 커밋하세요.
 (`index.html` 을 직접 열어 쓰는 방식은 그대로 동작합니다.) 서비스 워커는 앱 껍데기만 저장하고 시세·검색 응답은 저장하지 않으며, 인터넷이 되면 항상 최신 화면을 받습니다.
+
+### Worker(시세 프록시)를 GitHub 푸시로 자동 배포하기 (선택)
+
+저장소 루트의 `wrangler.jsonc`가 `worker/index.js`를 `pentanalyst-proxy`로 배포하도록 설정되어 있습니다. Cloudflare에서 Workers & Pages → `pentanalyst-proxy` → Settings → Builds 에서 이 저장소를 **Root directory = 저장소 루트(`/`)**, 배포 명령 `npx wrangler deploy`(기본값)로 연결하면, 지정한 브랜치에 푸시할 때마다 Worker가 자동으로 새로 배포되어 대시보드에 코드를 붙여 넣을 필요가 없습니다. (연결하지 않고 대시보드에서 직접 붙여 넣는 방식도 그대로 쓸 수 있습니다.)

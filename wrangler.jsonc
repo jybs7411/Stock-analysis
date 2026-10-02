@@ -1,0 +1,11 @@
+{
+  // 시세 프록시 Worker (worker/index.js). Cloudflare 에서 이 저장소를 pentanalyst-proxy 에 Git 연결(Root directory = 저장소 루트)하면
+  // 푸시할 때마다 이 설정으로 자동 배포됩니다. (화면용 정적 파일 배포 설정은 site/wrangler.jsonc — 별개의 Worker)
+  "name": "pentanalyst-proxy",
+  "main": "worker/index.js",
+  "compatibility_date": "2024-11-01",
+  "vars": {
+    // 프론트엔드를 올린 주소로 제한하려면 바꾸세요 (파일로 열어 쓰면 Origin 이 null 이라 "*" 필요)
+    "ALLOWED_ORIGIN": "*"
+  }
+}
