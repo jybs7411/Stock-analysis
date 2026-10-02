@@ -2182,6 +2182,7 @@
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
       const request = async (text, useSearch, apiKey) => {
+        const keyUsed = apiKey === free ? '무료 키' : '유료 키';
         const body = { contents: [{ parts: [{ text }] }] };
         // 주의: googleSearch 도구는 responseMimeType: application/json 과 함께 쓰지 않는다 (JSON 모드 미사용).
         if (useSearch) body.tools = [{ googleSearch: {} }];
@@ -2198,14 +2199,14 @@
             let detail = '';
             try { detail = (await resp.json())?.error?.message || ''; } catch (e) {}
             console.warn(`Gemini 호출 실패 (HTTP ${resp.status}, search=${useSearch}):`, detail);
-            return { error: detail || `HTTP ${resp.status}`, status: resp.status };
+            return { error: detail || `HTTP ${resp.status}`, status: resp.status, keyUsed };
           }
           const j = await resp.json();
           const parts = j?.candidates?.[0]?.content?.parts || [];
-          return { text: parts.map(p => p.text || '').join(''), grounded: !!useSearch, usedPaid: !!paid && apiKey === paid && apiKey !== free };
+          return { text: parts.map(p => p.text || '').join(''), grounded: !!useSearch, keyUsed };
         } catch (e) {
           console.warn('Gemini 호출 예외:', e);
-          return { error: e.message, status: 0 };
+          return { error: e.message, status: 0, keyUsed };
         } finally {
           clearTimeout(timer);
         }
@@ -2263,7 +2264,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const r = await callGemini(prompt, { grounding: true, fallbackPrompt });
       if (!r) return null;
       if (r.error) {
-        showToast('Gemini 호출 실패', `AI 분석을 건너뜁니다: ${r.error}`, 'warning');
+        showToast('Gemini 호출 실패', `AI 분석을 건너뜁니다 (${r.keyUsed || '키'} 사용 중 오류): ${r.error}`, 'warning');
         return null;
       }
       const parsed = extractJson(r.text);
@@ -2272,6 +2273,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         return null;
       }
       parsed.__grounded = r.grounded === true;
+      parsed.__keyUsed = r.keyUsed || '';
       if (r.fallback) showToast('검색 없이 분석', '구글 검색 한도/권한 문제로 검색 없이 분석했습니다. 최신 뉴스·목표가는 반영되지 않습니다.', 'info');
       return parsed;
     }
@@ -2401,7 +2403,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }
 
       const feedParts = [];
-      if (geminiInsight) feedParts.push(geminiInsight.__grounded ? 'Google Search' : 'Gemini(검색 없음)');
+      if (geminiInsight) feedParts.push((geminiInsight.__grounded ? 'Google Search' : 'Gemini(검색 없음)') + (geminiInsight.__keyUsed ? `·${geminiInsight.__keyUsed}` : ''));
       if (fundamentals) feedParts.push('Yahoo 재무(프록시)');
       if (deep) feedParts.push('Yahoo 심층(프록시)');
       if (market) feedParts.push('Yahoo 시세');
@@ -5917,9 +5919,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const r = await callGemini(prompt, { grounding: true });
       sendBtn.disabled = false;
       if (!r || r.error) {
-        bodyEl.textContent = `Gemini 호출 실패${r?.error ? ` (${r.error})` : ''}. 지표 기반 자동 응답으로 대체합니다.\n\n` + templateAnswer(activeChatTarget, d);
+        bodyEl.textContent = `Gemini 호출 실패${r?.error ? ` (${r.keyUsed ? r.keyUsed + ': ' : ''}${r.error})` : ''}. 지표 기반 자동 응답으로 대체합니다.\n\n` + templateAnswer(activeChatTarget, d);
       } else {
-        bodyEl.textContent = (r.text.trim() || '(빈 응답)') + (r.fallback ? '\n\n※ 구글 검색 한도/권한 문제로 검색 없이 답변했습니다.' : '');
+        bodyEl.textContent = (r.text.trim() || '(빈 응답)') + (r.fallback ? '\n\n※ 구글 검색 한도/권한 문제로 검색 없이 답변했습니다.' : '') + (r.keyUsed ? `\n(${r.keyUsed} 사용${r.grounded ? ' · 검색 Grounding' : ''})` : '');
       }
       document.getElementById('expertChatHistory').scrollTop = document.getElementById('expertChatHistory').scrollHeight;
     }
