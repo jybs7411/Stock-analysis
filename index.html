@@ -628,10 +628,10 @@
           <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
             <div class="flex items-center gap-2 text-xs font-bold text-slate-300">
               <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
-              <span>스윙 트레이딩 프리셋 5종 <span class="font-normal text-slate-500">— 클릭하면 지표·신호·성과 요약이 차트에 그대로 적용됩니다 (다시 클릭하면 해제)</span></span>
+              <span>트레이딩 프리셋 — 스윙 5종 + 데이트레이딩 1종 <span class="font-normal text-slate-500">— 클릭하면 지표·신호·성과 요약이 차트에 그대로 적용됩니다 (다시 클릭하면 해제)</span></span>
             </div>
           </div>
-          <div id="presetCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2"></div>
+          <div id="presetCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2"></div>
         </div>
 
         <div id="chartFsRoot" class="space-y-2 bg-[#131e32]">
@@ -642,7 +642,17 @@
               <button type="button" id="iv-W" onclick="chSetInterval('W')">주</button>
               <button type="button" id="iv-M" onclick="chSetInterval('M')">월</button>
             </div>
+            <div id="ivIntraGroup" class="inline-flex items-center rounded-lg bg-slate-900 p-0.5 border border-slate-800" title="분봉 (1분봉은 최근 5거래일, 5·15·30분봉은 최근 약 1개월, 60분봉은 약 6개월)">
+              <span class="px-1.5 text-[10px] text-slate-500">분</span>
+              <button type="button" id="iv-1m" onclick="chSetInterval('1m')" title="1분봉">1</button>
+              <button type="button" id="iv-5m" onclick="chSetInterval('5m')" title="5분봉">5</button>
+              <button type="button" id="iv-15m" onclick="chSetInterval('15m')" title="15분봉">15</button>
+              <button type="button" id="iv-30m" onclick="chSetInterval('30m')" title="30분봉">30</button>
+              <button type="button" id="iv-60m" onclick="chSetInterval('60m')" title="60분봉">60</button>
+            </div>
             <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800">
+              <button type="button" id="rg-1D" onclick="chSetRange('1D')" title="최근 1거래일">1D</button>
+              <button type="button" id="rg-5D" onclick="chSetRange('5D')" title="최근 5거래일">5D</button>
               <button type="button" id="rg-1M" onclick="chSetRange('1M')">1M</button>
               <button type="button" id="rg-3M" onclick="chSetRange('3M')">3M</button>
               <button type="button" id="rg-6M" onclick="chSetRange('6M')">6M</button>
@@ -655,6 +665,7 @@
             <button type="button" id="btnIndicators" onclick="chOpenIndicators()" class="px-3 py-1 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-semibold transition flex items-center gap-1.5"><i class="fa-solid fa-chart-simple"></i>지표 추가</button>
             <button type="button" id="btnLog" onclick="chToggleLog()" title="로그 스케일">로그</button>
             <button type="button" id="btnAuto" onclick="chToggleAuto()" title="가격 자동 스케일">자동</button>
+            <button type="button" id="btnPrev" onclick="chTogglePrev()" title="분봉 차트에 전일 고가·저가·종가 수평선 표시" class="hidden">전일선</button>
             <button type="button" id="btnMagnet" onclick="chToggleMagnet()" title="그림을 그릴 때 캔들의 시·고·저·종가에 달라붙기"><i class="fa-solid fa-magnet mr-1 text-[10px]"></i>자석</button>
             <span class="flex-1"></span>
             <button type="button" id="btnSnap" onclick="chSnapshot()" title="차트를 PNG 이미지로 저장" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white"><i class="fa-solid fa-camera"></i></button>
@@ -1731,12 +1742,22 @@
       }
     }
 
-    function parseYahooChart(json, upperTicker) {
+    // interval 이 분/시간봉('5m','60m')이면 각 봉에 거래소 현지 시각 dt(= t + gmtoffset, getUTC* 로 읽으면 현지 시각)·hm('HH:MM')를 붙이고
+    // date 는 '현지 거래일'이 된다. 일/주/월봉의 date 는 기존과 같은 UTC 날짜.
+    function parseYahooChart(json, upperTicker, interval) {
       const res = json?.chart?.result?.[0];
       if (!res) return null;
       const meta = res.meta || {};
       const ts = res.timestamp || [];
       const q = res.indicators?.quote?.[0] || {};
+      const ivName = interval || meta.dataGranularity || '';
+      let intraday = /^\d+[mh]$/.test(ivName);
+      if (intraday && ts.length > 3) { // 분봉을 요청했는데 봉 간격이 하루 단위면 (구버전 프록시 등) 분봉으로 취급하지 않는다
+        const gaps = []; for (let i = 1; i < Math.min(ts.length, 60); i++) gaps.push(ts[i] - ts[i - 1]);
+        gaps.sort((a, b) => a - b);
+        if (gaps[gaps.length >> 1] >= 20 * 3600) intraday = false;
+      }
+      const gmtoffset = Number.isFinite(meta.gmtoffset) ? meta.gmtoffset : 0;
 
       const history = [];
       for (let i = 0; i < ts.length; i++) {
@@ -1745,7 +1766,7 @@
         const o = q.open?.[i] ?? c;
         const h = q.high?.[i] ?? Math.max(o, c);
         const l = q.low?.[i] ?? Math.min(o, c);
-        history.push({
+        const bar = {
           t: ts[i],
           date: new Date(ts[i] * 1000).toISOString().split('T')[0],
           open: parseFloat(o.toFixed(2)),
@@ -1753,25 +1774,38 @@
           low: parseFloat(l.toFixed(2)),
           close: parseFloat(c.toFixed(2)),
           volume: q.volume?.[i] ?? 0
-        });
+        };
+        if (intraday) {
+          const iso = new Date((ts[i] + gmtoffset) * 1000).toISOString();
+          bar.dt = ts[i] + gmtoffset; bar.date = iso.slice(0, 10); bar.hm = iso.slice(11, 16);
+        }
+        history.push(bar);
       }
       if (history.length === 0) return null;
 
       const n = history.length;
       const currentPrice = meta.regularMarketPrice ?? history[n - 1].close;
       // 주의: range=1y 요청에서 meta.chartPreviousClose 는 '1년 전 종가'이므로 사용하지 않고 전일 캔들 종가를 사용
-      const prevClose = n >= 2 ? history[n - 2].close : currentPrice;
+      // 분봉에서는 '직전 봉'이 아니라 직전 거래일의 마지막 봉 종가가 전일 종가
+      let prevClose = n >= 2 ? history[n - 2].close : currentPrice;
+      if (intraday) {
+        prevClose = null;
+        for (let i = n - 1; i >= 0; i--) if (history[i].date !== history[n - 1].date) { prevClose = history[i].close; break; }
+      }
       const changePct = prevClose ? ((currentPrice - prevClose) / prevClose) * 100 : 0;
 
       return {
         ticker: upperTicker,
         name: meta.shortName || meta.longName || meta.symbol || upperTicker,
         price: parseFloat(currentPrice.toFixed(2)),
-        change: `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%`,
+        change: prevClose || !intraday ? `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%` : '',
         high52: meta.fiftyTwoWeekHigh ?? Math.max(...history.slice(-252).map(c => c.high)),
         low52: meta.fiftyTwoWeekLow ?? Math.min(...history.slice(-252).map(c => c.low)),
         currency: meta.currency || 'USD',
         exchange: meta.exchangeName || meta.fullExchangeName || '',
+        timezone: meta.exchangeTimezoneName || '',
+        gmtoffset,
+        intraday,
         history: history,
         isLive: true
       };
@@ -1786,7 +1820,7 @@
       if (proxy) {
         try {
           const json = await fetchJsonWithTimeout(`${proxy}/api/chart?symbol=${encodeURIComponent(sym)}&range=${range}&interval=${interval}`, 10000);
-          const parsed = parseYahooChart(json, sym);
+          const parsed = parseYahooChart(json, sym, interval);
           if (parsed) return parsed;
         } catch (err) {
           if (err.status === 404) return { notFound: true };
@@ -1803,7 +1837,7 @@
       const attempts = publicProxies.map(async cfg => {
         let json = await fetchJsonWithTimeout(cfg.url, 6000);
         if (cfg.wrapped && json && typeof json.contents === 'string') json = JSON.parse(json.contents);
-        const parsed = parseYahooChart(json, sym);
+        const parsed = parseYahooChart(json, sym, interval);
         if (!parsed) throw new Error('empty');
         return parsed;
       });
@@ -3372,6 +3406,33 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return { idxOfTime, timeOfIdx, avg };
     };
 
+    // ----- 분봉 전용: 거래일(세션) 분할 · 세션 VWAP -----
+    // 분봉에는 현지 시각 dt 가 있고 date 가 '현지 거래일'. 일봉 이상(dt 없음)은 빈 배열.
+    TA.isIntraday = h => !!(h && h.length && h[0].dt !== undefined);
+    TA.sessions = h => {
+      const out = [];
+      if (!TA.isIntraday(h)) return out;
+      h.forEach((c, i) => {
+        const s = out[out.length - 1];
+        if (s && s.date === c.date) { s.i1 = i; s.high = Math.max(s.high, c.high); s.low = Math.min(s.low, c.low); s.close = c.close; s.volume += c.volume || 0; }
+        else out.push({ date: c.date, i0: i, i1: i, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume || 0 });
+      });
+      return out;
+    };
+    // 거래일마다 누적을 리셋하는 VWAP (대표가격 (H+L+C)/3 × 거래량). 거래량이 0인 구간은 값을 만들지 않고 null.
+    TA.sessionVwap = h => {
+      const out = new Array(h.length).fill(null);
+      let day = null, pv = 0, vv = 0;
+      if (!TA.isIntraday(h)) return out;
+      h.forEach((c, i) => {
+        if (c.date !== day) { day = c.date; pv = 0; vv = 0; }
+        const v = c.volume || 0;
+        pv += ((c.high + c.low + c.close) / 3) * v; vv += v;
+        out[i] = vv > 0 ? pv / vv : null;
+      });
+      return out;
+    };
+
     // 거래 성과 요약 (수수료·슬리피지·세금 미반영)
     TA.tradeStats = (trades, h) => {
       const n = trades.length;
@@ -3411,6 +3472,11 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         cat: '추세 · 이동평균', pane: 'main', name: '지수 이동평균 (EMA)', desc: '최근 값에 가중치를 더 주는 이동평균. Al Brooks 의 20 EMA 기준선.',
         params: [P('period', '기간', 20, 2, 400)], label: p => `EMA ${p.period}`,
         compute: (h, p, st) => ({ lines: [{ v: TA.ema(closesOf(h), p.period), color: st.color, width: st.width || 1.6, name: `EMA ${p.period}` }] })
+      },
+      svwap: {
+        cat: '추세 · 이동평균', pane: 'main', name: '세션 VWAP (분봉 전용)', desc: '거래일마다 새로 계산하는 거래량 가중 평균가. 분봉 차트에서 기관 평균 단가의 기준선처럼 쓰이며, 일·주·월봉에서는 표시되지 않습니다.',
+        params: [], label: () => '세션 VWAP',
+        compute: (h, p, st) => ({ lines: [{ v: TA.sessionVwap(h), color: st.color, width: st.width || 1.8, name: 'VWAP', brk: h.map((c, i) => i > 0 && h[i - 1].date !== c.date) }] })
       },
       bb: {
         cat: '변동성 · 채널', pane: 'main', name: '볼린저 밴드', desc: '이동평균 ± 표준편차 밴드. 밴드 폭이 좁아지면(스퀴즈) 큰 움직임 임박.',
@@ -3633,10 +3699,10 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     // ---------- 1) Al Brooks 프라이스 액션 ----------
     // H1/H2(상승 추세 눌림 후 고점 돌파) · L1/L2(하락 추세 반등 후 저점 이탈) 카운트
-    function brooksSignals(h, ema) {
+    function brooksSignals(h, ema, start = 21) {
       const out = [], n = h.length;
       let bc = 0, bleg = false, bref = 0, sc = 0, sleg = false, sref = 0;
-      for (let i = 21; i < n; i++) {
+      for (let i = start; i < n; i++) {
         const c = h[i], p = h[i - 1];
         const e = ema[i], e5 = ema[i - 5];
         if (e === null || e5 === null) continue;
@@ -3740,6 +3806,82 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           '진입: 상승 추세(20 EMA 우상향·가격이 EMA 위)에서 눌림(고점이 낮아지는 봉) 후 직전 봉 고점을 다시 넘는 두 번째 시도(H2). 하락은 L2.',
           '손절: 신호봉(직전 봉)의 반대편 끝 (최소 0.5 ATR). 목표: 2R 또는 측정 이동(MM) 목표.',
           '추세가 강할수록 H1에서도 진입하지만, 횡보 구간의 첫 시도는 실패가 많아 H2를 기준으로 합니다.'
+        ]
+      };
+    }
+
+    // ---------- 1b) Brooks 5분봉 (데이트레이딩 화면) — 같은 규칙을 '거래일 안에서만' 적용 ----------
+    // H/L 카운트는 매일 장 시작에 리셋하고, 모의 포지션은 그날 장 마감에 청산한다. 20 EMA 는 전일부터 이어서 계산.
+    function analyzeBrooks5(h) {
+      const n = h.length, closes = closesOf(h);
+      const ema = TA.ema(closes, 20), atr = TA.atr(h, 14), vw = TA.sessionVwap(h), ses = TA.sessions(h);
+      const sigAll = [];
+      ses.forEach(s => {
+        brooksSignals(h.slice(s.i0, s.i1 + 1), ema.slice(s.i0, s.i1 + 1), 6).forEach(g => { if (g.n >= 2 && g.n <= 3) sigAll.push({ ...g, i: g.i + s.i0, level: g.level, ses: s }); });
+      });
+      const sigs = sigAll.filter(g => g.n === 2);
+      const markers = sigAll.map(g => ({
+        i: g.i, dir: g.dir > 0 ? 'up' : 'down', text: `${g.dir > 0 ? 'H' : 'L'}${g.n}`,
+        color: g.n === 3 ? '#fbbf24' : (g.dir > 0 ? '#34d399' : '#fb7185'), strong: g.n === 2
+      }));
+      const trades = [];
+      sigs.forEach(g => {
+        const c = h[g.i], a = atr[g.i - 1] || (c.close * 0.002);
+        const entry = g.dir > 0 ? Math.max(c.open, g.level) : Math.min(c.open, g.level);
+        const stop = g.dir > 0 ? Math.min(g.signalLow, entry - a * 0.5) : Math.max(g.signalHigh, entry + a * 0.5);
+        const R = Math.abs(entry - stop), target = entry + g.dir * 2 * R;
+        const view = h.slice(0, g.ses.i1 + 1); // 그날 장 마감까지만
+        const ex = walkTrade(view, g.i, entry, g.dir, stop, b => (g.dir > 0 ? b.high >= target : b.low <= target) ? { price: target, reason: '목표(2R)' } : null, 30);
+        if (ex.open && g.ses.i1 < n - 1 && g.ses !== ses[ses.length - 1]) { ex.open = false; ex.reason = '장 마감 청산'; }
+        trades.push(mkTrade(h, g.i, entry, g.dir, ex, 'H2'));
+      });
+      // 같은 구간에서 겹치는 신호는 한 포지션만 (먼저 나온 것)
+      const kept = []; let free = -1;
+      trades.forEach(t => { if (t.i0 <= free) return; kept.push(t); free = t.i1; });
+
+      const ls = ses[ses.length - 1], ps = ses.length >= 2 ? ses[ses.length - 2] : null;
+      const last = h[n - 1], e = ema[n - 1], vwLast = vw[n - 1];
+      let above = 0, cnt = 0, crosses = 0;
+      for (let i = Math.max(ls.i0, n - 10); i < n; i++) { cnt++; if (ema[i] !== null && h[i].close > ema[i]) above++; }
+      for (let i = Math.max(ls.i0 + 1, n - 20); i < n; i++) if (ema[i] !== null && ema[i - 1] !== null && (h[i].close > ema[i]) !== (h[i - 1].close > ema[i - 1])) crosses++;
+      const e6 = n >= 6 ? ema[n - 6] : null;
+      let state = '판단 보류 (봉 수 부족)', tone = 'warn';
+      if (cnt >= 8) {
+        state = '전환/불명확'; tone = 'warn';
+        if (crosses >= 4) { state = '횡보 (트레이딩 레인지)'; tone = 'info'; }
+        else if (e !== null && e6 !== null && above >= 8 && e > e6) { state = 'Always In 롱 (상승 우위)'; tone = 'good'; }
+        else if (e !== null && e6 !== null && above <= 2 && e < e6) { state = 'Always In 숏 (하락 우위)'; tone = 'bad'; }
+      }
+      const distAtr = (e !== null && atr[n - 1]) ? (last.close - e) / atr[n - 1] : null;
+      const lastSig = sigs[sigs.length - 1];
+      const sig = lastSig ? h[lastSig.i] : null;
+      const vwDiff = vwLast ? (last.close / vwLast - 1) * 100 : null;
+      const gap = ps ? (ls.open / ps.close - 1) * 100 : null;
+      let posPd = '';
+      if (ps) posPd = last.close > ps.high ? '전일 고가 위' : last.close < ps.low ? '전일 저가 아래' : '전일 고저 범위 안';
+      const rows = [
+        { k: '최근 세션 (현지)', v: `${ls.date} · ${h[ls.i0].hm}~${h[ls.i1].hm}`, tone: 'info' },
+        { k: '추세 상태 (Always In)', v: state, tone },
+        { k: '20 EMA 대비', v: distAtr === null ? '' : `${distAtr >= 0 ? '+' : ''}${distAtr.toFixed(1)} ATR(5분) ${Math.abs(distAtr) > 2.5 ? '(EMA에서 멀리 이탈)' : Math.abs(distAtr) < 0.7 ? '(EMA 근처 — 눌림 구간)' : ''}`, tone: Math.abs(distAtr || 0) > 2.5 ? 'warn' : 'info' },
+        { k: '세션 VWAP 대비', v: vwDiff === null ? '' : `${vwDiff >= 0 ? '+' : ''}${vwDiff.toFixed(2)}% (${vwDiff >= 0 ? 'VWAP 위' : 'VWAP 아래'})`, tone: vwDiff === null ? 'info' : vwDiff >= 0 ? 'good' : 'bad' },
+        { k: '전일 고가 / 저가 / 종가', v: ps ? `${fmtN(ps.high)} / ${fmtN(ps.low)} / ${fmtN(ps.close)}` : '', tone: 'info' },
+        { k: '현재가 위치', v: posPd, tone: posPd === '전일 고가 위' ? 'good' : posPd === '전일 저가 아래' ? 'bad' : 'info' },
+        { k: '시가 갭 (전일 종가 대비)', v: gap === null ? '' : `${gap >= 0 ? '+' : ''}${gap.toFixed(2)}%`, tone: 'info' },
+        { k: '최근 H2/L2 신호', v: lastSig ? `${lastSig.dir > 0 ? 'H' : 'L'}${lastSig.n} · ${sig.date} ${sig.hm}` : '신호 없음', tone: lastSig ? (lastSig.dir > 0 ? 'good' : 'bad') : 'info' }
+      ];
+      let verdict = '횡보 구간입니다. 레인지 상·하단의 실패한 돌파를 노리는 편이 낫고, 중간에서는 관망하세요 (20 EMA를 자주 가로지르는 날은 H2/L2도 실패가 많습니다).';
+      if (state.startsWith('판단 보류')) verdict = '이 세션의 5분봉이 아직 충분하지 않아 추세 상태를 판단하지 않습니다.';
+      else if (tone === 'good') verdict = `최근 세션은 20 EMA 위에서 거래되는 상승 우위 상태입니다${vwDiff !== null ? ` (VWAP ${vwDiff >= 0 ? '위' : '아래'} ${Math.abs(vwDiff).toFixed(2)}%)` : ''}. 20 EMA 부근으로 눌릴 때 H2 신호봉이 나오는지가 핵심 관찰 포인트입니다.`;
+      else if (tone === 'bad') verdict = `최근 세션은 20 EMA 아래에서 거래되는 하락 우위 상태입니다${vwDiff !== null ? ` (VWAP ${vwDiff >= 0 ? '위' : '아래'} ${Math.abs(vwDiff).toFixed(2)}%)` : ''}. 반등이 20 EMA 부근에서 L2 신호를 보이는지가 핵심 관찰 포인트입니다.`;
+      verdict += ' (교육용 설명이며 매매 권유가 아닙니다)';
+      return {
+        annot: { markers, levels: [], trades: kept },
+        rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(kept, h),
+        rules: [
+          '데이트레이딩(5분봉) 화면입니다. H/L 카운트는 매 거래일 장 시작에 리셋되고, 모의 포지션은 그날 장 마감까지만 보유합니다 (오버나이트 없음).',
+          '진입: 20 EMA 우상향(우하향) 구간에서 눌림(반등) 후 직전 봉 고점(저점)을 다시 넘는 두 번째 시도(H2/L2). H3/L3은 노란색으로만 표시하고 성과 집계에서는 제외합니다.',
+          '손절: 신호봉 반대편 끝 (최소 0.5 ATR). 목표: 2R, 최대 30봉(2시간 30분) 보유. 세션 VWAP와 전일 고가·저가·종가는 지지/저항 참고선입니다.',
+          '5분봉 신호는 일봉보다 잡음이 많고 표본이 작습니다. 수수료·슬리피지를 반영하지 않으므로 실제 성과와 크게 다를 수 있습니다.'
         ]
       };
     }
@@ -4016,14 +4158,31 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         interval: 'D', chartType: 'candles', range: '6M',
         studies: [{ id: 'ichimoku', params: {} }],
         analyze: analyzeIchimoku
+      },
+      brooks5: {
+        name: 'Brooks 5분봉', short: 'Brooks 5m', icon: 'fa-clock', color: 'teal',
+        tag: '데이트레이딩 · 5분봉', desc: '20 EMA + 세션 VWAP + 전일 고저종가 + H2/L2 (같은 날 안에서만 집계)', source: 'Al Brooks, 「Trading Price Action: Trading Ranges」 — 분봉 적용',
+        interval: '5m', chartType: 'candles', range: '5D', prevLevels: true,
+        studies: [{ id: 'ema', params: { period: 20 }, color: '#f59e0b', width: 2.2 }, { id: 'svwap', params: {}, color: '#38bdf8' }, { id: 'volume', params: { ma: 20 } }],
+        analyze: analyzeBrooks5
       }
     };
     // ===== 프로 차트 엔진 (TradingView 스타일) — 상태 · 좌표 · 렌더링 =====
     const CH_UP = '#10b981', CH_DN = '#f43f5e';
     const CH_AXIS_W = 66, CH_DATE_H = 22, CH_SUB_H = 112, CH_MAIN_H = 430;
-    const CH_RANGES = { '1M': 31, '3M': 92, '6M': 183, '1Y': 366, '2Y': 731, '5Y': 1827, 'ALL': null };
+    const CH_RANGES = { '1D': 1, '5D': 5, '1M': 31, '3M': 92, '6M': 183, '1Y': 366, '2Y': 731, '5Y': 1827, 'ALL': null };
     const CH_TYPES = { candles: '캔들', hollow: '속 빈 캔들', ha: '하이킨아시', bars: 'OHLC 바', line: '라인', area: '영역' };
-    const CH_IV = { D: { label: '일', range: '5y', iv: '1d', name: '일봉' }, W: { label: '주', range: '10y', iv: '1wk', name: '주봉' }, M: { label: '월', range: 'max', iv: '1mo', name: '월봉' } };
+    // 키: D/W/M(일·주·월) + 분봉 '1m','5m','15m','30m','60m'. range/iv 는 Yahoo 한도에 맞춘 조합(1m=최근 7일 이하, 5~30m=최근 60일 이하, 60m=최대 2년).
+    // rg = 기본 표시 구간, days = 불러오는 데이터의 최대 길이(일) — 기간 버튼을 보일지 정할 때 쓴다.
+    const CH_IV = {
+      D: { label: '일', range: '5y', iv: '1d', name: '일봉', rg: '6M' }, W: { label: '주', range: '10y', iv: '1wk', name: '주봉', rg: '2Y' }, M: { label: '월', range: 'max', iv: '1mo', name: '월봉', rg: '5Y' },
+      '1m': { label: '1', range: '5d', iv: '1m', name: '1분봉', intraday: true, min: 1, rg: '1D', days: 5 },
+      '5m': { label: '5', range: '1mo', iv: '5m', name: '5분봉', intraday: true, min: 5, rg: '5D', days: 31 },
+      '15m': { label: '15', range: '1mo', iv: '15m', name: '15분봉', intraday: true, min: 15, rg: '5D', days: 31 },
+      '30m': { label: '30', range: '1mo', iv: '30m', name: '30분봉', intraday: true, min: 30, rg: '1M', days: 31 },
+      '60m': { label: '60', range: '6mo', iv: '60m', name: '60분봉', intraday: true, min: 60, rg: '3M', days: 183 }
+    };
+    const chIsIntra = () => !!(CH_IV[CH.interval] && CH_IV[CH.interval].intraday);
     const CH_TOOLS = {
       cursor: { n: 0, label: '커서 (선택·이동)' },
       trend: { n: 2, label: '추세선' }, ray: { n: 2, label: '연장선(레이)' }, hline: { n: 1, label: '수평선' }, vline: { n: 1, label: '수직선' },
@@ -4038,7 +4197,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       type: 'candles', log: false, auto: true, manual: null, magnet: true,
       barW: 7, R: 0,
       studies: [], drawings: [], tool: 'cursor', draft: null, sel: -1, measure: null,
-      presetId: null, presetResult: null, annot: null, showSignals: true,
+      presetId: null, presetResult: null, annot: null, showSignals: true, showPrev: true, sessions: [],
       mouse: null, hoverIdx: null,
       W: 0, H: 0, dpr: 1, layout: null, scale: null,
       drag: null, pointers: new Map(), raf: 0, raf2: 0, ready: false, loading: false, saveTimer: null
@@ -4072,8 +4231,15 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const span = CH_RANGES[key];
       let count = n;
       if (span) {
-        const startT = CH.hist[n - 1].t - span * 86400;
-        let idx = 0; while (idx < n - 1 && CH.hist[idx].t < startT) idx++;
+        let idx = 0;
+        if (chIsIntra() && (key === '1D' || key === '5D')) {
+          // 분봉의 1D/5D = 최근 1/5 '거래일' (주말·휴일은 건너뜀)
+          idx = n - 1; let seen = 1;
+          while (idx > 0) { if (CH.hist[idx - 1].date !== CH.hist[idx].date && ++seen > span) break; idx--; }
+        } else {
+          const startT = CH.hist[n - 1].t - span * 86400;
+          while (idx < n - 1 && CH.hist[idx].t < startT) idx++;
+        }
         count = Math.max(CH.interval === 'D' ? 15 : 24, n - idx);
       }
       count = Math.min(count, n);
@@ -4109,6 +4275,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const n = CH.hist.length;
       CH.dsKey = `${CH.ticker}|${CH.interval}|${n}|${n ? CH.hist[n - 1].t : 0}`;
       CH.ha = null;
+      CH.sessions = TA.sessions(CH.hist);
     }
     const chData = () => {
       if (CH.type !== 'ha') return CH.hist;
@@ -4180,13 +4347,19 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (spec.fmtD !== undefined) return v.toFixed(spec.fmtD);
       return Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(3);
     }
+    // 분봉이면 현지 거래일(date)과 'HH:MM'(hm) 도 돌려준다. 데이터 밖(미래) 위치는 평균 봉 간격으로 외삽한 시각.
+    function chDateOffset() { const n = CH.hist.length; return n && CH.hist[n - 1].dt !== undefined ? CH.hist[n - 1].dt - CH.hist[n - 1].t : 0; }
     function chDateParts(i) {
       const n = CH.hist.length;
       if (!n) return null;
-      let d;
-      if (i >= 0 && i <= n - 1 && Number.isInteger(i)) d = CH.hist[i].date;
-      else d = new Date(CH.tix.timeOfIdx(i) * 1000).toISOString().slice(0, 10);
-      return { y: +d.slice(0, 4), m: +d.slice(5, 7), d: +d.slice(8, 10), s: d };
+      const intra = CH.hist[n - 1].dt !== undefined;
+      let d, hm = null;
+      if (i >= 0 && i <= n - 1 && Number.isInteger(i)) { d = CH.hist[i].date; if (intra) hm = CH.hist[i].hm; }
+      else {
+        const iso = new Date((CH.tix.timeOfIdx(i) + chDateOffset()) * 1000).toISOString();
+        d = iso.slice(0, 10); if (intra) hm = iso.slice(11, 16);
+      }
+      return { y: +d.slice(0, 4), m: +d.slice(5, 7), d: +d.slice(8, 10), s: d, hm, mod: hm ? +hm.slice(0, 2) * 60 + +hm.slice(3, 5) : null };
     }
     const chDow = s => ['일', '월', '화', '수', '목', '금', '토'][new Date(`${s}T00:00:00Z`).getUTCDay()];
 
@@ -4249,7 +4422,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     }
 
     // ---------- 렌더링 ----------
-    function chLinePath(ctx, arr, scale, i0, i1, color, width, dash, cv) {
+    function chLinePath(ctx, arr, scale, i0, i1, color, width, dash, cv, brk) {
       const iEnd = Math.min(arr.length - 1, i1);
       ctx.lineWidth = width || 1.4; ctx.lineJoin = 'round';
       ctx.setLineDash(dash || []);
@@ -4270,6 +4443,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       for (let i = Math.max(0, i0); i <= iEnd; i++) {
         const v = arr[i];
         if (v === null || v === undefined || !Number.isFinite(v)) { started = false; continue; }
+        if (brk && brk[i]) started = false; // 세션 VWAP 등: 거래일 경계에서 선을 끊는다
         const x = chX(i), y = scale.yOf(v);
         if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
       }
@@ -4297,6 +4471,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     }
 
     function chDateTicks(i0, i1) {
+      if (chIsIntra()) return chIntraTicks(i0, i1);
       const pw = chPlotW(), out = [];
       const dayMode = CH.barW >= 15 && CH.interval !== 'M';
       let prevKey = null, lastX = -1e9;
@@ -4314,6 +4489,68 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         if (x - lastX >= minGap && x > 16 && x < pw - 16) { out.push({ x, text }); lastX = x; }
       }
       return out;
+    }
+    // 분봉 날짜 축: 거래일 경계는 'M/D'(굵게), 그 사이는 HH:MM — 눈금 간격은 봉 폭에 맞춰 자동 선택 (순수 계산은 chIntraTickPlan)
+    const CH_TICK_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 180, 240, 390];
+    function chIntraTickPlan(bars, i0, i1, barW, ivMin, pw, xOf) {
+      const out = [], n = bars.length;
+      if (!n) return out;
+      const lo = Math.max(0, i0), hi = Math.min(n - 1, i1);
+      const off = bars[0].dt !== undefined ? (((+bars[0].hm.slice(0, 2)) * 60 + (+bars[0].hm.slice(3, 5))) % ivMin) : 0;
+      // 거래일 경계 라벨
+      const days = [];
+      for (let i = lo; i <= hi; i++) if (i === 0 || bars[i - 1].date !== bars[i].date) days.push(i);
+      let lastDayX = -1e9;
+      days.forEach(i => {
+        const x = xOf(i), d = bars[i].date;
+        if (x - lastDayX >= 40 && x > 14 && x < pw - 14) { out.push({ x, text: `${+d.slice(5, 7)}/${+d.slice(8, 10)}`, day: true }); lastDayX = x; }
+      });
+      // 시간 라벨
+      const step = CH_TICK_STEPS.find(m => m >= ivMin && m % ivMin === 0 && (m / ivMin) * barW >= 54);
+      if (step) {
+        let lastX = -1e9;
+        for (let i = lo; i <= hi; i++) {
+          const b = bars[i], mod = (+b.hm.slice(0, 2)) * 60 + (+b.hm.slice(3, 5));
+          if ((i === 0 || bars[i - 1].date !== b.date) || (mod - off) % step !== 0) continue;
+          const x = xOf(i);
+          if (x - lastX < 54 || x <= 14 || x >= pw - 14) continue;
+          if (out.some(t => t.day && Math.abs(t.x - x) < 34)) continue;
+          out.push({ x, text: b.hm }); lastX = x;
+        }
+      }
+      return out.sort((a, b) => a.x - b.x);
+    }
+    function chIntraTicks(i0, i1) { return chIntraTickPlan(CH.hist, i0, i1, CH.barW, CH_IV[CH.interval].min, chPlotW(), chX); }
+
+    // 분봉: 거래일 경계 세로선, 전일 고가/저가/종가 수평선(그날 구간에만)
+    const CH_PREV_LV = [['high', '고가', 'rgba(251,191,36,0.85)'], ['low', '저가', 'rgba(56,189,248,0.85)'], ['close', '종가', 'rgba(203,213,225,0.7)']];
+    function chDrawDayLines(ctx, i0, i1) {
+      const ses = CH.sessions, mp = CH.layout.panes[0];
+      ctx.save(); ctx.strokeStyle = 'rgba(71,85,105,0.55)'; ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
+      for (let k = 1; k < ses.length; k++) {
+        if (ses[k].i0 < i0 - 1 || ses[k].i0 > i1 + 1) continue;
+        const x = Math.round(chX(ses[k].i0) - CH.barW / 2) + 0.5;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CH.layout.dateY); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    function chDrawPrevLevels(ctx, sc, i0, i1) {
+      const ses = CH.sessions;
+      ctx.save(); ctx.lineWidth = 1; ctx.font = '10px "JetBrains Mono", monospace';
+      const pw = chPlotW();
+      for (let k = 1; k < ses.length; k++) {
+        const s = ses[k], pv = ses[k - 1];
+        if (s.i1 < i0 - 1 || s.i0 > i1 + 1) continue;
+        const xa = Math.max(0, chX(s.i0) - CH.barW / 2), xb = Math.min(pw, chX(s.i1) + CH.barW / 2);
+        if (xb <= xa) continue;
+        CH_PREV_LV.forEach(([key, name, col]) => {
+          const y = Math.round(sc.yOf(pv[key])) + 0.5;
+          if (y < sc.pane.y0 - 2 || y > sc.pane.y1 + 2) return;
+          ctx.strokeStyle = col; ctx.setLineDash([5, 3]); ctx.beginPath(); ctx.moveTo(xa, y); ctx.lineTo(xb, y); ctx.stroke(); ctx.setLineDash([]);
+          if (k === ses.length - 1 || xb - xa > 420) { ctx.fillStyle = col; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText(`전일 ${name} ${chFmtPrice(pv[key], 0.01)}`, xb - 4, y - 2); }
+        });
+      }
+      ctx.restore();
     }
 
     function chDrawBase() {
@@ -4337,6 +4574,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       // ----- 세로 격자 (모든 패널) -----
       ctx.strokeStyle = 'rgba(30,41,59,0.75)'; ctx.lineWidth = 1;
       ticks.forEach(t => { const x = Math.round(t.x) + 0.5; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CH.layout.dateY); ctx.stroke(); });
+      if (chIsIntra()) chDrawDayLines(ctx, i0, i1);
 
       // ===== 메인 패널 =====
       const mp = CH.layout.panes[0];
@@ -4378,7 +4616,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       // 오버레이 선 · 점 · 지그재그 · 수평선
       mainSts.forEach(st => {
         const sp = chSpec(st);
-        (sp.lines || []).forEach(l => chLinePath(ctx, l.v, sc, i0, iMax, l.color, l.width, l.dash, l.cv));
+        (sp.lines || []).forEach(l => chLinePath(ctx, l.v, sc, i0, iMax, l.color, l.width, l.dash, l.cv, l.brk));
         if (sp.dots) {
           for (let i = Math.max(0, i0); i <= i1; i++) {
             const v = sp.dots.v[i]; if (v === null || v === undefined) continue;
@@ -4396,6 +4634,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         (sp.hlines || []).forEach(l => chHLine(ctx, sc, l.price, l.color, l.dash, l.label));
         if (sp.markers) chDrawMarkers(ctx, sc, sp.markers.map(m => ({ i: m.i, dir: m.kind === 'bear' ? 'down' : m.kind === 'bull' ? 'up' : 'dot', text: m.text, color: m.kind === 'bear' ? '#fb7185' : m.kind === 'bull' ? '#34d399' : '#94a3b8', strong: false })), i0, i1);
       });
+      if (chIsIntra() && CH.showPrev) chDrawPrevLevels(ctx, sc, i0, i1);
       // 프리셋 신호
       if (CH.annot && CH.showSignals) {
         (CH.annot.levels || []).forEach(l => chHLine(ctx, sc, l.price, l.color, l.dash, l.label));
@@ -4426,8 +4665,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       ctx.beginPath(); ctx.moveTo(0, CH.layout.dateY + 0.5); ctx.lineTo(CH.W, CH.layout.dateY + 0.5); ctx.stroke();
 
       // 날짜 축
-      ctx.fillStyle = '#64748b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ticks.forEach(t => ctx.fillText(t.text, t.x, CH.layout.dateY + CH_DATE_H / 2 + 1));
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ticks.forEach(t => { ctx.fillStyle = t.day ? '#cbd5e1' : '#64748b'; ctx.font = `${t.day ? 'bold ' : ''}10px "JetBrains Mono", monospace`; ctx.fillText(t.text, t.x, CH.layout.dateY + CH_DATE_H / 2 + 1); });
       chPositionLegends();
     }
 
@@ -4791,7 +5030,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }
       const dp = chDateParts(ri);
       if (dp) {
-        const txt = `${dp.s} (${chDow(dp.s)})`;
+        const txt = `${dp.s}${dp.hm ? ' ' + dp.hm : ''} (${chDow(dp.s)})`;
         ctx.font = '10px "JetBrains Mono", monospace';
         const w = ctx.measureText(txt).width + 12, bx = Math.max(0, Math.min(pw - w, x - w / 2));
         ctx.fillStyle = '#334155'; ctx.fillRect(bx, CH.layout.dateY + 2, w, CH_DATE_H - 4);
@@ -4818,7 +5057,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (!lg) return;
       const head = `<div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 pointer-events-none">
         <span class="font-bold text-slate-100 text-xs">${escapeHtml(CH.ticker)}</span>
-        <span class="text-slate-500">${CH_IV[CH.interval].name} · ${CH_TYPES[CH.type]}${CH.log ? ' · 로그' : ''}</span>
+        <span class="text-slate-500">${CH_IV[CH.interval].name} · ${CH_TYPES[CH.type]}${CH.log ? ' · 로그' : ''}</span><span id="lgT" class="text-slate-400"></span>
         <span class="text-slate-500">O <b id="lgO" class="text-slate-200 font-semibold"></b></span><span class="text-slate-500">H <b id="lgH" class="text-slate-200 font-semibold"></b></span><span class="text-slate-500">L <b id="lgL" class="text-slate-200 font-semibold"></b></span><span class="text-slate-500">C <b id="lgC" class="text-slate-200 font-semibold"></b></span>
         <b id="lgChg"></b><span class="text-slate-500">거래량 <b id="lgV" class="text-slate-300 font-semibold"></b></span></div>`;
       lg.innerHTML = head + CH.studies.filter(st => STUDY_DEFS[st.id].pane === 'main' || st.hidden).map(chLegendRow).join('');
@@ -4844,6 +5083,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       set('lgO', chFmtPrice(c.open, 0.01)); set('lgH', chFmtPrice(c.high, 0.01)); set('lgL', chFmtPrice(c.low, 0.01)); set('lgC', chFmtPrice(c.close, 0.01));
       set('lgChg', `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`, chg >= 0 ? 'text-emerald-400' : 'text-rose-400');
       set('lgV', fmtVol(c.volume));
+      set('lgT', c.hm ? `${c.date.slice(5)} ${c.hm}` : '');
       CH.studies.forEach(st => {
         const el = $id(`lgv-${st.uid}`);
         if (!el) return;
@@ -4880,12 +5120,22 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
            <button type="button" onclick="chDeleteSelected()" title="선택한 그림 삭제 (Delete)" class="w-8 h-8 grid place-items-center rounded-lg text-slate-500 hover:text-rose-300 hover:bg-slate-800 transition"><i class="fa-regular fa-trash-can text-xs"></i></button>
            <button type="button" onclick="chClearDrawings()" title="이 종목의 그림 모두 지우기" class="w-8 h-8 grid place-items-center rounded-lg text-slate-500 hover:text-rose-300 hover:bg-slate-800 transition"><i class="fa-solid fa-eraser text-xs"></i></button>`;
     }
+    // 기간 버튼: 일·주·월봉은 기존 그대로(1M~5Y·전체), 분봉은 1D·5D + 불러온 데이터가 덮는 기간 + 전체
+    function chVisibleRanges() {
+      if (!chIsIntra()) return Object.keys(CH_RANGES).filter(k => k !== '1D' && k !== '5D');
+      const n = CH.hist.length, days = n ? (CH.hist[n - 1].t - CH.hist[0].t) / 86400 : 0;
+      return Object.keys(CH_RANGES).filter(k => k === 'ALL' || k === '1D' || (CH_RANGES[k] <= days + 5 && CH_RANGES[k] <= CH_IV[CH.interval].days + 1) || k === '5D' && days >= 4);
+    }
+    function chTogglePrev() { CH.showPrev = !CH.showPrev; chSyncToolbar(); chDraw(); }
     function chSyncToolbar() {
       Object.keys(CH_IV).forEach(k => { const b = $id(`iv-${k}`); if (b) b.className = `px-2.5 py-1 rounded-md transition ${CH.interval === k ? 'bg-cyan-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`; });
-      Object.keys(CH_RANGES).forEach(k => { const b = $id(`rg-${k}`); if (b) b.className = `px-2 py-1 rounded-md transition ${CH.range === k ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'}`; });
+      const vis = chVisibleRanges();
+      Object.keys(CH_RANGES).forEach(k => { const b = $id(`rg-${k}`); if (b) { b.className = `px-2 py-1 rounded-md transition ${CH.range === k ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'}${vis.includes(k) ? '' : ' hidden'}`; } });
+      const ig = $id('ivIntraGroup'); if (ig) ig.classList.toggle('bg-slate-800', chIsIntra());
       const sel = $id('chartTypeSel'); if (sel) sel.value = CH.type;
       const tog = (id, on) => { const b = $id(id); if (b) b.className = `px-2.5 py-1 rounded-lg border transition ${on ? 'bg-cyan-950 border-cyan-600 text-cyan-300 font-semibold' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}`; };
-      tog('btnLog', CH.log); tog('btnAuto', CH.auto); tog('btnMagnet', CH.magnet);
+      tog('btnLog', CH.log); tog('btnAuto', CH.auto); tog('btnMagnet', CH.magnet); tog('btnPrev', CH.showPrev);
+      const pv = $id('btnPrev'); if (pv) pv.classList.toggle('hidden', !chIsIntra());
       Object.keys(CH_TOOLS).forEach(k => { const b = $id(`tool-${k}`); if (b) b.className = `w-8 h-8 grid place-items-center rounded-lg border transition ${CH.tool === k ? 'bg-cyan-950 text-cyan-300 border-cyan-600' : 'text-slate-400 hover:text-white hover:bg-slate-800 border-transparent'}`; });
       const box = $id('proChartContainer'); if (box) box.style.touchAction = CH.tool === 'cursor' ? 'pan-y' : 'none';
       chRenderPresetCards();
@@ -4908,6 +5158,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       CH.drawings = []; CH.sel = -1; chSaveDrawings(); chDraw(); chDrawOver();
     }
 
+    // 해당 주기에서 의미 있는 기간 키 (프리셋이 남긴 범위가 새 주기에 맞지 않으면 기본값으로)
+    function chVisibleRangesFor(iv) { return CH_IV[iv].intraday ? ['1D', '5D', '1M', '3M', '6M', 'ALL'] : Object.keys(CH_RANGES).filter(k => k !== '1D' && k !== '5D'); }
     async function chSetInterval(iv) {
       if (!CH_IV[iv] || iv === CH.interval || CH.loading) return;
       if (!CH.sets[iv]) {
@@ -4915,12 +5167,13 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         let res = null;
         try { res = await fetchRealYahooFinanceData(CH.ticker, CH_IV[iv].range, CH_IV[iv].iv); } catch (e) { res = null; }
         CH.loading = false; $id('chartLoading').classList.add('hidden');
-        if (!res || res.notFound || !res.history || res.history.length < 5) { showToast('차트 데이터 없음', `${CH_IV[iv].name} 데이터를 불러오지 못했습니다.`, 'warning'); return; }
+        if (!res || res.notFound || !res.history || res.history.length < 5) { showToast('차트 데이터 없음', `${CH_IV[iv].name} 데이터를 불러오지 못했습니다.${CH_IV[iv].intraday ? ' 분봉은 최신 자체 프록시(Worker)가 필요하며, 거래일이 아닌 종목이나 지원하지 않는 종목은 비어 있을 수 있습니다.' : ''}`, 'warning'); return; }
+        if (CH_IV[iv].intraday && !res.intraday) { showToast('분봉 데이터 아님', '프록시가 일봉 데이터를 돌려주었습니다. Worker를 최신 버전으로 다시 배포했는지 확인하세요.', 'warning'); return; }
         CH.sets[iv] = res.history;
       }
       CH.interval = iv; CH.hist = CH.sets[iv]; CH.draft = null;
       chRebuildDataset();
-      if (!CH.presetId) CH.range = { D: '6M', W: '2Y', M: '5Y' }[iv];
+      if (!CH.presetId || !chVisibleRangesFor(iv).includes(CH.range)) CH.range = CH_IV[iv].rg;
       chSetRange(CH.range, false);
       chRunPreset(); chBuildLegend(); chSyncToolbar(); chDraw();
     }
@@ -4986,7 +5239,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     }
 
     // ----- 프리셋 -----
-    const CH_PRESET_COLORS = { amber: 'border-amber-500/60 text-amber-300 hover:bg-amber-950/40', emerald: 'border-emerald-500/60 text-emerald-300 hover:bg-emerald-950/40', sky: 'border-sky-500/60 text-sky-300 hover:bg-sky-950/40', violet: 'border-violet-500/60 text-violet-300 hover:bg-violet-950/40', rose: 'border-rose-500/60 text-rose-300 hover:bg-rose-950/40' };
+    const CH_PRESET_COLORS = { amber: 'border-amber-500/60 text-amber-300 hover:bg-amber-950/40', emerald: 'border-emerald-500/60 text-emerald-300 hover:bg-emerald-950/40', sky: 'border-sky-500/60 text-sky-300 hover:bg-sky-950/40', violet: 'border-violet-500/60 text-violet-300 hover:bg-violet-950/40', rose: 'border-rose-500/60 text-rose-300 hover:bg-rose-950/40', teal: 'border-teal-500/60 text-teal-300 hover:bg-teal-950/40 ring-teal-500/60' };
     function chRenderPresetCards() {
       const box = $id('presetCards');
       if (!box) return;
@@ -5006,6 +5259,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (!P || !CH.hist.length) return;
       if (CH.presetId === id) { chClearPreset(); return; }
       CH.presetId = id; CH.type = P.chartType; CH.ha = null; CH.showSignals = true;
+      if (P.prevLevels) CH.showPrev = true;
       CH.studies = P.studies.map((s, i) => newStudy(s.id, { params: s.params, color: s.color, width: s.width }, i));
       if (CH.interval !== P.interval) { await chSetInterval(P.interval); }
       chRunPreset();
@@ -5036,7 +5290,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (!P) { box.classList.add('hidden'); box.innerHTML = ''; return; }
       box.classList.remove('hidden');
       if (CH.interval !== P.interval) {
-        box.innerHTML = `<div class="flex items-center justify-between gap-3 flex-wrap"><div class="text-sm text-amber-300"><i class="fa-solid fa-circle-info mr-1"></i>${escapeHtml(P.name)} 프리셋은 일봉 기준입니다.</div><button type="button" onclick="chSetInterval('${P.interval}')" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold">일봉으로 전환</button></div>`;
+        box.innerHTML = `<div class="flex items-center justify-between gap-3 flex-wrap"><div class="text-sm text-amber-300"><i class="fa-solid fa-circle-info mr-1"></i>${escapeHtml(P.name)} 프리셋은 ${CH_IV[P.interval].name} 기준입니다.</div><button type="button" onclick="chSetInterval('${P.interval}')" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold">${CH_IV[P.interval].name}으로 전환</button></div>`;
         return;
       }
       const r = CH.presetResult;
@@ -7130,7 +7384,1499 @@ SONY|Sony Group ADR|T
   </script>
   <!-- 기능 모듈: 각 모듈은 자기 script 블록 안에서만 작업한다 (메인 스크립트의 전역 함수를 호출해 사용) -->
   <script id="mod-prevday">
-    // (전일 복기 모듈)
+    // =====================================================================
+    // 전일 복기 모듈 — 가장 최근에 '완전히 마감된' 정규장 하루를 5분봉으로 되짚는다 (Al Brooks 프라이스 액션 어휘).
+    // 순수 계산(세션 선택 · 지표 · 분류 · 해설 생성)과 화면(차트 · 목록)을 분리했다. 모든 전역은 pd / PD_ 접두사.
+    // 원칙: 값이 없으면 빈칸(‘데이터 없음’), 심리 해석은 가격·거래량으로부터의 '추정'이며 모든 문장은 계산된 사실에서 만든다.
+    // =====================================================================
+    const PD_EMA_P = 20, PD_OR_MIN = 30;
+    const PD_PHASES = [{ id: 'open', name: '장 초반' }, { id: 'am', name: '오전' }, { id: 'lunch', name: '점심' }, { id: 'pm', name: '오후' }, { id: 'close', name: '마감' }];
+    const PD_TYPE_NAMES = {
+      trendOpen: '시가부터 추세일 (Trend from the Open)', reversal: '추세 반전일 (Trend Reversal)', spikeChannel: '스파이크 앤 채널 (Spike & Channel)',
+      ttr: '추세형 트레이딩 레인지일 (Trending Trading Range)', range: '트레이딩 레인지일 (Trading Range Day)', unclear: '유형이 뚜렷하지 않은 혼합형'
+    };
+    const PD_SECTOR_ETF = { 'Technology': 'XLK', 'Financial Services': 'XLF', 'Healthcare': 'XLV', 'Consumer Cyclical': 'XLY', 'Consumer Defensive': 'XLP', 'Energy': 'XLE', 'Industrials': 'XLI', 'Basic Materials': 'XLB', 'Real Estate': 'XLRE', 'Utilities': 'XLU', 'Communication Services': 'XLC' };
+
+    // ---------- 작은 도우미 ----------
+    const pdOk = v => v !== null && v !== undefined && Number.isFinite(v);
+    const pdF = (v, d = 2) => pdOk(v) ? v.toFixed(d) : '';
+    const pdPct = (v, d = 2) => pdOk(v) ? `${v >= 0 ? '+' : ''}${v.toFixed(d)}%` : '';
+    const pdPad = n => String(n).padStart(2, '0');
+    const pdMod = hm => (+hm.slice(0, 2)) * 60 + (+hm.slice(3, 5));
+    const pdHm = m => `${pdPad(Math.floor(m / 60) % 24)}:${pdPad(Math.round(m) % 60)}`;
+    const pdDow = d => ['일', '월', '화', '수', '목', '금', '토'][new Date(`${d}T00:00:00Z`).getUTCDay()];
+    const pdMean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    const pdMedian = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+    // 20 EMA: 첫 값에서 시작 (전일 봉부터 이어서 계산하므로 선택한 세션 안에서는 수렴해 있다)
+    function pdEma(values, p = PD_EMA_P) {
+      const k = 2 / (p + 1), out = [];
+      let prev = null;
+      values.forEach(v => { prev = prev === null ? v : v * k + prev * (1 - k); out.push(prev); });
+      return out;
+    }
+    // 거래일마다 리셋되는 VWAP (대표가격 × 거래량). 거래량 합이 0이면 null — 값을 만들지 않는다.
+    function pdVwap(bars) {
+      const out = [];
+      let day = null, pv = 0, vv = 0;
+      bars.forEach(c => {
+        if (c.date !== day) { day = c.date; pv = 0; vv = 0; }
+        const v = c.volume || 0;
+        pv += ((c.high + c.low + c.close) / 3) * v; vv += v;
+        out.push(vv > 0 ? pv / vv : null);
+      });
+      return out;
+    }
+
+    // ---------- 세션(거래일) 분할 · 선택 ----------
+    // bars: parseYahooChart 가 만든 분봉 (date = 현지 거래일, hm = 현지 'HH:MM'). 봉이 6개 미만인 날은 잡음으로 보고 버린다.
+    function pdGroupSessions(bars) {
+      const raw = [];
+      bars.forEach((b, i) => {
+        const s = raw[raw.length - 1];
+        if (s && s.date === b.date) { s.i1 = i; s.n++; } else raw.push({ date: b.date, i0: i, i1: i, n: 1 });
+      });
+      const gaps = [];
+      for (let i = 1; i < bars.length; i++) if (bars[i].date === bars[i - 1].date) gaps.push(bars[i].t - bars[i - 1].t);
+      const ivSec = Math.max(60, Math.round((pdMedian(gaps) || 300) / 60) * 60);
+      const sessions = raw.filter(s => s.n >= 6).map(s => {
+        const a = bars[s.i0], b = bars[s.i1];
+        return { ...s, startT: a.t, endT: b.t + ivSec, startMod: pdMod(a.hm), spanMin: (b.t + ivSec - a.t) / 60 };
+      });
+      return { sessions, ivSec };
+    }
+    // 가장 흔한 봉 개수(동률이면 큰 쪽) = 정규장 전체 길이
+    function pdTypicalLen(sessions) {
+      const cnt = {};
+      sessions.forEach(s => { cnt[s.n] = (cnt[s.n] || 0) + 1; });
+      let best = 0, bc = 0;
+      Object.keys(cnt).forEach(k => { if (cnt[k] > bc || (cnt[k] === bc && +k > best)) { best = +k; bc = cnt[k]; } });
+      return best;
+    }
+    // 세션이 '끝났는지': 뒤에 더 늦은 거래일이 있거나, 현지 날짜가 지났거나, 같은 날이라면 봉 개수가 정규장 길이에 도달했거나 정규장 종료 시각이 지난 경우(반일 거래 포함)
+    function pdIsComplete(k, sessions, typ, ivSec, nowSec, off) {
+      const s = sessions[k];
+      if (k < sessions.length - 1) return true;
+      const nowDate = new Date((nowSec + off) * 1000).toISOString().slice(0, 10);
+      if (nowDate > s.date) return true;
+      if (s.n >= typ * 0.97) return true;
+      if (nowSec >= s.startT + typ * ivSec) return true;
+      return nowSec - s.endT >= 1800; // 같은 날인데 마지막 봉이 30분 넘게 갱신되지 않음 → 조기 종료(반일 거래 등)로 본다
+    }
+    // 복기할 세션 고르기. wantDate 가 완료된 세션이면 그것, 아니면 가장 최근 '완료' 세션. notes 에 선택 이유를 남긴다.
+    function pdPickSession(sessions, ivSec, nowSec, off, wantDate) {
+      const res = { idx: -1, complete: [], notes: [], typ: pdTypicalLen(sessions) };
+      if (!sessions.length) return res;
+      sessions.forEach((s, k) => { if (pdIsComplete(k, sessions, res.typ, ivSec, nowSec, off)) res.complete.push(k); });
+      if (!res.complete.length) { res.notes.push('완료된 거래일이 데이터에 없습니다.'); return res; }
+      const last = sessions.length - 1;
+      let pick = res.complete[res.complete.length - 1];
+      if (wantDate) { const w = res.complete.find(k => sessions[k].date === wantDate); if (w !== undefined) pick = w; }
+      res.idx = pick;
+      const s = sessions[pick], nowDate = new Date((nowSec + off) * 1000).toISOString().slice(0, 10), nowDow = new Date(`${nowDate}T00:00:00Z`).getUTCDay();
+      if (!res.complete.includes(last)) res.notes.push(`${sessions[last].date}(${pdDow(sessions[last].date)}) 세션은 아직 진행 중이라(5분봉 ${sessions[last].n}개) 제외하고, 직전에 마감된 거래일을 복기합니다.`);
+      else if (pick === last && s.date === nowDate) res.notes.push(`오늘(${s.date}) 세션이 이미 마감되어 오늘 거래일을 복기합니다.`);
+      else if (pick === last && nowDate > s.date) {
+        if (nowDow === 0 || nowDow === 6) res.notes.push(`오늘은 주말(${pdDow(nowDate)}요일)이라 마지막 거래일을 복기합니다.`);
+        else res.notes.push(`오늘(${nowDate})은 아직 장이 열리지 않았거나 휴장이어서 마지막 거래일을 복기합니다.`);
+      }
+      if (wantDate && s.date === wantDate && pick !== res.complete[res.complete.length - 1]) res.notes.push('직접 선택한 거래일입니다.');
+      if (pick === last && s.n < res.typ * 0.97 && nowDate === s.date && nowSec < s.startT + res.typ * ivSec) res.notes.push('마지막 5분봉이 30분 넘게 갱신되지 않아 장이 일찍 끝난 것(반일 거래 등)으로 보고 이 세션을 복기합니다. 데이터 지연이라면 잠시 뒤 다시 분석하세요.');
+      if (s.n < res.typ * 0.8) res.notes.push(`정규장 평균(${res.typ}봉)보다 짧은 ${s.n}봉 — 단축(반일) 거래일이거나 거래가 중단된 구간이 있었을 수 있습니다.`);
+      return res;
+    }
+
+    // ---------- 일봉 맥락 (선택한 거래일 '이전' 일봉만 사용) ----------
+    function pdDailyContext(daily, date) {
+      const out = { ok: false, prev: null, atr: null, avgVol: null, trend: '', lastBar: null };
+      if (!daily || !daily.length) return out;
+      const hist = daily.filter(b => b.date < date);
+      if (hist.length < 5) return out;
+      const prev = hist[hist.length - 1];
+      const tr = hist.map((b, i) => i === 0 ? b.high - b.low : Math.max(b.high - b.low, Math.abs(b.high - hist[i - 1].close), Math.abs(b.low - hist[i - 1].close)));
+      const sma = n => hist.length >= n ? pdMean(hist.slice(-n).map(b => b.close)) : null;
+      const s20 = sma(20), s50 = sma(50);
+      const r20 = hist.length >= 21 ? (prev.close / hist[hist.length - 21].close - 1) * 100 : null;
+      let trend = '';
+      if (s20 !== null) {
+        const a20 = prev.close > s20, a50 = s50 !== null ? prev.close > s50 : null;
+        trend = a50 === null ? (a20 ? '20일선 위' : '20일선 아래') : (a20 && a50 ? '20일선·50일선 위 (상승 추세)' : (!a20 && !a50 ? '20일선·50일선 아래 (하락 추세)' : '이동평균선 혼조'));
+      }
+      const hi20 = hist.length >= 20 ? Math.max(...hist.slice(-20).map(b => b.high)) : null;
+      const lo20 = hist.length >= 20 ? Math.min(...hist.slice(-20).map(b => b.low)) : null;
+      return {
+        ok: true, prev, atr: pdMean(tr.slice(-14)), avgVol: pdMean(hist.slice(-20).map(b => b.volume || 0)), sma20: s20, sma50: s50, r20, trend, hi20, lo20,
+        dayBar: daily.find(b => b.date === date) || null, n: hist.length
+      };
+    }
+
+    // ---------- 하루 지표 (순수 계산) ----------
+    // seg: 그날의 5분봉 / ema: 같은 길이의 20 EMA / vwap: 같은 길이 / ivMin: 봉 길이(분)
+    function pdDayMetrics(seg, ema, vwap, ivMin) {
+      const n = seg.length, O = seg[0].open, C = seg[n - 1].close;
+      let H = -Infinity, L = Infinity, iH = 0, iL = 0, vol = 0;
+      seg.forEach((b, i) => { if (b.high > H) { H = b.high; iH = i; } if (b.low < L) { L = b.low; iL = i; } vol += b.volume || 0; });
+      const R = H - L || 1e-9;
+      const flips = (arr, ref) => { let c = 0; for (let i = 1; i < n; i++) if (ref[i] !== null && ref[i - 1] !== null && ((arr[i] > ref[i]) !== (arr[i - 1] > ref[i - 1]))) c++; return c; };
+      const closes = seg.map(b => b.close);
+      const aboveEma = closes.filter((c, i) => c > ema[i]).length / n;
+      const aboveVwap = vwap.some(v => v !== null) ? closes.filter((c, i) => vwap[i] !== null && c > vwap[i]).length / closes.filter((c, i) => vwap[i] !== null).length : null;
+      let ov = 0, ovN = 0;
+      for (let i = 1; i < n; i++) {
+        const lo = Math.max(seg[i].low, seg[i - 1].low), hi = Math.min(seg[i].high, seg[i - 1].high), m = Math.min(seg[i].high - seg[i].low, seg[i - 1].high - seg[i - 1].low);
+        if (m > 0) { ov += Math.max(0, hi - lo) / m; ovN++; }
+      }
+      const third = k => { const a = Math.floor(n * k / 3), b = Math.floor(n * (k + 1) / 3), part = seg.slice(a, b); return (Math.max(...part.map(x => x.high)) + Math.min(...part.map(x => x.low))) / 2; };
+      let trendBull = 0, trendBear = 0;
+      seg.forEach(b => { const r = b.high - b.low; if (r > 0 && Math.abs(b.close - b.open) / r >= 0.6) { if (b.close > b.open) trendBull++; else trendBear++; } });
+      return {
+        n, O, H, L, C, R, iH, iL, vol, ivMin, fH: iH / Math.max(1, n - 1), fL: iL / Math.max(1, n - 1),
+        openLoc: (O - L) / R, closeLoc: (C - L) / R, net: (C - O) / R, aboveEma, aboveVwap,
+        emaCross: flips(closes, ema), vwapCross: flips(closes, vwap), overlap: ovN ? ov / ovN : null,
+        mids: [third(0), third(1), third(2)], trendBull, trendBear
+      };
+    }
+
+    // 스파이크: 처음 40% 안에서 시작하는 '같은 방향 연속' 구간 중 순이동이 가장 큰 것 (3~10봉)
+    function pdFindSpike(seg, M) {
+      let best = null;
+      const maxStart = Math.floor(M.n * 0.4);
+      for (let a = 0; a <= maxStart; a++) {
+        for (const dir of [1, -1]) {
+          let b = a;
+          while (b + 1 < M.n && b - a < 9 && (seg[b + 1].close - seg[b].close) * dir > 0) b++;
+          if (b - a + 1 < 3) continue;
+          const net = (seg[b].close - seg[a].open) * dir;
+          if (!best || net > best.net) best = { a, b, dir, net, len: b - a + 1 };
+        }
+      }
+      return best;
+    }
+
+    // ---------- 하루 유형 분류 (Brooks 어휘) — 투명한 규칙: 각 유형마다 조건 목록과 충족 여부/실측치를 남긴다 ----------
+    function pdClassifyDay(seg, ema, vwap, ivMin, dailyAtr) {
+      const M = pdDayMetrics(seg, ema, vwap, ivMin);
+      const pctS = v => `${(v * 100).toFixed(0)}%`;
+      const mk = (label, ok, value) => ({ label, ok: !!ok, value });
+      const hrs = ivMin / 60;
+      const cands = {};
+
+      // 1) 시가부터 추세일
+      ['up', 'down'].forEach(d => {
+        const up = d === 'up';
+        const c = [
+          mk(`시가가 일중 범위의 ${up ? '하단' : '상단'} 20% 이내`, up ? M.openLoc <= 0.2 : M.openLoc >= 0.8, `시가 위치 ${pctS(M.openLoc)}`),
+          mk(`종가가 일중 범위의 ${up ? '상단' : '하단'} 25% 이내`, up ? M.closeLoc >= 0.75 : M.closeLoc <= 0.25, `종가 위치 ${pctS(M.closeLoc)}`),
+          mk('시가→종가 이동이 일중 범위의 55% 이상', Math.abs(M.net) >= 0.55 && (M.net > 0) === up, `이동 ${pctS(M.net)}`),
+          mk(`20 EMA ${up ? '위' : '아래'} 마감 봉 비율 70% 이상`, (up ? M.aboveEma : 1 - M.aboveEma) >= 0.7, `${pctS(up ? M.aboveEma : 1 - M.aboveEma)}`),
+          mk(`일중 ${up ? '저점' : '고점'}이 첫 90분 안에 형성`, (up ? M.iL : M.iH) * hrs <= 1.5, `${up ? '저점' : '고점'} 시각 장 시작 후 ${Math.round((up ? M.iL : M.iH) * ivMin)}분`)
+        ];
+        cands['trendOpen_' + d] = { key: 'trendOpen', dir: d, criteria: c };
+      });
+      // 2) 추세 반전일 (초반 한쪽으로 움직인 뒤 반대로 마감)
+      ['up', 'down'].forEach(d => {
+        const up = d === 'up'; // up = 하락 후 상승 반전
+        const ext = up ? M.iL : M.iH, fExt = up ? M.fL : M.fH;
+        const after = ema.map((e, i) => i > ext && (up ? seg[i].close > e : seg[i].close < e));
+        const nAfter = Math.max(1, M.n - 1 - ext);
+        const c = [
+          mk(`일중 ${up ? '저점' : '고점'}이 세션 앞쪽 45% 이내`, fExt <= 0.45, `${up ? '저점' : '고점'} 위치 세션의 ${pctS(fExt)}`),
+          mk(`시가에서 ${up ? '저점' : '고점'}까지 일중 범위의 30% 이상 역방향 이동`, (up ? M.openLoc : 1 - M.openLoc) >= 0.3, `${pctS(up ? M.openLoc : 1 - M.openLoc)}`),
+          mk(`시가보다 ${up ? '위' : '아래'}에서 마감 (범위의 20% 이상)`, (up ? M.net : -M.net) >= 0.2, `이동 ${pctS(M.net)}`),
+          mk(`종가가 일중 범위의 ${up ? '상단 60% 이상' : '하단 40% 이하'}`, up ? M.closeLoc >= 0.6 : M.closeLoc <= 0.4, `종가 위치 ${pctS(M.closeLoc)}`),
+          mk(`반전 이후 20 EMA ${up ? '위' : '아래'} 마감 비율 60% 이상`, after.filter(Boolean).length / nAfter >= 0.6, pctS(after.filter(Boolean).length / nAfter)),
+          mk(`종가가 VWAP ${up ? '위' : '아래'}`, vwap[M.n - 1] !== null && (up ? M.C > vwap[M.n - 1] : M.C < vwap[M.n - 1]), vwap[M.n - 1] !== null ? `종가 ${pdN(M.C)} / VWAP ${pdN(vwap[M.n - 1])}` : 'VWAP 없음')
+        ];
+        cands['reversal_' + d] = { key: 'reversal', dir: d, criteria: c };
+      });
+      // 3) 스파이크 앤 채널
+      const sp = pdFindSpike(seg, M);
+      if (sp) {
+        const up = sp.dir === 1, d = up ? 'up' : 'down';
+        const post = seg.slice(sp.b + 1), pn = post.length;
+        const spSlope = (seg[sp.b].close - seg[sp.a].open) * sp.dir / sp.len;
+        const slope = pn >= 4 ? (post[pn - 1].close - post[0].close) * sp.dir / (pn - 1) : null;
+        const newExt = pn ? (up ? Math.max(...post.map(b => b.high)) > seg[sp.b].high : Math.min(...post.map(b => b.low)) < seg[sp.b].low) : false;
+        const aboveAfter = pn ? post.filter((b, i) => up ? b.close > ema[sp.b + 1 + i] : b.close < ema[sp.b + 1 + i]).length / pn : 0;
+        const c = [
+          mk('초반 40% 안에서 시작하는 스파이크 (3봉 이상 연속, 순이동 ≥ 일중 범위의 25%)', sp.net / M.R >= 0.25, `${sp.len}봉 연속 ${pdPct((sp.net / seg[sp.a].open) * 100)} · 범위의 ${pctS(sp.net / M.R)}`),
+          mk('스파이크 이후 같은 방향의 완만한 채널 (기울기 ≤ 스파이크의 50%)', slope !== null && slope > 0 && slope <= spSlope * 0.5, slope === null ? '이후 봉 부족' : `채널 기울기 = 스파이크의 ${pctS(slope / spSlope)}`),
+          mk('채널 구간이 24봉 이상', pn >= 24, `${pn}봉`),
+          mk(`스파이크 이후 ${up ? '고점' : '저점'} 추가 갱신`, newExt, newExt ? '갱신함' : '갱신 없음'),
+          mk(`종가가 일중 범위의 ${up ? '상단 65% 이상' : '하단 35% 이하'}`, up ? M.closeLoc >= 0.65 : M.closeLoc <= 0.35, `종가 위치 ${pctS(M.closeLoc)}`),
+          mk(`채널 구간 20 EMA ${up ? '위' : '아래'} 마감 비율 60% 이상`, aboveAfter >= 0.6, pctS(aboveAfter))
+        ];
+        cands['spikeChannel_' + d] = { key: 'spikeChannel', dir: d, criteria: c, spike: sp };
+      }
+      // 4) 추세형 트레이딩 레인지 / 5) 트레이딩 레인지
+      const mono = (M.mids[0] < M.mids[1] && M.mids[1] < M.mids[2]) ? 'up' : (M.mids[0] > M.mids[1] && M.mids[1] > M.mids[2]) ? 'down' : null;
+      const dirU = M.net >= 0;
+      const atrOk = pdOk(dailyAtr) && dailyAtr > 0;
+      const tt = [
+        mk('20 EMA를 3회 이상 교차', M.emaCross >= 3, `${M.emaCross}회`),
+        mk('시가→종가 이동이 범위의 20~55%', Math.abs(M.net) >= 0.2 && Math.abs(M.net) < 0.55, `이동 ${pctS(M.net)}`),
+        mk('3분할 구간 중심가가 한 방향으로 계단식 이동', mono !== null && (mono === 'up') === dirU, mono ? (mono === 'up' ? '상승 계단' : '하락 계단') : '계단식 아님'),
+        mk(`종가가 일중 범위의 ${dirU ? '상단 60% 이상' : '하단 40% 이하'}`, dirU ? M.closeLoc >= 0.6 : M.closeLoc <= 0.4, `종가 위치 ${pctS(M.closeLoc)}`)
+      ];
+      if (atrOk) tt.push(mk('일중 범위가 일봉 ATR의 50% 이상', M.R >= dailyAtr * 0.5, `ATR 대비 ${(M.R / dailyAtr).toFixed(2)}배`));
+      cands['ttr_' + (dirU ? 'up' : 'down')] = { key: 'ttr', dir: dirU ? 'up' : 'down', criteria: tt };
+      const rg = [
+        mk('시가→종가 이동이 일중 범위의 25% 이하', Math.abs(M.net) <= 0.25, `이동 ${pctS(M.net)}`),
+        mk('20 EMA를 4회 이상 교차', M.emaCross >= 4, `${M.emaCross}회`),
+        mk('20 EMA 위 마감 봉 비율 35~65%', M.aboveEma >= 0.35 && M.aboveEma <= 0.65, pctS(M.aboveEma)),
+        mk('VWAP를 3회 이상 교차', M.vwapCross >= 3, M.aboveVwap === null ? 'VWAP 없음' : `${M.vwapCross}회`),
+        mk('종가가 일중 범위의 중간(25~75%)', M.closeLoc >= 0.25 && M.closeLoc <= 0.75, `종가 위치 ${pctS(M.closeLoc)}`),
+        mk('연속 봉끼리 많이 겹침 (평균 겹침 60% 이상)', M.overlap !== null && M.overlap >= 0.6, M.overlap === null ? '' : pctS(M.overlap))
+      ];
+      cands.range = { key: 'range', dir: null, criteria: rg };
+
+      const order = ['spikeChannel', 'reversal', 'trendOpen', 'ttr', 'range'];
+      const scored = Object.keys(cands).map(k => {
+        const c = cands[k], ok = c.criteria.filter(x => x.ok).length;
+        return { id: k, key: c.key, dir: c.dir, criteria: c.criteria, score: ok / c.criteria.length, ok, total: c.criteria.length, spike: c.spike };
+      }).sort((a, b) => b.score - a.score || order.indexOf(a.key) - order.indexOf(b.key));
+      const best = scored[0];
+      const THRESH = 0.7;
+      const type = best.score >= THRESH ? best.key : 'unclear';
+      const dirTxt = best.dir === 'up' ? '상승' : best.dir === 'down' ? '하락' : '';
+      let name = PD_TYPE_NAMES[type];
+      if (type === 'trendOpen' || type === 'spikeChannel' || type === 'ttr') name = `${dirTxt} ${name}`;
+      if (type === 'reversal') name = `${best.dir === 'up' ? '하락 후 상승' : '상승 후 하락'} ${name}`;
+      // 서로 다른 유형 중 최고 점수만 (방향 중복 제거)
+      const perType = [];
+      scored.forEach(s => { if (!perType.find(p => p.key === s.key)) perType.push(s); });
+      return { type, name, dir: best.dir, score: best.score, ok: best.ok, total: best.total, criteria: best.criteria, runnerUp: perType.slice(0, 5), threshold: THRESH, metrics: M, spike: best.spike || null };
+    }
+
+    // ---------- 한 세션의 분석 맥락 만들기 ----------
+    // bars: 전체 5분봉(여러 거래일), sessions/k: 분석할 세션, daily: pdDailyContext 결과(없으면 null)
+    function pdSessionContext(bars, sessions, k, ivSec, daily) {
+      const s = sessions[k], seg = bars.slice(s.i0, s.i1 + 1), ivMin = ivSec / 60;
+      const ema = pdEma(bars.map(b => b.close)).slice(s.i0, s.i1 + 1);
+      const vwap = pdVwap(seg);
+      const ps = k > 0 ? sessions[k - 1] : null;
+      let prev = null;
+      if (ps) {
+        const p = bars.slice(ps.i0, ps.i1 + 1);
+        prev = { date: ps.date, high: Math.max(...p.map(b => b.high)), low: Math.min(...p.map(b => b.low)), close: p[p.length - 1].close, src: '5분봉' };
+      }
+      if (daily && daily.ok && daily.prev && (!ps || daily.prev.date === ps.date)) prev = { date: daily.prev.date, high: daily.prev.high, low: daily.prev.low, close: daily.prev.close, src: '일봉' };
+      // 같은 순번 봉의 과거 거래량 평균 (시초 몇 분은 원래 거래량이 많으므로 같은 시각끼리 비교)
+      const totalVol = bars.reduce((a, b) => a + (b.volume || 0), 0);
+      let volBase = null;
+      if (totalVol > 0) {
+        const others = bars.filter((b, i) => i < s.i0 || i > s.i1);
+        const glob = others.length ? pdMean(others.map(b => b.volume || 0)) : pdMean(seg.map(b => b.volume || 0));
+        volBase = seg.map((_, i) => {
+          const same = [];
+          for (let q = Math.max(0, k - 4); q < k; q++) { const o = sessions[q]; if (o.i0 + i <= o.i1) same.push(bars[o.i0 + i].volume || 0); }
+          const m = same.length >= 2 ? pdMean(same) : glob;
+          return m > 0 ? m : (glob > 0 ? glob : 1);
+        });
+      }
+      const rng = bars.map(b => b.high - b.low);
+      const fallbackR = pdMean(seg.map(b => b.high - b.low)) || 1e-9;
+      const atr5 = seg.map((_, i) => {
+        const g = s.i0 + i, win = rng.slice(Math.max(0, g - 14), g);
+        return win.length >= 3 ? Math.max(pdMean(win), 1e-9) : fallbackR;
+      });
+      let gap = null;
+      if (prev && prev.close > 0) {
+        const pct = (seg[0].open / prev.close - 1) * 100;
+        let fi = -1;
+        for (let i = 0; i < seg.length; i++) { if (pct > 0 ? seg[i].low <= prev.close : seg[i].high >= prev.close) { fi = i; break; } }
+        gap = { pct, abs: seg[0].open - prev.close, filledIdx: pct === 0 ? 0 : fi, filled: pct === 0 || fi >= 0 };
+      }
+      const atrD = daily && daily.ok ? daily.atr : null;
+      const thr = atrD && prev ? Math.max(0.1, 0.15 * atrD / prev.close * 100) : 0.25; // 갭으로 부를 최소 크기(%)
+      const cls = pdClassifyDay(seg, ema, vwap, ivMin, atrD);
+      return { seg, ema, vwap, ivMin, ivSec, date: s.date, prev, gap, gapThr: thr, volBase, atr5, atrD, daily, cls, M: cls.metrics, spanMin: s.spanMin, startMod: s.startMod };
+    }
+
+    // 세션 국면: 장 초반(처음 30분) · 오전 · 점심(31~61.5%) · 오후 · 마감(마지막 30분). 거래소 현지 시각 기준, 세션 길이 비율로 계산해 시장별 시간대에 그대로 적용된다.
+    function pdPhaseCuts(spanMin) {
+      const e = Math.min(30, spanMin * 0.1);
+      return [e, spanMin * 0.31, spanMin * 0.615, spanMin - e];
+    }
+    function pdPhaseIndex(minFromStart, spanMin) {
+      const c = pdPhaseCuts(spanMin);
+      return minFromStart < c[0] ? 0 : minFromStart < c[1] ? 1 : minFromStart < c[2] ? 2 : minFromStart < c[3] ? 3 : 4;
+    }
+    function pdPhaseRanges(c) {
+      const out = PD_PHASES.map(p => ({ ...p, i0: -1, i1: -1 }));
+      c.seg.forEach((b, i) => {
+        const p = out[pdPhaseIndex((b.t - c.seg[0].t) / 60, c.spanMin)];
+        if (p.i0 < 0) p.i0 = i;
+        p.i1 = i;
+      });
+      return out.filter(p => p.i0 >= 0).map(p => {
+        const part = c.seg.slice(p.i0, p.i1 + 1), vol = part.reduce((a, b) => a + (b.volume || 0), 0), tot = c.M.vol;
+        const hi = Math.max(...part.map(b => b.high)), lo = Math.min(...part.map(b => b.low));
+        return { ...p, hm0: part[0].hm, hm1: pdHm(pdMod(part[part.length - 1].hm) + c.ivMin), hi, lo, open: part[0].open, close: part[part.length - 1].close, volShare: tot > 0 ? vol / tot : null, n: part.length };
+      });
+    }
+
+    // ---------- 요약 카드용 사실들 ----------
+    function pdBuildSummary(c) {
+      const { seg, M, prev, gap, daily } = c;
+      const orN = Math.max(2, Math.round(PD_OR_MIN / c.ivMin));
+      let or = null;
+      if (seg.length > orN + 1) {
+        const orH = Math.max(...seg.slice(0, orN).map(b => b.high)), orL = Math.min(...seg.slice(0, orN).map(b => b.low));
+        let up = -1, dn = -1;
+        for (let i = orN; i < seg.length; i++) { if (up < 0 && seg[i].close > orH + 0.1 * c.atr5[i]) up = i; if (dn < 0 && seg[i].close < orL - 0.1 * c.atr5[i]) dn = i; }
+        const first = up >= 0 && (dn < 0 || up < dn) ? { dir: 'up', i: up } : dn >= 0 ? { dir: 'down', i: dn } : null;
+        or = { high: orH, low: orL, n: orN, brokeUp: up >= 0, brokeDn: dn >= 0, first, hm1: pdHm(pdMod(seg[orN - 1].hm) + c.ivMin) };
+        if (first) {
+          const end = first.dir === 'up' ? M.C > orH : M.C < orL;
+          or.heldAtClose = end;
+        }
+      }
+      const vw = c.vwap[seg.length - 1];
+      const above = M.aboveVwap;
+      const ph = pdPhaseRanges(c);
+      const phaseOf = i => PD_PHASES[pdPhaseIndex((seg[i].t - seg[0].t) / 60, c.spanMin)].name;
+      const dayVol = M.vol > 0 ? M.vol : null;
+      const sum = {
+        date: c.date, dow: pdDow(c.date), open: M.O, high: M.H, low: M.L, close: M.C, n: seg.length, start: seg[0].hm, end: pdHm(pdMod(seg[seg.length - 1].hm) + c.ivMin),
+        chg: prev ? (M.C / prev.close - 1) * 100 : null, chgBasis: prev ? '전일 종가' : '',
+        openToClose: (M.C / M.O - 1) * 100, gap: gap ? { ...gap, isGap: Math.abs(gap.pct) >= c.gapThr, dir: gap.pct > 0 ? 'up' : gap.pct < 0 ? 'down' : null } : null,
+        prev, range: M.R, rangePct: M.R / M.O * 100, rangeAtr: pdOk(c.atrD) && c.atrD > 0 ? M.R / c.atrD : null,
+        volume: dayVol, volRatio: dayVol && daily && daily.ok && daily.avgVol > 0 ? dayVol / daily.avgVol : null,
+        closeLoc: M.closeLoc, vwap: vw, closeVsVwap: vw ? (M.C / vw - 1) * 100 : null, aboveVwapPct: above,
+        or, hod: { hm: seg[M.iH].hm, i: M.iH, phase: phaseOf(M.iH) }, lod: { hm: seg[M.iL].hm, i: M.iL, phase: phaseOf(M.iL) },
+        phases: ph, cls: c.cls
+      };
+      if (prev) {
+        sum.vsPrev = M.H > prev.high && M.L < prev.low ? '전일 범위를 위아래로 모두 벗어남 (아웃사이드)' : (M.H <= prev.high && M.L >= prev.low ? '전일 범위 안에서만 거래 (인사이드)' : (M.H > prev.high ? '전일 고가를 넘어섬' : '전일 저가를 이탈'));
+        sum.vsPrevTone = M.H > prev.high && M.L >= prev.low ? 'good' : (M.L < prev.low && M.H <= prev.high ? 'bad' : 'info');
+      }
+      return sum;
+    }
+
+    // ---------- 봉 단위 해설 (Brooks 식) ----------
+    // 반환: [{ id, i0, i1, hm0, hm1, phase, kind, tone, title, psych, tech[], prio, extras[] }]  (시간 순)
+    function pdCommentary(c) {
+      const { seg, ema, vwap, ivMin, prev, gap, volBase, atr5, M } = c, n = seg.length;
+      const cands = [];
+      if (n < 12) return [];
+      const F = seg.map((b, i) => {
+        const r = b.high - b.low, body = Math.abs(b.close - b.open);
+        return { r, br: r > 0 ? body / r : 0, ut: r > 0 ? (b.high - Math.max(b.open, b.close)) / r : 0, lt: r > 0 ? (Math.min(b.open, b.close) - b.low) / r : 0, loc: r > 0 ? (b.close - b.low) / r : 0.5, bull: b.close > b.open, bear: b.close < b.open, rA: r / atr5[i], vm: volBase ? (b.volume || 0) / volBase[i] : null };
+      });
+      const hm = i => seg[i].hm;
+      const pc = v => `${Math.round(v * 100)}%`;
+      const N = pdN;
+      const barTech = i => `${hm(i)}봉 O ${N(seg[i].open)} H ${N(seg[i].high)} L ${N(seg[i].low)} C ${N(seg[i].close)} · 몸통 ${pc(F[i].br)} · 윗꼬리 ${pc(F[i].ut)} · 아랫꼬리 ${pc(F[i].lt)} · 종가 위치 ${pc(F[i].loc)}`;
+      const volTech = i => F[i].vm !== null ? `거래량 같은 시각 평균의 ${F[i].vm.toFixed(1)}배` : null;
+      const phaseAt = i => pdPhaseIndex((seg[i].t - seg[0].t) / 60, c.spanMin);
+      const sgn = v => v > 0 ? 1 : v < 0 ? -1 : 0;
+      const add = e => { e.tech = e.tech.filter(Boolean); e.phase = phaseAt(e.i0); e.extras = []; cands.push(e); };
+      const distAtr = i => (seg[i].close - ema[i]) / atr5[i];
+
+      // 1) 시초 (항상)
+      {
+        const b = seg[0], f0 = F[0], g = gap && Math.abs(gap.pct) >= c.gapThr ? gap : null;
+        const strongUp = f0.bull && f0.br >= 0.55 && f0.loc >= 0.7, strongDn = f0.bear && f0.br >= 0.55 && f0.loc <= 0.3;
+        let title, psych, tone;
+        if (g && g.pct > 0) {
+          if (strongUp) { title = '갭 상승 + 강한 양봉 출발 (gap-and-go 시도)'; tone = 'bull'; psych = '갭으로 올려 시작했는데 첫 5분봉이 몸통 큰 양봉으로 고가 부근에서 마감했습니다. 전일 매도자가 손절·되사기에 몰리고, 갭 방향으로 따라 사려는 매수세가 강했던 출발로 해석됩니다.'; }
+          else if (f0.bear) { title = '갭 상승 후 첫 봉 음봉 (갭 메우기 매도 우세)'; tone = 'bear'; psych = '갭으로 올라 시작했지만 첫 봉이 음봉으로 밀렸습니다. 시초 매수 포지션의 차익 실현과, 갭을 메우려는 매도가 먼저 나온 것으로 해석됩니다.'; }
+          else { title = '갭 상승 출발 — 방향 탐색'; tone = 'neutral'; psych = '갭 상승으로 시작했지만 첫 봉의 방향성은 뚜렷하지 않습니다. 갭을 지키려는 매수와 갭을 메우려는 매도가 팽팽히 맞서며 방향을 탐색하는 출발로 해석됩니다.'; }
+        } else if (g && g.pct < 0) {
+          if (strongDn) { title = '갭 하락 + 강한 음봉 출발 (갭 방향 추종 매도)'; tone = 'bear'; psych = '갭으로 내려 시작한 뒤 첫 5분봉이 몸통 큰 음봉으로 저가 부근에서 마감했습니다. 전일 매수자의 손절과 갭 방향으로 따라 파는 매도세가 강했던 출발로 해석됩니다.'; }
+          else if (f0.bull) { title = '갭 하락 후 첫 봉 양봉 (갭 메우기 매수 우세)'; tone = 'bull'; psych = '갭으로 내려 시작했지만 첫 봉이 양봉으로 반등했습니다. 갭 하락에서 저가 매수가 들어오고 시초 공매도가 되사기에 나선 것으로 해석됩니다.'; }
+          else { title = '갭 하락 출발 — 방향 탐색'; tone = 'neutral'; psych = '갭 하락으로 시작했지만 첫 봉의 방향성은 뚜렷하지 않습니다. 갭을 메우려는 매수와 추가 하락을 노리는 매도가 맞서는 출발로 해석됩니다.'; }
+        } else {
+          title = f0.bull ? '보합 출발 후 첫 봉 양봉' : f0.bear ? '보합 출발 후 첫 봉 음봉' : '보합 출발, 첫 봉 도지';
+          tone = f0.bull ? 'bull' : f0.bear ? 'bear' : 'neutral';
+          psych = prev ? '전일 종가 부근에서 시작해 갭이 없었으므로 시초에는 새 정보보다 방향 탐색이 중심이었던 것으로 해석됩니다. 첫 봉의 방향은 초반 심리의 첫 단서일 뿐 확정적이지 않습니다.' : '전일 종가 정보가 없어 갭 여부는 판단하지 않았습니다. 첫 봉의 방향은 초반 심리의 첫 단서일 뿐 확정적이지 않습니다.';
+        }
+        add({
+          kind: 'open', i0: 0, i1: 0, tone, title, psych, prio: 100,
+          tech: [g || gap ? `전일 종가(${prev.src}) ${N(prev.close)} 대비 시가 ${N(b.open)} (${pdPct(gap.pct)})${c.atrD ? ` · 일봉 ATR(14)의 ${(Math.abs(gap.abs) / c.atrD * 100).toFixed(0)}%` : ''}` : (prev ? null : '전일 종가 데이터 없음'),
+            barTech(0), volTech(0), `첫 봉 범위는 직전 14봉 평균 범위의 ${F[0].rA.toFixed(1)}배`]
+        });
+      }
+
+      // 2) 오프닝 레인지(첫 30분) 돌파
+      const orN = Math.max(2, Math.round(PD_OR_MIN / ivMin));
+      let orH = null, orL = null;
+      if (n > orN + 3) {
+        orH = Math.max(...seg.slice(0, orN).map(b => b.high)); orL = Math.min(...seg.slice(0, orN).map(b => b.low));
+        let j = -1, dir = 0;
+        for (let i = orN; i < n; i++) { if (seg[i].close > orH + 0.1 * atr5[i]) { j = i; dir = 1; break; } if (seg[i].close < orL - 0.1 * atr5[i]) { j = i; dir = -1; break; } }
+        if (j >= 0) {
+          const lv = dir > 0 ? orH : orL, w1 = Math.min(n - 1, j + 6), win = seg.slice(j + 1, w1 + 1);
+          const reentered = win.some(b => dir > 0 ? b.close < lv : b.close > lv);
+          const heldEnd = win.length ? (dir > 0 ? seg[w1].close > lv : seg[w1].close < lv) : true;
+          const ext = win.length ? (dir > 0 ? Math.max(...win.map(b => b.high)) - lv : lv - Math.min(...win.map(b => b.low))) / atr5[j] : 0;
+          const out = !reentered ? 'hold' : (!heldEnd ? 'fail' : 'shake');
+          const later = (() => { for (let i = j + 1; i < n; i++) if (dir > 0 ? seg[i].close < orL : seg[i].close > orH) return i; return -1; })();
+          const up = dir > 0;
+          const titles = { hold: `오프닝 레인지 ${up ? '상방' : '하방'} 돌파 후 안착`, fail: `오프닝 레인지 ${up ? '상방' : '하방'} 돌파 실패 (재진입·함정)`, shake: `오프닝 레인지 ${up ? '상방' : '하방'} 돌파, 흔들린 뒤 유지` };
+          const psychs = {
+            hold: `초반 30분 박스(${N(orL)}~${N(orH)})를 ${up ? '위로' : '아래로'} 벗어난 뒤 되돌아오지 않았습니다. 박스 안에서 반대 방향에 걸었던 포지션이 손절하고 돌파 방향 추종 세력이 유입돼 그날의 방향이 정해진 것으로 해석됩니다.`,
+            fail: `초반 박스를 ${up ? '위로' : '아래로'} 벗어났지만 곧 박스 안으로 되돌아와 ${up ? '위' : '아래'}에서 끝나지 못했습니다. 돌파를 보고 따라 ${up ? '산' : '판'} 사람들이 갇히고(trapped) 그들의 손절이 반대 방향 움직임을 키웠을 가능성이 있는, 이른바 '실패한 돌파'로 해석됩니다.`,
+            shake: `초반 박스를 ${up ? '위로' : '아래로'} 벗어난 뒤 한 번 박스 쪽으로 밀렸지만 결국 다시 ${up ? '위' : '아래'}에서 마감하며 버텼습니다. 첫 돌파 추종자 일부는 흔들렸지만 눌림 매수(매도)가 받쳐 준 것으로 해석됩니다.`
+          };
+          add({
+            kind: 'orBreak', i0: j, i1: j, tone: up ? (out === 'fail' ? 'bear' : 'bull') : (out === 'fail' ? 'bull' : 'bear'), title: titles[out], psych: psychs[out],
+            prio: out === 'fail' ? 88 : out === 'hold' ? 86 : 80,
+            tech: [`오프닝 레인지(첫 ${PD_OR_MIN}분) ${N(orL)}~${N(orH)} · 폭 ${N(orH - orL)}${c.atrD ? ` (일봉 ATR의 ${((orH - orL) / c.atrD * 100).toFixed(0)}%)` : ''}`,
+              `돌파봉 종가 ${N(seg[j].close)} (경계 ${N(lv)} 대비 ${((seg[j].close - lv) * dir / atr5[j]).toFixed(1)} 봉범위)`, barTech(j), volTech(j),
+              win.length ? `이후 ${win.length}봉: 최대 ${ext.toFixed(1)} 봉범위 ${up ? '상승' : '하락'}, ${reentered ? `박스 안으로 재진입(${seg.slice(j + 1, w1 + 1).findIndex(b => up ? b.close < lv : b.close > lv) + 1}봉째)` : '재진입 없음'}` : null,
+              later >= 0 ? `이후 ${hm(later)}에 반대편 경계(${N(up ? orL : orH)})도 종가로 이탈` : null]
+          });
+        }
+      }
+
+      // 3) 전일 고가·저가 / 첫 1시간 고저점: 첫 접촉 이후의 결과 (안착 · 실패(함정) · 거절)
+      const h1N = Math.max(3, Math.round(60 / ivMin));
+      const levels = [];
+      if (prev) { levels.push({ nm: '전일 고가', price: prev.high, up: true, from: 0 }); levels.push({ nm: '전일 저가', price: prev.low, up: false, from: 0 }); }
+      if (n > h1N + 6) {
+        levels.push({ nm: '첫 1시간 고점', price: Math.max(...seg.slice(0, h1N).map(b => b.high)), up: true, from: h1N });
+        levels.push({ nm: '첫 1시간 저점', price: Math.min(...seg.slice(0, h1N).map(b => b.low)), up: false, from: h1N });
+      }
+      levels.forEach(L => {
+        const d = L.up ? 1 : -1;
+        let j = -1;
+        for (let i = L.from; i < n; i++) { if (L.up ? seg[i].high > L.price + 0.05 * atr5[i] : seg[i].low < L.price - 0.05 * atr5[i]) { j = i; break; } }
+        if (j < 0) return;
+        const w1 = Math.min(n - 1, j + 6), win = seg.slice(j, w1 + 1);
+        const beyond = win.filter(b => L.up ? b.close > L.price : b.close < L.price).length;
+        const endInside = L.up ? seg[w1].close < L.price - 0.3 * atr5[j] : seg[w1].close > L.price + 0.3 * atr5[j];
+        const ext = (L.up ? Math.max(...win.map(b => b.high)) - L.price : L.price - Math.min(...win.map(b => b.low))) / atr5[j];
+        const closeBeyond = L.up ? seg[j].close > L.price : seg[j].close < L.price;
+        let out;
+        if (closeBeyond && beyond >= Math.ceil(win.length * 0.57) && !endInside) out = 'accept';
+        else if ((closeBeyond || beyond > 0) && endInside) out = 'fail';
+        else if (!closeBeyond && beyond === 0) out = 'reject';
+        else return; // 애매한 경우는 해설하지 않음
+        const word = L.up ? '돌파' : '이탈';
+        const titles = {
+          accept: `${L.nm} ${word} 후 안착`, fail: `${L.nm} ${word} 실패 (함정)`,
+          reject: L.up ? `${L.nm}에서 거절 (윗꼬리)` : `${L.nm}에서 지지 (아랫꼬리)`
+        };
+        const psychs = {
+          accept: L.up ? `${L.nm}(${N(L.price)})를 넘어선 뒤 그 위에서 계속 거래됐습니다. 저항이던 가격대가 지지로 바뀌며 돌파 추종 매수가 유지되고, 위에서 기다리던 매도자는 손절·되사기로 돌아섰을 가능성이 큽니다.`
+            : `${L.nm}(${N(L.price)}) 아래로 내려간 뒤 되돌리지 못했습니다. 지지로 믿던 가격대가 무너지며 손절 매물이 추가 하락을 만든 것으로 해석됩니다.`,
+          fail: L.up ? `${L.nm}(${N(L.price)}) 위로 올라섰지만 곧 되밀렸습니다. 돌파를 보고 따라 산 매수자(돌파 추종)가 갇히고, 그 손절 매물이 하락을 키웠을 가능성이 있는 '실패한 돌파'로 해석됩니다.`
+            : `${L.nm}(${N(L.price)}) 아래로 내려갔지만 곧 되돌려졌습니다. 이탈을 보고 따라 판 매도자가 갇히고, 그들의 되사기가 반등을 키웠을 가능성이 있는 '실패한 이탈'로 해석됩니다.`,
+          reject: L.up ? `${L.nm}(${N(L.price)})을 꼬리로만 찍고 밀렸습니다. 그 가격대에 매도 물량이 두껍게 대기하고 있었던 것으로 해석됩니다.`
+            : `${L.nm}(${N(L.price)})을 꼬리로만 찍고 반등했습니다. 그 가격대에 매수 물량이 두껍게 대기하고 있었던 것으로 해석됩니다.`
+        };
+        const bullish = (L.up && out === 'accept') || (!L.up && out === 'fail') || (!L.up && out === 'reject');
+        add({
+          kind: 'level', i0: j, i1: j, tone: bullish ? 'bull' : 'bear', title: titles[out], psych: psychs[out], prio: out === 'fail' ? 80 : out === 'accept' ? 70 : 60,
+          tech: [`${L.nm} ${N(L.price)} · ${hm(j)}봉에서 첫 접촉 (고가 ${N(seg[j].high)} / 저가 ${N(seg[j].low)} / 종가 ${N(seg[j].close)})`, barTech(j), volTech(j),
+            `이후 ${win.length}봉 중 종가가 ${L.up ? '위' : '아래'}에 있던 봉 ${beyond}개, 최대 ${ext.toFixed(1)} 봉범위 ${L.up ? '상승' : '하락'}, ${win.length}봉째 종가 ${N(seg[w1].close)}`]
+        });
+      });
+
+      // 4) 갭 메움
+      if (prev && gap && Math.abs(gap.pct) >= c.gapThr && gap.filledIdx >= 1) {
+        const j = gap.filledIdx, up = gap.pct > 0;
+        add({
+          kind: 'gapfill', i0: j, i1: j, tone: up ? 'bear' : 'bull', title: `갭 ${up ? '상승' : '하락'}분 모두 메움 (전일 종가 ${N(prev.close)} 도달)`, prio: 72,
+          psych: up ? '시초 갭 상승분을 모두 반납했습니다. 갭을 보고 산 매수자는 평단 아래로 밀려 손절·청산했고, 갭 메우기를 노린 매도가 목표에 도달한 것으로 해석됩니다.'
+            : '시초 갭 하락분을 모두 되돌렸습니다. 갭 하락 직후 진입한 매도 포지션이 되사기에 쫓기고, 저가 매수가 유입된 것으로 해석됩니다.',
+          tech: [`갭 ${pdPct(gap.pct)} (${N(Math.abs(gap.abs))}) · 장 시작 후 ${j * ivMin}분 만에 전일 종가(${prev.src}) 도달`, barTech(j), volTech(j)]
+        });
+      }
+
+      // 5) 연속 추세봉 (한쪽 쏠림)
+      for (let i = 1; i < n;) {
+        const dir = sgn(seg[i].close - seg[i - 1].close);
+        if (!dir) { i++; continue; }
+        let j = i;
+        while (j + 1 < n && sgn(seg[j + 1].close - seg[j].close) === dir && !(F[j + 1].br >= 0.6 && (dir > 0 ? F[j + 1].bear : F[j + 1].bull))) j++;
+        const len = j - i + 1, net = (seg[j].close - seg[i].open) * dir, avgBr = pdMean(F.slice(i, j + 1).map(x => x.br));
+        if (len >= 3 && net >= 2.2 * atr5[i] && avgBr >= 0.45) {
+          const up = dir > 0, avgLoc = pdMean(F.slice(i, j + 1).map(x => up ? x.loc : 1 - x.loc)), vms = F.slice(i, j + 1).map(x => x.vm).filter(v => v !== null);
+          add({
+            kind: 'burst', i0: i, i1: j, tone: up ? 'bull' : 'bear', title: `연속 ${up ? '상승' : '하락'} 추세봉 ${len}개 (${len * ivMin}분)`, prio: 75 + Math.min(14, net / atr5[i]),
+            psych: `약 ${len * ivMin}분 동안 되돌림 없이 한 방향으로 이어졌습니다. ${up ? '매수자가 호가를 계속 올려 가며 사고, 반대편(매도자·공매도)은 손절·되사기로 몰리는' : '매도자가 호가를 계속 내려 가며 팔고, 반대편(매수자)은 손절로 몰리는'} 한쪽 쏠림 구간으로 해석됩니다. 20 EMA에서 멀어질수록 따라 들어온 사람이 많아져 되돌림 위험도 함께 커집니다.`,
+            tech: [`${hm(i)} 시가 ${N(seg[i].open)} → ${hm(j)} 종가 ${N(seg[j].close)} (${pdPct((seg[j].close / seg[i].open - 1) * 100)})`, `순이동은 평균 봉 범위의 ${(net / atr5[i]).toFixed(1)}배`, `평균 몸통 비율 ${pc(avgBr)} · 종가가 각 봉 범위의 평균 ${pc(avgLoc)} ${up ? '상단' : '하단'}에 위치`,
+              vms.length ? `구간 평균 거래량 같은 시각 평균의 ${pdMean(vms).toFixed(1)}배` : null, `끝 봉 종가의 20 EMA 대비 거리 ${distAtr(j) >= 0 ? '+' : ''}${distAtr(j).toFixed(1)} 봉범위`]
+          });
+        }
+        i = j + 1;
+      }
+
+      // 6) 클라이맥스(소진) / 거래량 급증 돌파봉
+      for (let i = 6; i < n - 1; i++) {
+        const f = F[i];
+        if (!(f.br >= 0.5 && f.rA >= 2.2 && (f.vm !== null ? f.vm >= 2.5 : f.rA >= 2.8))) continue;
+        const dir = f.bull ? 1 : -1, up = dir > 0, base = seg[Math.max(0, i - 6)].open;
+        const extended = (seg[i - 1].close - base) * dir >= 2 * atr5[i];
+        const w = seg.slice(i + 1, Math.min(n, i + 4));
+        const exhaust = w.some(b => (seg[i].close - b.close) * dir >= 0.5 * f.r);
+        if (extended && exhaust) {
+          add({
+            kind: 'climax', i0: i, i1: i, tone: up ? 'bear' : 'bull', title: `클라이맥스 ${up ? '매수' : '매도'} 소진 후 반전`, prio: 85,
+            psych: up ? '급등 막판에 거래량이 몰리며 큰 양봉이 나왔지만 곧 되밀렸습니다. 마지막 매수자가 한꺼번에 들어온 뒤 더 살 사람이 없어진 소진(blow-off) 패턴으로 해석되며, 이 고점 부근에서 산 사람이 갇혔을 가능성이 있습니다.'
+              : '급락 막판에 거래량이 몰리며 큰 음봉이 나왔지만 곧 반등했습니다. 마지막 매도자가 한꺼번에 던진 뒤 팔 사람이 줄어든 투매(capitulation) 패턴으로 해석되며, 저점 부근에서 판 사람이 되사기에 쫓겼을 가능성이 있습니다.',
+            tech: [barTech(i), volTech(i), `직전 6봉 ${up ? '상승' : '하락'}폭 ${((seg[i - 1].close - base) * dir / atr5[i]).toFixed(1)} 봉범위 (추세 연장 상태)`, `이후 ${w.length}봉 안에 이 봉 범위의 50% 이상 되돌림`, `봉 범위는 직전 14봉 평균의 ${f.rA.toFixed(1)}배`]
+          });
+        } else {
+          add({
+            kind: 'climax', i0: i, i1: i, tone: up ? 'bull' : 'bear', title: `${f.vm !== null ? '거래량 급증 ' : ''}${up ? '상승' : '하락'} 장대봉 — 되돌림 없이 이어짐`, prio: 68,
+            psych: `큰 몸통의 ${up ? '양봉' : '음봉'}이 나온 뒤 곧바로 되돌려지지 않았습니다. 일시적 소진이 아니라 ${up ? '새 매수자' : '새 매도자'}가 계속 유입되는 힘 있는 움직임으로 해석됩니다.`,
+            tech: [barTech(i), volTech(i), `봉 범위는 직전 14봉 평균의 ${f.rA.toFixed(1)}배`, `이후 ${w.length}봉 동안 되돌림이 이 봉 범위의 50% 미만`]
+          });
+        }
+      }
+
+      // 7) 20 EMA 눌림(반등) — 추세 속에서 평균선이 지지/저항으로 작동
+      {
+        let cool = -99;
+        for (let i = 12; i < n; i++) {
+          if (i - cool < 8) continue;
+          for (const dir of [1, -1]) {
+            const win = seg.slice(i - 10, i), onSide = win.filter((b, q) => dir > 0 ? b.close > ema[i - 10 + q] : b.close < ema[i - 10 + q]).length;
+            const slope = (ema[i - 1] - ema[i - 6]) * dir;
+            const thrust = dir > 0 ? Math.max(...win.map(b => b.high)) - ema[i - 1] : ema[i - 1] - Math.min(...win.map(b => b.low));
+            const touch = dir > 0 ? seg[i].low <= ema[i] + 0.2 * atr5[i] : seg[i].high >= ema[i] - 0.2 * atr5[i];
+            const hold = dir > 0 ? seg[i].close > ema[i] && F[i].bull : seg[i].close < ema[i] && F[i].bear;
+            if (onSide >= 7 && slope > 0 && thrust >= 1.0 * atr5[i] && touch && hold && (dir > 0 ? F[i].lt : F[i].ut) >= 0.2) {
+              const up = dir > 0;
+              add({
+                kind: 'emaPull', i0: i, i1: i, tone: up ? 'bull' : 'bear', title: `20 EMA ${up ? '눌림 매수' : '반등 매도'} (평균선 ${up ? '지지' : '저항'})`, prio: 55,
+                psych: up ? '상승 추세 중 가격이 20 EMA까지 내려왔다가 아랫꼬리를 달고 양봉으로 마감했습니다. 평균 단가 부근에서 싸게 사려던 눌림 매수 수요가 확인된 것으로 해석됩니다.'
+                  : '하락 추세 중 가격이 20 EMA까지 올라왔다가 윗꼬리를 달고 음봉으로 마감했습니다. 평균 단가 부근에서 반등을 팔려던 수요가 확인된 것으로 해석됩니다.',
+                tech: [`${up ? '저가' : '고가'} ${N(up ? seg[i].low : seg[i].high)} vs 20 EMA ${N(ema[i])} (거리 ${((up ? seg[i].low : seg[i].high) - ema[i]) / atr5[i] >= 0 ? '+' : ''}${(((up ? seg[i].low : seg[i].high) - ema[i]) / atr5[i]).toFixed(2)} 봉범위)`,
+                  `직전 10봉 중 ${onSide}봉이 EMA ${up ? '위' : '아래'}에서 마감, EMA 기울기 ${up ? '상승' : '하락'}`, barTech(i), volTech(i)]
+              });
+              cool = i; break;
+            }
+          }
+        }
+      }
+
+      // 8) H2 / L2 (두 번째 시도) — 메인 스크립트의 brooksSignals 재사용
+      if (typeof brooksSignals === 'function' && n > 14) {
+        brooksSignals(seg, ema, 6).filter(g => g.n === 2).forEach(g => {
+          const i = g.i, up = g.dir > 0;
+          add({
+            kind: 'h2', i0: i, i1: i, tone: up ? 'bull' : 'bear', title: `${up ? 'H2' : 'L2'} — ${up ? '두 번째 상승' : '두 번째 하락'} 시도`, prio: 50 + (Math.abs(distAtr(i)) < 1 ? 8 : 0),
+            psych: up ? '상승 흐름 속 첫 번째 눌림 뒤의 첫 시도(H1)는 이어지지 못했고, 두 번째 눌림에서 다시 직전 봉 고점을 넘었습니다. 추세 방향 매수자가 "두 번째 진입"에 나서는 자리로, 첫 시도를 놓친 사람들의 추격과 단기 매도자의 손절이 겹친 것으로 해석됩니다.'
+              : '하락 흐름 속 첫 번째 반등 뒤의 첫 시도(L1)는 이어지지 못했고, 두 번째 반등에서 다시 직전 봉 저점을 이탈했습니다. 추세 방향 매도자가 "두 번째 진입"에 나서는 자리로, 첫 시도를 놓친 사람들의 추격과 단기 매수자의 손절이 겹친 것으로 해석됩니다.',
+            tech: [`신호봉 ${up ? '고점' : '저점'} ${N(g.level)} ${up ? '상향' : '하향'} 돌파 (${hm(i)}봉)`, `20 EMA ${N(ema[i])}, 종가 거리 ${distAtr(i) >= 0 ? '+' : ''}${distAtr(i).toFixed(1)} 봉범위`, barTech(i), volTech(i)]
+          });
+        });
+      }
+
+      // 9) VWAP 재탈환/이탈
+      {
+        let side = 0, run = 0;
+        for (let i = 0; i < n; i++) {
+          if (vwap[i] === null) continue;
+          const s = seg[i].close > vwap[i] ? 1 : -1;
+          if (s === side) run++;
+          else {
+            if (side !== 0 && run >= 8 && F[i].br >= 0.5 && F[i].rA >= 0.9) {
+              const up = s > 0;
+              add({
+                kind: 'vwap', i0: i, i1: i, tone: up ? 'bull' : 'bear', title: `VWAP ${up ? '상향 재탈환' : '하향 이탈'} (${run}봉 만에)`, prio: 52,
+                psych: up ? `VWAP 아래에 ${run}봉 머물던 가격이 몸통 큰 양봉으로 VWAP 위에 올라섰습니다. 당일 평균 매수 단가를 되찾은 것이라, VWAP 아래에서 물려 있던 매수자의 본전 매도가 소화되고 매수 우위로 돌아선 것으로 해석됩니다.`
+                  : `VWAP 위에 ${run}봉 머물던 가격이 몸통 큰 음봉으로 VWAP 아래로 내려섰습니다. 당일 평균 매수 단가를 잃은 것이라, 위에서 산 사람들이 평단 아래로 밀리며 매도 우위로 돌아선 것으로 해석됩니다.`,
+                tech: [`종가 ${N(seg[i].close)} vs VWAP ${N(vwap[i])} (${pdPct((seg[i].close / vwap[i] - 1) * 100)})`, `직전 ${run}봉 연속 VWAP ${up ? '아래' : '위'} 마감`, barTech(i), volTech(i)]
+              });
+            }
+            side = s; run = 1;
+          }
+        }
+      }
+
+      // 10) 20 EMA 첫 이탈 (추세 약화)
+      {
+        let side = 0, run = 0;
+        for (let i = 1; i < n; i++) {
+          const s = seg[i].close > ema[i] ? 1 : -1;
+          if (s === side) run++;
+          else {
+            if (side !== 0 && run >= 14 && F[i].br >= 0.5 && F[i].rA >= 1.0) {
+              const wasUp = side > 0;
+              add({
+                kind: 'emaBreak', i0: i, i1: i, tone: wasUp ? 'bear' : 'bull', title: `20 EMA 첫 ${wasUp ? '하향' : '상향'} 이탈 — ${run}봉 이어진 ${wasUp ? '상승' : '하락'} 추세 약화`, prio: 58,
+                psych: `${run}봉 동안 20 EMA의 한쪽에서만 마감하던 흐름이 처음으로 반대편에서 마감했습니다(몸통 큰 봉). 추세 추종자의 이익실현·손절과 반대 방향 신규 진입이 함께 나왔을 가능성이 있으며, 추세가 박스권이나 반전으로 바뀌는 첫 신호로 자주 해석됩니다.`,
+                tech: [`종가 ${N(seg[i].close)} vs 20 EMA ${N(ema[i])} (${distAtr(i) >= 0 ? '+' : ''}${distAtr(i).toFixed(1)} 봉범위)`, `직전 ${run}봉 연속 EMA ${wasUp ? '위' : '아래'} 마감`, barTech(i), volTech(i)]
+              });
+            }
+            side = s; run = 1;
+          }
+        }
+      }
+
+      // 11) 일중 고점/저점 형성 — 이후 얼마나 되돌렸는가
+      [{ hi: true, i: M.iH }, { hi: false, i: M.iL }].forEach(x => {
+        if (x.i < 3 || x.i > n - 4) return;
+        const after = seg.slice(x.i + 1);
+        const retr = x.hi ? (M.H - Math.min(...after.map(b => b.low))) / M.R : (Math.max(...after.map(b => b.high)) - M.L) / M.R;
+        if (retr < 0.35) return;
+        const f = F[x.i];
+        add({
+          kind: 'extreme', i0: x.i, i1: x.i, tone: x.hi ? 'bear' : 'bull', title: `당일 ${x.hi ? '고점' : '저점'} 형성 — 이후 일중 범위의 ${Math.round(retr * 100)}% 되돌림`, prio: 70 + retr * 20,
+          psych: x.hi ? '이 고점 이후 매수세가 힘을 잃고 매도가 우세해졌습니다. 고점 부근에서 산 사람은 이후 갇혔을 가능성이 있고, 이 가격은 이후 저항(당일 고점)으로 기억됐을 수 있습니다.'
+            : '이 저점 이후 매도세가 힘을 잃고 매수가 우세해졌습니다. 저점 부근에서 판 사람은 이후 되사기에 쫓겼을 가능성이 있고, 이 가격은 이후 지지(당일 저점)로 기억됐을 수 있습니다.',
+          tech: [`당일 ${x.hi ? '고가' : '저가'} ${N(x.hi ? M.H : M.L)} (${hm(x.i)}봉) · ${x.hi ? '윗꼬리' : '아랫꼬리'} ${pc(x.hi ? f.ut : f.lt)}`, `이후 최대 되돌림 ${N(retr * M.R)} (일중 범위의 ${Math.round(retr * 100)}%)`, barTech(x.i), volTech(x.i)]
+        });
+      });
+
+      // 12) 점심 시간대 / 마감 국면
+      {
+        const ph = pdPhaseRanges(c), lunch = ph.find(p => p.id === 'lunch'), close = ph.find(p => p.id === 'close');
+        if (lunch && lunch.i1 - lunch.i0 >= 8) {
+          const ratio = (lunch.hi - lunch.lo) / M.R, meanAll = M.vol > 0 ? M.vol / n : null;
+          const meanL = M.vol > 0 ? pdMean(seg.slice(lunch.i0, lunch.i1 + 1).map(b => b.volume || 0)) : null;
+          if (ratio <= 0.4) {
+            let cr = 0; for (let i = lunch.i0 + 1; i <= lunch.i1; i++) if ((seg[i].close > ema[i]) !== (seg[i - 1].close > ema[i - 1])) cr++;
+            add({
+              kind: 'lunch', i0: lunch.i0, i1: lunch.i1, tone: 'neutral', title: `점심 시간대 좁은 박스권 (${lunch.hm0}~${lunch.hm1})`, prio: 65,
+              psych: `점심 무렵 가격이 좁은 범위에 갇혔습니다${meanAll ? ' (거래량도 평소보다 적음)' : ''}. 대형 주문 참여가 줄고 양쪽 모두 관망하며 확신이 낮은 상태로 해석됩니다. 이런 박스는 이후 돌파 또는 '실패한 돌파'로 끝나는 경우가 많다고 알려져 있습니다.`,
+              tech: [`점심 구간 범위 ${N(lunch.hi - lunch.lo)} = 일중 범위의 ${Math.round(ratio * 100)}% (${N(lunch.lo)}~${N(lunch.hi)})`, meanAll ? `평균 거래량 ${Math.round(meanL / meanAll * 100)}% 수준 (당일 5분봉 평균 대비)` : null, `20 EMA 교차 ${cr}회`]
+            });
+          }
+        }
+        if (close && close.i1 - close.i0 >= 3) {
+          const a = close.i0, before = a > 0 ? seg[a - 1].close : seg[0].open, net = seg[n - 1].close - before, netPct = (seg[n - 1].close / before - 1) * 100;
+          const meanAll = M.vol > 0 ? M.vol / n : null, meanC = M.vol > 0 ? pdMean(seg.slice(a).map(b => b.volume || 0)) : null;
+          const volM = meanAll ? meanC / meanAll : null, atHi = seg[n - 1].close >= M.H - 0.15 * atr5[n - 1], atLo = seg[n - 1].close <= M.L + 0.15 * atr5[n - 1];
+          const push = Math.abs(net) >= 0.12 * M.R, extreme = atHi || atLo, busy = volM !== null && volM >= 1.4;
+          if (push || extreme || busy) {
+            const up = push ? net > 0 : (atHi ? true : atLo ? false : net >= 0), exT = atHi ? '고가' : atLo ? '저가' : '';
+            let title, psych, tone;
+            if (push) {
+              tone = up ? 'bull' : 'bear';
+              title = `마감 ${up ? '상승' : '하락'} 쏠림 (${close.hm0}~${close.hm1})${exT ? ` · ${exT} 부근 마감` : ''}`;
+              psych = `마감 직전 ${Math.round((n - a) * ivMin)}분 동안 ${pdPct(netPct)} ${up ? '올랐습니다' : '내렸습니다'}. 장중 ${up ? '공매도 청산(되사기)' : '매수 포지션 정리'}, 종가 주문(MOC), 추세 마무리를 노린 ${up ? '매수' : '매도'}가 섞였을 가능성이 있습니다. 종가가 일중 범위의 ${Math.round(M.closeLoc * 100)}% 위치라는 점이 그날 마무리 강도를 보여 줍니다.`;
+            } else if (extreme) {
+              tone = atHi ? 'bull' : 'bear';
+              title = `마감 30분 — ${exT} 부근에서 종가 형성 (가격 변화 ${pdPct(netPct)})`;
+              psych = `마감 구간에서 가격은 거의 움직이지 않았지만(${pdPct(netPct)}) 종가가 일중 ${exT} 근처에서 형성됐습니다. 이미 ${atHi ? '강세' : '약세'}였던 쪽이 마지막까지 가격을 ${atHi ? '지켜 냈고' : '눌러 놓았고'}, 반대편은 오버나이트 위험을 감수하고 맞서지 않은 것으로 해석됩니다.`;
+            } else {
+              tone = 'neutral';
+              title = `마감 30분 — 거래량 증가, 가격 변화는 작음 (${pdPct(netPct)})`;
+              psych = '마감 구간에 거래량은 늘었지만 가격은 한쪽으로 쏠리지 않았습니다. 종가 주문(MOC)과 하루 포지션 정리 매매가 서로 상쇄된 것으로 해석됩니다.';
+            }
+            add({
+              kind: 'close', i0: a, i1: n - 1, tone, prio: 75, title, psych,
+              tech: [`${close.hm0} 직전 종가 ${N(before)} → 종가 ${N(seg[n - 1].close)} (${pdPct(netPct)})`, volM !== null ? `마감 구간 평균 거래량은 당일 5분봉 평균의 ${volM.toFixed(1)}배` : null, `종가 위치 일중 범위의 ${Math.round(M.closeLoc * 100)}% (고가 ${N(M.H)} / 저가 ${N(M.L)})`]
+            });
+          } else {
+            add({
+              kind: 'close', i0: a, i1: n - 1, tone: 'neutral', prio: 75, title: '마감 30분 — 뚜렷한 쏠림 없이 종가 형성',
+              psych: '마감 직전에는 뚜렷한 한쪽 쏠림 없이 종가가 형성됐습니다. 양쪽 모두 오버나이트 위험을 줄이려 포지션을 정리한 것으로 해석됩니다.',
+              tech: [`${close.hm0} 직전 종가 ${N(before)} → 종가 ${N(seg[n - 1].close)} (${pdPct(netPct)})`, volM !== null ? `마감 구간 평균 거래량은 당일 5분봉 평균의 ${volM.toFixed(1)}배` : null, `종가 위치 일중 범위의 ${Math.round(M.closeLoc * 100)}%`]
+            });
+          }
+        }
+      }
+
+      // 13) ii 패턴 (변동성 압축 → 돌파)
+      for (let i = 2; i < n - 1; i++) {
+        const ins = q => seg[q].high <= seg[q - 1].high && seg[q].low >= seg[q - 1].low;
+        if (!(ins(i) && ins(i - 1))) continue;
+        const mother = seg[i - 2], j = i + 1, dir = seg[j].close > mother.high ? 1 : seg[j].close < mother.low ? -1 : 0;
+        if (!dir) continue;
+        const up = dir > 0;
+        add({
+          kind: 'ii', i0: i - 1, i1: j, tone: up ? 'bull' : 'bear', title: `ii 패턴 ${up ? '상방' : '하방'} 돌파`, prio: 38 + (Math.abs(distAtr(i)) < 1 ? 8 : 0),
+          psych: `연속 인사이드 바(ii)로 변동성이 줄어든 뒤 ${up ? '위로' : '아래로'} 풀렸습니다. 양쪽이 서로 눈치를 보며 균형을 이루다 한쪽이 먼저 포기하며 생긴 돌파로 해석되며, 돌파 반대편에 놓인 손절 주문이 움직임의 연료가 됩니다.`,
+          tech: [`${hm(i - 1)}·${hm(i)} 두 봉이 연속으로 ${hm(i - 2)}봉(고 ${N(mother.high)} / 저 ${N(mother.low)}) 범위 안`, `${hm(j)}봉 종가 ${N(seg[j].close)} 가 기준봉 ${up ? '고점 위' : '저점 아래'}로 마감`, volTech(j)]
+        });
+      }
+
+      // 14) 큰 변동봉 · 스윙 고저점 (위 이벤트가 적은 날의 보충)
+      for (let i = 1; i < n; i++) {
+        if (F[i].rA >= 2.5 && F[i].br >= 0.6) {
+          const up = F[i].bull;
+          add({
+            kind: 'bigbar', i0: i, i1: i, tone: up ? 'bull' : 'bear', title: `${hm(i)} 큰 ${up ? '양봉' : '음봉'} (평균 범위의 ${F[i].rA.toFixed(1)}배)`, prio: 28,
+            psych: `평소보다 훨씬 큰 몸통의 봉으로, 한쪽이 가격을 강하게 밀어붙인 구간입니다. 다음 봉이 이어 가는지(연속) 되돌리는지(소진)가 심리를 읽는 단서가 됩니다.`,
+            tech: [barTech(i), volTech(i)]
+          });
+        }
+      }
+      for (let i = 4; i < n - 4; i++) {
+        const win = seg.slice(i - 4, i + 5);
+        for (const hi of [true, false]) {
+          const isP = hi ? seg[i].high >= Math.max(...win.map(b => b.high)) : seg[i].low <= Math.min(...win.map(b => b.low));
+          if (!isP) continue;
+          const after = seg.slice(i, Math.min(n, i + 11)), move = hi ? seg[i].high - Math.min(...after.map(b => b.low)) : Math.max(...after.map(b => b.high)) - seg[i].low;
+          if (move < 2 * atr5[i]) continue;
+          add({
+            kind: 'pivot', i0: i, i1: i, tone: hi ? 'bear' : 'bull', title: `스윙 ${hi ? '고점' : '저점'} (${hm(i)}) — 이후 ${(move / atr5[i]).toFixed(1)} 봉범위 되돌림`, prio: 20 + Math.min(10, move / atr5[i]),
+            psych: hi ? '이 가격대에서 매수세가 소진되고 매도가 우세해진 지점으로 해석됩니다. 이후 되돌아올 때 저항으로 작용했는지 확인해 볼 만합니다.' : '이 가격대에서 매도세가 소진되고 매수가 우세해진 지점으로 해석됩니다. 이후 되돌아올 때 지지로 작용했는지 확인해 볼 만합니다.',
+            tech: [`${hm(i)}봉 ${hi ? '고가' : '저가'} ${N(hi ? seg[i].high : seg[i].low)} — 좌우 4봉 중 가장 ${hi ? '높음' : '낮음'}`, `이후 10봉 안에 ${N(move)} 되돌림 (직전 평균 봉 범위의 ${(move / atr5[i]).toFixed(1)}배)`, volTech(i)]
+          });
+        }
+      }
+
+      // ---- 선택: 우선순위 순으로 담되, 가까운 봉(±2)은 합친다. 상한 24개, 하한 ~10개 ----
+      const MAXN = 24, MINN = 10;
+      cands.sort((a, b) => b.prio - a.prio || a.i0 - b.i0);
+      const acc = [];
+      const near = (a, e, gap) => a.i0 <= e.i1 + gap && a.i1 >= e.i0 - gap;
+      cands.forEach(cn => {
+        if (acc.length >= MAXN) return;
+        const hit = acc.find(e => near(cn, e, 2));
+        if (hit) { if (cn.prio >= 30 && cn.kind !== hit.kind && hit.extras.length < 3) hit.extras.push(cn.title); return; }
+        if (cn.prio < 30 && acc.length >= MINN + 2) return; // 보충용(큰 봉 등)은 부족할 때만
+        acc.push(cn);
+      });
+      acc.sort((a, b) => a.i0 - b.i0);
+      // 같은 종류가 반복되면 두 번째부터는 설명을 짧게 (앞의 설명과 같은 논리)
+      const seen = {};
+      acc.forEach(e => {
+        const key = e.kind + (e.kind === 'h2' || e.kind === 'emaPull' ? e.tone : '');
+        if (seen[key] && (e.kind === 'h2' || e.kind === 'emaPull')) {
+          const up = e.tone === 'bull';
+          e.psych = e.kind === 'h2' ? `앞선 ${up ? 'H2' : 'L2'}와 같은 구조: ${up ? '눌림이 얕게 끝나고 다시 직전 봉 고점을 넘어' : '반등이 얕게 끝나고 다시 직전 봉 저점을 이탈해'} 추세 방향 재진입이 이어졌습니다 (같은 논리로 해석).`
+            : `앞선 20 EMA ${up ? '눌림' : '반등'}과 같은 구조: 평균선 부근에서 추세 방향 수요가 다시 확인됐습니다.`;
+        }
+        seen[key] = true;
+      });
+      return acc.map((e, k) => {
+        const tech = e.extras.length ? e.tech.concat([`같은 구간의 다른 신호: ${e.extras.join(' / ')}`]) : e.tech;
+        return { id: k + 1, i0: e.i0, i1: e.i1, hm0: hm(e.i0), hm1: hm(e.i1), phase: e.phase, kind: e.kind, tone: e.tone, title: e.title, psych: e.psych, tech, prio: e.prio, extras: e.extras };
+      });
+    }
+
+    // ---------- 하루 한 문단 요약 (해설 항목과 요약 사실로만 구성) ----------
+    function pdNarrative(ticker, c, sum, entries) {
+      const parts = [];
+      const gp = sum.gap && sum.gap.isGap ? `${sum.gap.dir === 'up' ? '갭 상승' : '갭 하락'}(${pdPct(sum.gap.pct)})으로 시작해` : (sum.gap ? '갭 없이 시작해' : '시작해');
+      let s1 = `${ticker}은(는) ${sum.date}(${sum.dow}) ${gp} ${sum.chg !== null ? `전일 대비 ${pdPct(sum.chg)}` : `시가 대비 ${pdPct(sum.openToClose)}`}로 마감했습니다`;
+      s1 += ` (일중 ${pdN(sum.low)}~${pdN(sum.high)}${sum.rangeAtr !== null ? `, 범위는 일봉 ATR의 ${sum.rangeAtr.toFixed(1)}배` : ''}, 종가는 일중 범위의 ${Math.round(sum.closeLoc * 100)}% 위치).`;
+      parts.push(s1);
+      PD_PHASES.forEach((p, pi) => {
+        const es = entries.filter(e => e.phase === pi).sort((a, b) => b.prio - a.prio).slice(0, 2).sort((a, b) => a.i0 - b.i0);
+        if (!es.length) return;
+        const pr = sum.phases.find(x => x.id === p.id);
+        parts.push(`${p.name}${pr ? `(${pr.hm0}~${pr.hm1})` : ''}: ${es.map(e => `${e.hm0} ${e.title}`).join(' → ')}.`);
+      });
+      const ev = sum.cls.criteria.filter(x => x.ok).slice(0, 2).map(x => x.value).filter(Boolean);
+      parts.push(`Brooks식 분류로는 '${sum.cls.name}'에 가장 가깝습니다 (규칙 ${sum.cls.ok}/${sum.cls.total} 충족${sum.cls.type === 'unclear' ? ' — 기준 미달이라 뚜렷한 유형 없음' : ''}${ev.length ? `; ${ev.join(', ')}` : ''}).`);
+      if (sum.closeVsVwap !== null) parts.push(`종가는 세션 VWAP ${sum.closeVsVwap >= 0 ? '위' : '아래'}(${pdPct(sum.closeVsVwap)})였고, 종가가 VWAP 위에 있던 봉은 ${Math.round((sum.aboveVwapPct || 0) * 100)}%였습니다.`);
+      return parts.join(' ');
+    }
+
+    // ---------- 시장 맥락 (SPY · QQQ · IWM · ^VIX 와 섹터 ETF) ----------
+    const PD_MARKET = [
+      { sym: 'SPY', label: 'S&P 500 (SPY)' }, { sym: 'QQQ', label: '나스닥 100 (QQQ)' }, { sym: 'IWM', label: '러셀 2000 (IWM)' }, { sym: '^VIX', label: '변동성 지수 (VIX)' }
+    ];
+    // 같은 거래일의 등락률(직전 거래일 마지막 5분봉 종가 대비)과 그날의 유형을 계산한다. 그 날짜의 완료된 세션이 없으면 ok:false.
+    function pdMarketRead(sym, res, date) {
+      if (!res || res.notFound || !res.history || !res.history.length || res.history[0].dt === undefined) return { sym, ok: false, reason: '데이터 없음' };
+      const g = pdGroupSessions(res.history), k = g.sessions.findIndex(s => s.date === date);
+      if (k < 0) return { sym, ok: false, reason: '해당 거래일 데이터 없음' };
+      const s = g.sessions[k], typ = pdTypicalLen(g.sessions);
+      if (k === g.sessions.length - 1 && s.n < typ * 0.97 && s.n < 20) return { sym, ok: false, reason: '해당 거래일 봉이 부족' };
+      const seg = res.history.slice(s.i0, s.i1 + 1);
+      const ema = pdEma(res.history.map(b => b.close)).slice(s.i0, s.i1 + 1), vw = pdVwap(seg);
+      const cls = pdClassifyDay(seg, ema, vw, g.ivSec / 60, null);
+      const prevClose = k > 0 ? res.history[g.sessions[k - 1].i1].close : null, last = seg[seg.length - 1].close;
+      return { sym, ok: true, name: res.name, seg, chg: prevClose ? (last / prevClose - 1) * 100 : null, openToClose: (last / seg[0].open - 1) * 100, closeLoc: cls.metrics.closeLoc, cls, last };
+    }
+    function pdMarketReadText(m) {
+      if (!m.ok) return '';
+      const t = m.cls.type, up = m.cls.dir === 'up';
+      if (m.sym === '^VIX') return m.chg === null ? '' : (m.chg > 0 ? `변동성 확대 (${pdPct(m.chg, 1)}) — 불안 심리가 커졌습니다` : `변동성 축소 (${pdPct(m.chg, 1)}) — 불안 심리가 가라앉았습니다`);
+      const map = {
+        trendOpen: up ? '장 초반부터 매수가 이어진 상승 우위의 하루' : '장 초반부터 매도가 이어진 하락 우위의 하루',
+        reversal: up ? '초반 하락을 되돌린 반등 마감' : '초반 상승을 반납한 약세 마감',
+        spikeChannel: up ? '초반 급등 뒤 완만하게 상승을 이어 감' : '초반 급락 뒤 완만하게 하락을 이어 감',
+        ttr: up ? '위아래로 흔들리며 서서히 상승' : '위아래로 흔들리며 서서히 하락',
+        range: '뚜렷한 방향 없이 박스권에서 움직임', unclear: '뚜렷한 유형이 없는 혼합형'
+      };
+      return map[t] || '';
+    }
+    // SPY 대비 상대 강도: 같은 날 등락률 차이, 시가→종가 차이, 5분 수익률 상관계수 (시각이 같은 봉끼리만)
+    function pdRelStrength(stockSeg, stockChg, spy) {
+      if (!spy || !spy.ok) return null;
+      const out = { chgDiff: null, otcDiff: null, corr: null, n: 0 };
+      if (pdOk(stockChg) && pdOk(spy.chg)) out.chgDiff = stockChg - spy.chg;
+      out.otcDiff = (stockSeg[stockSeg.length - 1].close / stockSeg[0].open - 1) * 100 - spy.openToClose;
+      const sm = new Map(spy.seg.map(b => [b.t, b]));
+      const a = [], b = [];
+      for (let i = 1; i < stockSeg.length; i++) {
+        const s0 = sm.get(stockSeg[i - 1].t), s1 = sm.get(stockSeg[i].t);
+        if (s0 && s1 && stockSeg[i - 1].close > 0 && s0.close > 0) { a.push(stockSeg[i].close / stockSeg[i - 1].close - 1); b.push(s1.close / s0.close - 1); }
+      }
+      out.n = a.length;
+      if (a.length >= 20) {
+        const ma = pdMean(a), mb = pdMean(b);
+        let sab = 0, saa = 0, sbb = 0;
+        a.forEach((x, i) => { sab += (x - ma) * (b[i] - mb); saa += (x - ma) ** 2; sbb += (b[i] - mb) ** 2; });
+        out.corr = saa > 0 && sbb > 0 ? sab / Math.sqrt(saa * sbb) : null;
+      }
+      return out;
+    }
+    function pdRelText(ticker, rs) {
+      if (!rs) return '';
+      const parts = [];
+      if (pdOk(rs.chgDiff)) parts.push(`${ticker}의 등락률은 SPY보다 ${pdPct(rs.chgDiff, 2).replace('%', '%p')} ${rs.chgDiff >= 0.5 ? '강했고(시장 대비 강세)' : rs.chgDiff <= -0.5 ? '약했습니다(시장 대비 약세)' : '(시장과 비슷한 수준)'}`);
+      if (pdOk(rs.otcDiff)) parts.push(`시가→종가 기준으로는 ${pdPct(rs.otcDiff, 2).replace('%', '%p')}`);
+      if (pdOk(rs.corr)) parts.push(`5분 수익률 상관계수 ${rs.corr.toFixed(2)} (${rs.corr >= 0.6 ? '시장에 크게 연동' : rs.corr >= 0.3 ? '시장과 부분적으로 연동' : '개별 요인 비중이 큼'}, 표본 ${rs.n}개)`);
+      return parts.join(' · ');
+    }
+    function pdMarketSummary(list) {
+      const idx = list.filter(m => m.ok && m.sym !== '^VIX' && pdOk(m.chg));
+      if (!idx.length) return '';
+      const ups = idx.filter(m => m.chg > 0), downs = idx.filter(m => m.chg < 0);
+      let s;
+      if (ups.length === idx.length) s = `${idx.map(m => m.sym).join('·')} 모두 상승 — 위험 선호 분위기였습니다`;
+      else if (downs.length === idx.length) s = `${idx.map(m => m.sym).join('·')} 모두 하락 — 위험 회피 분위기였습니다`;
+      else s = `혼조 — ${ups.map(m => m.sym).join('·') || '없음'} 상승, ${downs.map(m => m.sym).join('·') || '없음'} 하락`;
+      const spy = list.find(m => m.sym === 'SPY' && m.ok), qqq = list.find(m => m.sym === 'QQQ' && m.ok), iwm = list.find(m => m.sym === 'IWM' && m.ok), vix = list.find(m => m.sym === '^VIX' && m.ok);
+      if (qqq && spy && pdOk(qqq.chg) && pdOk(spy.chg) && Math.abs(qqq.chg - spy.chg) >= 0.4) s += `. ${qqq.chg > spy.chg ? '기술주(QQQ)가 대형주 평균(SPY)보다 강했습니다' : '기술주(QQQ)가 대형주 평균(SPY)보다 약했습니다'}`;
+      if (iwm && spy && pdOk(iwm.chg) && pdOk(spy.chg) && Math.abs(iwm.chg - spy.chg) >= 0.4) s += `. ${iwm.chg > spy.chg ? '소형주(IWM)가 상대적으로 강해 위험 선호가 넓게 퍼졌습니다' : '소형주(IWM)가 상대적으로 약했습니다'}`;
+      if (vix && pdOk(vix.chg)) s += `. VIX ${pdPct(vix.chg, 1)}`;
+      return s + '.';
+    }
+
+    // ---------- AI 해설 프롬프트: 코드가 계산한 사실만 전달 ----------
+    function pdFactsText(d) {
+      const s = d.sum, L = [];
+      L.push(`종목: ${d.ticker}${d.name ? ` (${d.name})` : ''} · 통화 ${d.cur} · 거래소 현지 시각 기준`);
+      L.push(`복기 거래일: ${s.date}(${s.dow}) 정규장 ${s.start}~${s.end} (5분봉 ${s.n}개)`);
+      L.push(`시가 ${pdN(s.open)} / 고가 ${pdN(s.high)} (${s.hod.hm}) / 저가 ${pdN(s.low)} (${s.lod.hm}) / 종가 ${pdN(s.close)}`);
+      if (s.chg !== null) L.push(`전일 종가 대비 ${pdPct(s.chg)} (전일 종가 ${pdN(s.prev.close)}, 전일 고가 ${pdN(s.prev.high)}, 전일 저가 ${pdN(s.prev.low)})`);
+      if (s.gap) L.push(`갭 ${pdPct(s.gap.pct)} · ${s.gap.filled ? `전일 종가 도달(${d.ctx.seg[Math.max(0, s.gap.filledIdx)].hm})` : '갭 유지(미메움)'}`);
+      if (s.rangeAtr !== null) L.push(`일중 범위 ${pdN(s.range)} = 일봉 ATR(14)의 ${s.rangeAtr.toFixed(2)}배`);
+      if (s.volRatio !== null) L.push(`거래량은 최근 20일 평균의 ${s.volRatio.toFixed(2)}배`);
+      L.push(`종가는 일중 범위의 ${Math.round(s.closeLoc * 100)}% 위치${s.closeVsVwap !== null ? `, 세션 VWAP ${pdN(s.vwap)} 대비 ${pdPct(s.closeVsVwap)}` : ''}`);
+      if (s.or) L.push(`오프닝 레인지(첫 ${PD_OR_MIN}분) ${pdN(s.or.low)}~${pdN(s.or.high)} · ${s.or.first ? `${s.or.first.dir === 'up' ? '상방' : '하방'} 돌파(${d.ctx.seg[s.or.first.i].hm})${s.or.heldAtClose ? ', 종가까지 유지' : ', 종가는 경계 안/반대편'}` : '돌파 없음'}`);
+      L.push(`규칙 기반 하루 유형: ${s.cls.name} (조건 ${s.cls.ok}/${s.cls.total} 충족) — ${s.cls.criteria.map(x => `${x.ok ? '○' : '×'} ${x.label}(${x.value})`).join('; ')}`);
+      if (d.daily && d.daily.ok) L.push(`일봉 맥락: ${d.daily.trend}${pdOk(d.daily.r20) ? `, 최근 20거래일 ${pdPct(d.daily.r20, 1)}` : ''}`);
+      L.push('--- 봉 단위 해설 항목 (규칙 기반) ---');
+      d.entries.forEach(e => L.push(`#${e.id} [${e.hm0}${e.hm1 !== e.hm0 ? '~' + e.hm1 : ''}] ${e.title} | 기술적 사실: ${e.tech.join(' / ')}`));
+      if (d.marketText) L.push(`--- 시장 맥락 ---\n${d.marketText}`);
+      return L.join('\n');
+    }
+    function pdBuildAiPrompt(d) {
+      return `당신은 Al Brooks 스타일의 프라이스 액션을 쉽게 설명하는 교육용 해설자입니다.
+아래는 프로그램이 5분봉에서 '계산한 사실'입니다. 이 사실만을 근거로 하루의 흐름을 한국어로 해설해 주세요.
+규칙: (1) 아래에 없는 숫자·뉴스·실적·이벤트를 지어내지 말 것 (2) 참가자의 심리는 가격·거래량으로부터의 '추정'임을 어조로 드러낼 것 ("~했을 가능성이 있습니다") (3) 투자 권유·매수/매도 지시 금지, 다음 거래일은 '관찰 포인트'를 조건문으로만 (4) 600단어 이내.
+구성: ① 하루 한 문단 요약 ② 시장(SPY·QQQ·IWM·VIX)과의 관계 ③ 핵심 변곡 3~5개를 시각과 함께 '심리 해석'과 '기술적 이유'로 구분해 설명 ④ 이 날의 교훈 1~2줄 ⑤ 다음 거래일 관찰 포인트(조건문).
+
+${pdFactsText(d)}`;
+    }
+    // 아주 단순한 마크다운(굵게·목록)만 안전하게 렌더
+    function pdMdLite(text) {
+      const lines = String(text || '').split(/\r?\n/);
+      let html = '', inList = false;
+      lines.forEach(raw => {
+        const l = escapeHtml(raw.trim()).replace(/\*\*(.+?)\*\*/g, '<strong class="text-slate-100">$1</strong>');
+        const li = /^(?:[-*•]|\d+[.)])\s+(.*)$/.exec(l);
+        if (li) { if (!inList) { html += '<ul class="list-disc pl-5 space-y-1">'; inList = true; } html += `<li>${li[1]}</li>`; return; }
+        if (inList) { html += '</ul>'; inList = false; }
+        if (/^#{1,4}\s+/.test(l)) html += `<h5 class="font-bold text-violet-200 pt-2">${l.replace(/^#{1,4}\s+/, '')}</h5>`;
+        else if (l) html += `<p>${l}</p>`;
+      });
+      if (inList) html += '</ul>';
+      return html;
+    }
+
+    // ---------- 전체 계산 파이프라인 (순수: 네트워크 결과를 받아 화면용 데이터로) ----------
+    // r5/rd: parseYahooChart 결과(5분봉/일봉), mres: [{sym,res}] 시장 지수, now: 초 단위 현재 시각
+    function pdCompute(ticker, r5, rd, mres, nowSec, wantDate) {
+      if (!r5) return { error: 'nodata' };
+      if (r5.notFound) return { error: 'notfound' };
+      if (!r5.intraday || !r5.history.length || r5.history[0].dt === undefined) return { error: 'notintraday' };
+      const g = pdGroupSessions(r5.history);
+      if (!g.sessions.length) return { error: 'thin' };
+      let pick = pdPickSession(g.sessions, g.ivSec, nowSec, r5.gmtoffset || 0, wantDate);
+      if (pick.idx < 0) return { error: 'incomplete' };
+      if (g.sessions[pick.idx].n < 20) {
+        const alt = pick.complete.filter(k => g.sessions[k].n >= 20);
+        if (!alt.length || wantDate) return { error: 'thin', n: g.sessions[pick.idx].n };
+        const p2 = pdPickSession(g.sessions, g.ivSec, nowSec, r5.gmtoffset || 0, g.sessions[alt[alt.length - 1]].date);
+        p2.notes.unshift(`${g.sessions[pick.idx].date} 세션은 5분봉이 ${g.sessions[pick.idx].n}개뿐이라(거래 부족) 건너뛰었습니다.`);
+        pick = p2;
+      }
+      const date = g.sessions[pick.idx].date;
+      const daily = rd && rd.history && rd.history.length ? pdDailyContext(rd.history, date) : null;
+      const ctx = pdSessionContext(r5.history, g.sessions, pick.idx, g.ivSec, daily);
+      const sum = pdBuildSummary(ctx);
+      const entries = pdCommentary(ctx);
+      const narrative = pdNarrative(ticker, ctx, sum, entries);
+      const market = (mres || []).map(m => pdMarketRead(m.sym, m.res, date));
+      const spy = market.find(m => m.sym === 'SPY');
+      const rs = pdRelStrength(ctx.seg, sum.chg, spy);
+      return {
+        ticker, name: r5.name, cur: r5.currency, tz: r5.timezone, gmtoffset: r5.gmtoffset, exchange: r5.exchange,
+        sessions: g.sessions, ivSec: g.ivSec, pick, date, daily, ctx, sum, entries, narrative, market, rs,
+        marketText: pdMarketSummary(market), relText: pdRelText(ticker, rs)
+      };
+    }
+
+    // =====================================================================
+    // 화면: 상태 · 렌더링 · 세션 차트 · 이벤트
+    // =====================================================================
+    const PD = { ticker: '', userTicker: false, loading: false, seq: 0, raw: null, data: null, sel: 0, hover: -1, cur: 'USD', ready: false, aiText: '', aiKey: '', aiBusy: false, sector: null, geom: null, seenAnalysed: '' };
+    const $pd = id => document.getElementById(id);
+    const PD_TONE = { bull: { c: '#10b981', t: 'text-emerald-300', b: 'border-emerald-700/60 bg-emerald-950/30' }, bear: { c: '#f43f5e', t: 'text-rose-300', b: 'border-rose-700/60 bg-rose-950/30' }, neutral: { c: '#94a3b8', t: 'text-slate-300', b: 'border-slate-700 bg-slate-900/60' } };
+    const PD_PH_STYLE = ['rgba(245,158,11,0.07)', 'rgba(0,0,0,0)', 'rgba(100,116,139,0.13)', 'rgba(0,0,0,0)', 'rgba(139,92,246,0.09)'];
+    const PD_LV = { pdh: '#fbbf24', pdl: '#38bdf8', pdc: '#cbd5e1', orh: '#2dd4bf', orl: '#2dd4bf' };
+
+    // 가격 포맷: 원·엔은 정수, 그 외 소수 2자리 (통화 기호 없음 — 본문 문장용)
+    const pdN = v => {
+      if (!pdOk(v)) return '';
+      const zero = typeof PD !== 'undefined' && (PD.cur === 'KRW' || PD.cur === 'JPY');
+      return zero ? Math.round(v).toLocaleString('en-US') : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+    const pdCurSym = () => (typeof fmtPx === 'function' ? fmtPx(1, PD.cur).replace(/[\d.,]+$/, '') : '');
+    const pdTone = t => t === 'good' ? 'text-emerald-300' : t === 'bad' ? 'text-rose-300' : t === 'warn' ? 'text-amber-300' : 'text-slate-100';
+
+    function pdRenderShell() {
+      const root = $pd('prevdayRoot');
+      if (!root) return;
+      root.innerHTML = `
+        <div class="space-y-5">
+          <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+            <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+              <div>
+                <h3 class="text-xl font-extrabold text-white flex items-center gap-2.5"><i class="fa-solid fa-clock-rotate-left text-violet-400"></i>전일 복기</h3>
+                <p class="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">가장 최근에 마감된 정규장 하루를 5분봉으로 되짚습니다. 하루의 유형, 시장 분위기, 봉 단위의 심리 해석과 기술적 이유를 Al Brooks의 프라이스 액션 어휘로 정리합니다.</p>
+              </div>
+              <form id="pdForm" class="flex flex-wrap items-center gap-2" autocomplete="off">
+                <input id="pdTicker" type="text" placeholder="티커 또는 종목명 (예: NVDA, 테슬라)" class="w-48 sm:w-56 px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white outline-none focus:border-violet-400">
+                <button id="pdRunBtn" type="submit" class="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm font-bold transition flex items-center gap-2"><i class="fa-solid fa-magnifying-glass-chart"></i>복기 분석</button>
+                <select id="pdDateSel" class="hidden bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-slate-200 outline-none focus:border-violet-400" title="복기할 거래일 (5분봉 데이터가 있는 최근 거래일)"></select>
+              </form>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5 text-[11px]" id="pdQuick"></div>
+          </section>
+          <div id="pdStatus"></div>
+          <div id="pdBody" class="hidden space-y-5">
+            <div id="pdNote"></div>
+            <section class="space-y-3"><div id="pdCards" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5"></div></section>
+            <section id="pdClass" class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3"></section>
+            <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-column text-violet-400"></i>세션 차트 <span id="pdChartTitle" class="text-xs font-normal text-slate-400"></span></h4>
+                <p class="text-[11px] text-slate-500"><i class="fa-regular fa-hand-pointer mr-1"></i>차트 위에 마우스를 올리면 봉 정보, 번호 마커를 누르면 아래 해설로 이동합니다.</p>
+              </div>
+              <div id="pdChartBox" class="relative w-full bg-slate-950 rounded-xl border border-slate-800 overflow-hidden select-none" style="height:460px">
+                <canvas id="pdCanvas" class="absolute left-0 top-0"></canvas>
+                <canvas id="pdOver" class="absolute left-0 top-0" style="touch-action:pan-y;cursor:crosshair"></canvas>
+                <div id="pdTip" class="hidden pointer-events-none absolute z-20 text-[11px] font-mono-numbers bg-slate-900/95 border border-slate-600 rounded-lg px-2.5 py-1.5 text-slate-200 shadow-xl whitespace-nowrap"></div>
+              </div>
+              <div id="pdLegend" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400"></div>
+            </section>
+            <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-comments text-violet-400"></i>봉 단위 해설 <span class="text-xs font-normal text-slate-400">(Al Brooks 방식 · 규칙 기반)</span></h4>
+              </div>
+              <div class="rounded-xl border border-amber-800/50 bg-amber-950/20 px-3.5 py-2.5 text-[11px] text-amber-200/90 leading-relaxed"><i class="fa-solid fa-circle-info mr-1.5"></i>심리 해석은 가격·거래량 움직임으로부터의 <strong>추정</strong>이며, 실제 참여자가 누구였고 무슨 생각이었는지 알고 있다는 뜻이 아닙니다. 아래 '기술적 이유'는 코드가 계산한 사실이고, '심리 해석'은 그 사실에서 이끌어 낸 하나의 가능한 설명입니다.</div>
+              <div id="pdNarr" class="rounded-xl bg-slate-950/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 leading-relaxed"></div>
+              <div id="pdList" class="space-y-4"></div>
+            </section>
+            <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+              <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-globe text-violet-400"></i>같은 날의 시장 <span class="text-xs font-normal text-slate-400">(각 지수의 그날 5분봉 유형 포함)</span></h4>
+              <div id="pdMarket" class="space-y-2"></div>
+            </section>
+            <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>AI 해설 <span class="text-xs font-normal text-slate-400">(선택)</span></h4>
+                <button id="pdAiBtn" type="button" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-purple-600/30" title="Gemini를 호출합니다 (호출 1회당 소액 과금)"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI 해설 생성</span></button>
+              </div>
+              <p class="text-[11px] text-slate-500 leading-relaxed">위에서 계산한 사실(요약·해설 항목·시장 맥락)만 Gemini에 보내 문장으로 풀어 달라고 요청합니다. <strong class="text-slate-400">버튼을 누를 때만 호출되며 호출 1회당 소액이 과금됩니다.</strong> AI 없이도 이 탭의 모든 기능은 동작합니다.</p>
+              <div id="pdAiOut" class="hidden rounded-xl bg-slate-950/60 border border-purple-900/50 px-4 py-3 text-sm text-slate-200 leading-relaxed space-y-2"></div>
+            </section>
+            <p class="text-[10px] text-slate-500 leading-relaxed">※ 교육·참고용 설명이며 투자 권유가 아닙니다. 규칙(임계값)은 단순한 휴리스틱이라 같은 하루를 사람이 다르게 해석할 수 있고, 5분봉 데이터는 Yahoo Finance 제공 값입니다(지연·누락 가능). 시각은 모두 해당 거래소 현지 시각입니다.</p>
+          </div>
+        </div>`;
+      $pd('pdForm').addEventListener('submit', e => { e.preventDefault(); PD.userTicker = true; pdAnalyze($pd('pdTicker').value); });
+      $pd('pdDateSel').addEventListener('change', e => pdRecompute(e.target.value));
+      $pd('pdAiBtn').addEventListener('click', pdRunAi);
+      const ov = $pd('pdOver');
+      ov.addEventListener('pointermove', pdOnMove); ov.addEventListener('pointerdown', pdOnMove); ov.addEventListener('pointerleave', pdOnLeave); ov.addEventListener('click', pdOnClick);
+      if (window.ResizeObserver) new ResizeObserver(() => pdResize()).observe($pd('pdChartBox'));
+      $pd('pdList').addEventListener('click', e => { const it = e.target.closest('[data-pd-id]'); if (it) pdSelect(+it.dataset.pdId, false); });
+      pdRenderQuick();
+    }
+    function pdRenderQuick() {
+      const box = $pd('pdQuick');
+      if (!box) return;
+      const cur = (typeof currentAnalysisData !== 'undefined' && currentAnalysisData && currentAnalysisData.ticker) || '';
+      const base = ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMD', 'SPY', 'QQQ', '005930.KS'];
+      const list = (cur && !base.includes(cur) ? [cur] : []).concat(base);
+      box.innerHTML = `<span class="text-slate-500 mr-1">바로가기</span>` + list.map(t => `<button type="button" data-pd-q="${escapeHtml(t)}" class="px-2.5 py-1 rounded-full bg-slate-900 border ${t === cur ? 'border-violet-600 text-violet-300' : 'border-slate-700 text-slate-300'} hover:border-violet-500 hover:text-white transition">${escapeHtml(t)}${t === cur ? ' (분석 탭)' : ''}</button>`).join('')
+        + `<button type="button" data-pd-go="1" class="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-400 hover:text-white hover:border-cyan-600 transition" title="종목 분석 탭에서 이 종목 보기"><i class="fa-solid fa-arrow-up-right-from-square mr-1 text-[9px]"></i>종목 분석 탭으로</button>`;
+      box.onclick = e => {
+        const q = e.target.closest('[data-pd-q]'), go = e.target.closest('[data-pd-go]');
+        if (q) { PD.userTicker = true; $pd('pdTicker').value = q.dataset.pdQ; pdAnalyze(q.dataset.pdQ); }
+        else if (go) { const t = PD.ticker || $pd('pdTicker').value.trim(); if (t) quickSearch(t); }
+      };
+    }
+
+    // ---------- 상태 메시지 ----------
+    function pdStatus(kind, extra) {
+      const el = $pd('pdStatus'), body = $pd('pdBody');
+      if (!el) return;
+      if (kind === 'ok') { el.innerHTML = ''; return; }
+      if (body) body.classList.add('hidden');
+      const box = (icon, color, title, msg, btn = '') => `<div class="bg-[#131e32] border border-slate-800 rounded-2xl p-8 text-center space-y-2"><i class="fa-solid ${icon} text-3xl ${color}"></i><div class="text-base font-bold text-white">${title}</div><p class="text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">${msg}</p>${btn}</div>`;
+      const T = escapeHtml(extra || '');
+      const msgs = {
+        loading: box('fa-circle-notch fa-spin', 'text-violet-300', `${T} 5분봉을 불러오는 중...`, '5분봉(최근 5거래일)과 일봉(약 6개월), SPY·QQQ·IWM·VIX를 함께 가져옵니다.'),
+        noproxy: box('fa-plug-circle-xmark', 'text-amber-400', '자체 프록시 연결이 필요합니다', '5분봉은 공개 CORS 프록시로는 안정적으로 받을 수 없어 Cloudflare Worker(자체 프록시)가 필요합니다. 프로젝트의 worker/ 폴더를 배포한 뒤, 설정에서 프록시 주소를 입력하세요. (분봉을 지원하는 최신 Worker 버전이어야 합니다.)', '<button type="button" onclick="openApiSettingsModal()" class="mt-2 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold">프록시 주소 설정 열기</button>'),
+        notfound: box('fa-circle-question', 'text-rose-400', '종목을 찾을 수 없습니다', `"${T}" 티커를 확인해 주세요. 한국 종목은 005930.KS 처럼 거래소 접미사가 필요합니다.`),
+        nodata: box('fa-triangle-exclamation', 'text-amber-400', '5분봉 데이터를 불러오지 못했습니다', '네트워크·프록시 상태를 확인하거나 잠시 뒤 다시 시도하세요. 지원하지 않는 종목(일부 OTC·지수 등)은 5분봉이 없을 수 있습니다.'),
+        notintraday: box('fa-triangle-exclamation', 'text-amber-400', '프록시가 분봉이 아닌 데이터를 돌려주었습니다', 'Worker를 최신 버전(분봉 interval 지원)으로 다시 배포했는지 확인하세요.'),
+        thin: box('fa-chart-line', 'text-amber-400', '5분봉 데이터가 부족합니다', `최근 거래일의 5분봉이 ${extra || 0}개뿐이라(정규장은 보통 78개 안팎) 복기를 만들지 않았습니다. 거래가 드문 종목이거나 데이터 제공이 불완전할 수 있습니다.`),
+        incomplete: box('fa-hourglass-half', 'text-amber-400', '마감된 거래일이 없습니다', '받은 5분봉에 아직 끝난 정규장이 없습니다. 장이 마감된 뒤 다시 시도하세요.'),
+        error: box('fa-bug', 'text-rose-400', '복기 계산 중 오류가 발생했습니다', escapeHtml(extra || ''))
+      };
+      el.innerHTML = msgs[kind] || '';
+    }
+
+    // ---------- 실행 ----------
+    async function pdAnalyze(raw, opts = {}) {
+      const seq = ++PD.seq, text = String(raw || '').trim();
+      if (!text) { showToast('티커 입력', '복기할 종목의 티커나 이름을 입력하세요.', 'info'); return; }
+      if (!getProxyUrl()) { PD.raw = null; PD.data = null; pdStatus('noproxy'); return; }
+      PD.loading = true; $pd('pdRunBtn').disabled = true;
+      pdStatus('loading', text.toUpperCase());
+      try {
+        let t = text;
+        try { const r = await resolveTickerSmart(text); if (r && r.ticker) t = r.ticker; } catch (e) { t = resolveTickerInput(text); }
+        if (seq !== PD.seq) return;
+        t = String(t).toUpperCase();
+        PD.ticker = t; $pd('pdTicker').value = t; pdStatus('loading', t);
+        const mk = PD_MARKET.map(m => m.sym);
+        const [r5, rd, ...ms] = await Promise.all([
+          fetchRealYahooFinanceData(t, '5d', '5m'),
+          fetchRealYahooFinanceData(t, '6mo', '1d').catch(() => null),
+          ...mk.map(s => fetchRealYahooFinanceData(s, '5d', '5m').catch(() => null))
+        ]);
+        if (seq !== PD.seq) return;
+        PD.raw = { ticker: t, r5, rd, mres: mk.map((s, i) => ({ sym: s, res: ms[i] })) };
+        PD.sector = null; PD.aiText = ''; PD.aiKey = '';
+        pdRecompute(null);
+        if (PD.data) pdLoadSector(seq);
+      } catch (e) {
+        console.error('전일 복기 실패', e);
+        if (seq === PD.seq) pdStatus('error', e.message);
+      } finally {
+        if (seq === PD.seq) { PD.loading = false; $pd('pdRunBtn').disabled = false; }
+      }
+    }
+    // 받아 둔 데이터로 다시 계산 (거래일 선택 변경)
+    function pdRecompute(wantDate) {
+      const raw = PD.raw;
+      if (!raw) return;
+      let d;
+      try { d = pdCompute(raw.ticker, raw.r5, raw.rd, raw.mres, Math.floor(Date.now() / 1000), wantDate); }
+      catch (e) { console.error('전일 복기 계산 오류', e); pdStatus('error', e.message); return; }
+      if (d.error) { PD.data = null; pdStatus(d.error, d.error === 'notfound' ? raw.ticker : d.n); return; }
+      PD.data = d; PD.cur = d.cur || 'USD'; PD.sel = d.entries.length ? d.entries[0].id : 0; PD.hover = -1;
+      if (PD.sector) d.sector = PD.sector;
+      pdStatus('ok');
+      $pd('pdBody').classList.remove('hidden');
+      pdRenderAll();
+    }
+    // 섹터 ETF (선택): 프록시의 재무 API 에서 섹터를 얻어 대응 ETF 의 같은 날 움직임을 덧붙인다. 실패하면 조용히 생략.
+    async function pdLoadSector(seq) {
+      const d = PD.data;
+      if (!d || d.cur !== 'USD' || typeof fetchFundamentals !== 'function') return;
+      try {
+        const f = await fetchFundamentals(d.ticker);
+        const etf = f && f.sector ? PD_SECTOR_ETF[f.sector] : null;
+        if (!etf || etf === d.ticker || seq !== PD.seq) return;
+        const res = await fetchRealYahooFinanceData(etf, '5d', '5m');
+        if (seq !== PD.seq || !PD.data || PD.data.ticker !== d.ticker) return;
+        const m = pdMarketRead(etf, res, PD.data.date);
+        if (!m.ok) return;
+        PD.sector = { ...m, label: `섹터 ETF (${etf} · ${f.sector})`, rsDiff: pdOk(PD.data.sum.chg) && pdOk(m.chg) ? PD.data.sum.chg - m.chg : null };
+        PD.data.sector = PD.sector;
+        pdRenderMarket();
+      } catch (e) { /* 섹터는 선택 기능 */ }
+    }
+
+    function pdRenderAll() {
+      const d = PD.data;
+      if (!d) return;
+      const sel = $pd('pdDateSel');
+      sel.innerHTML = d.pick.complete.slice().reverse().map(k => `<option value="${d.sessions[k].date}" ${d.sessions[k].date === d.date ? 'selected' : ''}>${d.sessions[k].date} (${pdDow(d.sessions[k].date)})</option>`).join('');
+      sel.classList.toggle('hidden', d.pick.complete.length < 2);
+      pdRenderNote(); pdRenderCards(); pdRenderClass(); pdRenderLegend(); pdRenderCommentary(); pdRenderMarket();
+      $pd('pdChartTitle').textContent = `${d.ticker} · ${d.date} (${pdDow(d.date)}) · 5분봉 · ${d.sum.start}~${d.sum.end}${d.tz ? ' · ' + d.tz : ''}`;
+      const ai = $pd('pdAiOut'); if (ai) { ai.classList.toggle('hidden', !(PD.aiText && PD.aiKey === `${d.ticker}|${d.date}`)); if (!ai.classList.contains('hidden')) ai.innerHTML = pdMdLite(PD.aiText); }
+      requestAnimationFrame(() => pdDrawChart());
+    }
+
+    function pdRenderNote() {
+      const d = PD.data, s = d.sum;
+      const notes = d.pick.notes.map(n => `<li>${escapeHtml(n)}</li>`).join('');
+      $pd('pdNote').innerHTML = `<div class="rounded-2xl border border-violet-800/50 bg-violet-950/20 px-4 py-3 text-sm text-slate-200 leading-relaxed">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1"><i class="fa-solid fa-calendar-check text-violet-300"></i><strong class="text-white">복기 대상: ${escapeHtml(d.ticker)}${d.name && d.name !== d.ticker ? ` · ${escapeHtml(d.name)}` : ''} — ${s.date} (${s.dow})</strong>
+          <span class="text-xs text-slate-400 font-mono-numbers">정규장 ${s.start}~${s.end} 현지 시각 · 5분봉 ${s.n}개${d.tz ? ` · ${escapeHtml(d.tz)}` : ''}${d.exchange ? ` · ${escapeHtml(d.exchange)}` : ''}</span></div>
+        ${notes ? `<ul class="mt-1.5 text-xs text-slate-300 list-disc pl-5 space-y-0.5">${notes}</ul>` : ''}</div>`;
+    }
+
+    function pdRenderCards() {
+      const d = PD.data, s = d.sum, daily = d.daily;
+      const loc = v => v >= 0.75 ? '일중 범위 상단' : v >= 0.55 ? '중상단' : v > 0.45 ? '중간' : v > 0.25 ? '중하단' : '일중 범위 하단';
+      const card = (label, value, sub, tone = '') => `<div class="rounded-xl bg-slate-950/70 border border-slate-800 px-3.5 py-2.5 min-w-0"><div class="text-[10px] text-slate-500">${label}</div><div class="text-sm sm:text-base font-bold font-mono-numbers ${pdTone(tone) } truncate" title="${escapeHtml(value || '')}">${value ? escapeHtml(value) : '<span class="text-slate-600 font-normal text-xs">데이터 없음</span>'}</div>${sub ? `<div class="text-[11px] text-slate-400 leading-snug mt-0.5">${escapeHtml(sub)}</div>` : ''}</div>`;
+      const cards = [];
+      cards.push(card('종가', pdN(s.close), s.chg !== null ? `${s.chgBasis} 대비 ${pdPct(s.chg)}` : `시가 대비 ${pdPct(s.openToClose)} (전일 종가 없음)`, (s.chg !== null ? s.chg : s.openToClose) >= 0 ? 'good' : 'bad'));
+      cards.push(card('시가 · 고가 · 저가', `${pdN(s.open)} · ${pdN(s.high)} · ${pdN(s.low)}`, `고점 ${s.hod.hm} (${s.hod.phase}) · 저점 ${s.lod.hm} (${s.lod.phase})`));
+      if (s.gap) {
+        const gp = s.gap;
+        cards.push(card('시가 갭 (전일 종가 대비)', `${pdPct(gp.pct)}${gp.isGap ? '' : ' (갭 없음)'}`, !gp.isGap ? '' : (gp.filled ? `갭 메움 — ${d.ctx.seg[Math.max(0, gp.filledIdx)].hm}에 전일 종가 도달` : '갭 유지 (그날 전일 종가를 다시 밟지 않음)'), gp.pct > 0 ? 'good' : gp.pct < 0 ? 'bad' : ''));
+      } else cards.push(card('시가 갭 (전일 종가 대비)', '', '전일 종가 데이터가 없습니다'));
+      cards.push(card('일중 범위', `${pdN(s.range)} (${s.rangePct.toFixed(2)}%)`, s.rangeAtr !== null ? `일봉 ATR(14)의 ${s.rangeAtr.toFixed(2)}배 ${s.rangeAtr >= 1.3 ? '— 변동이 큰 날' : s.rangeAtr <= 0.7 ? '— 변동이 작은 날' : '— 평범한 변동'}` : '일봉 ATR 데이터 없음', s.rangeAtr !== null && s.rangeAtr >= 1.3 ? 'warn' : ''));
+      cards.push(card('거래량', s.volume ? fmtVol(s.volume) : '', s.volRatio !== null ? `최근 20거래일 평균의 ${s.volRatio.toFixed(2)}배 ${s.volRatio >= 1.5 ? '— 평소보다 활발' : s.volRatio <= 0.7 ? '— 한산' : ''}` : (s.volume ? '20일 평균 데이터 없음' : '이 종목은 거래량 정보가 없습니다'), s.volRatio !== null && s.volRatio >= 1.5 ? 'warn' : ''));
+      cards.push(card('종가 위치 (일중 범위 중)', `${Math.round(s.closeLoc * 100)}%`, loc(s.closeLoc), s.closeLoc >= 0.7 ? 'good' : s.closeLoc <= 0.3 ? 'bad' : ''));
+      cards.push(card('세션 VWAP', s.vwap ? pdN(s.vwap) : '', s.closeVsVwap !== null ? `종가는 VWAP ${s.closeVsVwap >= 0 ? '위' : '아래'} ${pdPct(s.closeVsVwap)} · VWAP 위 마감 봉 ${Math.round((s.aboveVwapPct || 0) * 100)}%` : '거래량 정보가 없어 계산하지 않음', s.closeVsVwap === null ? '' : s.closeVsVwap >= 0 ? 'good' : 'bad'));
+      if (s.or) {
+        const o = s.or;
+        cards.push(card(`오프닝 레인지 (첫 ${PD_OR_MIN}분)`, `${pdN(o.low)} ~ ${pdN(o.high)}`, o.first ? `${o.first.dir === 'up' ? '상방' : '하방'} 돌파 ${d.ctx.seg[o.first.i].hm}${o.heldAtClose ? ' · 종가까지 유지' : ' · 종가는 경계 안/반대편'}${o.brokeUp && o.brokeDn ? ' · 양쪽 모두 이탈' : ''}` : '하루 종일 이탈 없음 (종가 기준)', o.first ? (o.first.dir === 'up' ? 'good' : 'bad') : ''));
+      } else cards.push(card(`오프닝 레인지 (첫 ${PD_OR_MIN}분)`, '', '봉이 부족합니다'));
+      cards.push(card('전일 범위 대비', s.vsPrev || '', s.prev ? `전일 ${pdN(s.prev.low)} ~ ${pdN(s.prev.high)} (${s.prev.src})` : '전일 데이터 없음', s.vsPrevTone || ''));
+      cards.push(card('일봉 추세 (그 전날까지)', daily && daily.ok ? daily.trend : '', daily && daily.ok ? `최근 20거래일 ${pdPct(daily.r20, 1)} · 20일 고점 ${pdN(daily.hi20)} / 저점 ${pdN(daily.lo20)}` : '일봉 데이터가 부족합니다', daily && daily.ok && /상승/.test(daily.trend) ? 'good' : daily && daily.ok && /하락/.test(daily.trend) ? 'bad' : ''));
+      $pd('pdCards').innerHTML = cards.join('');
+    }
+
+    function pdRenderClass() {
+      const d = PD.data, c = d.sum.cls;
+      const tone = c.dir === 'up' ? 'text-emerald-300' : c.dir === 'down' ? 'text-rose-300' : 'text-slate-100';
+      const crit = c.criteria.map(x => `<li class="flex items-start gap-2 py-1 border-b border-slate-800/70 text-xs"><i class="fa-solid ${x.ok ? 'fa-circle-check text-emerald-400' : 'fa-circle-xmark text-slate-600'} mt-0.5"></i><span class="flex-1 ${x.ok ? 'text-slate-200' : 'text-slate-500'}">${escapeHtml(x.label)}</span><span class="font-mono-numbers text-slate-400 text-right">${escapeHtml(x.value || '')}</span></li>`).join('');
+      const others = c.runnerUp.map(r => `<span class="px-2 py-0.5 rounded-full border ${r.key === (c.type === 'unclear' ? c.runnerUp[0].key : c.type) ? 'border-violet-600 text-violet-300' : 'border-slate-700 text-slate-400'} text-[10px] font-mono-numbers">${escapeHtml(PD_TYPE_NAMES[r.key].replace(/ \(.*\)$/, ''))} ${r.ok}/${r.total}</span>`).join(' ');
+      $pd('pdClass').innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-diagram-project text-violet-400"></i>하루 유형 (Brooks 어휘)</h4>
+          <span class="text-[10px] text-slate-500">규칙 기반 분류 — 아래 조건을 모두 공개합니다</span>
+        </div>
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1"><div class="text-lg sm:text-xl font-extrabold ${tone}">${escapeHtml(c.name)}</div><div class="text-xs text-slate-400 font-mono-numbers">충족 ${c.ok}/${c.total} (${Math.round(c.score * 100)}%) · 기준 ${Math.round(c.threshold * 100)}% 이상${c.type === 'unclear' ? ' — 미달이라 가장 가까운 유형만 표시' : ''}</div></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-8"><ul>${crit}</ul>
+          <div class="text-xs text-slate-400 leading-relaxed space-y-2 pt-1">${pdTypeBlurb(c)}<div class="flex flex-wrap gap-1.5 pt-1">${others}</div></div></div>`;
+    }
+    function pdTypeBlurb(c) {
+      const b = {
+        trendOpen: '시가 근처에서 출발해 종일 한쪽으로 밀고 가는 날입니다. 눌림이 얕고 20 EMA 한쪽에서 거래되는 시간이 길어, 되돌림마다 추세 방향으로 참여하려는 수요가 강했다는 뜻으로 읽습니다.',
+        reversal: '초반 한쪽으로 움직이다가 어느 시점부터 반대로 돌아 시가를 넘어 마감한 날입니다. 초반 추세 추종자가 갇히고 반대 방향이 주도권을 잡은 흐름으로 읽습니다.',
+        spikeChannel: '초반 급한 스파이크 뒤 완만한 채널로 같은 방향을 이어 간 날입니다. 처음엔 한쪽이 압도했고, 이후에는 속도가 줄었지만 방향은 유지된 흐름입니다.',
+        ttr: '여러 개의 작은 박스를 오가면서도 전체적으로 한 방향으로 계단식 이동한 날입니다.',
+        range: '시가와 종가가 가깝고 20 EMA·VWAP를 자주 교차한 박스권 날입니다. 박스 상단·하단에서의 실패한 돌파가 흔한 구간입니다.',
+        unclear: '어느 한 유형의 조건을 충분히 채우지 못했습니다. 여러 성격이 섞였거나 경계에 있는 날입니다.'
+      };
+      let s = escapeHtml(b[c.type] || '');
+      if (c.spike && c.type === 'spikeChannel') s += ` <span class="text-slate-500">(스파이크: ${c.spike.len}봉)</span>`;
+      return `<p>${s}</p><p class="text-[10px] text-slate-500">임계값(예: 시가 위치 20%, 종가 위치 75%, EMA 교차 횟수)은 단순화한 경험칙이며, 점수가 비슷한 유형이 있으면 아래 칩의 충족 개수를 함께 보세요.</p>`;
+    }
+
+    function pdRenderLegend() {
+      const d = PD.data, c = d.ctx, s = d.sum, items = [];
+      const chip = (color, text, dash) => `<span class="inline-flex items-center gap-1.5"><span class="inline-block w-5" style="border-top:2px ${dash ? 'dashed' : 'solid'} ${color}"></span>${text}</span>`;
+      items.push(chip('#f59e0b', '20 EMA'));
+      if (s.vwap) items.push(chip('#38bdf8', `세션 VWAP ${pdN(s.vwap)}`));
+      const g = PD.geom;
+      const lv = pdLevels(d);
+      lv.forEach(l => items.push(chip(l.color, `${l.name} ${pdN(l.price)}${g && !l.inScale ? ' (차트 범위 밖)' : ''}`, true)));
+      items.push(`<span class="inline-flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded-full border" style="background:#10b981"></span><span class="inline-block w-3 h-3 rounded-full" style="background:#f43f5e"></span>번호 = 해설 항목</span>`);
+      items.push(`<span class="text-slate-500">배경 음영: ${s.phases.map(p => `${p.name} ${p.hm0}`).join(' · ')}</span>`);
+      $pd('pdLegend').innerHTML = items.join('');
+    }
+    // 차트에 그릴 수평 기준선들
+    function pdLevels(d) {
+      const c = d.ctx, s = d.sum, out = [];
+      if (c.prev) {
+        out.push({ id: 'pdh', name: `전일 고가(${c.prev.src})`, price: c.prev.high, color: PD_LV.pdh });
+        out.push({ id: 'pdl', name: '전일 저가', price: c.prev.low, color: PD_LV.pdl });
+        out.push({ id: 'pdc', name: '전일 종가', price: c.prev.close, color: PD_LV.pdc });
+      }
+      if (s.or) { out.push({ id: 'orh', name: '오프닝 레인지 고점', price: s.or.high, color: PD_LV.orh, orOnly: true }); out.push({ id: 'orl', name: '오프닝 레인지 저점', price: s.or.low, color: PD_LV.orl, orOnly: true }); }
+      const R = c.M.R;
+      out.forEach(l => { l.inScale = l.price >= c.M.L - 0.45 * R && l.price <= c.M.H + 0.45 * R; });
+      return out;
+    }
+
+    function pdRenderCommentary() {
+      const d = PD.data;
+      $pd('pdNarr').innerHTML = `<div class="text-[10px] text-slate-500 mb-1"><i class="fa-solid fa-align-left mr-1"></i>하루 요약 (아래 해설 항목과 요약 수치로 자동 생성)</div>${escapeHtml(d.narrative)}`;
+      if (!d.entries.length) { $pd('pdList').innerHTML = '<div class="text-sm text-slate-500 py-6 text-center">이 세션에서는 해설할 만한 봉을 찾지 못했습니다 (5분봉이 너무 적거나 움직임이 거의 없음).</div>'; return; }
+      const phases = PD_PHASES.map((p, pi) => ({ ...p, pi, ranges: d.sum.phases.find(x => x.id === p.id), es: d.entries.filter(e => e.phase === pi) })).filter(p => p.es.length);
+      $pd('pdList').innerHTML = phases.map(p => {
+        const r = p.ranges, net = r ? (r.close / r.open - 1) * 100 : null;
+        return `<div><div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mb-2 pb-1 border-b border-slate-800"><span class="text-sm font-extrabold text-violet-200">${p.name}</span>
+          ${r ? `<span class="text-[11px] text-slate-400 font-mono-numbers">${r.hm0}~${r.hm1} · 범위 ${pdN(r.hi - r.lo)} · 구간 등락 ${pdPct(net)}${r.volShare !== null ? ` · 거래량 비중 ${Math.round(r.volShare * 100)}%` : ''}</span>` : ''}</div>
+          <div class="space-y-2.5">${p.es.map(pdEntryHtml).join('')}</div></div>`;
+      }).join('');
+      pdSyncSel();
+    }
+    function pdEntryHtml(e) {
+      const T = PD_TONE[e.tone] || PD_TONE.neutral, badge = e.tone === 'bull' ? '매수 우위 쪽' : e.tone === 'bear' ? '매도 우위 쪽' : '중립/탐색';
+      return `<div data-pd-id="${e.id}" id="pdE${e.id}" class="pd-item cursor-pointer rounded-xl border ${T.b} px-3.5 py-3 transition hover:border-slate-500">
+        <div class="flex items-start gap-3">
+          <span class="shrink-0 w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold text-white mt-0.5" style="background:${T.c}">${e.id}</span>
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <div class="flex flex-wrap items-baseline gap-x-2"><span class="font-mono-numbers text-xs text-slate-400">${e.hm0}${e.hm1 !== e.hm0 ? '~' + e.hm1 : ''}</span><span class="text-sm font-bold ${T.t}">${escapeHtml(e.title)}</span><span class="text-[10px] text-slate-500">${badge}</span></div>
+            <p class="text-[13px] text-slate-200 leading-relaxed"><span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-900/60 text-violet-200 mr-1.5 align-middle">심리 해석 (추정)</span>${escapeHtml(e.psych)}</p>
+            <div class="text-[12px] text-slate-300 leading-relaxed"><span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-900/60 text-sky-200 mr-1.5 align-middle">기술적 이유 (계산된 사실)</span><ul class="mt-1 space-y-0.5 list-disc pl-5 text-slate-400 font-mono-numbers text-[11px]">${e.tech.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>
+          </div></div></div>`;
+    }
+    function pdSyncSel() {
+      document.querySelectorAll('#pdList .pd-item').forEach(el => {
+        const on = +el.dataset.pdId === PD.sel;
+        el.classList.toggle('ring-2', on); el.classList.toggle('ring-amber-400/70', on);
+      });
+    }
+    function pdSelect(id, fromChart) {
+      PD.sel = id; pdSyncSel(); pdDrawChart();
+      if (fromChart) { const el = $pd(`pdE${id}`); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+      else { const bx = $pd('pdChartBox'); if (bx && bx.getBoundingClientRect().top < 0) bx.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    }
+
+    function pdRenderMarket() {
+      const d = PD.data;
+      if (!d) return;
+      const rows = PD_MARKET.map(m => ({ ...pdFind(d.market, m.sym), label: m.label }));
+      if (d.sector) rows.push(d.sector);
+      const row = m => {
+        if (!m.ok) return `<div class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-950/50 border border-slate-800 px-3.5 py-2 text-xs"><span class="font-bold text-slate-300">${escapeHtml(m.label || m.sym)}</span><span class="text-slate-600">데이터 없음${m.reason ? ' · ' + escapeHtml(m.reason) : ''}</span></div>`;
+        const up = (m.chg !== null ? m.chg : m.openToClose) >= 0, vix = m.sym === '^VIX';
+        const good = vix ? !up : up;
+        return `<div class="rounded-xl bg-slate-950/50 border border-slate-800 px-3.5 py-2.5 text-xs">
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1"><span class="font-bold text-slate-100 w-40">${escapeHtml(m.label || m.sym)}</span>
+            <span class="font-mono-numbers font-bold ${good ? 'text-emerald-300' : 'text-rose-300'} w-20">${m.chg !== null ? pdPct(m.chg) : pdPct(m.openToClose) + '*'}</span>
+            <span class="text-slate-300">${escapeHtml(m.cls.name.replace(/ \(.*\)$/, ''))}</span>
+            <span class="text-slate-500 font-mono-numbers">종가 위치 ${Math.round(m.closeLoc * 100)}%</span></div>
+          <div class="text-slate-400 mt-1">${escapeHtml(pdMarketReadText(m))}${m.chg === null ? ' <span class="text-slate-600">(*전일 종가 없음 — 시가 대비)</span>' : ''}${m.rsDiff !== undefined && m.rsDiff !== null ? ` · 종목은 이 ETF보다 ${pdPct(m.rsDiff).replace('%', '%p')}` : ''}</div></div>`;
+      };
+      let html = rows.map(row).join('');
+      if (d.marketText) html += `<div class="rounded-xl border border-violet-800/50 bg-violet-950/20 px-3.5 py-2.5 text-sm text-slate-200"><i class="fa-solid fa-quote-left text-violet-400 mr-1.5 text-xs"></i>${escapeHtml(d.marketText)}</div>`;
+      if (d.relText) html += `<div class="rounded-xl border border-slate-700 bg-slate-900/60 px-3.5 py-2.5 text-sm text-slate-200"><span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-900/60 text-sky-200 mr-1.5">${escapeHtml(d.ticker)} 상대 강도</span>${escapeHtml(d.relText)}</div>`;
+      else if (d.ticker !== 'SPY') html += `<div class="text-[11px] text-slate-600">SPY 데이터가 없어 상대 강도를 계산하지 않았습니다.</div>`;
+      html += `<p class="text-[10px] text-slate-500">등락률은 그 거래일 마지막 5분봉 종가를 직전 거래일 마지막 5분봉 종가와 비교한 값이라 공식 종가 기준 등락률과 조금 다를 수 있습니다.</p>`;
+      $pd('pdMarket').innerHTML = html;
+    }
+    const pdFind = (arr, sym) => arr.find(m => m.sym === sym) || { sym, ok: false, reason: '' };
+
+    // ---------- AI 해설 (버튼을 눌렀을 때만 호출) ----------
+    async function pdRunAi() {
+      const d = PD.data;
+      if (!d || PD.aiBusy) return;
+      if (!getStoredApiKey('gemini_key')) {
+        showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 해설을 생성할 수 있습니다.', 'info');
+        openApiSettingsModal();
+        return;
+      }
+      PD.aiBusy = true;
+      const btn = $pd('pdAiBtn'), lab = btn.querySelector('span'), out = $pd('pdAiOut');
+      btn.disabled = true; lab.textContent = 'AI 해설 생성 중...';
+      out.classList.remove('hidden'); out.innerHTML = '<span class="text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Gemini에 계산된 사실을 보내 해설을 받는 중...</span>';
+      try {
+        const r = await callGemini(pdBuildAiPrompt(d));
+        if (!PD.data || PD.data !== d) return;
+        if (!r || r.error || !r.text) { out.innerHTML = `<span class="text-rose-300">AI 해설을 받지 못했습니다${r && r.error ? `: ${escapeHtml(r.error)}` : ''}. 위의 규칙 기반 해설은 그대로 사용할 수 있습니다.</span>`; return; }
+        PD.aiText = r.text; PD.aiKey = `${d.ticker}|${d.date}`;
+        out.innerHTML = pdMdLite(r.text) + '<p class="text-[10px] text-slate-500 pt-2">※ AI가 쓴 문장입니다. 계산된 사실을 바탕으로 하지만 해석은 틀릴 수 있으며 투자 권유가 아닙니다.</p>';
+      } finally {
+        PD.aiBusy = false; btn.disabled = false; lab.textContent = PD.aiText ? 'AI 해설 다시 생성' : 'AI 해설 생성';
+      }
+    }
+
+    // ---------- 세션 차트 (자체 캔버스 렌더러) ----------
+    function pdNice(range, target) {
+      const raw = range / Math.max(1, target), mag = Math.pow(10, Math.floor(Math.log10(raw))), nrm = raw / mag;
+      return (nrm < 1.5 ? 1 : nrm < 3.5 ? 2 : nrm < 7.5 ? 5 : 10) * mag;
+    }
+    function pdResize() { if (PD.data && !$pd('view-prevday').classList.contains('hidden')) requestAnimationFrame(pdDrawChart); }
+    function pdDrawChart() {
+      const d = PD.data, box = $pd('pdChartBox'), cv = $pd('pdCanvas'), ov = $pd('pdOver');
+      if (!d || !box || !cv) return;
+      const W = box.clientWidth;
+      if (!W) return; // 탭이 숨겨져 있으면 크기 0 — 열릴 때 ResizeObserver/탭 훅이 다시 그린다
+      const H = W < 560 ? 380 : 470, dpr = window.devicePixelRatio || 1;
+      box.style.height = `${H}px`;
+      [cv, ov].forEach(c => { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); c.style.width = `${W}px`; c.style.height = `${H}px`; });
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+      const c = d.ctx, seg = c.seg, n = seg.length, M = c.M;
+      const x0 = 8, axisW = W < 560 ? 52 : 62, x1 = W - axisW, top = 24, timeH = 22, hasVol = M.vol > 0, volH = hasVol ? Math.round(H * 0.16) : 0;
+      const yP0 = top, yP1 = H - timeH - volH - (hasVol ? 6 : 0), yV0 = yP1 + 6, yV1 = H - timeH;
+      const step = (x1 - x0) / n, xOf = i => x0 + (i + 0.5) * step;
+      const levels = pdLevels(d);
+      let lo = M.L, hi = M.H;
+      c.ema.forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); });
+      c.vwap.forEach(v => { if (v !== null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } });
+      levels.forEach(l => { if (l.inScale) { lo = Math.min(lo, l.price); hi = Math.max(hi, l.price); } });
+      const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+      const yOf = p => yP0 + (1 - (p - lo) / (hi - lo)) * (yP1 - yP0);
+      PD.geom = { W, H, x0, x1, step, n, yP0, yP1, yOf, lo, hi, xOf, axisW };
+      ctx.font = '10px "JetBrains Mono", monospace';
+
+      // 국면 음영 + 라벨
+      d.sum.phases.forEach(p => {
+        const xa = x0 + p.i0 * step, xb = x0 + (p.i1 + 1) * step, pi = PD_PHASES.findIndex(q => q.id === p.id);
+        ctx.fillStyle = PD_PH_STYLE[pi]; ctx.fillRect(xa, yP0 - 4, xb - xa, (hasVol ? yV1 : yP1) - yP0 + 4);
+        ctx.fillStyle = '#64748b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        if (xb - xa > 34) ctx.fillText(p.name, (xa + xb) / 2, 11);
+        if (pi > 0) { ctx.strokeStyle = 'rgba(71,85,105,0.5)'; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(Math.round(xa) + 0.5, 4); ctx.lineTo(Math.round(xa) + 0.5, hasVol ? yV1 : yP1); ctx.stroke(); ctx.setLineDash([]); }
+      });
+      // 가격 격자 + 축
+      const ps = pdNice(hi - lo, Math.max(3, Math.round((yP1 - yP0) / 52)));
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      for (let v = Math.ceil(lo / ps) * ps; v <= hi; v += ps) {
+        const y = Math.round(yOf(v)) + 0.5;
+        ctx.strokeStyle = 'rgba(30,41,59,0.9)'; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+        ctx.fillStyle = '#64748b'; ctx.fillText(PD.cur === 'KRW' || PD.cur === 'JPY' ? Math.round(v).toLocaleString('en-US') : v.toFixed(ps < 0.1 ? 3 : 2), x1 + 6, y);
+      }
+      // 시간 축 (현지 시각): 봉 폭에 맞춰 30/60/120분 간격
+      const ivMin = c.ivMin, stepMin = [30, 60, 120, 240].find(m => m / ivMin * step >= 58) || 240;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; let lastX = -1e9;
+      seg.forEach((b, i) => {
+        const mod = pdMod(b.hm), x = xOf(i);
+        if ((mod % stepMin !== 0 && i !== 0) || x - lastX < 50 || x > x1 - 14) return;
+        ctx.strokeStyle = 'rgba(30,41,59,0.9)'; ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, yP0); ctx.lineTo(Math.round(x) + 0.5, hasVol ? yV1 : yP1); ctx.stroke();
+        ctx.fillStyle = '#94a3b8'; ctx.fillText(b.hm, Math.max(x0 + 14, x), H - timeH / 2 + 1); lastX = x;
+      });
+      // 기준선: 전일 고/저/종가 + 오프닝 레인지 (라벨은 서로 겹치지 않게 위아래로 밀어 배치)
+      const lblY = [];
+      levels.filter(l => l.inScale).forEach(l => {
+        const y = Math.round(yOf(l.price)) + 0.5;
+        ctx.strokeStyle = l.color; ctx.globalAlpha = l.orOnly ? 0.7 : 0.85; ctx.setLineDash(l.orOnly ? [2, 3] : [6, 4]); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+        lblY.push({ l, y, ly: y });
+      });
+      lblY.sort((p, q2) => p.y - q2.y);
+      for (let k = 1; k < lblY.length; k++) if (lblY[k].ly - lblY[k - 1].ly < 11) lblY[k].ly = lblY[k - 1].ly + 11;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      lblY.forEach(p => {
+        const tx = `${p.l.id === 'pdh' ? 'PDH' : p.l.id === 'pdl' ? 'PDL' : p.l.id === 'pdc' ? 'PDC' : p.l.id === 'orh' ? 'ORH' : 'ORL'} ${pdN(p.l.price)}`, w = ctx.measureText(tx).width + 6;
+        ctx.fillStyle = 'rgba(2,6,23,0.8)'; ctx.fillRect(x1 - w - 2, p.ly - 6, w, 12);
+        ctx.fillStyle = p.l.color; ctx.fillText(tx, x1 - 5, p.ly + 0.5);
+      });
+      // 오프닝 레인지 시간대 표시
+      if (d.sum.or) { const xe = x0 + d.sum.or.n * step; ctx.fillStyle = 'rgba(45,212,191,0.06)'; ctx.fillRect(x0, yP0, xe - x0, yP1 - yP0); }
+      // 선택 항목 강조 (캔들 뒤)
+      const selE = d.entries.find(e => e.id === PD.sel);
+      if (selE) { const xa = x0 + selE.i0 * step, xb = x0 + (selE.i1 + 1) * step; ctx.fillStyle = 'rgba(250,204,21,0.13)'; ctx.fillRect(xa, yP0, Math.max(xb - xa, step), (hasVol ? yV1 : yP1) - yP0); ctx.strokeStyle = 'rgba(250,204,21,0.55)'; ctx.strokeRect(Math.round(xa) + 0.5, yP0 + 0.5, Math.max(xb - xa, step) - 1, (hasVol ? yV1 : yP1) - yP0 - 1); }
+      // 거래량
+      if (hasVol) {
+        const vmax = Math.max(...seg.map(b => b.volume || 0)) || 1, bw = Math.max(1, Math.floor(step * 0.7));
+        seg.forEach((b, i) => { const h = (b.volume || 0) / vmax * (yV1 - yV0 - 2); ctx.fillStyle = b.close >= b.open ? 'rgba(16,185,129,0.55)' : 'rgba(244,63,94,0.55)'; ctx.fillRect(Math.round(xOf(i) - bw / 2), yV1 - h, bw, Math.max(1, h)); });
+        ctx.strokeStyle = '#1e293b'; ctx.beginPath(); ctx.moveTo(x0, yV0 - 3 + 0.5); ctx.lineTo(x1, yV0 - 3 + 0.5); ctx.stroke();
+        ctx.fillStyle = '#475569'; ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText(`거래량 (최대 ${fmtVol(vmax)})`, x1 - 4, yV0);
+      }
+      // 캔들
+      const bodyW = Math.max(1, Math.floor(step * 0.66));
+      seg.forEach((b, i) => {
+        const x = xOf(i), up = b.close >= b.open, col = up ? '#10b981' : '#f43f5e', xc = Math.round(x) + 0.5;
+        ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(xc, yOf(b.high)); ctx.lineTo(xc, yOf(b.low)); ctx.stroke();
+        const yO = yOf(b.open), yC = yOf(b.close);
+        ctx.fillRect(Math.round(x - bodyW / 2), Math.min(yO, yC), bodyW, Math.max(1, Math.abs(yC - yO)));
+      });
+      // EMA / VWAP
+      const line = (arr, color, w) => { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.beginPath(); let st = false; arr.forEach((v, i) => { if (v === null) { st = false; return; } const x = xOf(i), y = yOf(v); if (!st) { ctx.moveTo(x, y); st = true; } else ctx.lineTo(x, y); }); ctx.stroke(); };
+      line(c.vwap, '#38bdf8', 1.6); line(c.ema, '#f59e0b', 1.7);
+      // 번호 마커
+      const placed = [], marks = [];
+      d.entries.forEach(e => {
+        const T = PD_TONE[e.tone] || PD_TONE.neutral, b = seg[e.i0], below = e.tone === 'bull';
+        let x = xOf(e.i0), y = below ? yOf(b.low) + 14 : yOf(b.high) - 14;
+        for (let k = 0; k < 4 && placed.some(p => Math.hypot(p.x - x, p.y - y) < 19); k++) y += below ? 19 : -19;
+        y = Math.max(yP0 + 10, Math.min(yP1 - 6, y));
+        placed.push({ x, y }); marks.push({ id: e.id, x, y });
+        const on = e.id === PD.sel, r = on ? 10 : 8.5;
+        ctx.strokeStyle = T.c; ctx.globalAlpha = 0.5; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, below ? yOf(b.low) + 2 : yOf(b.high) - 2); ctx.lineTo(x, y + (below ? -r : r)); ctx.stroke(); ctx.globalAlpha = 1;
+        ctx.fillStyle = T.c; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        if (on) { ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2; ctx.stroke(); }
+        ctx.fillStyle = '#fff'; ctx.font = `bold ${e.id > 9 ? 9 : 10}px "JetBrains Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(e.id), x, y + 0.5);
+      });
+      PD.geom.marks = marks;
+      // 일중 고점/저점 가격 표시 (번호 마커와 겹치면 옆으로 비킨다)
+      ctx.fillStyle = '#e2e8f0'; ctx.font = '9px "JetBrains Mono", monospace'; ctx.textAlign = 'center';
+      [[M.H, M.iH, 'H', 'bottom', -3], [M.L, M.iL, 'L', 'top', 3]].forEach(([v, ix, nm, bl, dy]) => {
+        let tx = Math.min(x1 - 30, Math.max(x0 + 30, xOf(ix))); const ty = yOf(v) + dy;
+        if (marks.some(m => Math.abs(m.x - tx) < 40 && Math.abs(m.y - ty) < 20)) tx += tx > (x0 + x1) / 2 ? -48 : 48;
+        ctx.textBaseline = bl; ctx.fillText(`${nm} ${pdN(v)}`, tx, ty);
+      });
+      // 마지막 종가 태그
+      const ly = yOf(M.C);
+      ctx.fillStyle = M.C >= M.O ? '#10b981' : '#f43f5e'; ctx.fillRect(x1 + 1, ly - 8, axisW - 2, 16);
+      ctx.fillStyle = '#04110b'; ctx.font = '10px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(PD.cur === 'KRW' || PD.cur === 'JPY' ? Math.round(M.C).toLocaleString('en-US') : M.C.toFixed(2), x1 + 4, ly + 0.5);
+      pdDrawOver();
+    }
+
+    // 호버: 십자선 + 툴팁
+    function pdHitBar(e) {
+      const g = PD.geom, ov = $pd('pdOver');
+      if (!g) return null;
+      const r = ov.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      if (x < g.x0 || x > g.x1 || y < 0 || y > g.H) return { x, y, i: -1 };
+      return { x, y, i: Math.max(0, Math.min(g.n - 1, Math.floor((x - g.x0) / g.step))) };
+    }
+    function pdOnMove(e) {
+      const h = pdHitBar(e);
+      if (!h) return;
+      PD.hover = h.i; PD.hoverXY = h;
+      pdDrawOver();
+      const tip = $pd('pdTip'), d = PD.data;
+      if (h.i < 0 || !d) { tip.classList.add('hidden'); return; }
+      const c = d.ctx, b = c.seg[h.i], prev = h.i > 0 ? c.seg[h.i - 1].close : (c.prev ? c.prev.close : null);
+      const chg = prev ? (b.close / prev - 1) * 100 : null, vw = c.vwap[h.i];
+      tip.innerHTML = `<div class="font-bold text-white">${d.date.slice(5)} ${b.hm}</div>
+        <div>O ${pdN(b.open)} H ${pdN(b.high)}</div><div>L ${pdN(b.low)} C ${pdN(b.close)}${chg !== null ? ` <span class="${chg >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${pdPct(chg)}</span>` : ''}</div>
+        ${b.volume ? `<div class="text-slate-400">거래량 ${fmtVol(b.volume)}</div>` : ''}<div class="text-amber-300">EMA ${pdN(c.ema[h.i])}</div>${vw ? `<div class="text-sky-300">VWAP ${pdN(vw)}</div>` : ''}`;
+      tip.classList.remove('hidden');
+      const bw = $pd('pdChartBox').clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+      tip.style.left = `${Math.max(4, Math.min(bw - tw - 4, h.x + 14 + tw > bw ? h.x - tw - 14 : h.x + 14))}px`;
+      tip.style.top = `${Math.max(4, Math.min(PD.geom.H - th - 26, h.y - th - 10 < 4 ? h.y + 14 : h.y - th - 10))}px`;
+    }
+    function pdOnLeave() { PD.hover = -1; $pd('pdTip').classList.add('hidden'); pdDrawOver(); }
+    function pdDrawOver() {
+      const g = PD.geom, ov = $pd('pdOver');
+      if (!g || !ov || !ov.width) return;
+      const ctx = ov.getContext('2d'), dpr = window.devicePixelRatio || 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, g.W, g.H);
+      if (PD.hover < 0 || !PD.data) return;
+      const x = Math.round(g.xOf(PD.hover)) + 0.5;
+      ctx.strokeStyle = 'rgba(148,163,184,0.55)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x, g.yP0); ctx.lineTo(x, g.H - 22); ctx.stroke();
+      const h = PD.hoverXY;
+      if (h && h.y >= g.yP0 && h.y <= g.yP1) {
+        ctx.beginPath(); ctx.moveTo(g.x0, Math.round(h.y) + 0.5); ctx.lineTo(g.x1, Math.round(h.y) + 0.5); ctx.stroke(); ctx.setLineDash([]);
+        const p = g.lo + (1 - (h.y - g.yP0) / (g.yP1 - g.yP0)) * (g.hi - g.lo);
+        ctx.fillStyle = '#334155'; ctx.fillRect(g.x1 + 1, h.y - 8, g.axisW - 2, 16);
+        ctx.fillStyle = '#f1f5f9'; ctx.font = '10px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(PD.cur === 'KRW' || PD.cur === 'JPY' ? Math.round(p).toLocaleString('en-US') : p.toFixed(2), g.x1 + 4, h.y + 0.5);
+      }
+      ctx.setLineDash([]);
+      const hm = PD.data.ctx.seg[PD.hover].hm, w = ctx.measureText(hm).width + 12;
+      ctx.fillStyle = '#334155'; ctx.fillRect(Math.max(0, Math.min(g.x1 - w, x - w / 2)), g.H - 20, w, 16);
+      ctx.fillStyle = '#f1f5f9'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(hm, Math.max(w / 2, Math.min(g.x1 - w / 2, x)), g.H - 11.5);
+    }
+    function pdOnClick(e) {
+      const g = PD.geom, h = pdHitBar(e);
+      if (!g || !h || !g.marks) return;
+      const m = g.marks.find(k => Math.hypot(k.x - h.x, k.y - h.y) <= 12);
+      if (m) pdSelect(m.id, true);
+    }
+
+    // ---------- 초기화 · 탭 훅 ----------
+    function pdInit() {
+      if (PD.ready) return;
+      PD.ready = true;
+      pdRenderShell();
+    }
+    TAB_HOOKS.prevday = () => {
+      pdInit();
+      const analysed = (typeof currentAnalysisData !== 'undefined' && currentAnalysisData && currentAnalysisData.ticker) || '';
+      // 종목 분석 탭에서 새 종목을 분석했으면 그 종목을 따라가고, 아니면 이 탭에서 직접 입력한 종목을 유지한다
+      let want = PD.ticker || analysed || 'AAPL';
+      if (analysed && analysed !== PD.seenAnalysed) { PD.seenAnalysed = analysed; want = analysed; }
+      pdRenderQuick();
+      if (!getProxyUrl()) { if (!PD.data) { $pd('pdTicker').value = want; pdStatus('noproxy'); } return; }
+      if (!PD.loading && (!PD.data || want !== PD.ticker)) { $pd('pdTicker').value = want; pdAnalyze(want); return; }
+      setTimeout(pdResize, 30);
+    };
   </script>
   <script id="mod-fx">
     // ===== 환율(FX) 탭 모듈 =====
