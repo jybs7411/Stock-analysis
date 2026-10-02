@@ -1,7 +1,0 @@
-{
-  // 폰용 화면(docs/ 폴더)을 Cloudflare 에 올리기 위한 설정 — 정적 파일만 올리는 Workers(Static Assets) 방식
-  // (시세 프록시 Worker 는 worker/ 폴더에 따로 있습니다)
-  "name": "pentanalyst",
-  "compatibility_date": "2025-01-01",
-  "assets": { "directory": "./docs" }
-}

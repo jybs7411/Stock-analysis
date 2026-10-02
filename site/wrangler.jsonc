@@ -1,0 +1,7 @@
+{
+  // 폰용 화면(docs/ 폴더)을 Cloudflare 에 올리기 위한 설정 — 정적 파일만 올리는 Workers(Static Assets) 방식.
+  // 이 Worker 는 시세 프록시(pentanalyst-proxy, worker/ 폴더)와는 별개입니다. Git 연결 시 Root directory 를 "site" 로 지정하세요.
+  "name": "pentanalyst",
+  "compatibility_date": "2025-01-01",
+  "assets": { "directory": "../docs" }
+}
