@@ -58,7 +58,8 @@
 <body class="bg-[#0a0f1d] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-white">
 
   <!-- Top Navigation Bar -->
-  <header class="border-b border-slate-800 bg-[#0e1726]/90 backdrop-blur sticky top-0 z-50 px-4 lg:px-8 py-2">
+  <div id="stickyNav" class="sticky top-0 z-50">
+  <header class="border-b border-slate-800 bg-[#0e1726]/95 backdrop-blur px-4 lg:px-8 py-2">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
@@ -118,6 +119,55 @@
       </div>
     </div>
   </header>
+
+  <!-- Main View Tabs Navigation -->
+  <div class="bg-[#0b1220] border-b border-slate-800 px-4 lg:px-8">
+    <div class="max-w-7xl mx-auto flex items-center gap-2 py-2">
+    <div class="flex items-center gap-2 sm:gap-3 overflow-x-auto whitespace-nowrap min-w-0 flex-1">
+      <button
+        onclick="switchAppTab('analysis')"
+        id="tabBtn-analysis"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-cyan-950 text-cyan-300 border border-cyan-700/80 shadow-md shadow-cyan-950/50 transition"
+      >
+        <i class="fa-solid fa-users-viewfinder"></i>
+        <span>5인 전문가 심층 분석</span>
+      </button>
+
+      <button
+        onclick="switchAppTab('screener')"
+        id="tabBtn-screener"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition"
+      >
+        <i class="fa-solid fa-filter text-amber-400"></i>
+        <span>Finviz × Fool 스마트 스크리너</span>
+      </button>
+
+      <button onclick="switchAppTab('prevday')" id="tabBtn-prevday" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-clock-rotate-left text-violet-400"></i><span>전일 복기</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-violet-950 text-violet-300 text-[10px] font-bold border border-violet-800/80">NEW</span>
+      </button>
+      <button onclick="switchAppTab('fx')" id="tabBtn-fx" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 text-[10px] font-bold border border-emerald-800/80">NEW</span>
+      </button>
+      <button onclick="switchAppTab('market')" id="tabBtn-market" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장 · 매크로</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-sky-950 text-sky-300 text-[10px] font-bold border border-sky-800/80">NEW</span>
+      </button>
+    </div>
+
+    <!-- 탭 오른쪽 끝: 종목 바로 검색 -->
+    <form id="tabSearchForm" onsubmit="tabSearchSubmit(event)" class="relative shrink-0" autocomplete="off">
+      <div id="tabSearchBox" class="relative">
+        <input id="tabSearchInput" type="text" placeholder="종목 검색 (티커·회사명)" autocomplete="off" spellcheck="false" class="w-36 sm:w-64 pl-3 pr-9 py-2 bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl text-xs text-white placeholder-slate-500 outline-none transition">
+        <div id="tabSearchSuggest" class="hidden absolute z-[60] right-0 top-full mt-1.5 w-72 max-w-[85vw] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto"></div>
+      </div>
+      <button type="submit" id="tabSearchBtn" title="검색" class="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 grid place-items-center rounded-lg text-slate-400 hover:text-cyan-300 transition"><i class="fa-solid fa-magnifying-glass text-xs"></i></button>
+    </form>
+    </div>
+  </div>
+  </div>
+
 
   <!-- 맨 위로 -->
   <button type="button" id="toTopBtn" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="맨 위로" aria-label="맨 위로" class="hidden fixed right-4 bottom-20 z-40 w-11 h-11 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/50 grid place-items-center transition active:scale-95"><i class="fa-solid fa-arrow-up"></i></button>
@@ -186,52 +236,6 @@
     </div>
   </div>
 
-  <!-- Main View Tabs Navigation -->
-  <div class="bg-[#0b1220] border-b border-slate-800 px-4 lg:px-8">
-    <div class="max-w-7xl mx-auto flex items-center gap-2 py-2">
-    <div class="flex items-center gap-2 sm:gap-3 overflow-x-auto whitespace-nowrap min-w-0 flex-1">
-      <button
-        onclick="switchAppTab('analysis')"
-        id="tabBtn-analysis"
-        class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-cyan-950 text-cyan-300 border border-cyan-700/80 shadow-md shadow-cyan-950/50 transition"
-      >
-        <i class="fa-solid fa-users-viewfinder"></i>
-        <span>5인 전문가 심층 분석</span>
-      </button>
-
-      <button
-        onclick="switchAppTab('screener')"
-        id="tabBtn-screener"
-        class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition"
-      >
-        <i class="fa-solid fa-filter text-amber-400"></i>
-        <span>Finviz × Fool 스마트 스크리너</span>
-      </button>
-
-      <button onclick="switchAppTab('prevday')" id="tabBtn-prevday" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-clock-rotate-left text-violet-400"></i><span>전일 복기</span>
-        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-violet-950 text-violet-300 text-[10px] font-bold border border-violet-800/80">NEW</span>
-      </button>
-      <button onclick="switchAppTab('fx')" id="tabBtn-fx" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span>
-        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 text-[10px] font-bold border border-emerald-800/80">NEW</span>
-      </button>
-      <button onclick="switchAppTab('market')" id="tabBtn-market" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장 · 매크로</span>
-        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-sky-950 text-sky-300 text-[10px] font-bold border border-sky-800/80">NEW</span>
-      </button>
-    </div>
-
-    <!-- 탭 오른쪽 끝: 종목 바로 검색 -->
-    <form id="tabSearchForm" onsubmit="tabSearchSubmit(event)" class="relative shrink-0 flex items-center gap-1.5" autocomplete="off">
-      <div id="tabSearchBox" class="hidden relative">
-        <input id="tabSearchInput" type="text" placeholder="티커 · 회사명" autocomplete="off" spellcheck="false" class="w-40 sm:w-56 px-3 py-2 bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl text-xs text-white placeholder-slate-500 outline-none transition">
-        <div id="tabSearchSuggest" class="hidden absolute z-[60] right-0 top-full mt-1.5 w-72 max-w-[85vw] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto"></div>
-      </div>
-      <button type="button" id="tabSearchBtn" onclick="tabSearchToggle()" title="종목 검색" class="w-9 h-9 grid place-items-center rounded-xl bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-600 text-slate-300 hover:text-cyan-300 transition"><i class="fa-solid fa-magnifying-glass text-sm"></i></button>
-    </form>
-    </div>
-  </div>
 
   <main class="flex-grow max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
 
@@ -1194,11 +1198,9 @@
 
     // ===== 탭 오른쪽 검색 버튼 / 맨 위로 버튼 =====
     const tabSearchState = { items: [], active: -1, seq: 0, timer: null };
-    function tabSearchToggle(forceOpen) {
-      const box = document.getElementById('tabSearchBox'), input = document.getElementById('tabSearchInput');
-      const open = forceOpen !== undefined ? forceOpen : box.classList.contains('hidden');
-      box.classList.toggle('hidden', !open);
-      if (open) { input.focus(); input.select(); } else { document.getElementById('tabSearchSuggest').classList.add('hidden'); }
+    function tabSearchToggle() {
+      document.getElementById('tabSearchSuggest').classList.add('hidden');
+      const input = document.getElementById('tabSearchInput'); if (input) input.blur();
     }
     function tabSearchRender() {
       const box = document.getElementById('tabSearchSuggest');
@@ -1222,7 +1224,7 @@
     }
     function tabSearchGo(ticker) {
       const input = document.getElementById('tabSearchInput');
-      input.value = ''; tabSearchState.items = []; tabSearchRender(); tabSearchToggle(false);
+      input.value = ''; tabSearchState.items = []; tabSearchRender(); tabSearchToggle();
       const main = document.getElementById('tickerInput'); if (main) main.value = ticker;
       switchAppTab('analysis'); executeAnalysis(ticker);
     }
@@ -1245,7 +1247,7 @@
           const n = tabSearchState.items.length;
           if (e.key === 'ArrowDown' && n) { e.preventDefault(); tabSearchState.active = (tabSearchState.active + 1) % n; tabSearchRender(); }
           else if (e.key === 'ArrowUp' && n) { e.preventDefault(); tabSearchState.active = (tabSearchState.active - 1 + n) % n; tabSearchRender(); }
-          else if (e.key === 'Escape') tabSearchToggle(false);
+          else if (e.key === 'Escape') tabSearchToggle();
         });
         input.addEventListener('blur', () => setTimeout(() => { const s = document.getElementById('tabSearchSuggest'); if (s) s.classList.add('hidden'); }, 150));
       }
