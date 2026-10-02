@@ -883,7 +883,7 @@
               5인의 투자 위원회 인터랙티브 Q&A & 난상 토론
             </h3>
             <p class="text-xs text-slate-400 mt-1">
-              원하는 전문가를 지정하거나 위원회 전원에게 질문하세요. Gemini 키를 연결하면 AI가 답변합니다 (질문 1개당 유료 호출 1회).
+              원하는 전문가를 지정하거나 <b class="text-cyan-300">5인 합동 토론</b>으로 전원에게 질문하세요. 합동 토론에서는 전문가들이 서로의 말을 받아 반박·보완하는 채팅이 펼쳐지고, 내가 중간에 끼어들 수도 있습니다. Gemini 키가 필요하며 질문(또는 '토론 이어가기') 1번에 AI 호출 1회입니다.
             </p>
           </div>
           <div class="text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
@@ -939,6 +939,12 @@
             <i class="fa-solid fa-circle-question text-cyan-400"></i>
             <span>종목에 대한 구체적인 시나리오나 매매 전략을 자유롭게 질문해 보세요.</span>
           </div>
+        </div>
+
+        <div id="debateControls" class="hidden flex flex-wrap items-center gap-2 text-[11px]">
+          <button type="button" onclick="runDebate('', { more: true })" id="debateMoreBtn" class="px-3 py-1.5 rounded-lg bg-cyan-950 hover:bg-cyan-900 border border-cyan-700/70 text-cyan-300 font-semibold"><i class="fa-solid fa-forward mr-1"></i>토론 이어가기</button>
+          <button type="button" onclick="debateReset()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-400">새 토론으로 비우기</button>
+          <span class="text-slate-500">입력창에 말을 쓰면 내가 토론에 끼어듭니다.</span>
         </div>
 
         <!-- Question Input Bar -->
@@ -5937,6 +5943,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const d = currentAnalysisData;
       const persona = CHAT_PERSONAS[activeChatTarget] || CHAT_PERSONAS.roundtable;
       input.value = '';
+      if (activeChatTarget === 'roundtable' && hasAnyGeminiKey()) { runDebate(question); return; } // 5인 합동 토론: 채팅형 난상토론
       appendChatBubble('user', '투자자 질문:', question);
 
       if (!hasAnyGeminiKey()) {
@@ -5960,6 +5967,129 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         bodyEl.textContent = (r.text.trim() || '(빈 응답)') + (r.fallback ? '\n\n※ 구글 검색 한도/권한 문제로 검색 없이 답변했습니다.' : '') + (r.keyUsed ? `\n(${r.keyUsed} 사용${r.grounded ? ' · 검색 Grounding' : ''})` : '');
       }
       document.getElementById('expertChatHistory').scrollTop = document.getElementById('expertChatHistory').scrollHeight;
+    }
+
+
+    // ===== 5인 난상토론 (채팅형) =====
+    // AI 호출 1번으로 '서로의 말을 받아치는' 대본을 한꺼번에 받아, 전문가가 차례로 입력 중… → 말풍선으로 등장시킨다.
+    // (실제로 다섯 명이 따로 생각하는 것이 아니라 AI 한 번이 쓴 토론 대본입니다. 근거 수치는 검증 데이터만 쓰도록 지시)
+    const DEBATERS = {
+      david: { name: '데이비드', role: '해자·장기 성장', icon: 'fa-seedling', av: 'bg-amber-500/20 text-amber-300 border-amber-500/50', nm: 'text-amber-300', bub: 'border-amber-500/30' },
+      victor: { name: '빅터', role: '차트·기술', icon: 'fa-chart-line', av: 'bg-blue-500/20 text-blue-300 border-blue-500/50', nm: 'text-blue-300', bub: 'border-blue-500/30' },
+      clara: { name: '클라라', role: '가치평가·DCF', icon: 'fa-scale-balanced', av: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50', nm: 'text-emerald-300', bub: 'border-emerald-500/30' },
+      marcus: { name: '마커스', role: '매크로·리스크', icon: 'fa-shield-halved', av: 'bg-purple-500/20 text-purple-300 border-purple-500/50', nm: 'text-purple-300', bub: 'border-purple-500/30' },
+      sophia: { name: '소피아', role: '수급·공매도', icon: 'fa-robot', av: 'bg-pink-500/20 text-pink-300 border-pink-500/50', nm: 'text-pink-300', bub: 'border-pink-500/30' }
+    };
+    const debate = { ticker: '', topic: '', log: [], busy: false, skip: false, playing: Promise.resolve() };
+    const debateSleep = ms => new Promise(r => setTimeout(r, ms));
+
+    function debateReset(silent) {
+      debate.skip = true; debate.log = []; debate.topic = '';
+      const box = document.getElementById('expertChatHistory'); if (box && !silent) box.innerHTML = '<div class="text-xs text-slate-500 text-center py-4">새 토론을 시작하려면 5인 합동 토론을 선택하고 주제를 입력하세요.</div>';
+      const c = document.getElementById('debateControls'); if (c) c.classList.add('hidden');
+    }
+
+    function debateBubble(who, text, to) {
+      const box = document.getElementById('expertChatHistory');
+      const wrap = document.createElement('div'); wrap.className = 'flex items-start gap-2.5';
+      let inner;
+      if (who === 'sum') {
+        wrap.className = 'flex justify-center';
+        inner = `<div class="max-w-xl w-full bg-slate-900/80 border border-cyan-700/50 rounded-xl px-4 py-3 text-xs leading-relaxed text-slate-200"><span class="font-bold text-cyan-300 block mb-1"><i class="fa-solid fa-gavel mr-1"></i>위원회 정리</span><span class="whitespace-pre-wrap" data-t></span></div>`;
+      } else {
+        const m = DEBATERS[who];
+        const reply = to && DEBATERS[to] ? `<span class="text-[10px] text-slate-500 block"><i class="fa-solid fa-reply mr-1"></i>${DEBATERS[to].name}에게</span>` : '';
+        inner = `<span class="w-8 h-8 rounded-full border ${m.av} grid place-items-center shrink-0"><i class="fa-solid ${m.icon} text-xs"></i></span>
+          <div class="min-w-0"><div class="text-[11px] mb-0.5"><b class="${m.nm}">${m.name}</b> <span class="text-slate-500">${m.role}</span></div>
+          <div class="bg-slate-900 border ${m.bub} rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-xl text-xs leading-relaxed text-slate-200 shadow">${reply}<span class="whitespace-pre-wrap" data-t></span></div></div>`;
+      }
+      wrap.innerHTML = inner;
+      wrap.querySelector('[data-t]').textContent = text;
+      box.appendChild(wrap); box.scrollTop = box.scrollHeight;
+      return wrap;
+    }
+    function debateTyping(who) {
+      const box = document.getElementById('expertChatHistory');
+      const m = DEBATERS[who];
+      const wrap = document.createElement('div'); wrap.className = 'flex items-center gap-2.5';
+      const label = m ? `<span class="w-8 h-8 rounded-full border ${m.av} grid place-items-center shrink-0"><i class="fa-solid ${m.icon} text-xs"></i></span><span class="text-[11px] ${m.nm}">${m.name} 입력 중</span>` : `<span class="text-[11px] text-slate-400">${who}</span>`;
+      wrap.innerHTML = `${label}<span class="flex gap-1 ml-1"><i class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse"></i><i class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse" style="animation-delay:.2s"></i><i class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse" style="animation-delay:.4s"></i></span>`;
+      box.appendChild(wrap); box.scrollTop = box.scrollHeight;
+      return wrap;
+    }
+
+    function debateParse(text) {
+      const out = [];
+      String(text || '').split(/\r?\n/).forEach(line => {
+        const m = line.trim().match(/^[\[［]\s*(david|victor|clara|marcus|sophia|sum)\s*(?:[>＞→]\s*(david|victor|clara|marcus|sophia))?\s*[\]］]\s*(.+)$/i);
+        if (m) out.push({ who: m[1].toLowerCase(), to: (m[2] || '').toLowerCase(), text: m[3].trim() });
+      });
+      return out;
+    }
+
+    function debatePrompt(d, userText, more) {
+      const log = debate.log.slice(-26).map(x => `${x.who === 'user' ? '투자자(사용자)' : x.who === 'sum' ? '위원회 정리' : DEBATERS[x.who].name}: ${x.text}`).join('\n');
+      const n = more ? 8 : 10;
+      return `너는 투자 교육 앱의 '5인 투자 위원회 난상토론' 대본 작가다. 아래 5명이 채팅하듯 서로의 말을 받아 토론한다.
+참여자: david(데이비드, 해자·장기 성장·사업 경쟁력), victor(빅터, 차트·이동평균·RSI 등 기술적 분석), clara(클라라, 가치평가·DCF·P/E·목표가), marcus(마커스, 매크로·금리·지정학 리스크), sophia(소피아, 수급·공매도·기관 보유).
+종목: ${d.name} (${d.ticker}), 현재가 ${d.price ? fmtPx(d.price) : '(데이터 없음)'} ${d.change}.
+토론 주제: ${debate.topic}
+${log ? `지금까지의 대화:\n${log}\n` : ''}${userText ? `방금 투자자(사용자)가 끼어들어 말했다: "${userText}" — 첫 발언자들이 이 말에 직접 답한다.\n` : ''}
+규칙:
+- ${log ? '위 대화에 이어서' : '토론을 시작해서'} 정확히 ${n}개의 발언과 마지막 [sum] 1줄을 쓴다. 발언 하나는 1~3문장, 말투는 동료끼리 대화하듯 자연스럽게(존댓말).
+- 각 발언은 앞선 발언자의 구체적인 주장을 이름을 불러 짚으며 동의·반박·보완한다. 모두가 쉽게 동의하지 말고, 관점 차이에서 오는 갈등을 드러내라. 5명 모두 최소 한 번 발언한다. 자기 전문 분야의 근거로 말한다.
+- 수치·사실은 아래 검증 데이터에 있는 것만 인용한다. 없는 수치·뉴스·목표가·실적을 지어내지 말고, 모르면 모른다고 말한다.
+- 마지막 [sum] 줄은 합의된 점과 끝내 갈린 쟁점을 2문장으로 정리하고, 투자 권유가 아님을 밝힌다.
+출력 형식: 한 줄에 발언 하나. \`[발언자id]\` 또는 \`[발언자id>대상id]\` 로 시작 (예: [victor>clara] 클라라님 말씀대로… ). 마지막 줄은 [sum] 로 시작. 설명·마크다운·번호 금지.
+지표(빈 값은 데이터 없음): P/E ${fmtNum(d.pe)}, PEG ${fmtNum(d.peg)}, ROE ${fmtNum(d.roe, null, '%')}, Short Float ${fmtNum(d.shortFloat, null, '%')}, RSI ${fmtNum(d.rsi)}, SMA20 ${d.sma20Diff}, SMA50 ${d.sma50Diff}, SMA200 ${d.sma200Diff}, 애널리스트 목표가 ${d.targetAvg !== null ? fmtPx(d.targetAvg) : ''}.
+검증 데이터:
+${buildVerifiedDataText(analysisInputs)}`;
+    }
+
+    async function runDebate(userText, { more = false } = {}) {
+      if (!currentAnalysisData) { showToast('분석 필요', '먼저 종목 분석을 실행해 주세요.', 'info'); return; }
+      if (!hasAnyGeminiKey()) { showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 5인 토론을 볼 수 있습니다.', 'info'); openApiSettingsModal(); return; }
+      const d = currentAnalysisData;
+      userText = String(userText || '').trim();
+      debate.skip = true; await debate.playing; debate.skip = false; // 재생 중이던 토론은 즉시 마저 보여주고 새로 시작
+      if (debate.busy) return;
+      const box = document.getElementById('expertChatHistory');
+      if (debate.ticker !== d.ticker) { debate.ticker = d.ticker; debate.log = []; debate.topic = ''; document.getElementById('debateControls').classList.add('hidden'); }
+      if (!debate.log.length) box.innerHTML = '';
+      if (userText) {
+        appendChatBubble('user', '투자자 (나):', userText);
+        debate.log.push({ who: 'user', text: userText });
+        if (!debate.topic) debate.topic = userText;
+      }
+      if (!debate.topic) debate.topic = '지금 이 종목을 어떻게 봐야 하는가 (매수·관망·회피 관점)';
+      const prompt = debatePrompt(d, userText, more);
+      debate.busy = true;
+      const sendBtn = document.getElementById('sendQuestionBtn'), moreBtn = document.getElementById('debateMoreBtn');
+      if (sendBtn) sendBtn.disabled = true; if (moreBtn) moreBtn.disabled = true;
+      const wait = debateTyping('위원회가 토론을 준비하는 중…');
+      const r = await callGemini(prompt, { grounding: true });
+      wait.remove();
+      debate.busy = false;
+      if (sendBtn) sendBtn.disabled = false; if (moreBtn) moreBtn.disabled = false;
+      if (!r || r.error) {
+        appendChatBubble('ai', '5인 합동 토론', `토론을 불러오지 못했습니다${r?.error ? ` (${r.keyUsed ? r.keyUsed + ': ' : ''}${r.error})` : ''}.\n\n지표 기반 자동 응답:\n${templateAnswer('roundtable', d)}`);
+        return;
+      }
+      const msgs = debateParse(r.text);
+      if (!msgs.length) { appendChatBubble('ai', '5인 합동 토론', (r.text || '').trim() || '(빈 응답)'); return; }
+      document.getElementById('debateControls').classList.remove('hidden');
+      debate.playing = (async () => {
+        for (const m of msgs) {
+          if (!debate.skip) {
+            const t = debateTyping(m.who === 'sum' ? '정리 중…' : m.who);
+            await debateSleep(Math.min(1500, 500 + m.text.length * 14));
+            t.remove();
+          }
+          debateBubble(m.who, m.text, m.to);
+          debate.log.push({ who: m.who, text: m.text });
+        }
+        if (r.keyUsed) { const f = document.createElement('div'); f.className = 'text-[10px] text-slate-600 text-center'; f.textContent = `(${r.keyUsed} 사용${r.grounded ? ' · 검색 Grounding' : ''}${r.fallback ? ' · 검색 한도로 검색 없이' : ''} · AI가 쓴 토론 대본이며 투자 권유가 아닙니다)`; box.appendChild(f); box.scrollTop = box.scrollHeight; }
+      })();
     }
 
     function generateAudioBriefing() {
