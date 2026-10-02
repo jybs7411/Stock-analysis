@@ -33,7 +33,9 @@
     .font-mono-numbers {
       font-family: 'JetBrains Mono', monospace;
     }
-    @media (max-width: 1499px) { #tabNav [id^=tabBtn-] > span.rounded-full { display: none; } #tabNav [id^=tabBtn-] { padding-left: 0.85rem; padding-right: 0.85rem; } }
+    #tabNav [id^=tabBtn-] > span.rounded-full { display: none; } /* 탭이 7개라 NEW 배지는 숨김 */
+    #tabNav [id^=tabBtn-] { padding-left: 0.85rem; padding-right: 0.85rem; }
+    @media (max-width: 1399px) { #tabNav [id^=tabBtn-] { padding-left: 0.65rem; padding-right: 0.65rem; gap: 0.35rem; } #tabNav [id^=tabBtn-] > i { font-size: 0.8em; } }
     #tabNav.is-stuck [id^=tabBtn-] { padding: 0.4rem 0.8rem; }
     #tabNav.is-stuck [id^=tabBtn-] > span.rounded-full { display: none; }
     .chart-lg-row { pointer-events: auto; display: flex; width: fit-content; max-width: 100%; }
@@ -147,7 +149,7 @@
         class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition"
       >
         <i class="fa-solid fa-filter text-amber-400"></i>
-        <span>Finviz × Fool 스마트 스크리너</span>
+        <span title="Finviz × Fool">스마트 스크리너</span>
       </button>
 
       <button onclick="switchAppTab('bdw')" id="tabBtn-bdw" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
@@ -165,6 +167,10 @@
       <button onclick="switchAppTab('market')" id="tabBtn-market" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
         <i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장 · 매크로</span>
         <span class="ml-1 px-1.5 py-0.5 rounded-full bg-sky-950 text-sky-300 text-[10px] font-bold border border-sky-800/80">NEW</span>
+      </button>
+      <button onclick="switchAppTab('multi')" id="tabBtn-multi" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-table-cells-large text-fuchsia-400"></i><span>멀티 차트</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-fuchsia-950 text-fuchsia-300 text-[10px] font-bold border border-fuchsia-800/80">NEW</span>
       </button>
     </div>
 
@@ -1128,6 +1134,10 @@
     <div id="view-market" class="hidden space-y-6">
       <div id="marketRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
     </div>
+    <!-- TAB 6: 멀티 차트 2×2 (module: multi) -->
+    <div id="view-multi" class="hidden space-y-4">
+      <div id="multiRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
+    </div>
 
   </main>
 
@@ -1208,7 +1218,8 @@
       bdw: { on: 'bg-orange-950 text-orange-300 border-orange-700/80 shadow-md shadow-orange-950/50' },
       prevday: { on: 'bg-violet-950 text-violet-300 border-violet-700/80 shadow-md shadow-violet-950/50' },
       fx: { on: 'bg-emerald-950 text-emerald-300 border-emerald-700/80 shadow-md shadow-emerald-950/50' },
-      market: { on: 'bg-sky-950 text-sky-300 border-sky-700/80 shadow-md shadow-sky-950/50' }
+      market: { on: 'bg-sky-950 text-sky-300 border-sky-700/80 shadow-md shadow-sky-950/50' },
+      multi: { on: 'bg-fuchsia-950 text-fuchsia-300 border-fuchsia-700/80 shadow-md shadow-fuchsia-950/50' }
     };
     const TAB_HOOKS = {};
     let activeAppTab = 'analysis';
@@ -14309,6 +14320,704 @@ ${digest}`;
             setTimeout(mkRenderTree, 60); // 탭이 막 열려 폭이 확정된 뒤 트리맵을 다시 그린다
         };
     }
+  </script>
+
+  <script id="mod-multi">
+    // ===== 멀티 차트(2×2, ㅁ자 배치) 탭 모듈 =====
+    // 메인 차트 엔진(CH)은 화면에 하나뿐이라, 이 탭은 가벼운 자체 캔버스 차트 4개를 따로 둔다.
+    // 메인 스크립트의 공용 헬퍼(fetchRealYahooFinanceData, resolveTickerSmart, searchSymbols, localSuggestions, CH_IV, TA,
+    // smaSeries/emaSeries/bollingerSeries/rsiSeries, loadRecentSearches, quickSearch, showToast)만 호출하고 DOM 은 #multiRoot 안에서만 만진다.
+    (function () {
+      const KEY = 'pentanalyst_multichart';
+      const IVS = ['1m', '5m', '15m', '30m', '60m', 'D', 'W', 'M'];
+      const IV_LABEL = { '1m': '1분', '5m': '5분', '15m': '15분', '30m': '30분', '60m': '60분', D: '일', W: '주', M: '월' };
+      const NV = { '1m': 240, '5m': 156, '15m': 104, '30m': 80, '60m': 90, D: 130, W: 104, M: 60 }; // 처음 보이는 봉 수
+      const IND = [
+        { k: 'ema20', label: 'EMA20', color: '#fbbf24' }, { k: 'sma50', label: 'SMA50', color: '#38bdf8' }, { k: 'sma200', label: 'SMA200', color: '#f472b6' },
+        { k: 'bb', label: '볼린저', color: '#a78bfa' }, { k: 'vwap', label: '세션VWAP', color: '#34d399', intraOnly: true },
+        { k: 'vol', label: '거래량' }, { k: 'rsi', label: 'RSI' }
+      ];
+      const TYPES = { candle: '캔들', ha: '하이킨아시', line: '라인' };
+      const UP = '#10b981', DN = '#f43f5e';
+      const mcOk = v => v !== null && v !== undefined && Number.isFinite(v);
+      const mcEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+      const defInd = () => ({ ema20: true, sma50: true, sma200: false, bb: false, vwap: false, vol: true, rsi: false });
+      const mkCfg = (t, iv) => ({ t, iv, type: 'candle', ind: defInd() });
+      const PRESETS = {
+        tickers: () => [mkCfg('SPY', 'D'), mkCfg('QQQ', 'D'), mkCfg('IWM', 'D'), mkCfg('DIA', 'D')],
+        frames: t => [mkCfg(t, 'W'), mkCfg(t, 'D'), mkCfg(t, '60m'), mkCfg(t, '15m')]
+      };
+
+      const S = { panels: null, sync: true, h: 360, focus: -1 };   // 저장되는 상태
+      const P = [];                                                 // 패널 런타임
+      let built = false, hoverSrc = -1, hoverT = null, ro = null;
+
+      function load() {
+        try {
+          const j = JSON.parse(localStorage.getItem(KEY) || 'null');
+          if (j && Array.isArray(j.panels) && j.panels.length === 4) {
+            S.panels = j.panels.map(c => ({
+              t: String(c.t || '').toUpperCase().slice(0, 20) || 'SPY', iv: IVS.includes(c.iv) ? c.iv : 'D',
+              type: TYPES[c.type] ? c.type : 'candle', ind: Object.assign(defInd(), c.ind || {})
+            }));
+            S.sync = j.sync !== false;
+            S.h = [300, 360, 460].includes(j.h) ? j.h : 360;
+          }
+        } catch (e) { /* 저장값이 없거나 깨져도 기본값으로 시작 */ }
+        if (!S.panels) {
+          const cur = (typeof currentAnalysisData !== 'undefined' && currentAnalysisData && currentAnalysisData.ticker) || '';
+          S.panels = cur ? PRESETS.frames(cur) : PRESETS.tickers();
+        }
+      }
+      function save() { try { localStorage.setItem(KEY, JSON.stringify({ panels: S.panels, sync: S.sync, h: S.h })); } catch (e) { /* 저장 불가 환경 */ } }
+
+      // ---------- 골격 ----------
+      function buildSkeleton() {
+        const root = document.getElementById('multiRoot');
+        if (!root) return false;
+        const btn = 'px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-500 transition';
+        root.innerHTML = `
+          <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="text-sm font-bold text-white mr-1"><i class="fa-solid fa-table-cells-large text-fuchsia-400 mr-1.5"></i>멀티 차트 <span class="text-slate-500 font-normal text-xs">4분할 (ㅁ)</span></div>
+              <button type="button" class="${btn}" data-mc="preset-tickers" title="SPY·QQQ·IWM·DIA 일봉 4개 (지수 ETF)"><i class="fa-solid fa-layer-group mr-1"></i>4종목 보기</button>
+              <button type="button" class="${btn}" data-mc="preset-frames" title="한 종목을 주·일·60분·15분봉으로 나란히 봅니다"><i class="fa-solid fa-clock mr-1"></i>한 종목 4시간대</button>
+              <form id="mcAllForm" class="flex items-center gap-1" autocomplete="off">
+                <input id="mcAllInput" type="text" placeholder="종목 → 4칸 모두" class="w-32 sm:w-40 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-fuchsia-500">
+                <button class="${btn}" title="입력한 종목을 4칸 모두에 적용 (시간대는 유지)">적용</button>
+              </form>
+              <div class="flex items-center gap-1 ml-auto">
+                <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none mr-1" title="한 차트에 마우스를 올리면 다른 차트에도 같은 시각의 세로선을 표시합니다"><input id="mcSync" type="checkbox" class="accent-fuchsia-500">크로스헤어 연동</label>
+                <select id="mcAllIv" class="bg-slate-950 border border-slate-700 rounded-lg px-1.5 py-1.5 text-[11px] text-slate-300 focus:outline-none" title="4칸 모두 같은 봉으로">
+                  <option value="">봉 일괄…</option>${IVS.map(v => `<option value="${v}">${IV_LABEL[v]}봉</option>`).join('')}
+                </select>
+                <select id="mcH" class="bg-slate-950 border border-slate-700 rounded-lg px-1.5 py-1.5 text-[11px] text-slate-300 focus:outline-none" title="차트 높이">
+                  <option value="300">높이 작게</option><option value="360">높이 보통</option><option value="460">높이 크게</option>
+                </select>
+                <button type="button" class="${btn}" data-mc="refresh" title="4개 모두 최신 데이터로 다시 불러오기"><i class="fa-solid fa-rotate"></i></button>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-500 leading-relaxed">휠: 확대·축소 · 드래그: 이동 · 더블클릭: 처음 보기로 · 칸 제목의 <i class="fa-solid fa-expand"></i> : 한 칸만 크게 (Esc로 복귀). 분봉은 Worker를 최신으로 배포해야 나옵니다. 설정은 이 브라우저에 저장됩니다.</div>
+          </div>
+          <div id="mcGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-3"></div>`;
+        const grid = document.getElementById('mcGrid');
+        P.length = 0;
+        for (let i = 0; i < 4; i++) {
+          const el = document.createElement('div');
+          el.className = 'mc-panel bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden flex flex-col';
+          el.dataset.i = i;
+          el.innerHTML = `
+            <div class="flex flex-wrap items-center gap-1.5 px-2.5 pt-2.5 pb-1.5">
+              <span class="w-5 h-5 rounded-md bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0">${i + 1}</span>
+              <div class="relative">
+                <input data-f="ticker" type="text" class="w-28 bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-xs font-bold text-white uppercase focus:outline-none focus:border-fuchsia-500" spellcheck="false" autocomplete="off" title="종목 코드 또는 회사 이름 (Enter)">
+                <div data-f="sug" class="hidden absolute z-30 left-0 top-full mt-1 w-64 max-h-60 overflow-y-auto bg-slate-950 border border-slate-700 rounded-lg shadow-xl"></div>
+              </div>
+              <div data-f="ivs" class="flex items-center rounded-md border border-slate-700 overflow-hidden">
+                ${IVS.map(v => `<button type="button" data-iv="${v}" class="px-1.5 py-1 text-[10px] font-semibold text-slate-400 hover:text-white">${IV_LABEL[v]}</button>`).join('')}
+              </div>
+              <select data-f="type" class="bg-slate-950 border border-slate-700 rounded-md px-1 py-1 text-[10px] text-slate-300 focus:outline-none">
+                ${Object.keys(TYPES).map(k => `<option value="${k}">${TYPES[k]}</option>`).join('')}
+              </select>
+              <div class="relative ml-auto flex items-center gap-1">
+                <button type="button" data-f="indBtn" class="px-1.5 py-1 rounded-md border border-slate-700 text-[10px] font-semibold text-slate-300 hover:text-white" title="보조지표"><i class="fa-solid fa-chart-line mr-1"></i>지표</button>
+                <button type="button" data-f="open" class="px-1.5 py-1 rounded-md border border-slate-700 text-[10px] text-slate-300 hover:text-white" title="분석 탭에서 이 종목 자세히 보기"><i class="fa-solid fa-magnifying-glass-chart"></i></button>
+                <button type="button" data-f="focus" class="px-1.5 py-1 rounded-md border border-slate-700 text-[10px] text-slate-300 hover:text-white" title="이 칸만 크게"><i class="fa-solid fa-expand"></i></button>
+                <div data-f="indMenu" class="hidden absolute z-30 right-0 top-full mt-1 w-40 bg-slate-950 border border-slate-700 rounded-lg shadow-xl p-1.5 space-y-0.5">
+                  ${IND.map(d => `<label class="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-300 cursor-pointer"><input type="checkbox" data-ind="${d.k}" class="accent-fuchsia-500">${d.color ? `<span class="w-2 h-2 rounded-full" style="background:${d.color}"></span>` : '<span class="w-2"></span>'}${d.label}${d.intraOnly ? '<span class="text-slate-600 text-[9px] ml-auto">분봉</span>' : ''}</label>`).join('')}
+                </div>
+              </div>
+            </div>
+            <div data-f="title" class="px-3 pb-1 text-[11px] text-slate-500 truncate min-h-[18px]"></div>
+            <div data-f="wrap" class="relative mx-1 mb-1" style="height:${S.h}px">
+              <canvas data-f="cv" class="absolute inset-0 w-full h-full touch-none select-none cursor-crosshair"></canvas>
+              <div data-f="msg" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400 pointer-events-none text-center px-6"></div>
+            </div>`;
+          grid.appendChild(el);
+          const p = { i, el, cfg: S.panels[i], data: null, hist: [], ha: null, ind: {}, tix: null, nv: 100, right: 0, w: 0, h: 0, dpr: 1, hover: -1, mx: 0, my: 0, raf: 0, loading: false, err: '', pointers: new Map(), drag: null, seq: 0, sugTimer: null, sugSeq: 0 };
+          p.cv = el.querySelector('[data-f=cv]'); p.wrap = el.querySelector('[data-f=wrap]'); p.msg = el.querySelector('[data-f=msg]');
+          p.title = el.querySelector('[data-f=title]'); p.inp = el.querySelector('[data-f=ticker]'); p.sug = el.querySelector('[data-f=sug]');
+          p.indMenu = el.querySelector('[data-f=indMenu]');
+          P.push(p);
+          wirePanel(p);
+        }
+        root.querySelector('#mcSync').checked = S.sync;
+        root.querySelector('#mcH').value = String(S.h);
+        wireToolbar(root);
+        if (window.ResizeObserver) {
+          ro = new ResizeObserver(() => P.forEach(p => resizePanel(p)));
+          P.forEach(p => ro.observe(p.wrap));
+        }
+        P.forEach(syncControls);
+        applyFocus();
+        return true;
+      }
+
+      function syncControls(p) {
+        const c = p.cfg;
+        p.inp.value = c.t;
+        p.el.querySelector('[data-f=type]').value = c.type;
+        p.el.querySelectorAll('[data-iv]').forEach(b => {
+          const on = b.dataset.iv === c.iv;
+          b.className = `px-1.5 py-1 text-[10px] font-semibold ${on ? 'bg-fuchsia-600 text-white' : 'text-slate-400 hover:text-white'}`;
+        });
+        p.el.querySelectorAll('[data-ind]').forEach(cb => { cb.checked = !!c.ind[cb.dataset.ind]; });
+      }
+
+      function wireToolbar(root) {
+        root.querySelectorAll('[data-mc]').forEach(b => b.addEventListener('click', () => {
+          const a = b.dataset.mc;
+          if (a === 'preset-tickers') setAll(PRESETS.tickers());
+          else if (a === 'preset-frames') {
+            const base = (typeof currentAnalysisData !== 'undefined' && currentAnalysisData && currentAnalysisData.ticker) || P[0].cfg.t || 'SPY';
+            setAll(PRESETS.frames(base));
+          } else if (a === 'refresh') P.forEach(p => loadPanel(p));
+        }));
+        root.querySelector('#mcAllForm').addEventListener('submit', async e => {
+          e.preventDefault();
+          const inp = root.querySelector('#mcAllInput');
+          const raw = inp.value.trim();
+          if (!raw) return;
+          const t = await resolve(raw);
+          inp.value = '';
+          S.panels.forEach(c => { c.t = t; });
+          P.forEach(p => { p.cfg = S.panels[p.i]; syncControls(p); loadPanel(p); });
+          save();
+        });
+        root.querySelector('#mcSync').addEventListener('change', e => { S.sync = e.target.checked; save(); if (!S.sync) clearHover(); });
+        root.querySelector('#mcH').addEventListener('change', e => {
+          S.h = +e.target.value; save();
+          P.forEach(p => { p.wrap.style.height = S.h + 'px'; resizePanel(p); });
+        });
+        root.querySelector('#mcAllIv').addEventListener('change', e => {
+          const v = e.target.value; e.target.value = '';
+          if (!v) return;
+          S.panels.forEach(c => { c.iv = v; });
+          P.forEach(p => { syncControls(p); loadPanel(p); });
+          save();
+        });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.focus >= 0 && activeAppTab === 'multi') { S.focus = -1; applyFocus(); } });
+        document.addEventListener('click', e => {
+          if (!e.target.closest('[data-f=indMenu]') && !e.target.closest('[data-f=indBtn]')) P.forEach(p => p.indMenu.classList.add('hidden'));
+          if (!e.target.closest('[data-f=sug]') && !e.target.closest('[data-f=ticker]')) P.forEach(p => p.sug.classList.add('hidden'));
+        });
+      }
+
+      function setAll(cfgs) {
+        S.panels = cfgs;
+        P.forEach(p => { p.cfg = S.panels[p.i]; syncControls(p); loadPanel(p); });
+        save();
+      }
+
+      function applyFocus() {
+        P.forEach(p => {
+          p.el.classList.toggle('hidden', S.focus >= 0 && S.focus !== p.i);
+          p.el.classList.toggle('lg:col-span-2', S.focus === p.i);
+          const b = p.el.querySelector('[data-f=focus] i');
+          if (b) b.className = S.focus === p.i ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+          p.wrap.style.height = (S.focus === p.i ? Math.max(S.h, Math.min(640, Math.round(window.innerHeight * 0.68))) : S.h) + 'px';
+        });
+        setTimeout(() => P.forEach(resizePanel), 30);
+      }
+
+      // ---------- 종목 입력 / 자동완성 ----------
+      async function resolve(raw) {
+        try { const r = await resolveTickerSmart(raw); return String(r.ticker || raw).toUpperCase(); } catch (e) { return String(raw).toUpperCase(); }
+      }
+      function wirePanel(p) {
+        const el = p.el;
+        p.inp.addEventListener('focus', () => p.inp.select());
+        p.inp.addEventListener('keydown', async e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const raw = p.inp.value.trim();
+            p.sug.classList.add('hidden');
+            if (!raw) { p.inp.value = p.cfg.t; return; }
+            const t = await resolve(raw);
+            setTicker(p, t);
+          } else if (e.key === 'Escape') { p.sug.classList.add('hidden'); p.inp.value = p.cfg.t; p.inp.blur(); }
+        });
+        p.inp.addEventListener('input', () => {
+          clearTimeout(p.sugTimer);
+          const q = p.inp.value.trim();
+          if (!q) { p.sug.classList.add('hidden'); return; }
+          showSug(p, localSuggestions(q, 5), true);
+          p.sugTimer = setTimeout(async () => {
+            const my = ++p.sugSeq;
+            let online = [];
+            try { online = await searchSymbols(q); } catch (e) { online = []; }
+            if (my !== p.sugSeq || p.inp.value.trim() !== q) return;
+            const seen = new Set(), merged = [];
+            localSuggestions(q, 4).concat(online.slice(0, 7)).forEach(r => { if (r && r.symbol && !seen.has(r.symbol)) { seen.add(r.symbol); merged.push(r); } });
+            showSug(p, merged, false);
+          }, 250);
+        });
+        p.sug.addEventListener('mousedown', e => {
+          const it = e.target.closest('[data-sym]');
+          if (!it) return;
+          e.preventDefault();
+          p.sug.classList.add('hidden');
+          setTicker(p, it.dataset.sym);
+        });
+        el.querySelector('[data-f=ivs]').addEventListener('click', e => {
+          const b = e.target.closest('[data-iv]');
+          if (!b || b.dataset.iv === p.cfg.iv) return;
+          p.cfg.iv = b.dataset.iv; syncControls(p); save(); loadPanel(p);
+        });
+        el.querySelector('[data-f=type]').addEventListener('change', e => { p.cfg.type = e.target.value; save(); prepare(p); fit(p, false); draw(p); });
+        el.querySelector('[data-f=indBtn]').addEventListener('click', () => {
+          const open = p.indMenu.classList.contains('hidden');
+          P.forEach(q => q.indMenu.classList.add('hidden'));
+          p.indMenu.classList.toggle('hidden', !open);
+        });
+        p.indMenu.addEventListener('change', e => {
+          const cb = e.target.closest('[data-ind]');
+          if (!cb) return;
+          p.cfg.ind[cb.dataset.ind] = cb.checked; save(); draw(p);
+        });
+        el.querySelector('[data-f=open]').addEventListener('click', () => { if (typeof quickSearch === 'function') quickSearch(p.cfg.t); });
+        el.querySelector('[data-f=focus]').addEventListener('click', () => { S.focus = S.focus === p.i ? -1 : p.i; applyFocus(); });
+        wireChartInput(p);
+      }
+      function showSug(p, items, loading) {
+        const box = p.sug;
+        if (!items.length) { box.innerHTML = loading ? '' : '<div class="px-3 py-2 text-[11px] text-slate-500">검색 결과 없음 — Enter로 입력값 그대로 시도</div>'; box.classList.toggle('hidden', loading); return; }
+        box.innerHTML = items.map(r => `<div data-sym="${mcEsc(r.symbol)}" class="px-3 py-1.5 cursor-pointer hover:bg-slate-800 border-b border-slate-800/60 last:border-0"><span class="text-xs font-bold text-white">${mcEsc(r.symbol)}</span> <span class="text-[10px] text-slate-500">${mcEsc(r.exchange || '')}</span><div class="text-[10px] text-slate-400 truncate">${mcEsc(r.name || '')}</div></div>`).join('');
+        box.classList.remove('hidden');
+      }
+      function setTicker(p, t) {
+        p.cfg.t = t; p.inp.value = t; save(); loadPanel(p);
+      }
+
+      // ---------- 데이터 ----------
+      async function loadPanel(p) {
+        const c = p.cfg, def = CH_IV[c.iv];
+        const my = ++p.seq;
+        p.loading = true; p.err = '';
+        p.hist = []; p.data = null; p.hover = -1;
+        setMsg(p, `<i class="fa-solid fa-spinner fa-spin mr-2"></i>${mcEsc(c.t)} ${IV_LABEL[c.iv]}봉 불러오는 중…`);
+        p.title.textContent = '';
+        draw(p);
+        let d = null;
+        try { d = await fetchRealYahooFinanceData(c.t, def.range, def.iv); } catch (e) { d = null; }
+        if (my !== p.seq) return; // 그 사이 다른 종목·봉을 골랐다면 버린다
+        p.loading = false;
+        if (d && d.notFound) p.err = `'${c.t}' 종목을 찾지 못했습니다. 코드를 확인하거나 회사 이름으로 검색해 보세요.`;
+        else if (!d) p.err = '데이터를 불러오지 못했습니다. 잠시 후 새로고침하거나 프록시 설정을 확인하세요.';
+        else if (def.intraday && !d.intraday) p.err = '이 프록시는 분봉을 지원하지 않습니다 (Worker를 최신 코드로 다시 배포하면 분봉이 나옵니다).';
+        if (p.err) { setMsg(p, mcEsc(p.err)); draw(p); return; }
+        p.data = d; p.hist = d.history;
+        setMsg(p, '');
+        p.title.textContent = `${d.name || c.t} · ${d.currency}${d.exchange ? ' · ' + d.exchange : ''}`;
+        p.title.title = p.title.textContent;
+        prepare(p);
+        fit(p, true);
+        draw(p);
+      }
+      function setMsg(p, html) { p.msg.innerHTML = html; }
+
+      // 지표 계산 (원본 종가 기준; 하이킨아시는 캔들 모양만 바꾼다)
+      function prepare(p) {
+        const h = p.hist;
+        p.ha = p.cfg.type === 'ha' ? TA.heikinAshi(h) : null;
+        p.tix = TA.timeIndex(h);
+        const cl = h.map(c => c.close);
+        p.ind = {
+          ema20: TA.ema(cl, 20), sma50: TA.sma(cl, 50), sma200: TA.sma(cl, 200),
+          bb: bollingerSeries(cl, 20, 2), vwap: TA.sessionVwap(h), rsi: rsiSeries(cl, 14)
+        };
+      }
+      function fit(p, reset) {
+        const n = p.hist.length;
+        if (!n) return;
+        if (reset) { p.nv = Math.min(NV[p.cfg.iv] || 120, Math.max(n, 20)); p.right = n + Math.round(p.nv * 0.05); }
+        clampView(p);
+      }
+      function clampView(p) {
+        const n = p.hist.length;
+        p.nv = Math.max(12, Math.min(p.nv, Math.max(n + 20, 40)));
+        p.right = Math.max(Math.min(12, n), Math.min(p.right, n + Math.round(p.nv * 0.4)));
+      }
+
+      // ---------- 크기 / 좌표 ----------
+      const AX = 58, TH = 20;
+      function resizePanel(p) {
+        const r = p.wrap.getBoundingClientRect();
+        const w = Math.max(120, Math.round(r.width)), h = Math.max(120, Math.round(r.height));
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        if (w === p.w && h === p.h && dpr === p.dpr) return;
+        p.w = w; p.h = h; p.dpr = dpr;
+        p.cv.width = Math.round(w * dpr); p.cv.height = Math.round(h * dpr);
+        draw(p);
+      }
+      const plotW = p => p.w - AX;
+      const barW = p => plotW(p) / p.nv;
+      const i0Of = p => p.right - p.nv;
+      const xOf = (p, i) => (i + 0.5 - i0Of(p)) * barW(p);
+      const idxAt = (p, x) => Math.round(x / barW(p) + i0Of(p) - 0.5);
+
+      function layout(p) {
+        const rsiOn = !!p.cfg.ind.rsi;
+        const body = p.h - TH;
+        const rsiH = rsiOn ? Math.round(body * 0.22) : 0;
+        const gap = rsiOn ? 6 : 0;
+        return { priceTop: 6, priceBot: body - rsiH - gap, rsiTop: body - rsiH, rsiBot: body, rsiOn };
+      }
+
+      // ---------- 그리기 ----------
+      function draw(p) {
+        if (p.raf) return;
+        p.raf = requestAnimationFrame(() => { p.raf = 0; drawNow(p); });
+      }
+      function niceStep(range, count) {
+        const raw = range / Math.max(1, count);
+        const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+        const n = raw / mag;
+        return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag;
+      }
+      function fmtAx(v, step) {
+        const dec = step >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(step)));
+        return v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+      }
+      function fmtV(v) { return v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : String(Math.round(v)); }
+      function px(p, v) { const z = p.data && (p.data.currency === 'KRW' || p.data.currency === 'JPY'); return Number(v).toLocaleString('en-US', { minimumFractionDigits: z ? 0 : 2, maximumFractionDigits: z ? 0 : 2 }); }
+
+      function drawNow(p) {
+        const ctx = p.cv.getContext('2d');
+        if (!p.w) return;
+        ctx.setTransform(p.dpr, 0, 0, p.dpr, 0, 0);
+        ctx.clearRect(0, 0, p.w, p.h);
+        ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, p.w, p.h);
+        const h = p.hist, n = h.length;
+        if (!n) return;
+        const L = layout(p), W = plotW(p), bw = barW(p);
+        const i0 = i0Of(p);
+        const a = Math.max(0, Math.floor(i0)), b = Math.min(n - 1, Math.ceil(p.right) - 1);
+        if (b < a) return;
+        const cfg = p.cfg, ind = cfg.ind, series = p.ha || h;
+
+        // 가격 범위 (보이는 구간)
+        let lo = Infinity, hi = -Infinity;
+        for (let i = a; i <= b; i++) { const c = series[i]; if (c.low < lo) lo = c.low; if (c.high > hi) hi = c.high; }
+        const incl = arr => { for (let i = a; i <= b; i++) { const v = arr[i]; if (mcOk(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } } };
+        if (cfg.type !== 'line') {
+          if (ind.ema20) incl(p.ind.ema20); if (ind.sma50) incl(p.ind.sma50); if (ind.sma200) incl(p.ind.sma200);
+          if (ind.bb) { incl(p.ind.bb.upper); incl(p.ind.bb.lower); }
+        }
+        if (!(hi > lo)) { hi = lo + 1; }
+        const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+        const pt = L.priceTop, pb = L.priceBot;
+        const yP = v => pt + (hi - v) / (hi - lo) * (pb - pt);
+
+        // 그리드 · 가격축
+        ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.textBaseline = 'middle';
+        const step = niceStep(hi - lo, Math.max(3, Math.floor((pb - pt) / 48)));
+        ctx.strokeStyle = 'rgba(148,163,184,0.10)'; ctx.fillStyle = '#94a3b8'; ctx.lineWidth = 1;
+        ctx.textAlign = 'left';
+        for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+          const y = Math.round(yP(v)) + 0.5;
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+          ctx.fillText(fmtAx(v, step), W + 5, y);
+        }
+        // 시간축
+        const xl = (L.rsiOn ? L.rsiBot : pb) + 0;
+        const intra = !!(CH_IV[cfg.iv] && CH_IV[cfg.iv].intraday);
+        const every = Math.max(1, Math.ceil(84 / bw));
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        let lastDay = '';
+        for (let i = Math.max(0, Math.floor(i0)); i <= b; i++) {
+          const c = h[i];
+          const newDay = c.date !== lastDay; lastDay = c.date;
+          const hit = intra ? (newDay || i % every === 0) : i % every === 0;
+          if (!hit) continue;
+          const x = xOf(p, i);
+          if (x < 14 || x > W - 14) continue;
+          ctx.strokeStyle = 'rgba(148,163,184,0.07)';
+          ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, 0); ctx.lineTo(Math.round(x) + 0.5, xl); ctx.stroke();
+          ctx.fillStyle = (intra && newDay) ? '#e2e8f0' : '#64748b';
+          const lab = intra ? (newDay ? c.date.slice(5) : c.hm) : (cfg.iv === 'M' ? c.date.slice(2, 7) : c.date.slice(cfg.iv === 'W' && i % (every * 4) === 0 ? 2 : 5));
+          ctx.fillText(lab, x, xl + 5);
+        }
+        ctx.textBaseline = 'middle';
+
+        // 클리핑 영역
+        ctx.save();
+        ctx.beginPath(); ctx.rect(0, 0, W, p.h); ctx.clip();
+
+        // 볼린저
+        if (ind.bb && cfg.type !== 'line') {
+          const bb = p.ind.bb;
+          ctx.beginPath(); let started = false;
+          for (let i = a; i <= b; i++) { if (!mcOk(bb.upper[i])) continue; const x = xOf(p, i), y = yP(bb.upper[i]); if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); }
+          for (let i = b; i >= a; i--) { if (!mcOk(bb.lower[i])) continue; ctx.lineTo(xOf(p, i), yP(bb.lower[i])); }
+          ctx.closePath(); ctx.fillStyle = 'rgba(167,139,250,0.08)'; ctx.fill();
+          line(ctx, p, bb.upper, a, b, yP, 'rgba(167,139,250,0.7)', 1);
+          line(ctx, p, bb.lower, a, b, yP, 'rgba(167,139,250,0.7)', 1);
+          line(ctx, p, bb.mid, a, b, yP, 'rgba(167,139,250,0.35)', 1);
+        }
+
+        // 거래량 (가격창 아래 20%)
+        if (ind.vol) {
+          let vmax = 0;
+          for (let i = a; i <= b; i++) if (h[i].volume > vmax) vmax = h[i].volume;
+          if (vmax > 0) {
+            const vh = (pb - pt) * 0.2;
+            for (let i = a; i <= b; i++) {
+              const c = h[i], up = c.close >= c.open;
+              ctx.fillStyle = up ? 'rgba(16,185,129,0.28)' : 'rgba(244,63,94,0.28)';
+              const hh = Math.max(1, c.volume / vmax * vh);
+              ctx.fillRect(xOf(p, i) - Math.max(0.5, bw * 0.38), pb - hh, Math.max(1, bw * 0.76), hh);
+            }
+          }
+        }
+
+        // 가격 본체
+        if (cfg.type === 'line') {
+          ctx.beginPath();
+          for (let i = a; i <= b; i++) { const x = xOf(p, i), y = yP(h[i].close); if (i === a) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+          ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.6; ctx.stroke();
+          ctx.lineTo(xOf(p, b), pb); ctx.lineTo(xOf(p, a), pb); ctx.closePath();
+          const g = ctx.createLinearGradient(0, pt, 0, pb); g.addColorStop(0, 'rgba(56,189,248,0.22)'); g.addColorStop(1, 'rgba(56,189,248,0)');
+          ctx.fillStyle = g; ctx.fill();
+        } else {
+          const cw = Math.max(1, Math.min(bw * 0.72, 22));
+          for (let i = a; i <= b; i++) {
+            const c = series[i], up = c.close >= c.open, col = up ? UP : DN;
+            const x = xOf(p, i);
+            ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+            const xs = Math.round(x) + 0.5;
+            ctx.beginPath(); ctx.moveTo(xs, yP(c.high)); ctx.lineTo(xs, yP(c.low)); ctx.stroke();
+            const yo = yP(c.open), yc = yP(c.close);
+            ctx.fillRect(Math.round(x - cw / 2), Math.min(yo, yc), Math.max(1, Math.round(cw)), Math.max(1, Math.abs(yc - yo)));
+          }
+        }
+        // 이동평균 · VWAP
+        if (cfg.type !== 'line') {
+          if (ind.ema20) line(ctx, p, p.ind.ema20, a, b, yP, '#fbbf24', 1.3);
+          if (ind.sma50) line(ctx, p, p.ind.sma50, a, b, yP, '#38bdf8', 1.3);
+          if (ind.sma200) line(ctx, p, p.ind.sma200, a, b, yP, '#f472b6', 1.3);
+        }
+        if (ind.vwap && TA.isIntraday(h)) {
+          // 세션이 바뀌면 선을 끊는다
+          ctx.strokeStyle = '#34d399'; ctx.lineWidth = 1.3; ctx.beginPath(); let st = false;
+          for (let i = a; i <= b; i++) {
+            const v = p.ind.vwap[i];
+            if (!mcOk(v) || (i > 0 && h[i].date !== h[i - 1].date)) { st = false; }
+            if (!mcOk(v)) continue;
+            const x = xOf(p, i), y = yP(v);
+            if (!st) { ctx.moveTo(x, y); st = true; } else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        // 최신 종가 점선
+        const last = h[n - 1];
+        {
+          const y = yP(last.close);
+          if (y > pt && y < pb) {
+            ctx.setLineDash([3, 3]); ctx.strokeStyle = last.close >= last.open ? 'rgba(16,185,129,0.6)' : 'rgba(244,63,94,0.6)';
+            ctx.beginPath(); ctx.moveTo(0, Math.round(y) + 0.5); ctx.lineTo(W, Math.round(y) + 0.5); ctx.stroke(); ctx.setLineDash([]);
+          }
+        }
+        ctx.restore();
+
+        // 최신가 태그
+        {
+          const y = yP(last.close);
+          if (y > pt && y < pb) tag(ctx, W, y, px(p, last.close), last.close >= last.open ? UP : DN, '#fff', p);
+        }
+
+        // RSI 창
+        if (L.rsiOn) {
+          const rt = L.rsiTop, rb = L.rsiBot, yR = v => rt + (100 - v) / 100 * (rb - rt);
+          ctx.strokeStyle = 'rgba(148,163,184,0.25)'; ctx.lineWidth = 1;
+          ctx.strokeRect(0.5, rt + 0.5, W - 1, rb - rt - 1);
+          ctx.fillStyle = 'rgba(167,139,250,0.06)'; ctx.fillRect(0, yR(70), W, yR(30) - yR(70));
+          ctx.setLineDash([2, 3]); ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+          [30, 70].forEach(v => { ctx.beginPath(); ctx.moveTo(0, Math.round(yR(v)) + 0.5); ctx.lineTo(W, Math.round(yR(v)) + 0.5); ctx.stroke(); });
+          ctx.setLineDash([]);
+          ctx.save(); ctx.beginPath(); ctx.rect(0, rt, W, rb - rt); ctx.clip();
+          line(ctx, p, p.ind.rsi, a, b, yR, '#c084fc', 1.4);
+          ctx.restore();
+          ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          [30, 70].forEach(v => ctx.fillText(String(v), W + 5, yR(v)));
+          ctx.fillStyle = '#a78bfa'; ctx.fillText('RSI 14', 6, rt + 9);
+        }
+
+        // 크로스헤어 (자기 칸) / 연동선 (다른 칸)
+        const own = p.hover >= 0 && hoverSrc === p.i;
+        if (own) {
+          const c = h[Math.min(n - 1, Math.max(0, p.hover))];
+          const x = Math.round(xOf(p, p.hover)) + 0.5;
+          ctx.strokeStyle = 'rgba(226,232,240,0.45)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, p.h - TH); ctx.stroke();
+          if (p.my >= pt && p.my <= pb) {
+            ctx.beginPath(); ctx.moveTo(0, Math.round(p.my) + 0.5); ctx.lineTo(W, Math.round(p.my) + 0.5); ctx.stroke();
+            ctx.setLineDash([]);
+            tag(ctx, W, p.my, px(p, hi - (p.my - pt) / (pb - pt) * (hi - lo)), '#334155', '#e2e8f0', p);
+          } else if (L.rsiOn && p.my >= L.rsiTop && p.my <= L.rsiBot) {
+            ctx.beginPath(); ctx.moveTo(0, Math.round(p.my) + 0.5); ctx.lineTo(W, Math.round(p.my) + 0.5); ctx.stroke();
+            ctx.setLineDash([]);
+            tag(ctx, W, p.my, (100 - (p.my - L.rsiTop) / (L.rsiBot - L.rsiTop) * 100).toFixed(1), '#334155', '#e2e8f0', p);
+          }
+          ctx.setLineDash([]);
+          timeTag(ctx, p, x, c, intra);
+          legend(ctx, p, p.hover);
+        } else {
+          if (S.sync && hoverT !== null && hoverSrc !== p.i && hoverSrc >= 0) {
+            const fi = p.tix.idxOfTime(hoverT);
+            const j = Math.round(fi);
+            if (j >= 0 && j < n && Math.abs(fi - j) < 0.75) { // 이 칸의 봉 간격보다 가까울 때만 표시
+              const x = Math.round(xOf(p, j)) + 0.5;
+              if (x >= 0 && x <= W) {
+                ctx.strokeStyle = 'rgba(232,121,249,0.5)'; ctx.setLineDash([4, 4]);
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, p.h - TH); ctx.stroke(); ctx.setLineDash([]);
+                timeTag(ctx, p, x, h[j], intra);
+                legend(ctx, p, j);
+                return;
+              }
+            }
+          }
+          legend(ctx, p, n - 1);
+        }
+      }
+
+      function line(ctx, p, arr, a, b, yF, color, lw) {
+        ctx.beginPath(); let st = false;
+        for (let i = a; i <= b; i++) {
+          const v = arr[i];
+          if (!mcOk(v)) { st = false; continue; }
+          const x = xOf(p, i), y = yF(v);
+          if (!st) { ctx.moveTo(x, y); st = true; } else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.stroke();
+      }
+      function tag(ctx, W, y, text, bg, fg, p) {
+        ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.fillStyle = bg; ctx.fillRect(W, y - 8, AX, 16);
+        ctx.fillStyle = fg; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(text, W + 5, y + 0.5);
+      }
+      function timeTag(ctx, p, x, c, intra) {
+        const txt = intra ? `${c.date.slice(5)} ${c.hm}` : c.date;
+        ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+        const w = ctx.measureText(txt).width + 10;
+        const L = layout(p);
+        const xx = Math.max(0, Math.min(plotW(p) - w, x - w / 2));
+        ctx.fillStyle = '#334155'; ctx.fillRect(xx, (L.rsiOn ? L.rsiBot : p.h - TH) + 2, w, 16);
+        ctx.fillStyle = '#e2e8f0'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(txt, xx + 5, (L.rsiOn ? L.rsiBot : p.h - TH) + 10.5);
+      }
+      function legend(ctx, p, idx) {
+        const h = p.hist; if (!h.length) return;
+        const i = Math.min(h.length - 1, Math.max(0, idx)), c = h[i];
+        const prev = i > 0 ? h[i - 1].close : null;
+        const chg = prev ? (c.close / prev - 1) * 100 : null;
+        const col = c.close >= c.open ? UP : DN;
+        ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+        let x = 8, y = 8;
+        const put = (txt, color) => { ctx.fillStyle = color; ctx.fillText(txt, x, y); x += ctx.measureText(txt).width + 8; };
+        const bgW = Math.min(plotW(p) - 8, 440);
+        ctx.fillStyle = 'rgba(11,18,32,0.72)'; ctx.fillRect(4, 4, bgW, p.cfg.ind.vol || chg !== null ? 34 : 20);
+        put(`${p.cfg.t} · ${IV_LABEL[p.cfg.iv]}`, '#e2e8f0');
+        put(`O ${px(p, c.open)}`, '#94a3b8'); put(`H ${px(p, c.high)}`, '#94a3b8'); put(`L ${px(p, c.low)}`, '#94a3b8');
+        put(`C ${px(p, c.close)}`, col);
+        x = 8; y = 22;
+        if (chg !== null) put(`${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`, chg >= 0 ? UP : DN);
+        if (c.volume) put(`거래량 ${fmtV(c.volume)}`, '#64748b');
+        const intraNow = !!(CH_IV[p.cfg.iv] && CH_IV[p.cfg.iv].intraday);
+        put(intraNow ? `${c.date.slice(5)} ${c.hm}` : c.date, '#64748b');
+        // 켜 둔 이동평균 값
+        const ivs = [];
+        IND.filter(d => ['ema20', 'sma50', 'sma200'].includes(d.k) && p.cfg.ind[d.k] && p.cfg.type !== 'line').forEach(d => { const v = p.ind[d.k] && p.ind[d.k][i]; if (mcOk(v)) ivs.push([d.label + ' ' + px(p, v), d.color]); });
+        if (ivs.length) {
+          x = 8; y = 38;
+          let tw = 0; ivs.forEach(t => { tw += ctx.measureText(t[0]).width + 8; });
+          ctx.fillStyle = 'rgba(11,18,32,0.72)'; ctx.fillRect(4, 36, Math.min(plotW(p) - 8, tw + 8), 16);
+          ivs.forEach(t => put(t[0], t[1]));
+        }
+      }
+
+      // ---------- 마우스 / 터치 ----------
+      function clearHover() {
+        hoverSrc = -1; hoverT = null;
+        P.forEach(p => { p.hover = -1; draw(p); });
+      }
+      function wireChartInput(p) {
+        const cv = p.cv;
+        const pos = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+        cv.addEventListener('pointerdown', e => {
+          if (!p.hist.length) return;
+          cv.setPointerCapture(e.pointerId);
+          const q = pos(e);
+          p.pointers.set(e.pointerId, q);
+          if (p.pointers.size === 1) p.drag = { x: q.x, right: p.right, moved: false };
+          else if (p.pointers.size === 2) { const [a, b] = [...p.pointers.values()]; p.drag = { pinch: true, d: Math.hypot(a.x - b.x, a.y - b.y), nv: p.nv, cx: (a.x + b.x) / 2, moved: true }; }
+        });
+        cv.addEventListener('pointermove', e => {
+          const q = pos(e);
+          if (p.pointers.has(e.pointerId)) p.pointers.set(e.pointerId, q);
+          if (p.drag && p.drag.pinch && p.pointers.size >= 2) {
+            const [a, b] = [...p.pointers.values()];
+            const d = Math.hypot(a.x - b.x, a.y - b.y);
+            if (p.drag.d > 0) zoomAt(p, p.drag.cx, p.drag.nv * (p.drag.d / Math.max(1, d)));
+            draw(p); return;
+          }
+          if (p.drag && !p.drag.pinch && p.pointers.has(e.pointerId)) {
+            const dx = q.x - p.drag.x;
+            if (Math.abs(dx) > 2) p.drag.moved = true;
+            p.right = p.drag.right - dx / barW(p);
+            clampView(p);
+          }
+          if (e.pointerType === 'touch' && !p.pointers.has(e.pointerId)) return;
+          p.mx = q.x; p.my = q.y;
+          if (q.x >= 0 && q.x <= plotW(p)) {
+            const i = Math.max(0, Math.min(p.hist.length - 1, idxAt(p, q.x)));
+            p.hover = i; hoverSrc = p.i; hoverT = p.hist[i] ? p.hist[i].t : null;
+            if (S.sync) P.forEach(o => draw(o)); else draw(p);
+          } else { p.hover = -1; draw(p); }
+        });
+        const up = e => {
+          p.pointers.delete(e.pointerId);
+          if (p.pointers.size < 2 && p.drag && p.drag.pinch) p.drag = null;
+          if (p.pointers.size === 0) p.drag = null;
+          if (e.pointerType === 'touch') { p.hover = -1; hoverSrc = -1; hoverT = null; P.forEach(draw); }
+        };
+        cv.addEventListener('pointerup', up);
+        cv.addEventListener('pointercancel', up);
+        cv.addEventListener('pointerleave', e => { if (e.pointerType !== 'mouse') return; if (!p.drag) { p.hover = -1; if (hoverSrc === p.i) { hoverSrc = -1; hoverT = null; } P.forEach(o => draw(o)); } });
+        cv.addEventListener('wheel', e => {
+          if (!p.hist.length) return;
+          e.preventDefault();
+          const q = pos(e);
+          const f = Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0016);
+          zoomAt(p, Math.min(q.x, plotW(p)), p.nv * f);
+          draw(p);
+        }, { passive: false });
+        cv.addEventListener('dblclick', () => { if (p.hist.length) { fit(p, true); draw(p); } });
+      }
+      function zoomAt(p, x, newNv) {
+        const bw0 = barW(p), idx = x / bw0 + i0Of(p);
+        p.nv = newNv; clampView(p);
+        const bw1 = plotW(p) / p.nv;
+        p.right = idx - x / bw1 + p.nv;
+        clampView(p);
+      }
+
+      // ---------- 외부 진입 ----------
+      function onOpen() {
+        if (!built) { load(); built = buildSkeleton(); if (built) P.forEach(p => loadPanel(p)); return; }
+        const root = document.getElementById('multiRoot');
+        if (root && !root.querySelector('#mcGrid')) { built = buildSkeleton(); if (built) P.forEach(p => loadPanel(p)); return; }
+        setTimeout(() => P.forEach(p => { p.w = 0; resizePanel(p); }), 30); // 숨겨져 있던 동안 폭이 0 이었을 수 있다
+        P.forEach(p => { if (!p.hist.length && !p.loading) loadPanel(p); });
+      }
+      if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.multi = onOpen;
+      window.addEventListener('resize', () => { if (built) { P.forEach(p => resizePanel(p)); if (S.focus >= 0) applyFocus(); } });
+      window.MC_DEBUG = { S, P };
+    })();
   </script>
 </body>
 </html>
