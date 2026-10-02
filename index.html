@@ -7133,7 +7133,1357 @@ SONY|Sony Group ADR|T
     // (전일 복기 모듈)
   </script>
   <script id="mod-fx">
-    // (환율 모듈)
+    // ===== 환율(FX) 탭 모듈 =====
+    // 이 블록의 전역 이름은 모두 fx / FX_ 로 시작한다. 메인 스크립트의 공용 헬퍼(fetchSpark, fetchQuotes, fetchJsonWithTimeout,
+    // getProxyUrl, TA, rsiSeries, macdSeries, callGemini, quickSearch …)만 호출하고, DOM 은 #fxRoot 안에서만 만진다.
+
+    // ---------------------------------------------------------------------------
+    // 1) 편집용 데이터 표 — 심볼을 바꾸거나 추가/삭제하려면 아래 표만 고치면 된다.
+    //    (Yahoo 가 값을 주지 않는 심볼은 화면에서 자동으로 숨겨진다)
+    // ---------------------------------------------------------------------------
+    // sym: Yahoo 심볼 / base·quote: base 1단위가 quote 몇 단위인지 (예: EUR/USD) / ko: 한글 이름 / group: 보드 그룹
+    // kind:'index' 는 통화 강세 계산에서 제외 / x100: '100엔 표기' 옵션 대상
+    const FX_PAIRS = [
+        { sym: 'EURUSD=X', base: 'EUR', quote: 'USD', ko: '유로/달러', group: '주요 통화' },
+        { sym: 'GBPUSD=X', base: 'GBP', quote: 'USD', ko: '파운드/달러', group: '주요 통화' },
+        { sym: 'AUDUSD=X', base: 'AUD', quote: 'USD', ko: '호주달러/달러', group: '주요 통화' },
+        { sym: 'NZDUSD=X', base: 'NZD', quote: 'USD', ko: '뉴질랜드달러/달러', group: '주요 통화' },
+        { sym: 'JPY=X', base: 'USD', quote: 'JPY', ko: '달러/엔', group: '주요 통화' },
+        { sym: 'CHF=X', base: 'USD', quote: 'CHF', ko: '달러/스위스프랑', group: '주요 통화' },
+        { sym: 'CAD=X', base: 'USD', quote: 'CAD', ko: '달러/캐나다달러', group: '주요 통화' },
+        { sym: 'CNY=X', base: 'USD', quote: 'CNY', ko: '달러/위안', group: '원화·아시아' },
+        { sym: 'KRW=X', base: 'USD', quote: 'KRW', ko: '달러/원', group: '원화·아시아' },
+        { sym: 'EURKRW=X', base: 'EUR', quote: 'KRW', ko: '유로/원', group: '원화·아시아' },
+        { sym: 'JPYKRW=X', base: 'JPY', quote: 'KRW', ko: '엔/원', group: '원화·아시아', x100: true },
+        { sym: 'EURJPY=X', base: 'EUR', quote: 'JPY', ko: '유로/엔', group: '크로스' },
+        { sym: 'EURGBP=X', base: 'EUR', quote: 'GBP', ko: '유로/파운드', group: '크로스' },
+        { sym: 'DX-Y.NYB', kind: 'index', ko: '달러지수 (DXY)', group: '달러지수' }
+    ];
+    const FX_GROUP_ORDER = ['주요 통화', '원화·아시아', '크로스', '달러지수'];
+    // 통화 강세 미터·교차환율 행렬에 쓰는 통화 (달러 대비 레그가 있는 통화만 계산에 들어간다)
+    const FX_CCY = {
+        USD: '달러', EUR: '유로', JPY: '엔', GBP: '파운드', CHF: '스위스프랑',
+        AUD: '호주달러', CAD: '캐나다달러', NZD: '뉴질랜드달러', CNY: '위안', KRW: '원'
+    };
+    // 달러 레그 = 한쪽이 USD 인 통화쌍. inv=true 면 USD/XXX 표기(1달러=XXX), false 면 XXX/USD 표기
+    const FX_USD_LEGS = FX_PAIRS.filter(p => p.kind !== 'index' && (p.base === 'USD') !== (p.quote === 'USD'))
+        .map(p => p.base === 'USD' ? { cur: p.quote, sym: p.sym, inv: true } : { cur: p.base, sym: p.sym, inv: false });
+
+    // 환율에 영향을 주는 거시 입력값 (kind 는 해석 규칙 선택용)
+    const FX_DRIVERS = [
+        { sym: 'DX-Y.NYB', ko: '달러지수 (DXY)', kind: 'idx' },
+        { sym: '^TNX', ko: '미국 10년물 금리', kind: 'yield' },
+        { sym: '^FVX', ko: '미국 5년물 금리', kind: 'yield' },
+        { sym: '^IRX', ko: '미국 13주(3개월) 금리', kind: 'yield' },
+        { sym: '^VIX', ko: 'VIX 변동성지수', kind: 'vix' },
+        { sym: 'GC=F', ko: '금 선물', kind: 'gold' },
+        { sym: 'CL=F', ko: 'WTI 원유 선물', kind: 'oil' },
+        { sym: '^GSPC', ko: 'S&P 500', kind: 'equity' }
+    ];
+    // 증권계좌에서 거래 가능한 외환 관련 ETF/ETN (시세는 fetchQuotes/fetchSpark 로 실시간 조회, 값이 없으면 빈칸)
+    const FX_ETFS = [
+        { sym: 'UUP', ko: '달러 강세 (Bullish)', note: 'Invesco DB US Dollar Index Bullish Fund · 달러지수 선물 기반, 달러가 오르면 가치 상승' },
+        { sym: 'UDN', ko: '달러 약세 (Bearish)', note: 'Invesco DB US Dollar Index Bearish Fund · 달러지수 하락 시 가치 상승 (UUP 의 반대)' },
+        { sym: 'FXE', ko: '유로', note: 'Invesco CurrencyShares Euro Trust · 유로 예금을 보유하는 신탁' },
+        { sym: 'FXY', ko: '엔', note: 'Invesco CurrencyShares Japanese Yen Trust · 엔 예금 보유 신탁' },
+        { sym: 'FXB', ko: '파운드', note: 'Invesco CurrencyShares British Pound Sterling Trust' },
+        { sym: 'FXA', ko: '호주달러', note: 'Invesco CurrencyShares Australian Dollar Trust' },
+        { sym: 'FXC', ko: '캐나다달러', note: 'Invesco CurrencyShares Canadian Dollar Trust' },
+        { sym: 'FXF', ko: '스위스프랑', note: 'Invesco CurrencyShares Swiss Franc Trust' },
+        { sym: 'CYB', ko: '위안', note: 'WisdomTree Chinese Yuan Strategy Fund · 상장 폐지/운용 변경 시 시세가 비어 있을 수 있음' }
+    ];
+    const FX_ALL_SYMS = [...new Set([...FX_PAIRS.map(p => p.sym), ...FX_DRIVERS.map(d => d.sym), ...FX_ETFS.map(e => e.sym)])];
+    // 차트 구간: Yahoo 제한에 맞는 range/interval 조합 (분봉은 최근 ~60일, 60분봉은 약 2년까지) · bars: 처음 보여줄 봉 개수
+    const FX_INTERVALS = [
+        { key: '5m', label: '5분', range: '5d', interval: '5m', bars: 160, intraday: true },
+        { key: '60m', label: '1시간', range: '3mo', interval: '60m', bars: 150, intraday: true },
+        { key: '1d', label: '일', range: '2y', interval: '1d', bars: 130 },
+        { key: '1wk', label: '주', range: '10y', interval: '1wk', bars: 130 }
+    ];
+    const FX_PERIODS = [
+        { key: 'd1', label: '1일', spec: { bars: 1 } },
+        { key: 'w1', label: '1주', spec: { days: 7 } },
+        { key: 'm1', label: '1개월', spec: { months: 1 } },
+        { key: 'm3', label: '3개월', spec: { months: 3 } },
+        { key: 'ytd', label: '연초', spec: 'ytd' }
+    ];
+    const FX_UP = '#10b981', FX_DN = '#f43f5e';
+
+    // ---------------------------------------------------------------------------
+    // 2) 순수 계산 함수 (DOM 없음 — Node 에서 단위 테스트함)
+    // ---------------------------------------------------------------------------
+    const fxNum = v => (v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v))) ? Number(v) : null;
+    const fxPair = sym => FX_PAIRS.find(p => p.sym === sym) || null;
+    const fxLabel = (p, x100) => !p ? '' : p.kind === 'index' ? 'DXY' : `${x100 && p.x100 ? '100' : ''}${p.base}/${p.quote}`;
+
+    // 기준 시점의 인덱스: spec = {bars:n} | {days:n} | {months:n} | 'ytd'. 시계열이 그 시점을 덮지 못하면 null.
+    function fxBaseIndex(t, spec) {
+        const n = t.length;
+        if (n < 2) return null;
+        if (spec && spec.bars) return n - 1 - spec.bars >= 0 ? n - 1 - spec.bars : null;
+        const last = new Date(t[n - 1] * 1000);
+        let target;
+        if (spec === 'ytd') target = Date.UTC(last.getUTCFullYear(), 0, 1) / 1000 - 1;
+        else if (spec && spec.days) target = t[n - 1] - spec.days * 86400;
+        else if (spec && spec.months) {
+            const y = last.getUTCFullYear(), m = last.getUTCMonth() - spec.months;
+            const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+            target = Date.UTC(y, m, Math.min(last.getUTCDate(), dim), last.getUTCHours(), last.getUTCMinutes()) / 1000;
+        } else return null;
+        const TOL = 5 * 86400; // 주말·휴장으로 시작점이 며칠 늦는 정도는 허용
+        if (t[0] > target + TOL) return null;
+        let idx = -1;
+        for (let i = 0; i < n - 1; i++) { if (t[i] <= target) idx = i; else break; }
+        return idx >= 0 ? idx : 0;
+    }
+    // 기간 변화율(%) — 계산할 수 없으면 null
+    function fxPerf(t, c, spec) {
+        if (!Array.isArray(t) || !Array.isArray(c) || t.length !== c.length) return null;
+        const i = fxBaseIndex(t, spec);
+        if (i === null) return null;
+        const a = c[i], b = c[c.length - 1];
+        return (a > 0 && Number.isFinite(b)) ? (b / a - 1) * 100 : null;
+    }
+    // 기간 절대 변화 (금리처럼 %p 로 보는 값용)
+    function fxDiff(t, c, spec) {
+        const i = fxBaseIndex(t, spec);
+        if (i === null) return null;
+        const d = c[c.length - 1] - c[i];
+        return Number.isFinite(d) ? d : null;
+    }
+    function fxRangePos(p, lo, hi) {
+        if (![p, lo, hi].every(Number.isFinite) || hi <= lo) return null;
+        return Math.min(1, Math.max(0, (p - lo) / (hi - lo)));
+    }
+    // 추세 판정 (가격 vs SMA20/50/200). 값이 없는 이동평균은 판정에서 제외한다.
+    function fxTrend(price, s20, s50, s200) {
+        const ok = Number.isFinite(price);
+        const abv = v => (ok && Number.isFinite(v)) ? price > v : null;
+        const above = { 20: abv(s20), 50: abv(s50), 200: abv(s200) };
+        let label = '', tone = 'flat';
+        if (ok && [s20, s50, s200].every(Number.isFinite)) {
+            if (price > s20 && s20 > s50 && s50 > s200) { label = '상승 정렬'; tone = 'up'; }
+            else if (price < s20 && s20 < s50 && s50 < s200) { label = '하락 정렬'; tone = 'down'; }
+            else if (price > s50 && price > s200) { label = '상승 우위'; tone = 'up'; }
+            else if (price < s50 && price < s200) { label = '하락 우위'; tone = 'down'; }
+            else { label = '혼조'; }
+        } else if (ok && Number.isFinite(s20) && Number.isFinite(s50)) {
+            if (price > s20 && s20 > s50) { label = '단기 상승'; tone = 'up'; }
+            else if (price < s20 && s20 < s50) { label = '단기 하락'; tone = 'down'; }
+            else label = '혼조';
+        }
+        return { label, tone, above };
+    }
+
+    // 시계열 지표 묶음 (일봉 종가 기준) — 보드·드라이버·ETF 표에서 공통 사용
+    function fxCalcMetrics(sym, sp, q) {
+        let t = [], c = [];
+        if (sp && Array.isArray(sp.t) && Array.isArray(sp.c)) {
+            for (let i = 0; i < sp.c.length; i++) { const v = fxNum(sp.c[i]), tt = fxNum(sp.t[i]); if (v !== null && tt !== null && v > 0) { t.push(tt); c.push(v); } }
+        }
+        const qp = fxNum(q && q.price), qc = fxNum(q && q.changePct);
+        if (!c.length) {
+            if (qp === null) return null;
+            return { sym, price: qp, partial: true, d1: qc, w1: null, m1: null, m3: null, ytd: null, hi52: fxNum(q.high52), lo52: fxNum(q.low52), pos: null, rsi: null, s20: null, s50: null, s200: null, trend: fxTrend(null), closes: [], t: [] };
+        }
+        // 실시간 시세가 있으면 마지막 값을 현재가로 교체 (비정상적으로 벗어난 값은 무시)
+        if (qp !== null && qp > 0 && Math.abs(qp / c[c.length - 1] - 1) < 0.25) c[c.length - 1] = qp;
+        const n = c.length, price = c[n - 1];
+        const out = { sym, price, t, closes: c, partial: false };
+        FX_PERIODS.forEach(pd => { out[pd.key] = fxPerf(t, c, pd.spec); });
+        if (out.d1 === null && qc !== null) out.d1 = qc;
+        out.m1abs = fxDiff(t, c, { months: 1 });
+        out.d1abs = fxDiff(t, c, { bars: 1 });
+        // 52주 고저: 시세가 제공하는 값 우선, 없으면 최근 1년 종가 기준
+        const yr = t[n - 1] - 365 * 86400;
+        let hi = -Infinity, lo = Infinity;
+        for (let i = 0; i < n; i++) if (t[i] >= yr) { if (c[i] > hi) hi = c[i]; if (c[i] < lo) lo = c[i]; }
+        out.rangeSrc = '종가';
+        const qh = fxNum(q && q.high52), ql = fxNum(q && q.low52);
+        if (qh !== null && ql !== null && qh > ql && price <= qh * 1.001 && price >= ql * 0.999) { hi = qh; lo = ql; out.rangeSrc = '시세'; }
+        out.hi52 = isFinite(hi) ? hi : null; out.lo52 = isFinite(lo) ? lo : null;
+        out.pos = fxRangePos(price, out.lo52, out.hi52);
+        const s20 = TA.sma(c, 20), s50 = TA.sma(c, 50), s200 = TA.sma(c, 200), rsi = rsiSeries(c, 14);
+        out.s20 = s20[n - 1]; out.s50 = s50[n - 1]; out.s200 = s200[n - 1];
+        out.rsi = rsi[n - 1];
+        out.trend = fxTrend(price, out.s20, out.s50, out.s200);
+        return out;
+    }
+
+    // ---- 통화 강세 미터 ----
+    // 방법: 달러 대비 각 통화의 기간 수익률 r(%, 로그수익률)을 구한다 (USD 는 0). 한 통화의 강세 점수는
+    // "나머지 모든 통화 대비 평균 변동" = r_X − 평균(r) 이다. (교차환율 변동 = r_X − r_Y 이므로 모든 통화쌍을 평균낸 것과 같다.)
+    // 점수의 합은 0 이며, 계산 가능한 통화만 포함한다. 입력 시리즈는 달러 레그(FX_USD_LEGS)뿐이다.
+    function fxUsdReturn(leg, metrics, spec) {
+        const m = metrics && metrics[leg.sym];
+        if (!m || !m.t || m.t.length < 2) return null;
+        const i = fxBaseIndex(m.t, spec);
+        if (i === null) return null;
+        const a = m.closes[i], b = m.closes[m.closes.length - 1];
+        if (!(a > 0 && b > 0)) return null;
+        return Math.log(b / a) * 100 * (leg.inv ? -1 : 1);
+    }
+    function fxStrengthCalc(legs, metrics, spec) {
+        const rets = { USD: 0 };
+        legs.forEach(l => { const r = fxUsdReturn(l, metrics, spec); if (r !== null) rets[l.cur] = r; });
+        return fxStrengthFromReturns(rets);
+    }
+    function fxStrengthFromReturns(rets) {
+        const cur = Object.keys(rets);
+        if (cur.length < 3) return []; // 달러 + 최소 두 통화는 있어야 상대 비교가 의미 있다
+        const mean = cur.reduce((s, k) => s + rets[k], 0) / cur.length;
+        return cur.map(k => ({ cur: k, r: rets[k], v: rets[k] - mean })).sort((a, b) => b.v - a.v);
+    }
+
+    // ---- 교차환율 행렬: 행 통화 1단위 = 열 통화 몇 단위 (달러 레그에서 계산) ----
+    function fxUsdPer(legs, metrics) {
+        const u = { USD: { last: 1, prev: 1 } };
+        legs.forEach(l => {
+            const m = metrics && metrics[l.sym];
+            if (!m || !m.closes || m.closes.length < 2) return;
+            const a = m.closes[m.closes.length - 1], b = m.closes[m.closes.length - 2];
+            if (!(a > 0 && b > 0)) return;
+            u[l.cur] = l.inv ? { last: 1 / a, prev: 1 / b } : { last: a, prev: b };
+        });
+        return u;
+    }
+    function fxCrossMatrix(usdPer, order) {
+        const cur = order.filter(k => usdPer[k]);
+        const cells = {};
+        cur.forEach(i => { cells[i] = {}; cur.forEach(j => {
+            if (i === j) return;
+            const rate = usdPer[i].last / usdPer[j].last;
+            const prev = usdPer[i].prev / usdPer[j].prev;
+            cells[i][j] = { rate, chg: (rate / prev - 1) * 100 };
+        }); });
+        return { cur, cells };
+    }
+
+    // ---- 지지/저항: 최근 스윙 고점·저점 (좌우 k봉보다 높은/낮은 봉) ----
+    function fxSwings(bars, k = 5, lookback = 150) {
+        const n = bars.length, highs = [], lows = [];
+        for (let i = Math.max(k, n - lookback); i <= n - 1 - k; i++) {
+            let isH = true, isL = true;
+            for (let j = i - k; j <= i + k; j++) {
+                if (j === i) continue;
+                if (bars[j].h > bars[i].h) isH = false;
+                if (bars[j].l < bars[i].l) isL = false;
+                if (!isH && !isL) break;
+            }
+            if (isH) highs.push({ i, p: bars[i].h });
+            if (isL) lows.push({ i, p: bars[i].l });
+        }
+        return { highs, lows };
+    }
+
+    // ---- 규칙 기반 현재 상태 (일봉 OHLC → 사실 + 서술 문장) ----
+    function fxFmtRate(v) {
+        if (!Number.isFinite(v)) return '';
+        const a = Math.abs(v);
+        const d = a >= 100 ? 2 : a >= 10 ? 3 : a >= 0.1 ? 4 : a >= 0.01 ? 5 : 6;
+        return v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+    }
+    const fxPctTxt = (v, d = 2) => Number.isFinite(v) ? `${v >= 0 ? '+' : ''}${v.toFixed(d)}%` : '';
+
+    function fxReadout(bars, fmt) {
+        fmt = fmt || fxFmtRate;
+        const n = bars.length;
+        if (n < 20) return { ok: false, facts: {}, lines: [] };
+        const h = bars.map(b => ({ t: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: 0 }));
+        const c = bars.map(b => b.c), last = c[n - 1];
+        const s20 = TA.sma(c, 20)[n - 1], s50 = TA.sma(c, 50)[n - 1], s200 = TA.sma(c, 200)[n - 1];
+        const rsi = rsiSeries(c, 14)[n - 1];
+        const mc = macdSeries(c), hist = mc.hist[n - 1];
+        const atrS = TA.atr(h, 14), atr = atrS[n - 1];
+        const F = { last, s20, s50, s200, rsi, macdHist: hist, atr };
+        const lines = [];
+        const tr = fxTrend(last, s20, s50, s200);
+        F.trend = tr.label;
+
+        // 추세
+        {
+            const parts = [];
+            [['SMA20', s20], ['SMA50', s50], ['SMA200', s200]].forEach(([nm, v]) => {
+                if (Number.isFinite(v)) parts.push(`${nm}(${fmt(v)}) ${last > v ? '위' : '아래'}`);
+            });
+            let txt = parts.length ? `현재가 ${fmt(last)}는 ${parts.join(', ')}에 있습니다.` : '이동평균을 계산할 데이터가 부족합니다.';
+            if (tr.label) txt += ` 이동평균 배열: ${tr.label}.`;
+            else if (parts.length) txt += ' (SMA200 계산에 필요한 기간이 부족해 배열 판정은 생략)';
+            lines.push({ k: '추세', tone: tr.tone, text: txt });
+        }
+        // 모멘텀
+        {
+            let txt = '', tone = 'flat';
+            if (Number.isFinite(rsi)) {
+                const zone = rsi >= 70 ? '과매수 구간(70 이상)' : rsi <= 30 ? '과매도 구간(30 이하)' : rsi >= 50 ? '중립 구간, 50 위(상승 쪽 우세)' : '중립 구간, 50 아래(하락 쪽 우세)';
+                txt = `RSI(14) ${rsi.toFixed(1)} — ${zone}.`;
+                tone = rsi >= 55 ? 'up' : rsi <= 45 ? 'down' : 'flat';
+            } else txt = 'RSI 계산 데이터가 부족합니다.';
+            if (Number.isFinite(hist)) {
+                // 최근 12봉 안의 MACD 선/시그널 교차
+                let cross = '';
+                for (let i = n - 1; i >= Math.max(1, n - 12); i--) {
+                    const a = mc.hist[i], b = mc.hist[i - 1];
+                    if (Number.isFinite(a) && Number.isFinite(b) && (a >= 0) !== (b >= 0)) { cross = `${n - 1 - i === 0 ? '이번 봉에서' : (n - 1 - i) + '봉 전'} ${a >= 0 ? '골든' : '데드'}크로스`; break; }
+                }
+                txt += ` MACD 히스토그램 ${hist >= 0 ? '+' : ''}${hist.toPrecision(2)} (${hist >= 0 ? '시그널선 위' : '시그널선 아래'}${cross ? ', ' + cross : ', 최근 12봉 내 교차 없음'}).`;
+                F.macdCross = cross;
+            }
+            const d20 = n > 20 ? (last / c[n - 21] - 1) * 100 : null;
+            if (d20 !== null) { txt += ` 최근 20봉 변화 ${fxPctTxt(d20)}.`; F.d20 = d20; }
+            lines.push({ k: '모멘텀', tone, text: txt });
+        }
+        // 52주 범위
+        {
+            const yr = bars[n - 1].t - 365 * 86400;
+            let hi = -Infinity, lo = Infinity, cnt = 0;
+            bars.forEach(b => { if (b.t >= yr) { cnt++; if (b.h > hi) hi = b.h; if (b.l < lo) lo = b.l; } });
+            const covered = bars[0].t <= yr + 7 * 86400;
+            const pos = fxRangePos(last, lo, hi);
+            F.hi52 = isFinite(hi) ? hi : null; F.lo52 = isFinite(lo) ? lo : null; F.pos = pos;
+            if (pos !== null) {
+                const pct = Math.round(pos * 100);
+                let txt = `최근 ${covered ? '52주' : cnt + '개 봉'} 범위 ${fmt(lo)} ~ ${fmt(hi)} 중 ${pct}% 위치 (고점 대비 ${fxPctTxt((last / hi - 1) * 100)}, 저점 대비 ${fxPctTxt((last / lo - 1) * 100)}).`;
+                if (!covered) txt += ' (1년치 데이터가 부족해 보유한 기간 기준)';
+                lines.push({ k: '52주 위치', tone: pos >= 0.8 ? 'up' : pos <= 0.2 ? 'down' : 'flat', text: txt });
+            } else lines.push({ k: '52주 위치', tone: 'flat', text: '데이터 없음' });
+        }
+        // 변동성 (ATR%)
+        {
+            if (Number.isFinite(atr) && last > 0) {
+                const pctS = atrS.map((a, i) => (a !== null && c[i] > 0) ? a / c[i] * 100 : null).filter(Number.isFinite).slice(-252);
+                const now = atr / last * 100, rank = pctS.filter(x => x <= now).length / pctS.length * 100;
+                F.atrPct = now; F.atrRank = rank;
+                const word = rank >= 75 ? '높은 편' : rank <= 25 ? '낮은 편' : '보통 수준';
+                lines.push({ k: '변동성', tone: 'flat', text: `ATR(14) ${fmt(atr)} = 현재가의 ${now.toFixed(2)}% (하루 평균 진폭 개념). 최근 ${pctS.length}봉 중 ${Math.round(rank)}분위로 변동성은 ${word}.` });
+            } else lines.push({ k: '변동성', tone: 'flat', text: '데이터 없음' });
+        }
+        // 지지/저항
+        {
+            const sw = fxSwings(bars, 5, 150);
+            const res = sw.highs.filter(x => x.p > last).sort((a, b) => a.p - b.p)[0] || null;
+            const sup = sw.lows.filter(x => x.p < last).sort((a, b) => b.p - a.p)[0] || null;
+            F.resistance = res ? res.p : null; F.support = sup ? sup.p : null;
+            const rTxt = res ? `가까운 저항(최근 스윙 고점) ${fmt(res.p)} (${fxPctTxt((res.p / last - 1) * 100)})` : '위쪽 스윙 고점 없음(최근 고점권)';
+            const sTxt = sup ? `가까운 지지(최근 스윙 저점) ${fmt(sup.p)} (${fxPctTxt((sup.p / last - 1) * 100)})` : '아래쪽 스윙 저점 없음(최근 저점권)';
+            lines.push({ k: '지지/저항', tone: 'flat', text: `${rTxt}, ${sTxt}. 스윙 = 좌우 5봉보다 높은(낮은) 봉, 최근 150봉 기준.` });
+        }
+        return { ok: true, facts: F, lines };
+    }
+
+    // ---- 해외주식 환율 영향: 원화 손익을 주가 효과와 환율 효과로 분리 ----
+    // 주가 효과 = (현재 평가 − 매수금액, USD) × 매수 환율 / 환율 효과 = 현재 평가(USD) × (현재 환율 − 매수 환율) → 합 = 원화 총손익
+    function fxKrwPnl(costUsd, valueUsd, fx0, fx1) {
+        const a = fxNum(costUsd), b = fxNum(valueUsd), r0 = fxNum(fx0), r1 = fxNum(fx1);
+        if (a === null || b === null || r0 === null || r1 === null || a <= 0 || b < 0 || r0 <= 0 || r1 <= 0) return null;
+        const costKrw = a * r0, valueKrw = b * r1;
+        const price = (b - a) * r0, fx = b * (r1 - r0), total = valueKrw - costKrw;
+        return { costKrw, valueKrw, total, price, fx, totalPct: total / costKrw * 100, pricePct: price / costKrw * 100, fxPct: fx / costKrw * 100 };
+    }
+
+    // ---- 거시 입력값 한 줄 해석 (경험칙 — 예측 아님) ----
+    function fxDriverReading(kind, m, name) {
+        if (!m) return '';
+        const upDown = (v, th) => v === null || v === undefined || !Number.isFinite(v) ? 0 : v > th ? 1 : v < -th ? -1 : 0;
+        const pct = v => fxPctTxt(v, 1);
+        switch (kind) {
+            case 'idx': {
+                const s = upDown(m.m1, 0.5);
+                if (s > 0) return `달러지수 ↑ (1개월 ${pct(m.m1)}) → 주요 통화 대비 달러 강세 국면. EUR/USD·GBP/USD 같은 달러 표시 환율에는 하락 압력으로 읽는 것이 일반적입니다.`;
+                if (s < 0) return `달러지수 ↓ (1개월 ${pct(m.m1)}) → 달러 약세 국면. EUR/USD·GBP/USD 에는 상승 쪽, USD/KRW·USD/JPY 에는 하락 쪽 압력으로 읽는 것이 일반적입니다.`;
+                return m.m1 === null ? '' : `달러지수의 1개월 변화가 ±0.5% 이내로 뚜렷한 방향이 없습니다.`;
+            }
+            case 'yield': {
+                const s = upDown(m.m1abs, 0.10);
+                const bp = Number.isFinite(m.m1abs) ? `${m.m1abs >= 0 ? '+' : ''}${m.m1abs.toFixed(2)}%p` : '';
+                if (s > 0) return `${name} ↑ (1개월 ${bp}) → 일반적으로 달러 강세 압력 (상대국과 금리차가 벌어질 때 특히).`;
+                if (s < 0) return `${name} ↓ (1개월 ${bp}) → 일반적으로 달러 약세 압력 (상대국과 금리차가 좁혀질 때 특히).`;
+                return m.m1abs === null ? '' : `${name}의 1개월 변화가 ±0.10%p 이내로 뚜렷한 방향이 없습니다.`;
+            }
+            case 'vix': {
+                const v = m.price;
+                if (!Number.isFinite(v)) return '';
+                if (v >= 25) return `VIX ${v.toFixed(1)} (25 이상, 시장 불안 구간) → 일반적으로 안전통화(달러·엔·스위스프랑) 선호, 원화·호주달러 같은 위험통화에는 약세 압력.`;
+                if (v >= 20) return `VIX ${v.toFixed(1)} (20~25, 다소 높음) → 위험회피 심리가 일부 있는 구간. 안전통화 선호 쪽으로 기울 수 있습니다.`;
+                if (v <= 15) return `VIX ${v.toFixed(1)} (15 이하, 안정) → 일반적으로 위험통화(AUD·NZD·KRW 등)에 우호적인 환경.`;
+                return `VIX ${v.toFixed(1)} (15~20, 보통 수준) → 위험 선호/회피 어느 쪽으로도 뚜렷하지 않습니다.`;
+            }
+            case 'gold': {
+                const s = upDown(m.m1, 1);
+                if (s > 0) return `금 ↑ (1개월 ${pct(m.m1)}) → 달러 약세·불확실성 확대(안전자산 선호)와 함께 움직이는 경향이 있으나 항상 그렇지는 않습니다.`;
+                if (s < 0) return `금 ↓ (1개월 ${pct(m.m1)}) → 달러 강세 또는 위험선호 회복과 함께 나타나는 경향이 있으나 항상 그렇지는 않습니다.`;
+                return m.m1 === null ? '' : '금의 1개월 변화가 ±1% 이내로 뚜렷한 방향이 없습니다.';
+            }
+            case 'oil': {
+                const s = upDown(m.m1, 3);
+                if (s > 0) return `유가 ↑ (1개월 ${pct(m.m1)}) → 산유국 통화(CAD 등)에는 우호적, 원유 수입 의존이 큰 일본·한국 통화에는 부담이 되는 경향.`;
+                if (s < 0) return `유가 ↓ (1개월 ${pct(m.m1)}) → 산유국 통화(CAD 등)에는 부담, 원유 수입국(일본·한국) 통화에는 완화 요인인 경향.`;
+                return m.m1 === null ? '' : '유가의 1개월 변화가 ±3% 이내로 뚜렷한 방향이 없습니다.';
+            }
+            case 'equity': {
+                const s = upDown(m.m1, 1.5);
+                if (s > 0) return `주가 ↑ (1개월 ${pct(m.m1)}) → 위험선호 국면. 원화·호주달러 같은 위험통화에 우호적, 엔·스위스프랑 같은 안전통화에는 부담인 경향.`;
+                if (s < 0) return `주가 ↓ (1개월 ${pct(m.m1)}) → 위험회피 국면. 달러·엔·스위스프랑 같은 안전통화 선호, 위험통화에는 부담인 경향.`;
+                return m.m1 === null ? '' : 'S&P 500 의 1개월 변화가 ±1.5% 이내로 뚜렷한 방향이 없습니다.';
+            }
+        }
+        return '';
+    }
+    // 장단기 금리차 (10년물 − 13주물, %p) — 둘 다 있을 때만
+    function fxCurveSpread(tnx, irx) {
+        const a = fxNum(tnx), b = fxNum(irx);
+        if (a === null || b === null) return null;
+        const v = a - b;
+        return { v, inverted: v < 0 };
+    }
+
+    // ---- 차트 데이터 파싱 (Yahoo v8 chart JSON → 봉 배열). 메인의 parseYahooChart 는 가격을 소수 2자리로 반올림하므로 환율(1.0823)에 쓸 수 없어 따로 만든다. ----
+    function fxParseChart(json) {
+        const r = json && json.chart && json.chart.result && json.chart.result[0];
+        if (!r) return null;
+        const ts = r.timestamp || [], q = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
+        const bars = [];
+        for (let i = 0; i < ts.length; i++) {
+            const c = fxNum(q.close && q.close[i]);
+            if (c === null || c <= 0) continue;
+            const o = fxNum(q.open && q.open[i]) ?? c;
+            const hh = fxNum(q.high && q.high[i]) ?? Math.max(o, c);
+            const ll = fxNum(q.low && q.low[i]) ?? Math.min(o, c);
+            bars.push({ t: ts[i], o, h: Math.max(hh, o, c), l: Math.min(ll, o, c), c });
+        }
+        return bars.length ? { bars, meta: r.meta || {} } : null;
+    }
+    function fxNiceTicks(lo, hi, count) {
+        const span = hi - lo;
+        if (!(span > 0)) return { ticks: [], step: 0 };
+        const raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+        const step = (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * mag;
+        const ticks = [];
+        for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) ticks.push(+v.toFixed(12));
+        return { ticks, step };
+    }
+
+    // ---------------------------------------------------------------------------
+    // 3) 상태 · 저장 · 데이터 로딩
+    // ---------------------------------------------------------------------------
+    const fxS = {
+        inited: false, loading: false, noProxy: false, error: '', sparkAt: 0, quoteAt: 0,
+        spark: {}, quotes: {}, metrics: {}, pins: ['EURUSD=X', 'KRW=X'], x100: false, auto: true, timer: null,
+        readout: null, readoutSym: null, ai: { sym: null, text: '', busy: false }
+    };
+    const FX_REFRESH_MS = 60000, FX_FULL_RELOAD_MS = 10 * 60000;
+    const fxLsGet = (k, d) => { try { const v = localStorage.getItem('pentanalyst_fx_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
+    const fxLsSet = (k, v) => { try { localStorage.setItem('pentanalyst_fx_' + k, JSON.stringify(v)); } catch (e) { /* 저장 불가 환경 — 무시 */ } };
+    const fxEsc = v => escapeHtml(v);
+    const fxScale = sym => (fxS.x100 && (fxPair(sym) || {}).x100) ? 100 : 1;
+    const fxById = id => document.getElementById(id);
+
+    function fxErrMsg(e) {
+        if (!e) return '알 수 없는 오류';
+        if (e.noProxy) return '자체 프록시가 연결되어 있지 않습니다.';
+        if (e.empty) return '이 구간에는 Yahoo 가 데이터를 주지 않습니다 (휴장·미지원 심볼·구간 제한).';
+        if (e.status === 404) return 'Yahoo 에 없는 심볼이거나 데이터가 없습니다 (404).';
+        if (e.status === 429) return 'Yahoo/프록시의 요청 한도(429)에 걸렸습니다. 잠시 후 다시 시도하세요.';
+        if (e.status >= 500) return `프록시가 Yahoo 응답을 받지 못했습니다 (HTTP ${e.status}). 잠시 후 다시 시도하세요.`;
+        if (e.name === 'AbortError') return '응답 시간이 초과되었습니다. 네트워크를 확인하고 다시 시도하세요.';
+        return `불러오지 못했습니다 (${e.message || '네트워크 오류'}).`;
+    }
+
+    // 전체 데이터(보드·드라이버·ETF): 일봉 1년 종가 시계열(spark) + 실시간 시세(quotes) 를 한 번에
+    async function fxLoadAll(opts = {}) {
+        if (fxS.loading) return;
+        if (!getProxyUrl()) { fxS.noProxy = true; fxRenderAll(); return; }
+        fxS.noProxy = false; fxS.loading = true; fxS.error = '';
+        const hadData = Object.keys(fxS.metrics).length > 0;
+        if (!hadData || !opts.silent) fxRenderAll();
+        fxSetStatus('불러오는 중...');
+        let spark = null, quotes = null;
+        try {
+            [spark, quotes] = await Promise.all([fetchSpark(FX_ALL_SYMS, '1y', '1d'), fetchQuotes(FX_ALL_SYMS)]);
+        } catch (e) { console.warn('환율 데이터 로딩 실패', e); }
+        fxS.loading = false;
+        if (!spark || !Object.keys(spark).length) {
+            if (quotes && quotes.length) { fxS.quotes = fxQuoteMap(quotes); fxS.quoteAt = Date.now(); }
+            if (!hadData) fxS.error = '시세 데이터를 받지 못했습니다. 프록시 오류이거나 Yahoo 요청 한도에 걸렸을 수 있습니다.';
+            else showToast('환율 갱신 실패', '이전에 받은 값을 계속 표시합니다. 잠시 후 다시 시도하세요.', 'warning');
+        } else {
+            fxS.spark = spark;
+            if (quotes) { fxS.quotes = fxQuoteMap(quotes); fxS.quoteAt = Date.now(); }
+            fxS.sparkAt = Date.now();
+        }
+        fxRecompute();
+        fxRenderAll();
+        fxSetStatus();
+        fxRenderChartHead();
+    }
+    function fxQuoteMap(arr) { const m = {}; (arr || []).forEach(q => { if (q && q.symbol) m[q.symbol] = q; }); return m; }
+    function fxRecompute() {
+        const m = {};
+        FX_ALL_SYMS.forEach(s => { const r = fxCalcMetrics(s, fxS.spark[s], fxS.quotes[s]); if (r) m[s] = r; });
+        fxS.metrics = m;
+    }
+    // 가벼운 갱신(1분마다): 시세만 다시 받아 현재가·등락을 갱신. 일봉 시계열은 10분마다 다시 받는다.
+    async function fxRefreshLive() {
+        if (fxS.loading || !getProxyUrl()) return;
+        if (Date.now() - fxS.sparkAt > FX_FULL_RELOAD_MS) { await fxLoadAll({ silent: true }); fxLoadChart({ silent: true, force: true }); return; }
+        let quotes = null;
+        try { quotes = await fetchQuotes(FX_ALL_SYMS); } catch (e) { /* 다음 주기에 재시도 */ }
+        if (quotes && quotes.length) { fxS.quotes = fxQuoteMap(quotes); fxS.quoteAt = Date.now(); fxRecompute(); fxRenderAll(); fxRenderChartHead(); }
+        fxSetStatus();
+        fxLoadChart({ silent: true, force: true });
+    }
+    function fxSetStatus(txt) {
+        const el = fxById('fxStatus');
+        if (!el) return;
+        if (txt) { el.textContent = txt; return; }
+        const t = Math.max(fxS.sparkAt, fxS.quoteAt);
+        el.textContent = t ? `마지막 갱신 ${new Date(t).toLocaleTimeString('ko-KR', { hour12: false })}${fxS.auto ? ' · 60초마다 자동 갱신' : ''}` : '';
+    }
+
+    // 차트용 원본 OHLC (환율은 소수점이 중요하므로 반올림하지 않는 자체 파서 사용). 동일 요청은 55초 캐시 + 진행 중 요청 공유.
+    const fxChartCache = {}, fxChartInflight = {};
+    function fxGetChart(sym, range, interval, force) {
+        const key = `${sym}|${range}|${interval}`;
+        const hit = fxChartCache[key];
+        if (!force && hit && Date.now() - hit.at < 55000) return Promise.resolve(hit.data);
+        if (fxChartInflight[key]) return fxChartInflight[key];
+        const proxy = getProxyUrl();
+        if (!proxy) { const e = new Error('noproxy'); e.noProxy = true; return Promise.reject(e); }
+        const p = fetchJsonWithTimeout(`${proxy}/api/chart?symbol=${encodeURIComponent(sym)}&range=${range}&interval=${interval}`, 15000)
+            .then(json => {
+                const parsed = fxParseChart(json);
+                if (!parsed) { const e = new Error('empty'); e.empty = true; throw e; }
+                fxChartCache[key] = { at: Date.now(), data: parsed };
+                return parsed;
+            })
+            .finally(() => { delete fxChartInflight[key]; });
+        fxChartInflight[key] = p;
+        return p;
+    }
+    const fxScaleBars = (bars, k) => k === 1 ? bars : bars.map(b => ({ t: b.t, o: b.o * k, h: b.h * k, l: b.l * k, c: b.c * k }));
+
+    // ---------------------------------------------------------------------------
+    // 4) 화면: 보드 · 강세 미터 · 교차환율 · 드라이버 · 투자 안내 · 현재 상태
+    // ---------------------------------------------------------------------------
+    const FX_CARD = 'bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-4';
+    const fxTone = v => v === null || v === undefined || !Number.isFinite(v) ? 'text-slate-500' : v > 0 ? 'text-emerald-400' : v < 0 ? 'text-rose-400' : 'text-slate-400';
+    const fxBtn = on => `px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition ${on ? 'bg-emerald-950 text-emerald-300 border-emerald-700/80' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'}`;
+    const fxTitle = (icon, text, sub) => `<div><h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2"><i class="fa-solid ${icon} text-emerald-400"></i>${text}</h3>${sub ? `<p class="text-[11px] text-slate-400 mt-1 leading-relaxed">${sub}</p>` : ''}</div>`;
+    function fxPriceTxt(sym, v) {
+        if (!Number.isFinite(v)) return '';
+        const p = fxPair(sym);
+        if (!p || p.kind === 'index') return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return fxFmtRate(v * fxScale(sym));
+    }
+    const fxPctCell = v => Number.isFinite(v) ? `<span class="${fxTone(v)}">${fxPctTxt(v)}</span>` : '';
+
+    function fxSparkSvg(closes, w = 64, h = 20) {
+        const c = closes.slice(-30);
+        if (c.length < 3) return '';
+        const lo = Math.min(...c), hi = Math.max(...c), sp = hi - lo || 1;
+        const pts = c.map((v, i) => `${(i / (c.length - 1) * (w - 2) + 1).toFixed(1)},${(h - 2 - (v - lo) / sp * (h - 4)).toFixed(1)}`).join(' ');
+        const col = c[c.length - 1] >= c[0] ? FX_UP : FX_DN;
+        return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="inline-block align-middle"><polyline fill="none" stroke="${col}" stroke-width="1.4" stroke-linejoin="round" points="${pts}"/></svg>`;
+    }
+    const fxSkel = (rows, h = 'h-7') => `<div class="space-y-2 animate-pulse" aria-busy="true">${Array.from({ length: rows }, () => `<div class="${h} rounded-lg bg-slate-800/70"></div>`).join('')}</div>`;
+    function fxStateBox(kind) {
+        if (kind === 'noproxy') return `<div class="rounded-xl border border-amber-800/60 bg-amber-950/30 p-4 space-y-2">
+            <p class="text-sm font-semibold text-amber-300"><i class="fa-solid fa-plug-circle-xmark mr-1.5"></i>자체 프록시 연결이 필요합니다</p>
+            <p class="text-xs text-slate-300 leading-relaxed">환율·금리·ETF 시세는 Yahoo Finance 에서 가져옵니다. 브라우저에서 직접 호출하면 CORS 로 막히므로 자체 프록시(이 저장소의 <code class="text-amber-200">worker/</code> Cloudflare Worker)가 필요합니다. 상단 ‘API 키 &amp; 구글 검색 설정’에 배포한 Worker 주소를 입력하면 이 탭이 채워집니다. 연결 전에는 값을 지어내지 않고 비워 둡니다.</p>
+            <button data-act="settings" class="px-3 py-1.5 rounded-lg bg-amber-900/60 hover:bg-amber-800 border border-amber-700/60 text-xs text-amber-100 transition"><i class="fa-solid fa-gear mr-1"></i>프록시 설정 열기</button></div>`;
+        return `<div class="rounded-xl border border-rose-900/60 bg-rose-950/20 p-4 flex flex-wrap items-center justify-between gap-3">
+            <p class="text-xs text-rose-200 leading-relaxed"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${fxEsc(fxS.error)}</p>
+            <button data-act="reload" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white transition"><i class="fa-solid fa-rotate-right mr-1"></i>다시 시도</button></div>`;
+    }
+    // 데이터 구간별 공통 상태: 'noproxy' | 'loading' | 'error' | null(정상)
+    function fxGate() {
+        if (fxS.noProxy) return 'noproxy';
+        if (fxS.loading && !Object.keys(fxS.metrics).length) return 'loading';
+        if (fxS.error) return 'error';
+        return null;
+    }
+    function fxRenderAll() {
+        fxRenderBoard(); fxRenderStrength(); fxRenderDrivers(); fxRenderEtfs(); fxPrefillRate(); fxUpdateKrw(); fxUpdateLev();
+    }
+
+    // ---- 통화쌍 보드 ----
+    function fxPinned(sym) { return fxS.pins.includes(sym); }
+    function fxRenderBoard() {
+        const el = fxById('fxBoardSec');
+        if (!el) return;
+        const head = fxTitle('fa-table-list', '통화쌍 보드', '행을 누르면 아래 차트·현재 상태가 바뀝니다. ★ 로 관심 통화쌍을 맨 위에 고정합니다. 1일 = 직전 일봉 종가 대비, 52주 범위·RSI·이동평균은 일봉 종가 기준입니다.');
+        const g = fxGate();
+        if (g === 'noproxy') { el.innerHTML = head + fxStateBox('noproxy'); return; }
+        if (g === 'loading') { el.innerHTML = head + fxSkel(8); return; }
+        if (g === 'error') { el.innerHTML = head + fxStateBox('error'); return; }
+        const rows = [], hidden = [];
+        FX_PAIRS.forEach(p => { const m = fxS.metrics[p.sym]; if (m) rows.push({ p, m }); else hidden.push(fxLabel(p, fxS.x100)); });
+        const rowHtml = ({ p, m }) => {
+            const pin = fxPinned(p.sym), sel = fxC.sym === p.sym, sc = fxScale(p.sym);
+            const tr = m.trend, chip = (k, v) => `<span class="inline-block w-5 text-center rounded text-[9px] font-bold ${v === null ? 'bg-slate-800 text-slate-600' : v ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'}" title="SMA${k} ${v === null ? '계산 불가(데이터 부족)' : v ? '위' : '아래'}">${k === 200 ? '200' : k}</span>`;
+            const rsiCls = !Number.isFinite(m.rsi) ? '' : m.rsi >= 70 ? 'text-amber-300' : m.rsi <= 30 ? 'text-cyan-300' : 'text-slate-200';
+            const bar = m.pos === null ? '' : `<div class="relative h-1.5 w-24 rounded-full bg-slate-800" title="52주 ${fxEsc(fxPriceTxt(p.sym, m.lo52))} ~ ${fxEsc(fxPriceTxt(p.sym, m.hi52))} (${m.rangeSrc} 기준) · 현재 ${Math.round(m.pos * 100)}% 위치"><div class="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-400 ring-2 ring-[#131e32]" style="left:calc(${(m.pos * 100).toFixed(1)}% - 5px)"></div></div><div class="text-[9px] text-slate-500 mt-0.5 font-mono-numbers">${Math.round(m.pos * 100)}%</div>`;
+            return `<tr data-act="sel" data-arg="${fxEsc(p.sym)}" class="cursor-pointer border-b border-slate-800/60 hover:bg-slate-800/40 ${sel ? 'bg-cyan-950/30' : ''}">
+                <td class="py-2 pl-1"><button data-act="pin" data-arg="${fxEsc(p.sym)}" class="w-6 h-6 rounded hover:bg-slate-700 ${pin ? 'text-amber-400' : 'text-slate-600 hover:text-slate-300'}" title="${pin ? '관심 해제' : '관심 고정'}" aria-label="관심 고정"><i class="fa-solid fa-star text-[11px]"></i></button></td>
+                <td class="py-2"><div class="font-bold text-white whitespace-nowrap">${fxEsc(fxLabel(p, fxS.x100))}</div><div class="text-[10px] text-slate-500 whitespace-nowrap">${fxEsc(p.ko)}${sc !== 1 ? ' (100엔)' : ''}</div></td>
+                <td class="py-2 text-right font-mono-numbers text-slate-100 whitespace-nowrap">${fxEsc(fxPriceTxt(p.sym, m.price))}</td>
+                ${['d1', 'w1', 'm1', 'm3', 'ytd'].map(k => `<td class="py-2 text-right font-mono-numbers whitespace-nowrap">${fxPctCell(m[k])}</td>`).join('')}
+                <td class="py-2 pl-4">${bar}</td>
+                <td class="py-2 text-right font-mono-numbers ${rsiCls}">${Number.isFinite(m.rsi) ? m.rsi.toFixed(0) : ''}</td>
+                <td class="py-2 pl-3 whitespace-nowrap">${tr.label ? `<span class="inline-flex gap-0.5">${chip(20, tr.above[20])}${chip(50, tr.above[50])}${chip(200, tr.above[200])}</span> <span class="text-[10px] ml-1 ${tr.tone === 'up' ? 'text-emerald-400' : tr.tone === 'down' ? 'text-rose-400' : 'text-slate-400'}">${tr.label}</span>` : `<span class="inline-flex gap-0.5">${chip(20, tr.above[20])}${chip(50, tr.above[50])}${chip(200, tr.above[200])}</span>`}</td>
+                <td class="py-2 pl-3 pr-1 hidden md:table-cell">${fxSparkSvg(m.closes)}</td></tr>`;
+        };
+        const pinned = rows.filter(r => fxPinned(r.p.sym));
+        const groups = [];
+        if (pinned.length) groups.push(['★ 관심', pinned]);
+        FX_GROUP_ORDER.forEach(gn => { const rs = rows.filter(r => r.p.group === gn && !fxPinned(r.p.sym)); if (rs.length) groups.push([gn, rs]); });
+        const body = groups.map(([gn, rs]) => `<tr><td colspan="13" class="pt-3 pb-1 pl-1 text-[10px] font-bold tracking-wide ${gn.startsWith('★') ? 'text-amber-300' : 'text-slate-400'}">${fxEsc(gn)}</td></tr>${rs.map(rowHtml).join('')}`).join('');
+        const th = (t, cls = 'text-right') => `<th class="py-2 font-semibold ${cls} whitespace-nowrap">${t}</th>`;
+        el.innerHTML = head + (rows.length ? `<div class="overflow-x-auto -mx-1 px-1"><table class="w-full text-xs min-w-[800px]"><thead><tr class="text-[10px] text-slate-500 border-b border-slate-700">
+            <th class="w-8"></th>${th('통화쌍', 'text-left')}${th('현재가')}${th('1일')}${th('1주')}${th('1개월')}${th('3개월')}${th('연초')}${th('52주 범위', 'text-left pl-4')}${th('RSI')}${th('추세 (가격 vs SMA 20·50·200)', 'text-left pl-3')}<th class="hidden md:table-cell py-2 pl-3 text-left font-semibold">30봉</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="text-xs text-slate-400">표시할 통화쌍 데이터가 없습니다.</p>')
+            + (hidden.length ? `<p class="text-[10px] text-slate-500">데이터를 받지 못해 숨긴 항목: ${fxEsc(hidden.join(', '))}</p>` : '')
+            + `<p class="text-[10px] text-slate-500">추세 칩: 초록 = 가격이 해당 이동평균 위, 빨강 = 아래, 회색 = 데이터 부족으로 계산 불가. 현재가는 실시간 시세(있을 때)로 마지막 일봉을 대체합니다.</p>`;
+    }
+
+    // ---- 통화 강세 미터 + 교차환율 행렬 ----
+    function fxRenderStrength() {
+        const el = fxById('fxStrengthSec');
+        if (!el) return;
+        const head = fxTitle('fa-ranking-star', '통화 강세 미터 · 교차환율 행렬', '달러 레그(EUR/USD, USD/JPY …)만으로 모든 통화의 상대 강도와 교차환율을 계산합니다.');
+        const g = fxGate();
+        if (g === 'noproxy') { el.innerHTML = head + fxStateBox('noproxy'); return; }
+        if (g === 'loading') { el.innerHTML = head + fxSkel(5); return; }
+        if (g === 'error') { el.innerHTML = head + fxStateBox('error'); return; }
+        const cols = ['d1', 'w1', 'm1'].map(k => {
+            const pd = FX_PERIODS.find(x => x.key === k);
+            return { label: pd.label, list: fxStrengthCalc(FX_USD_LEGS, fxS.metrics, pd.spec) };
+        });
+        const colHtml = cols.map(c => {
+            if (!c.list.length) return `<div><div class="text-xs font-bold text-slate-300 mb-2">${c.label}</div><p class="text-[11px] text-slate-500">데이터 없음</p></div>`;
+            const mx = Math.max(...c.list.map(x => Math.abs(x.v)), 1e-9);
+            return `<div><div class="text-xs font-bold text-slate-300 mb-2">${c.label} <span class="text-[10px] font-normal text-slate-500">(${c.list.length}개 통화)</span></div>${c.list.map((x, i) => {
+                const w = (Math.abs(x.v) / mx * 50).toFixed(1), pos = x.v >= 0;
+                return `<div class="flex items-center gap-2 py-0.5" title="${fxEsc(x.cur)} 달러 대비 ${x.r >= 0 ? '+' : ''}${x.r.toFixed(2)}% · 점수 ${x.v >= 0 ? '+' : ''}${x.v.toFixed(2)}">
+                    <span class="w-4 text-[10px] text-slate-500 text-right font-mono-numbers">${i + 1}</span>
+                    <span class="w-[4.2rem] sm:w-24 shrink-0 text-xs text-slate-200 truncate"><b>${x.cur}</b> <span class="text-slate-500 text-[10px]">${fxEsc(FX_CCY[x.cur] || '')}</span></span>
+                    <div class="relative flex-1 h-4"><div class="absolute inset-y-0 left-1/2 w-px bg-slate-600"></div><div class="absolute top-[3px] bottom-[3px] rounded-sm" style="${pos ? 'left:50%' : 'right:50%'};width:${w}%;background:${pos ? FX_UP : FX_DN}"></div></div>
+                    <span class="w-12 text-right text-[11px] font-mono-numbers ${fxTone(x.v)}">${x.v >= 0 ? '+' : ''}${x.v.toFixed(2)}</span></div>`;
+            }).join('')}</div>`;
+        }).join('');
+        const usdPer = fxUsdPer(FX_USD_LEGS, fxS.metrics);
+        const mat = fxCrossMatrix(usdPer, Object.keys(FX_CCY));
+        const missing = Object.keys(FX_CCY).filter(k => !usdPer[k]);
+        const heat = chg => { const a = Math.min(Math.abs(chg) / 0.8, 1) * 0.55; return chg >= 0 ? `rgba(16,185,129,${a.toFixed(2)})` : `rgba(244,63,94,${a.toFixed(2)})`; };
+        const matrixHtml = mat.cur.length >= 2 ? `<div class="overflow-x-auto"><table class="text-[11px] border-separate border-spacing-0.5 min-w-[640px] w-full"><thead><tr><th class="text-[10px] text-slate-500 font-normal text-left p-1">1단위 ↓ / 환산 →</th>${mat.cur.map(j => `<th class="p-1 text-slate-300 font-bold">${j}</th>`).join('')}</tr></thead><tbody>${mat.cur.map(i => `<tr><th class="p-1 text-left text-slate-300 font-bold whitespace-nowrap">${i} <span class="text-slate-500 font-normal text-[10px]">${fxEsc(FX_CCY[i])}</span></th>${mat.cur.map(j => {
+            if (i === j) return '<td class="p-1 text-center text-slate-700 bg-slate-900/60 rounded">—</td>';
+            const c = mat.cells[i][j];
+            return `<td class="p-1 text-center rounded font-mono-numbers" style="background:${heat(c.chg)}" title="1 ${i} = ${fxFmtRate(c.rate)} ${j} · 1일 ${fxPctTxt(c.chg)}"><div class="text-slate-100">${fxFmtRate(c.rate)}</div><div class="text-[9px] ${c.chg >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${fxPctTxt(c.chg)}</div></td>`;
+        }).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="text-xs text-slate-500">교차환율을 계산할 달러 레그 데이터가 부족합니다.</p>';
+        el.innerHTML = head + `<div class="grid grid-cols-1 md:grid-cols-3 gap-5">${colHtml}</div>
+            <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-3 text-[11px] text-slate-400 leading-relaxed space-y-1">
+                <p><b class="text-slate-300">산출 방법</b> · ① 달러 대비 각 통화의 기간 수익률 r(로그 수익률, %)을 구합니다 (USD 는 0). ② 한 통화의 점수 = r − 전체 통화 r 의 평균 = 나머지 모든 통화 대비 평균 변동(%p). ③ 점수의 합은 0이며, 양수일수록 다른 통화 대비 강하게 움직였다는 뜻입니다. 계산 가능한 통화만 포함하고, 값이 없는 통화${missing.length ? `(${fxEsc(missing.join(', '))})` : ''}는 빠집니다.</p>
+                <p>1일 = 직전 일봉 종가 대비, 1주 = 7일 전, 1개월 = 달력 한 달 전 종가 대비입니다. 과거 움직임의 요약일 뿐 방향 예측이 아닙니다.</p></div>
+            <div><h4 class="text-xs font-bold text-slate-200 mb-2">교차환율 행렬 <span class="font-normal text-slate-500">— 행 통화 1단위 = 열 통화 몇 단위, 색 = 1일 변화(초록: 행 통화가 열 통화 대비 강세)</span></h4>${matrixHtml}
+            <p class="text-[10px] text-slate-500 mt-1">모든 칸은 달러 레그에서 계산한 값입니다 (예: EUR/KRW = EUR/USD × USD/KRW). 보드에 있는 직접 시세(EURKRW=X 등)와는 호가·시각 차이로 미세하게 다를 수 있습니다.</p></div>`;
+    }
+
+    // ---- 드라이버(환율에 영향을 주는 거시 변수) ----
+    function fxRenderDrivers() {
+        const el = fxById('fxDriversSec');
+        if (!el) return;
+        const head = fxTitle('fa-gauge-high', '환율 드라이버 (거시 입력값)', '달러지수·금리·위험선호·원자재가 환율과 함께 움직이는 일반적인 경향입니다. 아래 한 줄 해석은 <b class="text-amber-300">경험칙일 뿐 예측이 아닙니다</b> (상관은 시기마다 달라집니다).');
+        const g = fxGate();
+        if (g === 'noproxy') { el.innerHTML = head + fxStateBox('noproxy'); return; }
+        if (g === 'loading') { el.innerHTML = head + fxSkel(4, 'h-24'); return; }
+        if (g === 'error') { el.innerHTML = head + fxStateBox('error'); return; }
+        const cards = FX_DRIVERS.map(d => {
+            const m = fxS.metrics[d.sym];
+            if (!m) return '';
+            const isY = d.kind === 'yield';
+            const val = isY ? `${m.price.toFixed(3)}%` : m.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const chg = (pct, abs) => isY ? (Number.isFinite(abs) ? `<span class="${fxTone(abs)}">${abs >= 0 ? '+' : ''}${abs.toFixed(2)}%p</span>` : '') : fxPctCell(pct);
+            const reading = fxDriverReading(d.kind, m, d.ko);
+            return `<div class="rounded-xl border border-slate-800 bg-slate-900/50 p-3 space-y-1.5">
+                <div class="flex items-baseline justify-between gap-2"><span class="text-xs font-bold text-slate-200">${fxEsc(d.ko)}</span><span class="text-[10px] text-slate-500 font-mono-numbers">${fxEsc(d.sym)}</span></div>
+                <div class="flex items-end justify-between gap-2"><span class="text-xl font-extrabold text-white font-mono-numbers">${val}</span>
+                    <span class="text-[11px] font-mono-numbers text-right leading-tight">1일 ${chg(m.d1, m.d1abs) || '<span class="text-slate-600">–</span>'}<br>1개월 ${chg(m.m1, m.m1abs) || '<span class="text-slate-600">–</span>'}</span></div>
+                <p class="text-[11px] text-slate-300 leading-relaxed">${reading ? `<span class="text-[9px] px-1 py-px rounded bg-amber-950/60 border border-amber-800/60 text-amber-300 mr-1 align-middle">경험칙</span>${fxEsc(reading)}` : '<span class="text-slate-500">해석에 필요한 기간 데이터가 부족합니다.</span>'}</p></div>`;
+        }).join('');
+        const cs = fxCurveSpread((fxS.metrics['^TNX'] || {}).price, (fxS.metrics['^IRX'] || {}).price);
+        const csHtml = cs ? `<div class="rounded-xl border border-slate-800 bg-slate-900/50 p-3 text-[11px] text-slate-300 leading-relaxed"><b class="text-slate-200">장단기 금리차 (10년물 − 13주물)</b> <span class="font-mono-numbers ${fxTone(cs.v)}">${cs.v >= 0 ? '+' : ''}${cs.v.toFixed(2)}%p</span> — ${cs.inverted ? '장단기 금리 역전 상태입니다. (역전은 경기 둔화 우려 신호로 자주 언급되지만 환율 방향을 직접 알려주지는 않습니다.)' : '단기보다 장기 금리가 높은 정상적인 형태입니다.'}</div>` : '';
+        el.innerHTML = head + (cards ? `<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">${cards}</div>${csHtml}` : '<p class="text-xs text-slate-400">드라이버 데이터를 받지 못했습니다.</p>')
+            + `<div class="rounded-xl border border-slate-700 bg-slate-900/40 p-3 text-[11px] text-slate-400 leading-relaxed"><b class="text-slate-300"><i class="fa-solid fa-circle-info mr-1 text-cyan-400"></i>이 탭이 갖고 있지 않은 데이터</b> — 각국 정책금리와 금리차(캐리), 경제지표 발표 일정(캘린더)·시장 예상치, 중앙은행 발언·회의록, 투기 포지션(COT), 무역수지·외환보유액, 실질금리·물가. 위 변수만으로는 환율의 큰 그림 일부만 볼 수 있으므로 해당 정보는 중앙은행·통계청·경제 캘린더 등 별도 출처에서 확인하세요.</div>`;
+    }
+
+    // ---- 투자 방법 안내: ETF 표(실시간)는 자주 다시 그리고, 계산기 영역은 한 번만 만든다(입력값 유지) ----
+    function fxRenderEtfs() {
+        const el = fxById('fxEtfBox');
+        if (!el) return;
+        const g = fxGate();
+        if (g === 'noproxy') { el.innerHTML = fxStateBox('noproxy'); return; }
+        if (g === 'loading') { el.innerHTML = fxSkel(5); return; }
+        if (g === 'error') { el.innerHTML = fxStateBox('error'); return; }
+        const rows = FX_ETFS.map(e => {
+            const m = fxS.metrics[e.sym];
+            const tr = m && m.trend;
+            return `<tr class="border-b border-slate-800/60 align-top">
+                <td class="py-2 pr-2"><div class="font-bold text-white">${e.sym}</div><div class="text-[10px] text-emerald-300">${fxEsc(e.ko)}</div></td>
+                <td class="py-2 pr-2 text-[10px] text-slate-400 leading-snug min-w-[11rem]">${fxEsc(e.note)}</td>
+                <td class="py-2 text-right font-mono-numbers text-slate-100 whitespace-nowrap">${m ? '$' + m.price.toFixed(2) : ''}</td>
+                <td class="py-2 text-right font-mono-numbers whitespace-nowrap">${m ? fxPctCell(m.d1) : ''}</td>
+                <td class="py-2 text-right font-mono-numbers whitespace-nowrap">${m ? fxPctCell(m.m1) : ''}</td>
+                <td class="py-2 pl-3 whitespace-nowrap text-[11px] ${tr && tr.tone === 'up' ? 'text-emerald-400' : tr && tr.tone === 'down' ? 'text-rose-400' : 'text-slate-400'}">${m ? (tr.label || '데이터 부족') : '<span class="text-slate-600">데이터 없음</span>'}</td>
+                <td class="py-2 pl-3 text-right"><button data-act="qs" data-arg="${e.sym}" class="px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-cyan-300 whitespace-nowrap transition">분석 탭에서 보기</button></td></tr>`;
+        }).join('');
+        el.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-xs min-w-[640px]"><thead><tr class="text-[10px] text-slate-500 border-b border-slate-700"><th class="py-2 text-left">티커</th><th class="py-2 text-left">구조(요약)</th><th class="py-2 text-right">현재가(USD)</th><th class="py-2 text-right">1일</th><th class="py-2 text-right">1개월</th><th class="py-2 text-left pl-3">추세 (SMA 20·50·200)</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+            <p class="text-[10px] text-slate-500">가격은 달러 표시 ETF 시세입니다. 추세는 보드와 같은 방식(일봉 종가 vs 이동평균)입니다. 시세를 받지 못한 상품(상장 폐지 등)은 비어 있습니다. 상품 구조·보수·세금은 운용사 설명서에서 확인하세요 — 아래 요약은 일반적인 설명이며 추천이 아닙니다.</p>`;
+    }
+    function fxInvestShell() {
+        const card = 'rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-2';
+        const li = t => `<li class="flex gap-2"><span class="text-slate-600 mt-0.5">•</span><span>${t}</span></li>`;
+        return `${fxTitle('fa-graduation-cap', '환율에 투자하는 법 (교육용 안내)', '널리 알려진 방법과 주요 위험을 정리했습니다. 특정 상품의 매수·매도 권유가 아닙니다.')}
+        <div class="${card}"><h4 class="text-xs font-bold text-white"><i class="fa-solid fa-chart-column text-emerald-400 mr-1.5"></i>① 증권계좌에서 거래하는 해외 FX ETF/ETN</h4>
+            <div id="fxEtfBox">${fxSkel(4)}</div>
+            <ul class="text-[11px] text-slate-300 leading-relaxed space-y-1">
+                ${li('주식처럼 사고팔 수 있고 레버리지 없이 환율 방향에 투자할 수 있습니다. UUP·UDN 은 달러지수 <b>선물</b> 기반(롤오버 비용·세금 구조가 일반 주식 ETF 와 다를 수 있음), FXE 등은 해당 통화 <b>예금</b>을 보유하는 신탁입니다.')}
+                ${li('<b class="text-amber-300">위험</b>: 환율 방향이 틀리면 손실, 운용보수·추적오차, 거래량이 적은 상품의 호가 차이, 상장 폐지·운용 변경 가능성. 달러 표시 상품이라 원화 투자자는 해당 통화/달러 변동에 <b>원/달러 변동까지 함께</b> 받습니다.')}
+            </ul></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="${card}"><h4 class="text-xs font-bold text-white"><i class="fa-solid fa-piggy-bank text-emerald-400 mr-1.5"></i>② 원화 계좌에서: 외화예금 · 국내 상장 환율 ETF</h4>
+                <ul class="text-[11px] text-slate-300 leading-relaxed space-y-1">
+                    ${li('<b>외화(달러) 예금</b>: 은행에서 환전해 외화로 예치. 환전 스프레드(수수료)가 들고, 이자는 과세되지만 환차익은 비과세로 알려져 있습니다 (세법은 바뀔 수 있으니 최신 기준 확인).')}
+                    ${li('<b>국내 상장 달러 선물 ETF 등</b>: 원화 증권계좌로 거래. 선물 기반이면 롤오버 비용과 괴리율, 매매차익 과세 방식(일반적으로 배당소득세)을 확인하세요. 종목명은 상품별로 다르며 이 탭은 추천하지 않습니다.')}
+                    ${li('<b class="text-amber-300">위험</b>: 환율이 기대와 반대로 움직이면 원금 손실. 예금도 원화 환산 가치가 변동하므로 ‘원금 보장’은 외화 기준일 뿐입니다.')}
+                </ul></div>
+            <div class="${card}"><h4 class="text-xs font-bold text-white"><i class="fa-solid fa-triangle-exclamation text-amber-400 mr-1.5"></i>③ FX 마진 · CFD (레버리지 상품)</h4>
+                <ul class="text-[11px] text-slate-300 leading-relaxed space-y-1">
+                    ${li('증거금만 넣고 큰 금액을 거래합니다. 레버리지가 L배면 환율이 1% 역행할 때 증거금의 L% 가 손익으로 반영됩니다.')}
+                    ${li('<b class="text-rose-300">위험</b>: 증거금 부족 시 강제청산, 상품·업체에 따라 원금을 넘는 손실 가능, 야간·지표 발표 때 갭(호가 공백). 등록·인가된 업체인지 반드시 확인하세요.')}
+                </ul>
+                <div class="rounded-lg bg-slate-950/60 border border-slate-800 p-3 space-y-2">
+                    <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-300"><span>레버리지 감각 계산기 · 레버리지(가정)</span>
+                        <input id="fxLev" type="number" min="1" max="500" step="1" value="10" class="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono-numbers"><span>배</span></div>
+                    <div id="fxLevOut" class="text-[11px] text-slate-300 leading-relaxed">-</div></div></div></div>
+        <div class="${card}"><h4 class="text-xs font-bold text-white"><i class="fa-solid fa-calculator text-emerald-400 mr-1.5"></i>④ 해외주식 환율 영향 계산기 · 환헤지</h4>
+            <p class="text-[11px] text-slate-400 leading-relaxed">미국 주식을 원화로 산 사람의 원화 손익은 <b class="text-slate-200">주가 변동</b>과 <b class="text-slate-200">환율 변동</b>이 합쳐진 결과입니다. 환헤지(H) 상품은 환율 변동을 상쇄하는 대신 헤지 비용(금리차 등)이 들고 환율 이익도 포기합니다.</p>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-[11px] text-slate-400">
+                <label class="space-y-1 block"><span>매수금액 (USD)</span><input id="fxKrwCost" type="number" min="0" step="any" placeholder="예: 10000" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono-numbers"></label>
+                <label class="space-y-1 block"><span>현재 평가금액 (USD)</span><input id="fxKrwVal" type="number" min="0" step="any" placeholder="예: 11000" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono-numbers"></label>
+                <label class="space-y-1 block"><span>매수 시 환율 (원/달러)</span><input id="fxKrwFx0" type="number" min="0" step="any" placeholder="예: 1300" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono-numbers"></label>
+                <label class="space-y-1 block"><span>현재 환율 (원/달러) <span class="text-slate-600">· 시세로 자동 채움</span></span><input id="fxKrwFx1" type="number" min="0" step="any" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono-numbers"></label>
+            </div>
+            <div id="fxKrwOut" class="text-[11px] text-slate-500">금액과 환율을 입력하면 원화 손익이 계산됩니다.</div>
+            <p class="text-[10px] text-slate-500 leading-relaxed">분해 방식: 주가 효과 = (현재 평가 − 매수금액, USD) × 매수 환율, 환율 효과 = 현재 평가금액(USD) × (현재 환율 − 매수 환율). 두 값의 합이 원화 총손익입니다 (환율×주가 교차항은 환율 효과에 포함). 수수료·세금·배당은 반영하지 않습니다.</p></div>`;
+    }
+    function fxPrefillRate() {
+        const inp = fxById('fxKrwFx1'), m = fxS.metrics['KRW=X'];
+        if (inp && m && !inp.dataset.touched && Number.isFinite(m.price)) inp.value = m.price.toFixed(2);
+    }
+    function fxUpdateKrw() {
+        const out = fxById('fxKrwOut');
+        if (!out) return;
+        const v = id => { const e = fxById(id); return e ? e.value : ''; };
+        const r = fxKrwPnl(v('fxKrwCost'), v('fxKrwVal'), v('fxKrwFx0'), v('fxKrwFx1'));
+        if (!r) { out.className = 'text-[11px] text-slate-500'; out.textContent = '금액과 환율을 모두 입력하면 원화 손익이 계산됩니다 (0보다 큰 값).'; return; }
+        const won = x => `${x >= 0 ? '+' : '−'}${Math.round(Math.abs(x)).toLocaleString('ko-KR')}원`;
+        const cell = (label, val, pct) => `<div class="rounded-lg bg-slate-950/60 border border-slate-800 p-2.5"><div class="text-[10px] text-slate-500">${label}</div><div class="text-sm font-bold font-mono-numbers ${fxTone(val)}">${won(val)}</div><div class="text-[10px] font-mono-numbers ${fxTone(pct)}">${fxPctTxt(pct)}</div></div>`;
+        const same = (r.price >= 0) === (r.fx >= 0);
+        const note = Math.abs(r.price) < 0.5 && Math.abs(r.fx) < 0.5 ? '' : same ? '주가 효과와 환율 효과가 같은 방향이라 서로 키웠습니다.' : '주가 효과와 환율 효과가 반대 방향이라 서로 상쇄했습니다.';
+        out.className = 'space-y-2';
+        out.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">${cell('원화 총손익', r.total, r.totalPct)}${cell('주가 효과', r.price, r.pricePct)}${cell('환율 효과', r.fx, r.fxPct)}</div>
+            <p class="text-[11px] text-slate-300 leading-relaxed">매수 ${Math.round(r.costKrw).toLocaleString('ko-KR')}원 → 현재 평가 ${Math.round(r.valueKrw).toLocaleString('ko-KR')}원. ${note} (백분율은 원화 매수금액 대비)</p>`;
+    }
+    // 레버리지 감각: 선택한 통화쌍 일봉 ATR% 와 입력한 레버리지로 증거금 대비 하루 평균 진폭 계산
+    function fxUpdateLev() {
+        const out = fxById('fxLevOut');
+        if (!out) return;
+        const L = fxNum(fxById('fxLev') && fxById('fxLev').value);
+        const f = fxS.readout && fxS.readoutSym === fxC.sym && fxS.readout.ok ? fxS.readout.facts : null;
+        if (L === null || L < 1) { out.textContent = '레버리지를 1 이상으로 입력하세요.'; return; }
+        const p = fxPair(fxC.sym), name = fxLabel(p, fxS.x100);
+        let t = `<b>${L}배</b> 레버리지에서 환율이 불리하게 <b class="text-rose-300">${(100 / L).toFixed(2)}%</b> 움직이면 증거금 전액이 사라집니다 (강제청산은 보통 그 전에 발생). 1% 역행 = 증거금의 ${L}% 손실.`;
+        if (f && Number.isFinite(f.atrPct)) t += ` 선택한 ${fxEsc(name)}의 최근 ATR(14)은 현재가의 ${f.atrPct.toFixed(2)}% 이므로, 하루 평균 진폭만으로도 증거금의 약 <b class="text-amber-300">${(f.atrPct * L).toFixed(1)}%</b> 가 오르내립니다.`;
+        else t += ' (선택한 통화쌍의 ATR 데이터가 있으면 하루 평균 진폭 기준 값도 함께 표시됩니다.)';
+        out.innerHTML = t;
+    }
+
+    // ---- 현재 상태 (규칙 기반) ----
+    function fxRenderReadout() {
+        const el = fxById('fxReadoutBody');
+        if (!el) return;
+        const sym = fxC.sym;
+        if (fxS.noProxy) { el.innerHTML = fxStateBox('noproxy'); return; }
+        const r = fxS.readoutSym === sym ? fxS.readout : null;
+        if (!r) { el.innerHTML = fxSkel(5, 'h-10'); return; }
+        if (r.err) { el.innerHTML = `<div class="rounded-xl border border-rose-900/60 bg-rose-950/20 p-3 space-y-2"><p class="text-xs text-rose-200 leading-relaxed">${fxEsc(r.err)}</p><button data-act="retryChart" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white transition"><i class="fa-solid fa-rotate-right mr-1"></i>다시 시도</button></div>`; return; }
+        if (!r.ok) { el.innerHTML = '<p class="text-xs text-slate-400">일봉 데이터가 20개 미만이라 상태를 판단할 수 없습니다 (데이터 없음).</p>'; return; }
+        const dot = t => t === 'up' ? 'bg-emerald-400' : t === 'down' ? 'bg-rose-400' : 'bg-slate-500';
+        el.innerHTML = `<ul class="space-y-2.5">${r.lines.map(l => `<li class="flex gap-2.5"><span class="mt-1.5 w-2 h-2 rounded-full shrink-0 ${dot(l.tone)}"></span><div class="min-w-0"><div class="text-[11px] font-bold text-slate-200">${fxEsc(l.k)}</div><div class="text-[11px] text-slate-300 leading-relaxed">${fxEsc(l.text)}</div></div></li>`).join('')}</ul>`;
+    }
+    function fxRenderAi() {
+        const el = fxById('fxAiOut');
+        if (!el) return;
+        const a = fxS.ai;
+        if (a.busy) { el.innerHTML = '<span class="text-cyan-300"><i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 해설 생성 중...</span>'; return; }
+        el.innerHTML = a.text && a.sym === fxC.sym ? `<div class="rounded-lg bg-slate-950/60 border border-slate-800 p-3 text-[11px] text-slate-200 leading-relaxed whitespace-pre-line">${fxEsc(a.text)}</div><p class="text-[10px] text-slate-500 mt-1">AI 생성 문장 · 위 계산 결과만 근거로 요청했지만 검증되지 않았습니다.</p>` : '';
+    }
+    function fxAiPrompt() {
+        const f = fxS.readout.facts, p = fxPair(fxC.sym), fmt = fxFmtRate, num = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : '없음';
+        return `당신은 환율 교육용 해설가입니다. 아래는 웹앱이 일봉 데이터로 직접 계산한 사실입니다.
+통화쌍: ${fxLabel(p, fxS.x100)} (${p.ko})
+- 현재가 ${fmt(f.last)}, 추세 배열: ${f.trend || '판정 불가'} (SMA20 ${f.s20 ? fmt(f.s20) : '없음'}, SMA50 ${f.s50 ? fmt(f.s50) : '없음'}, SMA200 ${f.s200 ? fmt(f.s200) : '없음'})
+- RSI(14) ${num(f.rsi, 1)}, MACD 히스토그램 ${num(f.macdHist, 5)}${f.macdCross ? ' (' + f.macdCross + ')' : ''}, 최근 20봉 변화 ${num(f.d20)}%
+- 52주 범위 ${f.lo52 ? fmt(f.lo52) : '없음'} ~ ${f.hi52 ? fmt(f.hi52) : '없음'}, 범위 내 위치 ${f.pos !== null && f.pos !== undefined ? Math.round(f.pos * 100) + '%' : '없음'}
+- ATR(14) ${num(f.atrPct)}% (최근 1년 대비 ${f.atrRank !== undefined ? Math.round(f.atrRank) + '분위' : '없음'})
+- 가까운 저항 ${f.resistance ? fmt(f.resistance) : '없음'}, 가까운 지지 ${f.support ? fmt(f.support) : '없음'}
+규칙: 한국어 4~6문장. 위 수치만 근거로 쓰고 새로운 수치·뉴스·금리·경제지표를 만들어내지 말 것. 방향을 단정하거나 매수/매도를 권유하지 말고, "일반적으로 ~로 해석한다" 식으로 쓸 것. 마지막 문장은 "교육용 해설이며 투자 권유가 아닙니다."`;
+    }
+    async function fxRunAi() {
+        if (fxS.ai.busy) return;
+        if (!getStoredApiKey('gemini_key')) { showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 해설을 사용할 수 있습니다.', 'info'); openApiSettingsModal(); return; }
+        if (!fxS.readout || !fxS.readout.ok || fxS.readoutSym !== fxC.sym) { showToast('데이터 없음', '현재 상태 계산이 끝난 뒤에 눌러 주세요.', 'warning'); return; }
+        const sym = fxC.sym;
+        fxS.ai = { sym, text: '', busy: true }; fxRenderAi();
+        let r = null;
+        try { r = await callGemini(fxAiPrompt()); } catch (e) { r = { error: e.message }; }
+        fxS.ai = { sym, text: r && r.text ? r.text.trim() : '', busy: false };
+        if (!r || r.error || !r.text) showToast('AI 해설 실패', (r && r.error) || '응답이 없습니다.', 'warning');
+        fxRenderAi();
+    }
+
+    // ---------------------------------------------------------------------------
+    // 5) 자체 경량 캔버스 차트 (메인의 CH 엔진과 무관) — 캔들/라인 · SMA · 볼린저 · RSI · 크로스헤어 · 줌/팬 · 터치
+    // ---------------------------------------------------------------------------
+    const fxC = {
+        sym: 'EURUSD=X', ivKey: '1d', type: 'candle',
+        opt: { sma20: true, sma50: true, sma200: false, bb: false, rsi: true },
+        bars: [], meta: {}, ind: null, vs: 0, vn: 100, cross: null,
+        canvas: null, ctx: null, wrap: null, tok: 0, raf: 0, ro: null, dpr: 1, lastIdx: -1, lastW: 0
+    };
+    const FX_OPT_COLORS = { sma20: '#f59e0b', sma50: '#22d3ee', sma200: '#a78bfa', bb: '#64748b' };
+    const fxIv = () => FX_INTERVALS.find(x => x.key === fxC.ivKey) || FX_INTERVALS[2];
+
+    function fxChartMsg(kind, e) {
+        const el = fxById('fxChartMsg');
+        if (!el) return;
+        if (!kind) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+        el.classList.remove('hidden');
+        if (kind === 'loading') { el.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-[#0b1220]/70"><span class="text-xs text-cyan-300"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>차트 불러오는 중...</span></div>'; return; }
+        if (e && e.noProxy) { el.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-[#0b1220] p-4">${fxStateBox('noproxy')}</div>`; return; }
+        el.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-[#0b1220]/90 p-4"><div class="max-w-sm text-center space-y-3"><p class="text-xs text-rose-200 leading-relaxed"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${fxEsc(fxErrMsg(e))}</p><button data-act="retryChart" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white transition"><i class="fa-solid fa-rotate-right mr-1"></i>다시 시도</button></div></div>`;
+    }
+
+    async function fxLoadChart(o = {}) {
+        if (!fxC.canvas) return;
+        const iv = fxIv(), sym = fxC.sym, tok = ++fxC.tok;
+        if (!getProxyUrl()) { fxS.noProxy = true; fxChartMsg('error', { noProxy: true }); return; }
+        if (!o.silent) fxChartMsg('loading');
+        let data;
+        try { data = await fxGetChart(sym, iv.range, iv.interval, !!o.force); }
+        catch (e) {
+            if (tok !== fxC.tok) return;
+            if (o.silent && fxC.bars.length) return;
+            fxC.bars = []; fxC.ind = null; fxDraw();
+            fxChartMsg('error', e);
+            return;
+        }
+        if (tok !== fxC.tok) return;
+        fxApplyBars(data, !!o.silent);
+        fxChartMsg('');
+    }
+    function fxApplyBars(data, preserve) {
+        const old = fxC.bars, oldVs = fxC.vs, oldVn = fxC.vn;
+        fxC.bars = fxScaleBars(data.bars, fxScale(fxC.sym));
+        fxC.meta = data.meta;
+        const n = fxC.bars.length, closes = fxC.bars.map(b => b.c);
+        fxC.ind = { s20: TA.sma(closes, 20), s50: TA.sma(closes, 50), s200: TA.sma(closes, 200), bb: bollingerSeries(closes, 20, 2), rsi: rsiSeries(closes, 14) };
+        if (preserve && old.length) {
+            const rightOff = oldVs + oldVn - old.length;     // 오른쪽 끝에서 떨어진 정도 (0 근처면 최신 봉을 따라간다)
+            if (rightOff >= -1) fxC.vs = n + rightOff - oldVn;
+            else {
+                const t0 = old[Math.max(0, Math.min(old.length - 1, Math.floor(oldVs)))].t;
+                const k = fxC.bars.findIndex(b => b.t >= t0);
+                fxC.vs = (k < 0 ? 0 : k) + (oldVs - Math.floor(oldVs));
+            }
+            fxC.vn = oldVn;
+        } else fxResetView();
+        fxClampView();
+        fxC.cross = null;
+        fxDraw();
+    }
+    function fxResetView() {
+        const n = fxC.bars.length, want = fxIv().bars;
+        fxC.vn = Math.max(10, Math.min(want, n + 4));
+        fxC.vs = n - fxC.vn + 4;
+        fxClampView();
+        fxDrawSoon();
+    }
+    function fxClampView() {
+        const n = fxC.bars.length;
+        fxC.vn = Math.max(10, Math.min(fxC.vn, Math.max(30, n * 1.2)));
+        fxC.vs = Math.max(-fxC.vn * 0.2, Math.min(fxC.vs, n - fxC.vn * 0.8));
+    }
+    function fxZoom(factor, anchorFrac) {   // factor<1 확대, anchorFrac: 플롯 폭 대비 기준 위치(0~1)
+        const vn0 = fxC.vn;
+        fxC.vn = vn0 * factor;
+        fxClampView();
+        fxC.vs += (vn0 - fxC.vn) * anchorFrac;
+        fxClampView();
+        fxDrawSoon();
+    }
+    function fxDrawSoon() { if (fxC.raf) return; fxC.raf = requestAnimationFrame(() => { fxC.raf = 0; fxDraw(); }); }
+
+    function fxLayout() {
+        const W = fxC.wrap.clientWidth, H = fxC.wrap.clientHeight;
+        const axW = W < 520 ? 58 : 68, timeH = 22;
+        const rsiH = fxC.opt.rsi ? Math.round(Math.min(120, H * 0.24)) : 0, gap = rsiH ? 10 : 0;
+        const top = 8, mainB = H - timeH - rsiH - gap;
+        return { W, H, axW, plotW: W - axW, top, mainB, rsiTop: mainB + gap, rsiB: mainB + gap + rsiH, timeH };
+    }
+    function fxFmtTs(ts, full) {
+        const d = new Date(ts * 1000), p = n => String(n).padStart(2, '0');
+        const ymd = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+        if (fxIv().intraday) return full ? `${ymd} ${p(d.getHours())}:${p(d.getMinutes())}` : `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+        return full ? ymd : `${String(d.getFullYear()).slice(2)}/${p(d.getMonth() + 1)}/${p(d.getDate())}`;
+    }
+    // 가격 문자열: 눈금 간격에 필요한 만큼 소수 자릿수를 늘린다
+    function fxAxisFmt(step) {
+        const need = step > 0 ? Math.max(0, Math.ceil(-Math.log10(step) - 1e-9)) : 2;
+        return v => v.toLocaleString('en-US', { minimumFractionDigits: need, maximumFractionDigits: need });
+    }
+    function fxPxFmt(v) { return Number.isFinite(v) ? fxFmtRate(v) : ''; }
+
+    function fxDraw() {
+        const c = fxC;
+        if (!c.canvas || !c.wrap) return;
+        const L = fxLayout();
+        if (L.W < 60 || L.H < 60) return;           // 숨겨진 탭 — 보이면 resize 에서 다시 그린다
+        const dpr = window.devicePixelRatio || 1;
+        if (c.canvas.width !== Math.round(L.W * dpr) || c.canvas.height !== Math.round(L.H * dpr)) {
+            c.canvas.width = Math.round(L.W * dpr); c.canvas.height = Math.round(L.H * dpr);
+            c.canvas.style.width = L.W + 'px'; c.canvas.style.height = L.H + 'px';
+        }
+        const ctx = c.ctx;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, L.W, L.H);
+        const bars = c.bars, n = bars.length;
+        if (!n) { fxUpdateInfo(-1); return; }
+        const ind = c.ind, barW = L.plotW / c.vn;
+        const xOf = i => (i - c.vs + 0.5) * barW;
+        const i0 = Math.max(0, Math.floor(c.vs)), i1 = Math.min(n - 1, Math.ceil(c.vs + c.vn));
+        // 가격축 범위 (보이는 봉 + 켜 둔 오버레이)
+        let lo = Infinity, hi = -Infinity;
+        for (let i = i0; i <= i1; i++) {
+            const b = bars[i];
+            if (c.type === 'candle') { lo = Math.min(lo, b.l); hi = Math.max(hi, b.h); } else { lo = Math.min(lo, b.c); hi = Math.max(hi, b.c); }
+            ['s20', 's50', 's200'].forEach(k => { if (c.opt['sma' + k.slice(1)] && ind[k][i] !== null) { lo = Math.min(lo, ind[k][i]); hi = Math.max(hi, ind[k][i]); } });
+            if (c.opt.bb && ind.bb.upper[i] !== null) { lo = Math.min(lo, ind.bb.lower[i]); hi = Math.max(hi, ind.bb.upper[i]); }
+        }
+        if (!isFinite(lo) || !isFinite(hi)) { fxUpdateInfo(-1); return; }
+        if (hi - lo < 1e-12) { const d = Math.abs(hi) * 0.001 || 0.001; hi += d; lo -= d; }
+        const padY = (hi - lo) * 0.07; lo -= padY; hi += padY;
+        const yOf = p => L.top + (hi - p) / (hi - lo) * (L.mainB - L.top);
+        ctx.font = '11px "JetBrains Mono", ui-monospace, monospace';
+        ctx.textBaseline = 'middle';
+
+        // 격자 + 가격축
+        const nt = fxNiceTicks(lo, hi, Math.max(3, Math.round((L.mainB - L.top) / 60)));
+        const axFmt = fxAxisFmt(nt.step);
+        ctx.lineWidth = 1;
+        nt.ticks.forEach(v => {
+            const y = Math.round(yOf(v)) + 0.5;
+            ctx.strokeStyle = '#1e293b'; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(L.plotW, y); ctx.stroke();
+            ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'left'; ctx.fillText(axFmt(v), L.plotW + 6, y);
+        });
+        // 시간축 눈금 (절대 인덱스 기준이라 팬 할 때 라벨이 흔들리지 않음)
+        const every = Math.max(1, Math.ceil(104 / barW)), iv = fxIv();
+        let prevDay = '';
+        const tickIdx = [];
+        for (let i = Math.ceil(i0 / every) * every; i <= i1; i += every) tickIdx.push(i);
+        ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center';
+        tickIdx.forEach(i => {
+            const x = Math.round(xOf(i)) + 0.5;
+            if (x < 24 || x > L.plotW - 24) return;
+            ctx.strokeStyle = '#162033'; ctx.beginPath(); ctx.moveTo(x, L.top); ctx.lineTo(x, L.H - L.timeH); ctx.stroke();
+            let label;
+            if (iv.intraday) {
+                const d = new Date(bars[i].t * 1000), day = `${d.getMonth() + 1}/${d.getDate()}`;
+                label = day !== prevDay ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                prevDay = day;
+            } else label = fxFmtTs(bars[i].t, false);
+            ctx.fillText(label, x, L.H - L.timeH / 2);
+        });
+
+        // 클리핑 후 본체
+        ctx.save();
+        ctx.beginPath(); ctx.rect(0, L.top - 2, L.plotW, L.mainB - L.top + 4); ctx.clip();
+        // 볼린저 밴드
+        if (c.opt.bb) {
+            ctx.beginPath(); let started = false;
+            for (let i = i0; i <= i1; i++) { if (ind.bb.upper[i] === null) continue; const x = xOf(i), y = yOf(ind.bb.upper[i]); if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); }
+            for (let i = i1; i >= i0; i--) { if (ind.bb.lower[i] === null) continue; ctx.lineTo(xOf(i), yOf(ind.bb.lower[i])); }
+            ctx.closePath(); ctx.fillStyle = 'rgba(100,116,139,0.12)'; ctx.fill();
+            [ind.bb.upper, ind.bb.lower].forEach(arr => fxStroke(ctx, arr, i0, i1, xOf, yOf, '#64748b', 1));
+        }
+        // 캔들 / 라인
+        if (c.type === 'candle') {
+            const bw = Math.max(1, Math.floor(barW * 0.68));
+            for (let i = i0; i <= i1; i++) {
+                const b = bars[i], up = b.c >= b.o, col = up ? FX_UP : FX_DN;
+                const x = barW > 3 ? Math.round(xOf(i)) + 0.5 : xOf(i);
+                ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(x, yOf(b.h)); ctx.lineTo(x, yOf(b.l)); ctx.stroke();
+                const yo = yOf(b.o), yc = yOf(b.c);
+                ctx.fillRect(Math.round(xOf(i) - bw / 2), Math.min(yo, yc), bw, Math.max(1, Math.abs(yo - yc)));
+            }
+        } else {
+            const grad = ctx.createLinearGradient(0, L.top, 0, L.mainB);
+            grad.addColorStop(0, 'rgba(34,211,238,0.22)'); grad.addColorStop(1, 'rgba(34,211,238,0)');
+            ctx.beginPath(); ctx.moveTo(xOf(i0), L.mainB);
+            for (let i = i0; i <= i1; i++) ctx.lineTo(xOf(i), yOf(bars[i].c));
+            ctx.lineTo(xOf(i1), L.mainB); ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+            ctx.beginPath();
+            for (let i = i0; i <= i1; i++) { const x = xOf(i), y = yOf(bars[i].c); if (i === i0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+            ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+        }
+        // 이동평균
+        [['sma20', 's20'], ['sma50', 's50'], ['sma200', 's200']].forEach(([ok, k]) => { if (c.opt[ok]) fxStroke(ctx, ind[k], i0, i1, xOf, yOf, FX_OPT_COLORS[ok], 1.3); });
+        ctx.restore();
+
+        // 마지막 가격선 + 태그
+        const lastB = bars[n - 1], lastUp = lastB.c >= lastB.o;
+        {
+            const y = Math.max(L.top + 8, Math.min(L.mainB - 8, yOf(lastB.c)));
+            ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = lastUp ? FX_UP : FX_DN; ctx.globalAlpha = 0.7;
+            ctx.beginPath(); ctx.moveTo(0, Math.round(y) + 0.5); ctx.lineTo(L.plotW, Math.round(y) + 0.5); ctx.stroke(); ctx.restore();
+            fxTag(ctx, L.plotW, y, L.axW, fxPxFmt(lastB.c), lastUp ? FX_UP : FX_DN, '#04130d');
+        }
+        // 범례 (크로스헤어 위치의 지표값, 없으면 마지막 봉)
+        const ci = c.cross ? Math.max(0, Math.min(n - 1, Math.floor(c.vs + c.cross.x / barW))) : n - 1;
+        {
+            let x = 8; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            const put = (txt, col) => { ctx.fillStyle = col; ctx.fillText(txt, x, L.top + 8); x += ctx.measureText(txt).width + 10; };
+            [['sma20', 's20', 'SMA20'], ['sma50', 's50', 'SMA50'], ['sma200', 's200', 'SMA200']].forEach(([ok, k, nm]) => { if (c.opt[ok]) put(`${nm} ${ind[k][ci] === null ? '—' : fxPxFmt(ind[k][ci])}`, FX_OPT_COLORS[ok]); });
+            if (c.opt.bb) put(`BB(20,2) ${ind.bb.upper[ci] === null ? '—' : fxPxFmt(ind.bb.lower[ci]) + '~' + fxPxFmt(ind.bb.upper[ci])}`, '#94a3b8');
+        }
+
+        // RSI 패널
+        if (c.opt.rsi) {
+            const rt = L.rsiTop, rb = L.rsiB, ry = v => rt + (100 - v) / 100 * (rb - rt);
+            ctx.fillStyle = '#0d1527'; ctx.fillRect(0, rt, L.plotW, rb - rt);
+            ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1; ctx.strokeRect(0.5, rt + 0.5, L.plotW - 1, rb - rt - 1);
+            ctx.save(); ctx.beginPath(); ctx.rect(0, rt, L.plotW, rb - rt); ctx.clip();
+            ctx.fillStyle = 'rgba(244,63,94,0.06)'; ctx.fillRect(0, ry(100), L.plotW, ry(70) - ry(100));
+            ctx.fillStyle = 'rgba(16,185,129,0.06)'; ctx.fillRect(0, ry(30), L.plotW, ry(0) - ry(30));
+            ctx.setLineDash([3, 3]); ctx.strokeStyle = '#334155';
+            [30, 50, 70].forEach(v => { ctx.beginPath(); ctx.moveTo(0, Math.round(ry(v)) + 0.5); ctx.lineTo(L.plotW, Math.round(ry(v)) + 0.5); ctx.stroke(); });
+            ctx.setLineDash([]);
+            fxStroke(ctx, ind.rsi, i0, i1, xOf, ry, '#c084fc', 1.4);
+            ctx.restore();
+            ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            [30, 70].forEach(v => ctx.fillText(String(v), L.plotW + 6, ry(v)));
+            const rv = ind.rsi[ci];
+            ctx.fillStyle = '#c084fc'; ctx.fillText(`RSI(14) ${rv === null ? '—' : rv.toFixed(1)}`, 8, rt + 9);
+            if (ind.rsi[n - 1] !== null) fxTag(ctx, L.plotW, ry(ind.rsi[n - 1]), L.axW, ind.rsi[n - 1].toFixed(1), '#7c3aed', '#fff');
+        }
+
+        // 크로스헤어
+        let infoIdx = -1;
+        if (c.cross && c.cross.x >= 0 && c.cross.x <= L.plotW) {
+            const idx = Math.max(0, Math.min(n - 1, Math.floor(c.vs + c.cross.x / barW)));
+            infoIdx = idx;
+            const x = Math.round(xOf(idx)) + 0.5, my = c.cross.y;
+            ctx.save(); ctx.setLineDash([4, 3]); ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(x, L.top); ctx.lineTo(x, L.H - L.timeH); ctx.stroke();
+            if (my >= L.top && my <= L.mainB) { ctx.beginPath(); ctx.moveTo(0, Math.round(my) + 0.5); ctx.lineTo(L.plotW, Math.round(my) + 0.5); ctx.stroke(); }
+            else if (c.opt.rsi && my >= L.rsiTop && my <= L.rsiB) { ctx.beginPath(); ctx.moveTo(0, Math.round(my) + 0.5); ctx.lineTo(L.plotW, Math.round(my) + 0.5); ctx.stroke(); }
+            ctx.restore();
+            if (my >= L.top && my <= L.mainB) fxTag(ctx, L.plotW, my, L.axW, fxPxFmt(hi - (my - L.top) / (L.mainB - L.top) * (hi - lo)), '#334155', '#e2e8f0');
+            else if (c.opt.rsi && my >= L.rsiTop && my <= L.rsiB) fxTag(ctx, L.plotW, my, L.axW, (100 - (my - L.rsiTop) / (L.rsiB - L.rsiTop) * 100).toFixed(1), '#334155', '#e2e8f0');
+            const tl = fxFmtTs(bars[idx].t, true), tw = ctx.measureText(tl).width + 12;
+            const tx = Math.max(0, Math.min(L.plotW - tw, x - tw / 2));
+            ctx.fillStyle = '#334155'; ctx.fillRect(tx, L.H - L.timeH + 2, tw, L.timeH - 4);
+            ctx.fillStyle = '#e2e8f0'; ctx.textAlign = 'center'; ctx.fillText(tl, tx + tw / 2, L.H - L.timeH / 2);
+        }
+        fxUpdateInfo(infoIdx);
+    }
+    function fxStroke(ctx, arr, i0, i1, xOf, yOf, color, lw) {
+        ctx.beginPath(); let pen = false;
+        for (let i = i0; i <= i1; i++) {
+            const v = arr[i];
+            if (v === null || v === undefined) { pen = false; continue; }
+            const x = xOf(i), y = yOf(v);
+            if (!pen) { ctx.moveTo(x, y); pen = true; } else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.stroke();
+    }
+    function fxTag(ctx, x, y, w, text, bg, fg) {
+        ctx.save();
+        ctx.fillStyle = bg; ctx.fillRect(x, y - 9, w - 1, 18);
+        ctx.fillStyle = fg; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(text, x + 5, y);
+        ctx.restore();
+    }
+    // 차트 위 OHLC 한 줄 (크로스헤어가 없으면 마지막 봉)
+    function fxUpdateInfo(idx) {
+        const el = fxById('fxChartInfo');
+        if (!el) return;
+        const bars = fxC.bars;
+        if (!bars.length) { el.innerHTML = '<span class="text-slate-600">데이터 없음</span>'; return; }
+        const i = idx >= 0 ? idx : bars.length - 1, b = bars[i], prev = i > 0 ? bars[i - 1].c : b.o;
+        const chg = (b.c / prev - 1) * 100, col = chg >= 0 ? 'text-emerald-400' : 'text-rose-400';
+        const key = `${i}|${b.c}|${bars.length}`;
+        if (fxC.lastInfo === key) return;
+        fxC.lastInfo = key;
+        const cell = (k, v) => `<span class="text-slate-500">${k}</span> <span class="text-slate-100">${fxPxFmt(v)}</span>`;
+        el.innerHTML = `<span class="text-slate-300">${fxFmtTs(b.t, true)}</span> ${cell('시', b.o)} ${cell('고', b.h)} ${cell('저', b.l)} ${cell('종', b.c)} <span class="${col}">${fxPctTxt(chg)}</span>`;
+    }
+
+    // ---- 입력: 마우스(휠·드래그·호버) / 터치(드래그 이동·핀치 줌·탭 크로스헤어) ----
+    function fxBindChart(cv) {
+        const pts = new Map();
+        let drag = null, pinch = null;
+        const pos = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+        const plotW = () => Math.max(1, fxLayout().plotW);
+        cv.addEventListener('pointerdown', e => {
+            if (!fxC.bars.length) return;
+            try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
+            pts.set(e.pointerId, pos(e));
+            if (pts.size === 1) drag = { x: pos(e).x, vs: fxC.vs, moved: false, touch: e.pointerType !== 'mouse' };
+            else if (pts.size === 2) {
+                const [a, b] = [...pts.values()];
+                pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, vn: fxC.vn, vs: fxC.vs, mid: (a.x + b.x) / 2 };
+                drag = null; fxC.cross = null;
+            }
+        });
+        cv.addEventListener('pointermove', e => {
+            const p = pos(e);
+            if (pts.has(e.pointerId)) pts.set(e.pointerId, p);
+            if (pinch && pts.size >= 2) {
+                const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+                const pw = plotW(), anchor = pinch.vs + pinch.mid / (pw / pinch.vn);
+                fxC.vn = pinch.vn * pinch.d / d; fxClampView();
+                fxC.vs = anchor - pinch.mid / (pw / fxC.vn); fxClampView();
+                fxDrawSoon(); return;
+            }
+            if (drag && pts.has(e.pointerId)) {
+                const dx = p.x - drag.x;
+                if (Math.abs(dx) > 3) drag.moved = true;
+                if (drag.moved) { fxC.vs = drag.vs - dx / (plotW() / fxC.vn); fxClampView(); if (drag.touch) fxC.cross = null; else fxC.cross = p; fxDrawSoon(); return; }
+            }
+            if (e.pointerType === 'mouse') { fxC.cross = p; fxDrawSoon(); }
+        });
+        const end = e => {
+            const p = pos(e);
+            if (drag && pts.size === 1 && !drag.moved && drag.touch) {       // 터치 탭 = 크로스헤어 표시/해제
+                const L = fxLayout();
+                fxC.cross = (p.x <= L.plotW && p.y <= L.H - L.timeH) ? p : null; fxDrawSoon();
+            }
+            pts.delete(e.pointerId);
+            if (pts.size < 2) pinch = null;
+            if (pts.size === 0) drag = null;
+            else if (pts.size === 1) { const q = [...pts.values()][0]; drag = { x: q.x, vs: fxC.vs, moved: true, touch: true }; }
+        };
+        cv.addEventListener('pointerup', end);
+        cv.addEventListener('pointercancel', e => { pts.delete(e.pointerId); if (!pts.size) { drag = null; pinch = null; } });
+        cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !pts.size) { fxC.cross = null; fxDrawSoon(); } });
+        cv.addEventListener('wheel', e => {
+            if (!fxC.bars.length) return;
+            e.preventDefault();
+            const pw = plotW(), p = pos(e);
+            if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                fxC.vs += (e.deltaX || e.deltaY) / (pw / fxC.vn); fxClampView();
+                fxC.cross = p; fxDrawSoon(); return;
+            }
+            fxZoom(Math.exp(Math.max(-300, Math.min(300, e.deltaY)) * 0.0016), Math.max(0, Math.min(1, p.x / pw)));
+            fxC.cross = p;
+        }, { passive: false });
+        cv.addEventListener('dblclick', () => { fxResetView(); });
+    }
+    function fxChartResize() {
+        if (!fxC.wrap || !fxC.canvas) return;
+        const mobile = window.innerWidth < 640;
+        const h = (mobile ? 300 : 380) + (fxC.opt.rsi ? (mobile ? 90 : 110) : 0);
+        fxC.wrap.style.height = h + 'px';
+        fxDraw();
+    }
+
+    // ---------------------------------------------------------------------------
+    // 6) 뼈대 · 이벤트 · 탭 훅
+    // ---------------------------------------------------------------------------
+    function fxBuildShell() {
+        const root = fxById('fxRoot');
+        const cb = (id, label) => `<label class="inline-flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer select-none"><input id="${id}" type="checkbox" class="accent-emerald-500">${label}</label>`;
+        root.innerHTML = `<div class="space-y-6">
+            <section class="bg-gradient-to-r from-slate-900 via-[#131e32] to-[#10241f] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-2xl space-y-3">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-700/60 text-emerald-300 text-xs font-semibold mb-2"><i class="fa-solid fa-money-bill-transfer"></i> 환율 · FX</div>
+                        <h2 class="text-xl sm:text-2xl font-extrabold text-white tracking-tight">환율 대시보드</h2>
+                        <p class="text-slate-400 text-xs sm:text-sm mt-1">주요 통화쌍 · 차트 · 통화 강세 · 환율 드라이버 · 환율에 투자하는 법</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <span id="fxStatus" class="text-[11px] text-cyan-300"></span>
+                        ${cb('fxAuto', '자동 갱신 (60초)')}${cb('fxX100', '엔/원 100엔 기준')}
+                        <button data-act="reload" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white transition"><i class="fa-solid fa-rotate-right mr-1.5"></i>새로고침</button>
+                    </div>
+                </div>
+                <p class="text-[11px] text-amber-200/90 bg-amber-950/30 border border-amber-800/50 rounded-lg px-3 py-2 leading-relaxed"><i class="fa-solid fa-triangle-exclamation mr-1.5 text-amber-400"></i>교육·정보용 화면이며 투자 권유가 아닙니다. 환율은 예측하기 어렵고, 특히 레버리지(FX 마진·CFD)는 작은 변동에도 원금을 넘는 손실이 날 수 있습니다. 값을 받지 못한 항목은 지어내지 않고 비워 둡니다.</p>
+            </section>
+            <section id="fxBoardSec" class="${FX_CARD}"></section>
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+                <section id="fxChartSec" class="${FX_CARD} xl:col-span-2 min-w-0">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <select id="fxPairSel" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-semibold">${FX_PAIRS.map(p => `<option value="${fxEsc(p.sym)}">${fxEsc(fxLabel(p))} · ${fxEsc(p.ko)}</option>`).join('')}</select>
+                            <div id="fxChartHead" class="flex items-baseline gap-2 font-mono-numbers"></div>
+                        </div>
+                        <div id="fxIvBtns" class="flex items-center gap-1"></div>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div id="fxOptBtns" class="flex flex-wrap items-center gap-1"></div>
+                        <div class="flex items-center gap-1">
+                            <button data-act="zoom" data-arg="in" class="${fxBtn(false)}" title="확대" aria-label="확대"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                            <button data-act="zoom" data-arg="out" class="${fxBtn(false)}" title="축소" aria-label="축소"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                            <button data-act="zoom" data-arg="reset" class="${fxBtn(false)}" title="처음 보기로">맞춤</button>
+                        </div>
+                    </div>
+                    <div id="fxChartInfo" class="font-mono-numbers text-[11px] leading-relaxed min-h-[1.1rem] whitespace-normal break-words"></div>
+                    <div id="fxChartWrap" class="relative w-full rounded-lg overflow-hidden border border-slate-800 bg-[#0b1220]" style="height:380px">
+                        <canvas id="fxCanvas" class="block" style="touch-action:pan-y;cursor:crosshair"></canvas>
+                        <div id="fxChartMsg" class="hidden absolute inset-0"></div>
+                    </div>
+                    <p class="text-[10px] text-slate-500 leading-relaxed">휠 = 확대/축소 · 드래그 = 이동 · 더블클릭 = 처음 보기 · 터치: 한 손가락 이동, 두 손가락 확대, 탭 = 십자선. 시간은 브라우저 현지 시간이며 환율(외환)은 거래량 자료가 없어 거래량은 표시하지 않습니다. 5분봉 5일·1시간봉 3개월·일봉 2년·주봉 10년 범위를 불러옵니다.</p>
+                </section>
+                <section id="fxReadoutSec" class="${FX_CARD} min-w-0">
+                    ${fxTitle('fa-stethoscope', '현재 상태 (규칙 기반)', '선택한 통화쌍의 일봉 데이터에서 계산한 사실을 규칙에 따라 서술합니다.')}
+                    <div id="fxReadoutBody"></div>
+                    <p class="text-[10px] text-slate-500 leading-relaxed border-t border-slate-800 pt-2">※ 과거 가격에서 계산한 사실의 서술이며 방향 예측·투자 권유가 아닙니다. 지지/저항은 과거 스윙 고저점일 뿐 반드시 지켜지지 않습니다.</p>
+                    <div class="space-y-2">
+                        <button data-act="ai" id="fxAiBtn" class="px-3 py-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-700/60 text-xs text-indigo-200 transition"><i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>AI 해설</button>
+                        <p class="text-[10px] text-slate-500">버튼을 누를 때만 위 계산 결과를 Gemini 로 보내 해설을 생성합니다 (내 API 키의 사용량이 소모됩니다).</p>
+                        <div id="fxAiOut"></div>
+                    </div>
+                </section>
+            </div>
+            <section id="fxStrengthSec" class="${FX_CARD}"></section>
+            <section id="fxDriversSec" class="${FX_CARD}"></section>
+            <section id="fxInvestSec" class="${FX_CARD}">${fxInvestShell()}</section>
+            <p class="text-[11px] text-slate-500 leading-relaxed text-center px-2">※ 이 탭의 모든 수치는 Yahoo Finance 시세(지연·오차 가능)로 계산한 참고 자료이며 투자 권유나 금융 자문이 아닙니다. 환율 투자의 모든 판단과 책임은 투자자 본인에게 있습니다.</p>
+        </div>`;
+        fxById('fxAuto').checked = fxS.auto; fxById('fxX100').checked = fxS.x100;
+        fxById('fxPairSel').value = fxC.sym;
+        fxC.wrap = fxById('fxChartWrap'); fxC.canvas = fxById('fxCanvas'); fxC.ctx = fxC.canvas.getContext('2d');
+        fxBindChart(fxC.canvas);
+        if (typeof ResizeObserver !== 'undefined') { fxC.ro = new ResizeObserver(() => { if (fxC.wrap.clientWidth !== fxC.lastW) { fxC.lastW = fxC.wrap.clientWidth; fxDrawSoon(); } }); fxC.ro.observe(fxC.wrap); }
+        fxRenderChartHead();
+        fxChartResize();
+    }
+    function fxRenderChartHead() {
+        const iv = fxById('fxIvBtns'), ob = fxById('fxOptBtns'), hd = fxById('fxChartHead'), sel = fxById('fxPairSel');
+        if (!iv) return;
+        if (sel && sel.value !== fxC.sym) sel.value = fxC.sym;
+        iv.innerHTML = FX_INTERVALS.map(x => `<button data-act="iv" data-arg="${x.key}" class="${fxBtn(x.key === fxC.ivKey)}">${x.label}</button>`).join('')
+            + `<span class="w-px h-4 bg-slate-700 mx-1"></span><button data-act="type" data-arg="candle" class="${fxBtn(fxC.type === 'candle')}">캔들</button><button data-act="type" data-arg="line" class="${fxBtn(fxC.type === 'line')}">라인</button>`;
+        const o = fxC.opt;
+        const ob1 = (k, label, col) => `<button data-act="opt" data-arg="${k}" class="${fxBtn(o[k])}" aria-pressed="${o[k]}">${col ? `<span class="inline-block w-2 h-2 rounded-full mr-1" style="background:${col}"></span>` : ''}${label}</button>`;
+        ob.innerHTML = ob1('sma20', 'SMA20', FX_OPT_COLORS.sma20) + ob1('sma50', 'SMA50', FX_OPT_COLORS.sma50) + ob1('sma200', 'SMA200', FX_OPT_COLORS.sma200) + ob1('bb', '볼린저', FX_OPT_COLORS.bb) + ob1('rsi', 'RSI', '#c084fc');
+        const m = fxS.metrics[fxC.sym], p = fxPair(fxC.sym);
+        hd.innerHTML = m ? `<span class="text-lg font-extrabold text-white">${fxEsc(fxPriceTxt(fxC.sym, m.price))}</span><span class="text-xs ${fxTone(m.d1)}">${fxPctTxt(m.d1)}</span><span class="text-[10px] text-slate-500 font-sans">${p ? fxEsc(p.ko) : ''} · 일봉 대비</span>` : `<span class="text-[11px] text-slate-500 font-sans">${p ? fxEsc(p.ko) : ''}</span>`;
+    }
+    function fxSelect(sym) {
+        if (!fxPair(sym)) return;
+        const changed = sym !== fxC.sym;
+        fxC.sym = sym; fxLsSet('sel', sym);
+        if (changed) { fxS.readoutSym = null; fxS.readout = null; fxS.ai = { sym: null, text: '', busy: false }; }
+        fxRenderBoard(); fxRenderChartHead(); fxRenderReadout(); fxRenderAi(); fxUpdateLev();
+        if (changed) { fxLoadChart(); fxLoadReadout(); }
+    }
+    async function fxLoadReadout(force) {
+        const sym = fxC.sym;
+        if (!getProxyUrl()) { fxS.noProxy = true; fxRenderReadout(); return; }
+        fxS.readoutSym = null; fxRenderReadout();
+        let res;
+        try {
+            const d = await fxGetChart(sym, '2y', '1d', !!force);
+            res = fxReadout(fxScaleBars(d.bars, fxScale(sym)), v => fxFmtRate(v));
+        } catch (e) { res = { err: fxErrMsg(e), ok: false, lines: [], facts: {} }; }
+        if (sym !== fxC.sym) return;
+        fxS.readout = res; fxS.readoutSym = sym;
+        fxRenderReadout(); fxUpdateLev();
+    }
+    function fxRetry() { fxLoadChart({ force: true }); fxLoadReadout(true); }
+
+    function fxOnClick(e) {
+        const t = e.target.closest('[data-act]');
+        if (!t || !fxById('fxRoot').contains(t)) return;
+        const act = t.dataset.act, arg = t.dataset.arg;
+        if (act === 'pin') {
+            e.stopPropagation();
+            fxS.pins = fxPinned(arg) ? fxS.pins.filter(s => s !== arg) : [...fxS.pins, arg];
+            fxLsSet('pins', fxS.pins); fxRenderBoard();
+        } else if (act === 'sel') fxSelect(arg);
+        else if (act === 'reload') { fxLoadAll(); fxRetry(); }
+        else if (act === 'retryChart') fxRetry();
+        else if (act === 'settings') openApiSettingsModal();
+        else if (act === 'iv') { fxC.ivKey = arg; fxLsSet('chart', { ivKey: fxC.ivKey, type: fxC.type, opt: fxC.opt }); fxRenderChartHead(); fxLoadChart(); }
+        else if (act === 'type') { fxC.type = arg; fxLsSet('chart', { ivKey: fxC.ivKey, type: fxC.type, opt: fxC.opt }); fxRenderChartHead(); fxDraw(); }
+        else if (act === 'opt') {
+            fxC.opt[arg] = !fxC.opt[arg]; fxLsSet('chart', { ivKey: fxC.ivKey, type: fxC.type, opt: fxC.opt });
+            fxRenderChartHead(); if (arg === 'rsi') fxChartResize(); else fxDraw();
+        } else if (act === 'zoom') {
+            if (arg === 'reset') fxResetView(); else fxZoom(arg === 'in' ? 0.8 : 1.25, 1);
+        } else if (act === 'qs') { if (typeof quickSearch === 'function') quickSearch(arg); }
+        else if (act === 'ai') fxRunAi();
+    }
+    function fxOnChange(e) {
+        const id = e.target.id;
+        if (id === 'fxPairSel') fxSelect(e.target.value);
+        else if (id === 'fxAuto') { fxS.auto = e.target.checked; fxLsSet('prefs', { auto: fxS.auto, x100: fxS.x100 }); fxSetStatus(); }
+        else if (id === 'fxX100') {
+            fxS.x100 = e.target.checked; fxLsSet('prefs', { auto: fxS.auto, x100: fxS.x100 });
+            fxRenderBoard(); fxRenderStrength(); fxRenderChartHead();
+            const p = fxPair(fxC.sym);
+            if (p && p.x100) { fxLoadChart(); fxLoadReadout(); }
+            const sel = fxById('fxPairSel'); if (sel) Array.from(sel.options).forEach(o => { const pp = fxPair(o.value); o.textContent = `${fxLabel(pp, fxS.x100)} · ${pp.ko}`; });
+        }
+    }
+    function fxOnInput(e) {
+        const id = e.target.id;
+        if (id === 'fxKrwFx1') e.target.dataset.touched = '1';
+        if (id && id.startsWith('fxKrw')) fxUpdateKrw();
+        else if (id === 'fxLev') fxUpdateLev();
+    }
+
+    // 탭이 열릴 때마다 호출: 처음 한 번만 뼈대를 만들고 데이터를 불러온다. 보일 때만 60초마다 자동 갱신.
+    function fxOnOpen() {
+        if (!fxS.inited) {
+            fxS.inited = true;
+            const pins = fxLsGet('pins', null); if (Array.isArray(pins)) fxS.pins = pins.filter(s => fxPair(s));
+            const pf = fxLsGet('prefs', null); if (pf && typeof pf === 'object') { fxS.auto = pf.auto !== false; fxS.x100 = !!pf.x100; }
+            const sel = fxLsGet('sel', null); if (typeof sel === 'string' && fxPair(sel)) fxC.sym = sel;
+            const ch = fxLsGet('chart', null);
+            if (ch && typeof ch === 'object') {
+                if (FX_INTERVALS.some(x => x.key === ch.ivKey)) fxC.ivKey = ch.ivKey;
+                if (ch.type === 'line' || ch.type === 'candle') fxC.type = ch.type;
+                if (ch.opt && typeof ch.opt === 'object') Object.keys(fxC.opt).forEach(k => { if (typeof ch.opt[k] === 'boolean') fxC.opt[k] = ch.opt[k]; });
+            }
+            fxBuildShell();
+            const root = fxById('fxRoot');
+            root.addEventListener('click', fxOnClick);
+            root.addEventListener('change', fxOnChange);
+            root.addEventListener('input', fxOnInput);
+            window.addEventListener('resize', () => { if (activeAppTab === 'fx') fxChartResize(); });
+            fxS.timer = setInterval(() => { if (activeAppTab === 'fx' && !document.hidden && fxS.auto) fxRefreshLive(); }, FX_REFRESH_MS);
+            fxRenderAll(); fxRenderReadout(); fxRenderAi();
+            fxLoadAll(); fxLoadChart(); fxLoadReadout();
+        } else {
+            // 다시 열릴 때: 숨겨져 있던 동안 크기를 못 쟀으므로 다시 맞추고, 데이터가 오래됐으면 갱신
+            fxChartResize();
+            if (getProxyUrl() && (fxS.noProxy || Date.now() - Math.max(fxS.sparkAt, fxS.quoteAt) > FX_REFRESH_MS)) { fxS.noProxy = false; fxS.sparkAt ? fxRefreshLive() : fxLoadAll(); }
+            if (!fxC.bars.length && getProxyUrl()) { fxLoadChart(); fxLoadReadout(); }
+        }
+    }
+    TAB_HOOKS.fx = fxOnOpen;
   </script>
   <script id="mod-market">
     // ===== 시장 · 매크로 모듈 (mod-market) =====
