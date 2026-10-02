@@ -1100,14 +1100,14 @@
       <section class="bg-gradient-to-r from-slate-900 via-[#131e32] to-[#1f1a14] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-xl">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div>
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-950/60 border border-orange-700/60 text-orange-300 text-xs font-semibold mb-2"><i class="fa-solid fa-fire"></i> 불장단타왕 무료 강의 1~5강 기반</div>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-950/60 border border-orange-700/60 text-orange-300 text-xs font-semibold mb-2"><i class="fa-solid fa-fire"></i> 불장단타왕 무료 강의 1~6강 + 인터뷰 기반</div>
             <h2 class="text-2xl font-extrabold text-white tracking-tight">불단왕 매매법</h2>
             <p class="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl">사이클(이평선 정배열/역배열) → 매물대(VPVR)·이평선·박스/채널 → RSI 과열 단계·다이버전스·트랩 → 근거 중첩 체크리스트 → 손절·시간 손절·심법. 강의는 코인 선물 중심이라, 주식에 그대로 적용되는 부분과 그렇지 않은 부분을 구분해 정리했습니다.</p>
           </div>
         </div>
         <div class="mt-4 flex flex-wrap gap-2" id="bdwSubTabs">
           <button type="button" data-bdw="analyze" onclick="bdwSwitch('analyze')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-magnifying-glass-chart mr-1.5"></i>종목 분석 (불단왕식 판독)</button>
-          <button type="button" data-bdw="notes" onclick="bdwSwitch('notes')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-book-open mr-1.5"></i>강의 정리 (1~5강)</button>
+          <button type="button" data-bdw="notes" onclick="bdwSwitch('notes')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-book-open mr-1.5"></i>강의 정리 (1~6강 + 인터뷰)</button>
           <button type="button" data-bdw="tools" onclick="bdwSwitch('tools')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-calculator mr-1.5"></i>계산기 · 매매일지</button>
         </div>
       </section>
@@ -7613,14 +7613,56 @@ SONY|Sony Group ADR|T
           { tag: 'all', h: '다이버전스는 큰 시간축에서 더 믿을 만함', t: '15분봉보다 1시간·4시간·주봉에서 신뢰도가 높습니다. 강사는 비트코인 12만 달러 고점에서 주봉 다이버전스가 3번 중첩되어 매우 강한 하락 신호였다고 설명하며, 4시간봉 다이버전스만 제대로 추적해도 비트·이더 승률이 높다고 말합니다. 신호 중첩 가능성을 염두에 두고 비중을 나눠 진입하세요. 미국 주식·비트·이더에서 훨씬 잘 통하고 알트코인은 위험합니다.' },
           { tag: 'all', h: '실전 통합 체크리스트 (7가지)', t: '① 진짜 다이버전스인가, 낚시성 트랩인가? ② 그 자리에 주요 매물대가 있는가? ③ RSI 신호의 시간축과 보유 계획이 일치하는가(스윙 보면서 5분봉 1단계로 들어가면 안 됨)? ④ 신호 외에 거래량이 터지고 있는가? ⑤ 다이버전스가 중첩될 가능성을 열어두고 비중을 나눴는가? ⑥ 가격 구조가 무너졌다가 즉시 회복되었는가(꼬리로 전저점을 지키는가)? ⑦ (선물) 바닥에서 OI가 쌓일 때 세력의 의도를 파악했는가 — OI만 보고 롱을 단정하면 안 됨. 이 조건들이 머릿속에서 계산된 뒤에 포지션을 잡아야 합니다. 지표는 예언서가 아니라 과열 여부와 레버리지 누적을 알리는 경고등.' }
         ]
+      },
+      {
+        no: 6, icon: 'fa-flag-checkered', title: '6강 · 파이널 — 모방에서 독립으로, 손실을 먼저 설계하라',
+        lead: '1~5강의 도구를 내 자금·시간·성향에 맞는 하나의 시스템으로 조립하는 마지막 강의. 핵심은 "지표는 매매법이 아니다 / 얼마 벌지가 아니라 얼마 잃을지부터 정한다".',
+        points: [
+          { tag: 'all', h: '지표는 매매법이 아니다', t: '지표를 어떤 조건에서 쓰고, 얼마나 진입하고, 어디서 빠져나올지 정한 규칙이 매매법입니다. "RSI 몇 보세요?", "이평선 뭐 쓰세요?" 같은 도구에만 집착하지 마세요 — 일류 셰프에게 중요한 것은 칼의 종류가 아니라 칼을 다루는 기술과 조리법. 모든 지표를 매 순간 볼 수 없으니 불필요한 것은 과감히 덜어내 단순화합니다. 매매 시스템은 100% 버는 규칙이 아니라 단 한 번의 실수로 전재산을 날리지 않게 하는 방패입니다.' },
+          { tag: 'all', h: '1~5강을 한 체계로', t: '1강 사이클: 시작 국면엔 적극적, 과열 고점엔 가드를 올리고 소극적. 2강 시간축과 방향: 스캘핑·단타·스윙 중 내 환경에 맞는 스타일. 3강 심법과 생존: 손실에 자책하지 않고 수익에 자만하지 않기. 4강 기다림의 미학: 원하는 자리까지 무포지션으로 인내하는 것도 훌륭한 스윙 전략. 5강 힘과 레버리지: RSI·다이버전스를 여러 시간축에서 해석.' },
+          { tag: 'all', h: '복사한 매매 vs 흡수한 매매', t: '모방은 훌륭한 출발점이지만 남의 기준을 내 계좌에 그대로 복사할 수 없습니다. 같은 진입가라도 자금력과 손실 감당 능력이 사람마다 다르고(수천억을 번 트레이더의 포지션을 따라 해 추종자 계좌가 터진 사례), 15분봉 전업 단타 트레이더와 하루 두 번 차트를 보는 직장인은 전략이 달라야 합니다. 생활비가 급한 상태의 전업은 0.5% 손실에도 패닉에 빠집니다. 복사한 매매는 신호만 보고 포지션 크기를 키우다 파산(전문가가 1차 진입 후 칼손절할 때 20배 풀롱을 친 초보는 계좌의 20% 손실). 흡수한 매매는 "왜 여기서 진입했는지, 어느 가격을 넘기면 관점이 실패하는지" 진입 조건과 실패 조건을 모두 이해하고 매매합니다. 남의 기법은 정답이 아니라 나만의 요리를 위한 식재료입니다.' },
+          { tag: 'all', h: '진짜 매매법 = 조건문(If-Then)', t: '"RSI를 본다"가 아니라 "1시간봉 2단계 과매도와 주요 매물대가 겹칠 때만 진입"처럼 조건들이 유기적으로 결합되어 충족될 때만 포지션에 들어갑니다.' },
+          { tag: 'all', h: '나만의 시스템을 위한 7가지 필수 질문', t: '① 현재 장세는 추세장인가 횡보장인가(추세 채널을 따를지 박스권 상하단 매매를 할지)? ② 기준 시간축은? (15분봉 진입이면 수십 분 내로 끝내야 함) ③ 어떤 기술적 근거가 중첩되는 자리인가(매물대·청산맵·VWMA 이평선 지지 등)? ④ 캔들과 거래량의 반전 반응이 실제 확인되었는가(거래량 없는 섣부른 예측 진입 방지)? ⑤ 시나리오가 틀렸을 때 어디서 손절할 것인가? ⑥ 맞았을 때 어디서 분할 익절해 수익을 확정할 것인가? ⑦ 오늘의 매매를 언제 중단하고 끝낼 것인가? (종목 분석 탭이 ①~⑥ 중 계산 가능한 것을 판정합니다.)' },
+          { tag: 'all', h: '손실을 먼저 설계: 허용 손실액 → 포지션 크기', t: '초보자는 얼마를 벌지 행복회로를 돌리며 목표가부터 누르지만, 프로는 틀렸을 때 잃을 손실액(SL)부터 계산합니다. "이 매매가 틀리면 내 시드의 0.5%만 잃겠다"를 먼저 정하고, 진입가에서 손절 기준선(매물대)까지의 거리가 포지션 크기를 결정합니다 — 손절선이 가까우면 비중을 키울 수 있고 멀면 대폭 줄입니다. 그래야 틀렸을 때의 피해(1R)가 항상 일정합니다. 7번 이기고 8번째에 10R 손실로 파산하는 악순환을 끊어야 합니다. (계산기 탭의 "손절·포지션 크기 계산기")' },
+          { tag: 'all', h: '방향이 모호하면 일부만 먼저', t: '"이 자리는 손절 시 −2,000달러 구간이다"처럼 손실 폭을 확정하고 진입합니다. 방향이 모호할 땐 목표 수량이 1,000개라도 100개만 먼저 진입해 리스크를 분산합니다. 익절 라인을 정해두지 않으면 아무리 올라도 못 챙기고 본전이나 손절로 끝납니다.' },
+          { tag: 'all', h: '강사의 운영 한도 (예시)', t: '1회 최대 손실 −2,000달러, 하루 한도 −1만 달러, 월간 한도 −3만 달러(시드 10만 달러 고정 = 각각 2%·10%·30%). 월간 한도에 도달하면 슬럼프임을 인정하고 그 달은 매매를 완전히 중단합니다. 수익금은 즉시 출금. 하루 한도에 닿으면 즉각 매매를 중단하고 머리를 식히는 루틴을 지킵니다. (계산기 탭의 "하루 운영 규칙 점검"에 내 값을 넣어 쓰세요 — 이 비율은 강사 개인의 예시이고 권장값이 아닙니다.)' },
+          { tag: 'all', h: '손절은 시나리오가 논리적으로 파괴된 가격에서', t: '대충 기분 내키는 대로가 아니라 돌파·지지선을 보고 들어갔다면 그 지지선이 무너지는 순간 1차 손절. 코인에서는 청산가를 손절선으로 착각해 방치하는 것이 전재산을 태우는 도박입니다(주식 신용/레버리지도 동일). 손절이 너무 좁으면 휩쏘에 털리고, 미루다 매물대가 다 깨져서 던지면 늦습니다. 가격 손절과 함께 예상 시간 안에 반응이 없으면 정리하는 시간 손절을 병행합니다.' },
+          { tag: 'all', h: '레버리지는 대박 배율이 아니라 증거금 조절 도구', t: '초보자는 2~3배 저배율로 시작하고 틀릴 때 증거금을 더 밀어 넣는 행동을 멈춰야 합니다. 청산 거리를 멀리 두려면 포지션 규모를 줄이고 배율도 낮춰야 합니다.' },
+          { tag: 'all', h: '분할 매수 vs 불타기 vs 몰빵', t: '분할 매수는 확인과 계획에 따라 위험을 나누는 것이지 무지성 물타기가 아닙니다. 1차 진입 후 2차 반응과 거래량이 확인될 때 비중을 싣는 "불타기"가 올바른 구축법. "강한 구축"과 "몰빵 배팅"은 다릅니다 — 손절선이 바로 밑에 있어 손익비가 극상일 때만 정해진 리스크 안에서 포지션을 크게 잡는 것이 안전한 강한 구축.' },
+          { tag: 'all', h: '승률보다 손익비, 익절도 설계', t: '찔끔 먹고 물려서 크게 잃는 매매는 계좌를 파괴합니다. 익절 역시 진입 전에 설계하고, 분할 익절은 수익 확정과 추세 추종을 모두 챙기는 윈윈 전략. "익절은 항상 옳다"는 마음으로 시장이 줄 때 챙기고, 팔고 더 올라도 뇌동매매하지 않습니다.' },
+          { tag: 'all', h: '손절 후 재진입과 하루 운영 규칙', t: '손절 후 재진입은 감정적 복수 매매가 아니라 완전히 독립된 새로운 매매여야 하며, 키보드·마우스에서 손을 떼는 쿨링오프를 가진 뒤 새로운 근거와 새 손절선이 있을 때만 진입합니다. 3연속 손절이 나가면 당일 매매 종료. 크게 수익을 낸 날에도 거래 횟수가 늘수록 포지션 규모를 줄여 수익을 지킵니다. 음주·밤샘·계획 없는 뉴스 직전 매매는 금지.' },
+          { tag: 'all', h: '남의 매매를 내 것으로 흡수하는 5단계', t: '1) 소액 모방 → 2) 관찰과 매매일지 작성 → 3) 내 환경에 안 맞는 불필요한 규칙 제거 → 4) 나만의 규칙 확립 → 5) 소액 반복 훈련. 직장인 스윙형·전업 단타형·추세추종형 등 성향에 맞는 도구만 골라 반복 검증하세요. 가장 화려한 기법이 아니라 같은 조건에서 일관되게 반복 가능한 기법이 최고. FOMO와 복수심을 경계하고 매일 복기 일지를 쓰세요.' },
+          { tag: 'all', h: '마무리', t: '"제 방식을 똑같이 베끼는 게 이 강의의 목적이 아닙니다. 맞는 것은 취하고 맞지 않는 것은 과감히 버려 나만의 단단한 매매법을 구축하세요. 큰 수익에 자만하지 말고 손실에 좌절하지 마세요. 시장은 순환하며 기회는 다시 옵니다 — 가장 중요한 것은 다음 기회를 잡을 준비가 된 채 살아남는 것."' }
+        ]
+      },
+      {
+        no: '+', icon: 'fa-user-tie', title: '보너스 · 인터뷰 — 실제 차트 세팅과 VWMA 100선 매매',
+        lead: '다른 트레이더와의 대담에서 강사가 자신의 실제 차트 세팅과, 거래량 가중 이평선(VWMA 100)을 기준으로 한 진입·손절·목표 설정을 사례로 설명한 부분입니다.',
+        points: [
+          { tag: 'stock', h: '차트 세팅 (4강과 약간 다름)', t: '이동평균선 7·15·50·100·200·400 (그중 50선과 200선은 두껍게), 볼린저 밴드(상·하단 터치용이 아니라 프랙탈을 볼 때 보조로 켜둠), 거래량 가중 이평 VWMA 100선(여러 기간을 넣어 본 결과 100이 가장 신뢰도가 높아 두껍게), VPVR는 막대 전체가 아니라 현재 화면에서 거래량이 가장 터진 POC 라인만(단타에서는 바를 다 분석하면 오래 걸리므로). 강사에게 가장 중요한 3대 이평선은 200선, VWMA 100선, 50선입니다.' },
+          { tag: 'all', h: '프랙탈', t: '1시간봉에서의 파동 움직임이 일봉 등 다른 시간봉에서도 똑같이 반복된다는 원리(멀티버스처럼). 매매에서 실제로 잘 맞는다고 말합니다.' },
+          { tag: 'stock', h: 'VWMA 100선 = 지지·저항·손절 기준', t: '일반 이평선은 캔들의 단순 가격 평균이지만 VWMA는 실제 터진 거래량까지 가중 계산하므로 지지·저항 기준선으로 더 유의미합니다. 볼밴 상단을 뚫고 과매수에 간 자리는 "세력의 영역"이라 정상적인 트레이더는 배팅하지 않고, 눌림이 올 때 VWMA 100선에 닿는 자리에서 매수를 고려합니다.' },
+          { tag: 'all', h: '손절: 기준선 이탈 즉시, 늦어도 −2.5~3%', t: 'VWMA 선이 깨지면 즉시 손절하거나, 반등해서 올라왔다가 저항을 맞고 떨어지면 늦어도 −2.5~3%에서 정리. 큰 실수를 3% 손실로 막아내는 겁니다. 반등 때 "조금만 더 오르면 본전"이라며 못 파는 것이 전형적 실패이고, VWMA 100선에 세 번째 부딪히는 자리는 다시 오지 않을 "마지막 탈출 기회"였다는 설명. 기준이 없으면 본전 욕심에 끝내 못 팝니다.' },
+          { tag: 'stock', h: '재진입: 매물대가 내려오길 기다린다', t: '이미 무너진 종목은 아래에서 거래가 누적되며 매물대가 내려오기를 기다립니다. VWMA 100선이 우하향하며 내려오고 캔들이 그 선을 상방 돌파하는 순간, 또는 50선과 VWMA 100선이 완만해지며 골든크로스 직전에 수렴하는 구간의 끝이 실제 매수 타점입니다. 같은 가격이라도 하락 중일 때는 살 근거가 없지만 시간이 흘러 이평선이 수렴하면 훌륭한 타점이 됩니다.' },
+          { tag: 'stock', h: '이평선의 미래 경로를 연장선으로 그려보기', t: '이평선이 앞으로 어디로 갈지(캔들과 언제 수렴할지) 머릿속으로 예측해 연장선으로 그려보는 습관이 핵심이라고 강조합니다. (이 앱의 종목 분석 탭에서는 최근 기울기를 연장한 점선으로 보여줍니다 — 단순 외삽이며 예측이 아닙니다.)' },
+          { tag: 'all', h: '손익비를 먼저 계산', t: '예: 지지가 깨지면 −1%에서 칼손절, 목표는 강력한 저항인 VWMA 선까지 +7% → 손익비 약 1:6~7. 여섯 번 실패하고 한 번만 성공해도 본전이 되는 압도적으로 유리한 자리. 속임수 하락이 나와도 손절이 −1%로 짧고 성공 시 +5% 이상 먹을 수 있는 자리만 노립니다.' },
+          { tag: 'stock', h: '겹치는 근거: 200선 저항 후 눌림에서 50선·100선 동시 지지', t: '200선에서 저항을 받고 눌렸을 때 50선과 100선이 동시에 지지해 주는 자리는 신뢰도가 아주 높다고 합니다(손절은 극도로 짧은데 순식간에 5% 이상 반등한 사례).' },
+          { tag: 'all', h: '진입은 작은 프레임, 목표는 큰 프레임', t: '매수·매도 집행은 작은 시간축에서 정교하게 하되, 큰 추세와 목표가는 큰 프레임에서 봅니다. 15분봉에 근거가 없으면 30분봉·1시간봉에서 장기 이평선이 위치한 구간을 최종 매도 목표가로 잡습니다.' },
+          { tag: 'all', h: '이평선은 자석, 방향이 애매하면 무진입', t: '캔들은 결국 이평선으로 회귀하려는 성질이 있어 이격이 너무 벌어지면 과매수/과매도로 당겨집니다. 장기 추세는 200일선의 신뢰도가 높고, 방향성이 애매할 때는 무리하게 진입하지 않고 급락 시 일봉 200선 지지 자리에 매수벽을 걸어 둡니다(강사는 과거 한 코인에서 일봉 200선 매수벽 후 약 35% 기술적 반등을 주장). 상승이 끝나고 하락으로 돌아선 장세에서는 중간에서 섣불리 사지 말고 이평선이 바닥에서 완만해지며 추세를 돌리는 터닝 포인트에서만 매매합니다. 긴 상승 뒤 하락 채널에 갇히면 현물은 짧게, 선물은 200선 저항 시 숏.' },
+          { tag: 'stock', h: '종목 선정: 시장 대비 상대 강도', t: '업비트 알트코인 인덱스(UBAI)보다 강하게 버티는 종목을 찾고, 거래대금이 풍부하면서 상대 강도가 높은 종목 위주로 우선순위를 추립니다. → 주식에서는 지수(S&P 500 등) 대비 상대 강도와 거래대금으로 대응할 수 있습니다.' },
+          { tag: 'coin', h: '코인 세션에 한정된 이야기', t: '코인은 보통 오전 10시 30분~11시쯤 실망 매물이 나오며 하락하기 시작하므로 오전 9시 20분대 펌핑 후 추격 매수는 위험, 주말에는 대형 불장이 아니면 거래량이 마르고 세력도 쉬므로 매매를 쉬는 것이 정답, 호가창에 힘이 빠지는 것을 보고 매도 — 모두 24시간 코인 시장 기준의 설명이라 주식(장 시간·휴장이 있음)에 그대로 대입하면 안 됩니다.' },
+          { tag: 'all', h: '주의: 대담 초반의 수익 자랑', t: '대담 도입부의 "누적 수익 70~80억", "이 지표를 적용한 달에 13억" 등은 말하는 사람들의 주장이며 이 앱이 검증한 내용이 아닙니다. 방식을 맹목적으로 복사하지 말고 자신만의 원칙과 손익비 기준을 세우라는 마무리 조언이 핵심입니다.' }
+        ]
       }
     ];
     const BDW_GLOSSARY = [
+      ['프랙탈', '큰 시간축의 파동이 작은 시간축에서도 반복된다는 개념(일봉~1분봉 동일 원리).'],
       ['정배열 / 역배열', '이평선이 단기 위·장기 아래(50>200) 순서면 정배열(상승 사이클), 반대면 역배열(하락 사이클).'],
       ['골든크로스', '50일선이 200일선을 아래에서 위로 뚫는 것. 새 사이클의 시작 신호. (반대는 데드크로스)'],
       ['눌림목 / 조정', '상승 추세 중 일시적 하락. 이평선·매물대까지 내려와 지지받으면 재상승 기대.'],
       ['VPVR / VRVP · POC', '가격대별 거래량 분포(볼륨 프로파일). 가장 거래가 많은 가격 = POC(Point of Control).'],
-      ['VWMA', '거래량 가중 이동평균. 거래량이 큰 구간이 평균을 강하게 끌어당김.'],
+      ['VWMA', '거래량 가중 이동평균. 거래량이 큰 구간이 평균을 강하게 끌어당김. 인터뷰에서는 100선을 지지·저항·손절 기준으로 사용.'],
+      ['UBAI', '업비트 알트코인 인덱스. 시장 평균 대비 강한 종목을 고르는 기준(주식의 지수 대비 상대 강도에 해당).'],
       ['권총 차트', '급등 후 옆으로 횡보하며 장기 이평선이 캔들에 달라붙는 모양. 위로 튀면 2차 상승.'],
       ['ㄴ자 차트', '급락 후 횡보하며 위쪽 이평선이 내려와 붙는 모양. 상방 돌파 = 전환, 이탈 = 연쇄 하락.'],
       ['불리시 / 베어리시 다이버전스', '가격 저점↓·RSI 저점↑ = 상승 신호 / 가격 고점↑·RSI 고점↓ = 하락 신호.'],
@@ -7628,6 +7670,9 @@ SONY|Sony Group ADR|T
       ['시간 조정', '가격은 그대로인데 시간이 지나며 RSI 과열이 식는 것. 이후 추가 상승이 나오기도 함.'],
       ['가격 손절 / 시간 손절', '가격이 손절선에 닿으면 / 예상한 시간 안에 반응이 없으면 정리.'],
       ['OI(미결제약정) · 펀딩비 · 청산맵', '선물 시장 데이터(코인 전용). 주식에서는 공매도 잔고·옵션 미결제약정이 비슷한 역할.'],
+      ['R (손실 단위)', '한 번의 매매에서 잃기로 정한 금액(1R). 포지션 크기를 손절 거리로 역산해 1R을 항상 일정하게 유지.'],
+      ['쿨링오프', '손절 직후 차트에서 손을 떼고 식히는 시간. 재진입은 복수가 아닌 완전히 독립된 새 매매여야 함.'],
+      ['불타기', '1차 진입 후 반응·거래량이 확인될 때 비중을 싣는 것(물타기와 반대).'],
       ['물타기 vs 분할 매수', '근거 없이 손실 중 수량만 늘리기 vs 매물대 등 근거 구간에 미리 계획한 분할.']
     ];
     const BDW_STOCK_MAP = [
@@ -7653,7 +7698,9 @@ SONY|Sony Group ADR|T
         ['3', '신호는 경고등', 'RSI 과열 단계·다이버전스·트랩은 "겹칠 때" 의미. 과매수=숏 같은 자동 해석 금지.'],
         ['4', '시간축 일치', '15분=초단기 20~30% 비중, 1시간=데이, 4시간=스윙. 신호 시간축 = 보유 계획.'],
         ['5', '가격 + 시간 손절', '−10% 안쪽에서 끊고 최대 −20%. 반응이 없으면 시간 손절. 물타기·스윙 전환 금지.'],
-        ['6', '심법', '집중할 때만, 복구 심리·자만·FOMO 경계, 매매일지에 감정 기록, 수익은 출금.']
+        ['6', '심법', '집중할 때만, 복구 심리·자만·FOMO 경계, 매매일지에 감정 기록, 수익은 출금.'],
+        ['7', '손실 먼저 설계 (6강)', '허용 손실액 → 손절선 거리 → 포지션 크기. 1회·하루·월 손실 한도와 3연속 손절 시 당일 종료.'],
+        ['+', 'VWMA 100선 (인터뷰)', '200·VWMA100·50이 3대 선. 지지 이탈 시 즉시, 늦어도 −3% 손절. 수렴 끝 매수, 손익비 1:6 이상 자리만.']
       ];
       root.innerHTML = `
         <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 space-y-3">
@@ -7664,12 +7711,12 @@ SONY|Sony Group ADR|T
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">${summary.map(s => `
             <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 flex gap-3"><span class="w-6 h-6 rounded-full bg-orange-950 border border-orange-700 text-orange-300 text-xs font-bold grid place-items-center shrink-0">${s[0]}</span>
               <div><div class="text-sm font-bold text-orange-200">${s[1]}</div><p class="text-[12px] text-slate-400 leading-snug mt-0.5">${escapeHtml(s[2])}</p></div></div>`).join('')}</div>
-          <p class="text-[11px] text-slate-500 leading-snug">※ 유튜버 '불장단타왕'의 무료 강의(1~5강) 자막을 읽기 쉽게 정리한 요약입니다. 강사의 개인 의견이며 투자 권유가 아닙니다. 강의의 수익 사례·수치는 강사의 주장이고 이 앱이 검증한 것이 아닙니다.</p>
+          <p class="text-[11px] text-slate-500 leading-snug">※ 유튜버 '불장단타왕'의 무료 강의(1~6강)와 인터뷰 자막을 읽기 쉽게 정리한 요약입니다. 강사의 개인 의견이며 투자 권유가 아닙니다. 강의의 수익 사례·수치는 강사의 주장이고 이 앱이 검증한 것이 아닙니다.</p>
         </section>
 
         <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-base font-bold text-white"><i class="fa-solid fa-book-open text-orange-400 mr-2"></i>강의별 정리</h3>
+            <h3 class="text-base font-bold text-white"><i class="fa-solid fa-book-open text-orange-400 mr-2"></i>강의별 정리 (1~6강 + 인터뷰)</h3>
             <div class="flex items-center gap-2 text-xs">
               <input id="bdwNotesSearch" type="text" placeholder="내용 검색 (예: 손절, VWMA, 다이버전스)" class="w-56 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white placeholder-slate-500 outline-none focus:border-orange-400">
               <button type="button" onclick="bdwNotesToggleAll(true)" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">모두 펼치기</button>
@@ -7781,6 +7828,13 @@ SONY|Sony Group ADR|T
               `<div class="grid grid-cols-2 gap-3">${inp('bdwAsyEntry', '진입가', 100)}${inp('bdwAsyNow', '현재(가정) 가격', 300)}</div>
                <div id="bdwAsyOut" class="grid grid-cols-2 gap-2 text-[11px]"></div>
                <p class="text-[11px] text-slate-500 leading-snug">롱은 가격이 오르면 이익이 무한, 최대 손실은 −100%. 숏은 가격이 0이 되어도 최대 이익 +100%, 오르면 손실이 무한 → 숏은 과열 구간의 단기 역추세·헷징용으로만.</p>`)}
+            ${card('fa-gauge-high', 'text-rose-400', '하루 운영 규칙 점검 (6강)', '손실 한도를 미리 정하고 오늘 상태를 입력하면 중단해야 하는지 알려 줍니다. 비율은 본인 기준으로 정하세요 (강사 예시: 1회 2% · 하루 10% · 월 30%).',
+              `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${inp('bdwRlSeed', '운용 시드', 10000)}${inp('bdwRlTrade', '1회 최대 손실 (%)', 0.5)}${inp('bdwRlDay', '하루 한도 (%)', 2)}${inp('bdwRlMonth', '월 한도 (%)', 6)}</div>
+               <div class="grid grid-cols-3 gap-3">${inp('bdwRlDayPnl', '오늘 실현 손익 (금액)', 0)}${inp('bdwRlMonPnl', '이번 달 실현 손익 (금액)', 0)}${inp('bdwRlStreak', '연속 손절 횟수', 0, '', '1')}</div>
+               <div id="bdwRlOut" class="space-y-1.5 text-xs"></div>`)}
+            ${card('fa-clipboard-question', 'text-sky-400', '7가지 필수 질문 (6강, 직접 체크)', '나만의 시스템을 확립하기 위한 질문. 종목 분석 탭이 ①~⑥ 중 계산 가능한 항목을 자동 판정합니다.',
+              `<div id="bdwQ7" class="space-y-1.5 text-xs text-slate-300">${['현재 장세는 추세장인가, 횡보장인가? (추세 채널 / 박스권 상하단)', '기준 시간축은 무엇인가? (15분봉 진입이면 수십 분 내 종료)', '어떤 기술적 근거가 중첩되는 자리인가? (매물대·VWMA·이평선 지지 등)', '캔들과 거래량의 반전 반응이 실제 확인되었는가?', '내 시나리오가 틀리면 어디서 손절할 것인가?', '맞았을 때 어디서 분할 익절해 수익을 확정할 것인가?', '오늘의 매매를 언제 중단하고 끝낼 것인가?'].map((t, i) => `<label class="flex items-start gap-2 rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-2 cursor-pointer"><input type="checkbox" class="mt-0.5 accent-sky-500" onchange="bdwQ7Update()"><span>${i + 1}. ${t}</span></label>`).join('')}</div>
+               <div id="bdwQ7Out" class="rounded-lg border px-3 py-2 text-xs font-semibold"></div>`)}
             ${card('fa-list-check', 'text-orange-400', '진입 전 체크리스트 (3강, 직접 체크)', '단 하나라도 애매하면 주저 없이 관망. 종목 분석 탭이 계산 가능한 항목은 자동으로 판정해 줍니다.',
               `<div id="bdwChk" class="space-y-1.5 text-xs text-slate-300">${['지금 매매하는 시간축과 보유 계획이 일치한다', '추세선·이평선·매물대 등 기술적 진입 근거가 명확하다', '틀렸을 때의 손절선과 감당 가능한 손실 폭(죽을 자리)을 확인했다', '손익비에 맞는 명확한 익절 기준이 있다', '내 멘탈이 평온하고 조급함·분노에 휩싸이지 않았다'].map((t, i) => `<label class="flex items-start gap-2 rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-2 cursor-pointer"><input type="checkbox" class="mt-0.5 accent-orange-500" onchange="bdwChkUpdate()"><span>${i + 1}. ${t}</span></label>`).join('')}</div>
                <div id="bdwChkOut" class="rounded-lg border px-3 py-2 text-xs font-semibold"></div>`)}
@@ -7806,7 +7860,7 @@ SONY|Sony Group ADR|T
             <div id="bdwJList" class="space-y-2"></div>
           </section>`;
         document.getElementById('bdwJDate').value = new Date().toISOString().slice(0, 10);
-        bdwChkUpdate();
+        bdwChkUpdate(); bdwQ7Update();
       }
       bdwCalcAll();
       bdwJournalRender();
@@ -7836,9 +7890,38 @@ SONY|Sony Group ADR|T
       // 분할
       const levels = [0, 1, 2].map(i => ({ price: bdwNum('bdwAvgP' + i), amount: bdwNum('bdwAvgA' + i) })), plan = bdwAvgPlan(levels, bdwNum('bdwAvgStop'));
       set('bdwAvgOut', plan ? tile('총 투입', bdwFmt(plan.cost, 0)) + tile('평균 단가', bdwFmt(plan.avg, 2)) + tile('총 수량', bdwFmt(plan.qty, 2)) + tile('손절 시 손익', plan.lossAmt === null ? '' : `${bdwFmt(plan.lossAmt, 0)} (${bdwFmt(plan.lossAtStop, 1)}%)`, plan.lossAmt !== null && plan.lossAmt < 0 ? 'text-rose-300' : 'text-white') : '');
+      // 운영 규칙
+      const rs = bdwRuleStatus({ seed: bdwNum('bdwRlSeed'), tradePct: bdwNum('bdwRlTrade'), dayPct: bdwNum('bdwRlDay'), monthPct: bdwNum('bdwRlMonth'), dayPnl: bdwNum('bdwRlDayPnl'), monthPnl: bdwNum('bdwRlMonPnl'), streak: bdwNum('bdwRlStreak') });
+      if (rs) {
+        const line = (bad, text) => `<div class="rounded-lg border px-3 py-2 ${bad ? 'border-rose-800 bg-rose-950/40 text-rose-300 font-semibold' : 'border-slate-800 bg-slate-950/60 text-slate-300'}">${text}</div>`;
+        set('bdwRlOut',
+          line(false, `1회 최대 손실 ${rs.tradeLimit === null ? '' : bdwFmt(rs.tradeLimit, 0)} · 하루 한도 ${bdwFmt(rs.dayLimit, 0)} · 월 한도 ${bdwFmt(rs.monthLimit, 0)}`) +
+          line(rs.stopDay, rs.stopDay ? '하루 손실 한도 도달 — 오늘 매매를 즉시 중단하고 머리를 식히세요.' : `오늘 한도 사용 ${bdwFmt(rs.dayUsed, 0)}%`) +
+          line(rs.stopStreak, rs.stopStreak ? '3연속 손절 — 당일 매매를 종료하세요 (복구 심리 경계).' : '연속 손절 3회 미만') +
+          line(rs.stopMonth, rs.stopMonth ? '월간 한도 도달 — 슬럼프를 인정하고 이번 달은 매매를 중단하세요.' : `이번 달 한도 사용 ${bdwFmt(rs.monthUsed, 0)}%`));
+      }
       // 비대칭
       const e = bdwNum('bdwAsyEntry'), nw = bdwNum('bdwAsyNow');
       if (e && nw !== null && e > 0) { const l = (nw / e - 1) * 100, s = -l; set('bdwAsyOut', tile('1배 롱 손익', `${l >= 0 ? '+' : ''}${bdwFmt(l, 1)}%`, l >= 0 ? 'text-emerald-300' : 'text-rose-300') + tile('1배 숏 손익', `${s >= 0 ? '+' : ''}${bdwFmt(s, 1)}%${s < -100 ? ' (원금 초과 손실)' : ''}`, s >= 0 ? 'text-emerald-300' : 'text-rose-300')); }
+    }
+    // 하루 운영 규칙 (순수 함수): 한도는 시드 대비 %, 손익은 금액(손실은 음수)
+    function bdwRuleStatus({ seed, tradePct, dayPct, monthPct, dayPnl, monthPnl, streak }) {
+      if (![seed, dayPct, monthPct].every(Number.isFinite) || seed <= 0) return null;
+      const dayLimit = seed * dayPct / 100, monthLimit = seed * monthPct / 100, tradeLimit = Number.isFinite(tradePct) ? seed * tradePct / 100 : null;
+      const day = Number.isFinite(dayPnl) ? dayPnl : 0, mon = Number.isFinite(monthPnl) ? monthPnl : 0, st = Number.isFinite(streak) ? streak : 0;
+      return {
+        dayLimit, monthLimit, tradeLimit,
+        dayUsed: day < 0 ? -day / dayLimit * 100 : 0, monthUsed: mon < 0 ? -mon / monthLimit * 100 : 0,
+        stopDay: day <= -dayLimit, stopMonth: mon <= -monthLimit, stopStreak: st >= 3,
+        stop: day <= -dayLimit || mon <= -monthLimit || st >= 3
+      };
+    }
+    function bdwQ7Update() {
+      const boxes = [...document.querySelectorAll('#bdwQ7 input')], n = boxes.filter(b => b.checked).length, el = document.getElementById('bdwQ7Out');
+      if (!el) return;
+      const ok = n === boxes.length;
+      el.className = `rounded-lg border px-3 py-2 text-xs font-semibold ${ok ? 'bg-emerald-950/50 border-emerald-800 text-emerald-300' : 'bg-amber-950/40 border-amber-800/70 text-amber-300'}`;
+      el.textContent = ok ? '7개 모두 답했습니다 — 조건문(If-Then)이 완성된 자리만 진입하세요.' : `${n}/${boxes.length} — 답하지 못한 질문이 있으면 아직 진입할 자리가 아닙니다.`;
     }
     function bdwChkUpdate() {
       const boxes = [...document.querySelectorAll('#bdwChk input')], n = boxes.filter(b => b.checked).length, el = document.getElementById('bdwChkOut');
