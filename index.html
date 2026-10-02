@@ -7136,7 +7136,1298 @@ SONY|Sony Group ADR|T
     // (환율 모듈)
   </script>
   <script id="mod-market">
-    // (시장·매크로 모듈)
+    // ===== 시장 · 매크로 모듈 (mod-market) =====
+    // 이 블록의 전역 이름은 모두 mk / MK_ 로 시작한다. 메인 스크립트의 공용 함수(fetchSpark, fetchQuotes, quickSearch ...)만 호출한다.
+    // 편집 포인트: MK_SECTORS · MK_SECTOR_TICKERS(섹터 분류) · MK_INDICES · MK_INDUSTRIES(산업/테마 표) · MK_MACRO · MK_RISK_FACTORS · MK_SCORE_W
+    // 모든 값은 Yahoo Finance(자체 프록시) 시세에서 계산한다. 없는 값은 비워 두고(–), 해석 문장은 계산된 숫자에서만 만든다.
+
+    // ---------- 설정 ----------
+    const MK_PERIODS = ['1D', '1W', '1M', '3M', 'YTD'];
+    const MK_PERIOD_CLAMP = { '1D': 3, '1W': 5, '1M': 10, '3M': 15, 'YTD': 25 }; // 히트맵 색 포화 기준(±%)
+    const MK_PERIOD_KO = { '1D': '1일', '1W': '1주', '1M': '1개월', '3M': '3개월', '6M': '6개월', '1Y': '1년', 'YTD': '연초 대비' };
+    const MK_CACHE_MS = 60000;
+
+    // 섹터 분류(자체 큐레이션, GICS 와 완전히 같지는 않음). 여기에 없는 종목은 기존 스크리너의 큰 분류에서 가져온다.
+    const MK_SECTORS = [
+        { id: 'tech', ko: '기술' }, { id: 'semi', ko: '반도체' }, { id: 'comm', ko: '커뮤니케이션' }, { id: 'disc', ko: '경기소비재' },
+        { id: 'stap', ko: '필수소비재' }, { id: 'hlth', ko: '헬스케어' }, { id: 'fin', ko: '금융' }, { id: 'enrg', ko: '에너지' },
+        { id: 'ind', ko: '산업재' }, { id: 'mat', ko: '소재' }, { id: 'util', ko: '유틸리티' }, { id: 'reit', ko: '부동산' }
+    ];
+    const MK_SECTOR_TICKERS = {
+        tech: 'AAPL MSFT PLTR CRM ORCL ADBE NOW SNOW SMCI IBM CSCO ACN INTU PANW CRWD FTNT ADSK WDAY TEAM DDOG ZS NET MDB SHOP ANET DELL HPQ HPE NTAP WDC STX KEYS TYL ROP CDNS SNPS FICO ADP PAYX GDDY TWLO OKTA HUBS U APP TTD SAP MSTR ENPH FSLR',
+        semi: 'NVDA AVGO TSM AMD QCOM ARM INTC MU AMAT LRCX KLAC ASML TXN ADI MRVL NXPI ON MCHP MPWR TER GFS SWKS QRVO',
+        comm: 'GOOGL GOOG META NFLX DIS PINS SNAP SPOT T VZ TMUS CMCSA CHTR WBD EA TTWO LYV FOXA MTCH RBLX BIDU',
+        disc: 'AMZN TSLA F GM RIVN LCID NIO XPEV LI TM NKE MCD SBUX HD LOW TJX ROST BKNG MAR HLT CMG YUM DPZ DRI LULU DECK ORLY AZO EBAY ETSY CHWY MELI SE BABA PDD JD CPNG ABNB CCL RCL NCLH EXPE LVS WYNN MGM DKNG TPR RL SONY',
+        stap: 'COST WMT TGT DG DLTR KR SYY KO PEP PG CL KMB MDLZ GIS HSY KHC MNST KDP STZ PM MO EL TSN UL DEO JVA',
+        fin: 'BRK-B JPM V MA BAC GS MS COIN HOOD XYZ WFC C SCHW BLK SPGI MCO ICE CME AXP COF PYPL USB PNC TFC MET PRU AIG CB TRV PGR ALL AFL MMC AON BX KKR APO SOFI AFRM UPST NU IBKR',
+        enrg: 'XOM CVX COP EOG SLB OXY PSX MPC VLO KMI WMB OKE HAL DVN FANG BKR SHEL BP',
+        ind: 'CAT GE LMT RTX DAL UAL AAL LUV HON UPS FDX BA NOC GD LHX DE EMR ETN ITW PH MMM WM RSG CSX UNP NSC URI PCAR GWW FAST CARR OTIS TT JCI UBER RKLB JOBY PLUG',
+        mat: 'LIN APD SHW ECL FCX NEM NUE RIO BHP',
+        util: 'NEE DUK SO D AEP SRE EXC VST CEG OKLO',
+        reit: 'PLD AMT EQIX SPG O PSA DLR CCI WELL'
+    };
+    const MK_COARSE_TO_SECTOR = { Tech: 'tech', Semiconductors: 'semi', Automotive: 'disc', Healthcare: 'hlth', Finance: 'fin', Consumer: 'disc', Energy: 'ind', Communication: 'comm' };
+    const MK_SECTOR_BY_TICKER = (() => { const m = {}; Object.keys(MK_SECTOR_TICKERS).forEach(id => MK_SECTOR_TICKERS[id].split(' ').forEach(t => { m[t] = id; })); return m; })();
+    function mkSectorOf(ticker, coarse) { return MK_SECTOR_BY_TICKER[ticker] || MK_COARSE_TO_SECTOR[coarse] || 'tech'; }
+    function mkSectorKo(id) { const s = MK_SECTORS.find(x => x.id === id); return s ? s.ko : id; }
+
+    const MK_INDICES = [
+        { sym: '^GSPC', ko: 'S&P 500' }, { sym: '^IXIC', ko: '나스닥 종합' }, { sym: '^DJI', ko: '다우존스' }, { sym: '^RUT', ko: '러셀 2000' },
+        { sym: '^VIX', ko: 'VIX 공포지수', inv: true },
+        { sym: 'SPY', ko: 'SPY · S&P 500 ETF' }, { sym: 'QQQ', ko: 'QQQ · 나스닥 100 ETF' }, { sym: 'DIA', ko: 'DIA · 다우 ETF' },
+        { sym: 'IWM', ko: 'IWM · 러셀 2000 ETF' }, { sym: 'RSP', ko: 'RSP · S&P 500 동일가중 ETF' }
+    ];
+
+    // 산업/테마 표: etf = 대표 ETF, players = 대표 미국 대형 플레이어(공백으로 구분). group: theme(세부 산업·테마) | sector(11개 GICS 섹터 ETF)
+    // 야후에 없는 심볼은 화면에서 자동으로 '데이터 없음' 처리된다. 목록은 자유롭게 고쳐도 된다.
+    const MK_INDUSTRIES = [
+        { id: 'semis', group: 'theme', ko: '반도체', etf: 'SMH', players: 'NVDA AVGO TSM AMD MU AMAT LRCX ASML' },
+        { id: 'software', group: 'theme', ko: '소프트웨어', etf: 'IGV', players: 'MSFT ORCL CRM ADBE NOW INTU PLTR' },
+        { id: 'cyber', group: 'theme', ko: '사이버보안', etf: 'CIBR', players: 'PANW CRWD FTNT ZS NET OKTA' },
+        { id: 'internet', group: 'theme', ko: '인터넷·플랫폼', etf: 'FDN', players: 'GOOGL META NFLX AMZN UBER SPOT' },
+        { id: 'biotech', group: 'theme', ko: '바이오텍', etf: 'XBI', players: 'VRTX REGN GILD AMGN MRNA BIIB' },
+        { id: 'pharma', group: 'theme', ko: '제약', etf: 'IHE', players: 'LLY JNJ MRK PFE ABBV BMY' },
+        { id: 'meddev', group: 'theme', ko: '의료기기', etf: 'IHI', players: 'ISRG SYK BSX MDT ABT EW' },
+        { id: 'bigbank', group: 'theme', ko: '대형은행', etf: 'KBE', players: 'JPM BAC WFC C GS MS' },
+        { id: 'regbank', group: 'theme', ko: '지역은행', etf: 'KRE', players: 'USB PNC TFC FITB HBAN MTB' },
+        { id: 'fintech', group: 'theme', ko: '핀테크·결제', etf: 'FINX', players: 'V MA PYPL XYZ SOFI AFRM' },
+        { id: 'crypto', group: 'theme', ko: '가상자산 관련주', etf: 'BLOK', players: 'COIN MSTR HOOD MARA RIOT CLSK' },
+        { id: 'defense', group: 'theme', ko: '방산·항공우주', etf: 'ITA', players: 'LMT RTX NOC GD LHX BA' },
+        { id: 'airlines', group: 'theme', ko: '항공', etf: 'JETS', players: 'DAL UAL AAL LUV' },
+        { id: 'transport', group: 'theme', ko: '운송·물류', etf: 'IYT', players: 'UNP CSX NSC UPS FDX' },
+        { id: 'homebuild', group: 'theme', ko: '주택건설', etf: 'ITB', players: 'DHI LEN PHM NVR TOL' },
+        { id: 'retail', group: 'theme', ko: '소매·유통', etf: 'XRT', players: 'WMT COST TGT TJX ROST DG' },
+        { id: 'leisure', group: 'theme', ko: '레저·여행', etf: 'PEJ', players: 'BKNG MAR HLT CCL RCL ABNB' },
+        { id: 'ogexp', group: 'theme', ko: '석유·가스 탐사', etf: 'XOP', players: 'COP EOG OXY DVN FANG' },
+        { id: 'gold', group: 'theme', ko: '금 광산', etf: 'GDX', players: 'NEM AEM WPM FNV KGC' },
+        { id: 'metals', group: 'theme', ko: '금속·광업', etf: 'XME', players: 'FCX NUE STLD RS NEM' },
+        { id: 'lithium', group: 'theme', ko: '리튬·배터리', etf: 'LIT', players: 'ALB SQM LAC QS' },
+        { id: 'cleane', group: 'theme', ko: '클린에너지', etf: 'ICLN', players: 'FSLR ENPH NEE PLUG RUN SEDG' },
+        { id: 'nuclear', group: 'theme', ko: '원자력·우라늄', etf: 'URA', players: 'CCJ CEG VST OKLO' },
+        { id: 'ev', group: 'theme', ko: '전기차·자율주행', etf: 'DRIV', players: 'TSLA GM F TM RIVN LCID' },
+        { id: 'xlk', group: 'sector', ko: '기술 (XLK)', etf: 'XLK', players: 'AAPL MSFT NVDA AVGO ORCL CRM' },
+        { id: 'xlc', group: 'sector', ko: '커뮤니케이션 (XLC)', etf: 'XLC', players: 'GOOGL META NFLX DIS T VZ' },
+        { id: 'xly', group: 'sector', ko: '경기소비재 (XLY)', etf: 'XLY', players: 'AMZN TSLA HD MCD BKNG LOW' },
+        { id: 'xlp', group: 'sector', ko: '필수소비재 (XLP)', etf: 'XLP', players: 'WMT COST PG KO PEP PM' },
+        { id: 'xlv', group: 'sector', ko: '헬스케어 (XLV)', etf: 'XLV', players: 'LLY UNH JNJ ABBV MRK TMO' },
+        { id: 'xlf', group: 'sector', ko: '금융 (XLF)', etf: 'XLF', players: 'BRK-B JPM V MA BAC WFC' },
+        { id: 'xle', group: 'sector', ko: '에너지 (XLE)', etf: 'XLE', players: 'XOM CVX COP EOG SLB OXY' },
+        { id: 'xli', group: 'sector', ko: '산업재 (XLI)', etf: 'XLI', players: 'GE CAT RTX UNP HON DE' },
+        { id: 'xlb', group: 'sector', ko: '소재 (XLB)', etf: 'XLB', players: 'LIN SHW APD FCX ECL NEM' },
+        { id: 'xlu', group: 'sector', ko: '유틸리티 (XLU)', etf: 'XLU', players: 'NEE SO DUK CEG VST AEP' },
+        { id: 'xlre', group: 'sector', ko: '부동산 (XLRE)', etf: 'XLRE', players: 'PLD AMT EQIX WELL SPG O' }
+    ];
+
+    // 산업 점수: 0~100 (아래 세 항목의 '산업 간 백분위 순위'를 가중 평균)
+    const MK_SCORE_W = { mom: 0.4, rs: 0.4, vol: 0.2 };
+    const MK_MOM_W = { '1W': 0.2, '1M': 0.4, '3M': 0.4 };
+
+    // 매크로 카드
+    const MK_MACRO = [
+        { group: 'rates', ko: '금리 (미국 국채 수익률)', items: [
+            { sym: '^IRX', ko: '미국채 13주 (3개월)', kind: 'yield' }, { sym: '^FVX', ko: '미국채 5년', kind: 'yield' },
+            { sym: '^TNX', ko: '미국채 10년', kind: 'yield' }, { sym: '^TYX', ko: '미국채 30년', kind: 'yield' }] },
+        { group: 'dollar', ko: '달러', items: [{ sym: 'DX-Y.NYB', ko: '달러 인덱스 (DXY)', kind: 'dollar' }] },
+        { group: 'commod', ko: '원자재', items: [
+            { sym: 'GC=F', ko: '금 선물', kind: 'gold' }, { sym: 'SI=F', ko: '은 선물', kind: 'silver' }, { sym: 'CL=F', ko: 'WTI 원유 선물', kind: 'oil' },
+            { sym: 'NG=F', ko: '천연가스 선물', kind: 'gas' }, { sym: 'HG=F', ko: '구리 선물', kind: 'copper' }] },
+        { group: 'crypto', ko: '가상자산', items: [{ sym: 'BTC-USD', ko: '비트코인', kind: 'crypto' }, { sym: 'ETH-USD', ko: '이더리움', kind: 'crypto' }] },
+        { group: 'credit', ko: '신용·위험 선호 프록시', items: [
+            { sym: 'HYG', ko: 'HYG · 하이일드 회사채 ETF', kind: 'bond' }, { sym: 'LQD', ko: 'LQD · 투자등급 회사채 ETF', kind: 'bond' },
+            { sym: 'HYG/LQD', ko: 'HYG ÷ LQD 비율', kind: 'ratio', ratio: ['HYG', 'LQD'] }] },
+        { group: 'global', ko: '글로벌 시장 (국가 ETF)', items: [
+            { sym: 'EWJ', ko: 'EWJ · 일본', kind: 'global' }, { sym: 'EWY', ko: 'EWY · 한국', kind: 'global' }, { sym: 'FXI', ko: 'FXI · 중국 대형주', kind: 'global' },
+            { sym: 'EEM', ko: 'EEM · 신흥국', kind: 'global' }, { sym: 'VGK', ko: 'VGK · 유럽', kind: 'global' }, { sym: 'INDA', ko: 'INDA · 인도', kind: 'global' },
+            { sym: 'EWZ', ko: 'EWZ · 브라질', kind: 'global' }] }
+    ];
+    // 일반적 해석 규칙(경험칙, 전망 아님). thr = '움직였다'고 보는 기준(1개월 기준: yield 는 bp, 나머지는 %, global 은 SPY 대비 %p)
+    const MK_RULES = {
+        yield: { thr: 10, unit: 'bp', up: '금리 상승 구간: 일반적으로 성장주 밸류에이션과 채권 가격에는 부담으로 작용하는 경향', down: '금리 하락 구간: 일반적으로 성장주·채권에 우호적인 경향(다만 경기 둔화 우려로 하락하는 경우도 있음)', flat: '금리 변화가 작은 보합 구간' },
+        dollar: { thr: 1, unit: '%', up: '달러 강세: 신흥국·원자재·해외 매출 비중이 큰 기업에는 부담이 되는 경향', down: '달러 약세: 원자재와 신흥국 자산에는 우호적인 경향', flat: '달러가 보합권' },
+        gold: { thr: 2, unit: '%', up: '금 강세: 안전자산 선호, 또는 실질금리·달러 약세와 함께 나타나는 경향', down: '금 약세: 위험 선호 확대, 또는 금리·달러 강세와 함께 나타나는 경향', flat: '금이 보합권' },
+        silver: { thr: 3, unit: '%', up: '은 강세: 귀금속 선호와 산업 수요 기대가 함께 반영되는 경향', down: '은 약세: 귀금속 선호 약화 또는 산업 수요 둔화 우려가 반영되는 경향', flat: '은이 보합권' },
+        oil: { thr: 5, unit: '%', up: '유가 상승: 에너지 업종 실적에는 우호적이나 물가 압력·소비 부담이 커질 수 있음', down: '유가 하락: 물가 부담은 줄지만 수요 둔화 신호일 수 있음', flat: '유가가 보합권' },
+        gas: { thr: 8, unit: '%', up: '천연가스 상승: 난방·발전 수요나 공급 이슈를 반영(계절성·변동성이 큼)', down: '천연가스 하락: 수요 약화나 공급 증가를 반영(계절성·변동성이 큼)', flat: '천연가스가 보합권' },
+        copper: { thr: 3, unit: '%', up: '구리 강세: 경기·제조업 기대와 함께 움직이는 경향(경기 민감 지표)', down: '구리 약세: 경기 둔화 우려와 함께 나타나는 경향', flat: '구리가 보합권' },
+        crypto: { thr: 8, unit: '%', up: '가상자산 강세: 위험 선호가 높을 때 같이 오르는 경향(변동성이 매우 큼)', down: '가상자산 약세: 위험 회피 때 먼저 약해지는 경향(변동성이 매우 큼)', flat: '가상자산이 보합권' },
+        bond: { thr: 1, unit: '%', up: '채권 ETF 가격 상승: 금리 하락 또는 신용 스프레드 축소와 함께 나타나는 경향', down: '채권 ETF 가격 하락: 금리 상승 또는 신용 스프레드 확대와 함께 나타나는 경향', flat: '채권 ETF가 보합권' },
+        ratio: { thr: 0.5, unit: '%', up: 'HYG가 LQD보다 강함: 신용 위험 선호(스프레드 축소) 쪽 신호', down: 'HYG가 LQD보다 약함: 신용 위험 회피(스프레드 확대) 쪽 신호', flat: '신용 위험 선호에 큰 변화 없음' },
+        global: { thr: 2, unit: '%p', up: '최근 1개월 미국(SPY)보다 강한 시장', down: '최근 1개월 미국(SPY)보다 약한 시장', flat: '미국(SPY)과 비슷한 흐름' }
+    };
+
+    // 위험 선호(risk-on) 종합 점수 요인: lo→0점, hi→100점 (선형, 범위 밖은 고정). 가중치 합 = 100
+    const MK_RISK_FACTORS = [
+        { id: 'vix', label: 'VIX 수준', w: 20, lo: 32, hi: 12, unit: '', rule: 'VIX 12 이하 100점 · 32 이상 0점' },
+        { id: 'spy200', label: 'SPY의 200일선 대비 위치', w: 20, lo: -10, hi: 10, unit: '%', rule: '-10% 0점 · +10% 100점' },
+        { id: 'b50', label: '50일선 위 종목 비율', w: 15, lo: 25, hi: 75, unit: '%', rule: '25% 0점 · 75% 100점' },
+        { id: 'b200', label: '200일선 위 종목 비율', w: 10, lo: 30, hi: 80, unit: '%', rule: '30% 0점 · 80% 100점' },
+        { id: 'credit', label: 'HYG÷LQD 비율의 50일 평균 대비', w: 15, lo: -2, hi: 2, unit: '%', rule: '-2% 0점 · +2% 100점' },
+        { id: 'curve', label: '수익률 곡선 (10년-3개월)', w: 10, lo: -1, hi: 1, unit: '%p', rule: '-1.0%p 0점 · +1.0%p 100점' },
+        { id: 'hl', label: '52주 신고가-신저가 종목 비중', w: 10, lo: -15, hi: 15, unit: '%p', rule: '(신고가-신저가)/전체: -15%p 0점 · +15%p 100점' }
+    ];
+
+    // ---------- 순수 계산 (DOM·네트워크 없음, Node 에서 테스트) ----------
+    const mkFin = v => typeof v === 'number' && Number.isFinite(v);
+
+    function mkNormSpark(s) {
+        if (!s || !Array.isArray(s.c) || !Array.isArray(s.t)) return null;
+        const t = [], c = [];
+        for (let i = 0; i < s.c.length; i++) {
+            const v = s.c[i], tt = s.t[i];
+            if (mkFin(v) && v > 0 && mkFin(tt)) { t.push(tt); c.push(v); }
+        }
+        return c.length >= 2 ? { t, c, currency: s.currency || null } : null;
+    }
+
+    // 오름차순 t 에서 t[i] <= target 인 마지막 인덱스 (없으면 -1)
+    function mkBaseIndex(t, target) {
+        let lo = 0, hi = t.length - 1, ans = -1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (t[mid] <= target) { ans = mid; lo = mid + 1; } else hi = mid - 1;
+        }
+        return ans;
+    }
+    function mkTargetTs(lastTs, period) {
+        const d = new Date(lastTs * 1000);
+        const y = d.getUTCFullYear(), m = d.getUTCMonth(), day = d.getUTCDate();
+        const eod = (yy, mm, dd) => Date.UTC(yy, mm, dd, 23, 59, 59) / 1000; // 해당 날짜의 마지막 순간(거래소 시각대와 무관하게 그날 봉 포함)
+        if (period === 'YTD') return Date.UTC(y, 0, 1) / 1000 - 1; // 작년 마지막 봉
+        if (period === '1W') return eod(y, m, day - 7);
+        const months = { '1M': 1, '3M': 3, '6M': 6, '1Y': 12 }[period];
+        if (!months) return null;
+        const tm = m - months, yy = y + Math.floor(tm / 12), mm = ((tm % 12) + 12) % 12;
+        const dd = Math.min(day, new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate());
+        return eod(yy, mm, dd);
+    }
+    // 기간 시작 종가와 마지막 종가 {base, last} (계산 불가면 null)
+    function mkPeriodBase(t, c, period) {
+        const n = c ? c.length : 0;
+        if (n < 2 || !t || t.length !== n) return null;
+        const last = c[n - 1];
+        if (!mkFin(last)) return null;
+        let base;
+        if (period === '1D') base = c[n - 2];
+        else {
+            const target = mkTargetTs(t[n - 1], period);
+            if (target === null) return null;
+            let idx = mkBaseIndex(t, target);
+            // 시계열이 목표일 직후(3일 이내)에 시작하면 첫 봉을 기준으로 인정 (YTD 는 엄격)
+            if (idx < 0 && period !== 'YTD' && t[0] - target <= 3 * 86400) idx = 0;
+            if (idx < 0 || idx >= n - 1) return null;
+            base = c[idx];
+        }
+        if (!mkFin(base) || base <= 0) return null;
+        return { base, last };
+    }
+    // 기간 수익률 (%) — 종가 시계열에서 직접 계산. 데이터가 모자라면 null
+    function mkPeriodReturn(t, c, period) {
+        const b = mkPeriodBase(t, c, period);
+        return b ? (b.last / b.base - 1) * 100 : null;
+    }
+    function mkSmaLast(c, p) {
+        if (!c || c.length < p) return null;
+        let s = 0;
+        for (let i = c.length - p; i < c.length; i++) s += c[i];
+        return s / p;
+    }
+
+    // 종목 하나의 통계. spark = mkNormSpark 결과, quote = fetchQuotes 항목
+    function mkComputeStat(sym, spark, quote) {
+        const st = { sym, name: null, price: null, cap: null, pe: null, volRatio: null, marketState: null, time: null, currency: null, hasSpark: !!spark, hasQuote: !!quote,
+            r: {}, last: null, sma50: null, sma200: null, sma50Diff: null, sma200Diff: null, newHigh: null, newLow: null, nBars: 0 };
+        if (quote) {
+            st.name = quote.name || null;
+            if (mkFin(quote.price)) st.price = quote.price;
+            if (mkFin(quote.marketCap) && quote.marketCap > 0) st.cap = quote.marketCap;
+            if (mkFin(quote.pe) && quote.pe > 0) st.pe = quote.pe;
+            if (mkFin(quote.volume) && mkFin(quote.avgVolume) && quote.avgVolume > 0) st.volRatio = quote.volume / quote.avgVolume;
+            st.marketState = quote.marketState || null;
+            st.time = mkFin(quote.time) ? quote.time : null;
+            st.currency = quote.currency || null;
+        }
+        if (spark) {
+            const { t, c } = spark;
+            st.nBars = c.length;
+            st.last = c[c.length - 1];
+            ['1D', '1W', '1M', '3M', '6M', '1Y', 'YTD'].forEach(p => { st.r[p] = mkPeriodReturn(t, c, p); });
+            st.sma50 = mkSmaLast(c, 50);
+            st.sma200 = mkSmaLast(c, 200);
+            if (st.sma50) st.sma50Diff = (st.last / st.sma50 - 1) * 100;
+            if (st.sma200) st.sma200Diff = (st.last / st.sma200 - 1) * 100;
+            if (c.length >= 200) { // 52주(최근 252개 일봉) 종가 기준 신고가/신저가
+                const w = c.slice(-252);
+                st.newHigh = st.last >= Math.max(...w);
+                st.newLow = st.last <= Math.min(...w);
+            }
+            if (st.price === null) st.price = st.last;
+        } else {
+            ['1D', '1W', '1M', '3M', '6M', '1Y', 'YTD'].forEach(p => { st.r[p] = null; });
+        }
+        if (quote && mkFin(quote.changePct)) st.r['1D'] = quote.changePct; // 1일 등락률은 시세값을 우선 사용
+        return st;
+    }
+
+    // 유니버스 통계 배열 → 시장 폭 지표
+    function mkBreadth(stats) {
+        const b = { n: 0, adv: 0, dec: 0, flat: 0, n50: 0, above50: 0, n200: 0, above200: 0, nHL: 0, nh: 0, nl: 0 };
+        stats.forEach(s => {
+            if (!s) return;
+            const d = s.r && s.r['1D'];
+            if (mkFin(d)) { b.n++; if (Math.abs(d) < 0.005) b.flat++; else if (d > 0) b.adv++; else b.dec++; }
+            if (mkFin(s.sma50Diff)) { b.n50++; if (s.sma50Diff > 0) b.above50++; }
+            if (mkFin(s.sma200Diff)) { b.n200++; if (s.sma200Diff > 0) b.above200++; }
+            if (s.newHigh !== null && s.newHigh !== undefined) { b.nHL++; if (s.newHigh) b.nh++; if (s.newLow) b.nl++; }
+        });
+        b.advPct = b.n ? b.adv / b.n * 100 : null;
+        b.above50Pct = b.n50 ? b.above50 / b.n50 * 100 : null;
+        b.above200Pct = b.n200 ? b.above200 / b.n200 * 100 : null;
+        b.hlNet = b.nHL ? (b.nh - b.nl) / b.nHL * 100 : null;
+        return b;
+    }
+
+    // 동일가중 평균 vs 시총가중 평균 수익률 (items: {r, cap})
+    function mkEwCw(items) {
+        let sum = 0, n = 0, cw = 0, cs = 0;
+        items.forEach(it => {
+            if (!mkFin(it.r)) return;
+            sum += it.r; n++;
+            if (mkFin(it.cap) && it.cap > 0) { cw += it.r * it.cap; cs += it.cap; }
+        });
+        return { n, ew: n ? sum / n : null, cw: cs ? cw / cs : null };
+    }
+
+    // 섹터별 시총가중 평균 수익률 (items: {sector, cap, r})
+    function mkSectorAverages(items) {
+        const m = {};
+        items.forEach(it => {
+            if (!mkFin(it.r) || !mkFin(it.cap) || it.cap <= 0) return;
+            const g = m[it.sector] || (m[it.sector] = { sector: it.sector, w: 0, s: 0, n: 0, cap: 0 });
+            g.w += it.cap; g.s += it.cap * it.r; g.n++; g.cap += it.cap;
+        });
+        return Object.keys(m).map(k => ({ sector: k, avg: m[k].s / m[k].w, n: m[k].n, cap: m[k].cap })).sort((a, b) => b.avg - a.avg);
+    }
+
+    // 값 배열 → 0~100 백분위(동순위는 평균). 유한값이 하나뿐이면 50, 값 없음은 null
+    function mkPercentRanks(vals) {
+        const f = vals.filter(mkFin), n = f.length;
+        return vals.map(v => {
+            if (!mkFin(v)) return null;
+            if (n === 1) return 50;
+            let less = 0, eq = 0;
+            f.forEach(x => { if (x < v) less++; else if (x === v) eq++; });
+            return (less + (eq - 1) / 2) / (n - 1) * 100;
+        });
+    }
+    function mkMomentum(r) { // 0.2·1주 + 0.4·1개월 + 0.4·3개월 (셋 다 있어야 계산)
+        if (!r || !mkFin(r['1W']) || !mkFin(r['1M']) || !mkFin(r['3M'])) return null;
+        return MK_MOM_W['1W'] * r['1W'] + MK_MOM_W['1M'] * r['1M'] + MK_MOM_W['3M'] * r['3M'];
+    }
+    function mkRelStrength(r, bench) { // 0.5·(1개월 초과수익) + 0.5·(3개월 초과수익), 벤치마크=SPY
+        if (!r || !bench || !mkFin(r['1M']) || !mkFin(r['3M']) || !mkFin(bench['1M']) || !mkFin(bench['3M'])) return null;
+        return 0.5 * (r['1M'] - bench['1M']) + 0.5 * (r['3M'] - bench['3M']);
+    }
+    // rows: {mom, rs, vol} 원시값 → pMom,pRs,pVol(백분위), score(0~100), parts(각 항목 기여 점수). 모멘텀·상대강도 중 하나라도 없으면 점수 없음
+    function mkScoreRows(rows, W = MK_SCORE_W) {
+        const pm = mkPercentRanks(rows.map(r => r.mom)), pr = mkPercentRanks(rows.map(r => r.rs)), pv = mkPercentRanks(rows.map(r => r.vol));
+        rows.forEach((r, i) => {
+            r.pMom = pm[i]; r.pRs = pr[i]; r.pVol = pv[i]; r.score = null; r.parts = null;
+            if (pm[i] === null || pr[i] === null) return;
+            const sw = W.mom + W.rs + (pv[i] === null ? 0 : W.vol);
+            r.parts = { mom: W.mom * pm[i] / sw, rs: W.rs * pr[i] / sw, vol: pv[i] === null ? 0 : W.vol * pv[i] / sw };
+            r.score = r.parts.mom + r.parts.rs + r.parts.vol;
+            r.volUsed = pv[i] !== null;
+        });
+        return rows;
+    }
+    function mkQuadrant(rs3m, rs1m) { // x = 3개월 상대성과, y = 1개월 상대성과 (SPY 대비 %p)
+        if (!mkFin(rs3m) || !mkFin(rs1m)) return null;
+        if (rs3m >= 0 && rs1m >= 0) return 'leading';
+        if (rs3m >= 0) return 'weakening';
+        if (rs1m < 0) return 'lagging';
+        return 'improving';
+    }
+    const MK_QUAD_KO = { leading: '선도', weakening: '약화', lagging: '부진', improving: '개선' };
+
+    // 수익률 곡선: 10년 - 3개월 금리차(%p)
+    function mkYieldCurve(y10, y3m) {
+        if (!mkFin(y10) || !mkFin(y3m)) return null;
+        const spread = y10 - y3m;
+        const state = spread < 0 ? 'inverted' : spread < 0.5 ? 'flat' : 'normal';
+        return { spread, state, ko: { inverted: '역전', flat: '평탄', normal: '정상' }[state] };
+    }
+
+    function mkLin(v, lo, hi) { // lo→0, hi→100 (lo>hi 이면 반대 방향), 범위 밖은 고정
+        if (!mkFin(v)) return null;
+        const x = (v - lo) / (hi - lo);
+        return Math.max(0, Math.min(1, x)) * 100;
+    }
+    // inputs: {vix, spy200, b50, b200, credit, curve, hl} → {score, label, used, total, factors[]}; 값 없는 요인은 빼고 가중치를 다시 정규화
+    function mkRiskComposite(inputs) {
+        const factors = MK_RISK_FACTORS.map(f => {
+            const value = inputs[f.id], sc = mkLin(value, f.lo, f.hi);
+            return { id: f.id, label: f.label, w: f.w, unit: f.unit, rule: f.rule, value: mkFin(value) ? value : null, score: sc };
+        });
+        const avail = factors.filter(f => f.score !== null);
+        const sw = avail.reduce((s, f) => s + f.w, 0);
+        factors.forEach(f => { f.wEff = f.score !== null && sw ? f.w / sw * 100 : null; f.contrib = f.score !== null && sw ? f.score * f.w / sw : null; });
+        const score = sw ? avail.reduce((s, f) => s + f.score * f.w, 0) / sw : null;
+        return { score, label: score === null ? null : mkRiskLabel(score), used: avail.length, total: factors.length, factors };
+    }
+    function mkRiskLabel(score) {
+        if (score < 25) return '강한 위험 회피 (Risk-off)';
+        if (score < 40) return '위험 회피 우위';
+        if (score < 60) return '중립·혼조';
+        if (score < 75) return '위험 선호 우위';
+        return '강한 위험 선호 (Risk-on)';
+    }
+    function mkVixLabel(v) {
+        if (!mkFin(v)) return null;
+        if (v < 15) return '낮은 편(시장이 비교적 안정적)';
+        if (v < 20) return '보통 수준';
+        if (v < 30) return '높은 편(경계 심리)';
+        return '매우 높은 수준(공포 구간)';
+    }
+
+    // 해석 규칙: move = 1개월 변화(yield 는 bp, global 은 SPY 대비 %p, 그 외 %)
+    function mkInterpret(kind, move) {
+        const rule = MK_RULES[kind];
+        if (!rule || !mkFin(move)) return null;
+        const dir = move >= rule.thr ? 'up' : move <= -rule.thr ? 'down' : 'flat';
+        return { dir, text: rule[dir], thr: rule.thr, unit: rule.unit };
+    }
+
+    // ---------- 트리맵 ----------
+    // Squarified treemap (Bruls et al.). items: {value,...} → [{item,x,y,w,h}]. 면적 합 = w·h, 값이 0/NaN 인 항목은 제외
+    function mkSquarify(items, x, y, w, h) {
+        const arr = (items || []).filter(it => it && mkFin(it.value) && it.value > 0).sort((a, b) => b.value - a.value);
+        const out = [];
+        if (!arr.length || !(w > 0) || !(h > 0)) return out;
+        const total = arr.reduce((s, it) => s + it.value, 0);
+        const scale = w * h / total;
+        const nodes = arr.map(it => ({ it, a: it.value * scale }));
+        let rect = { x, y, w, h };
+        const worst = (row, side) => {
+            let s = 0, mx = 0, mn = Infinity;
+            row.forEach(n => { s += n.a; if (n.a > mx) mx = n.a; if (n.a < mn) mn = n.a; });
+            return Math.max(side * side * mx / (s * s), s * s / (side * side * mn));
+        };
+        const place = row => {
+            const s = row.reduce((t, n) => t + n.a, 0);
+            if (rect.w >= rect.h) { // 짧은 변(높이)을 따라 세로 열을 왼쪽에 놓는다
+                const cw = s / rect.h; let yy = rect.y;
+                row.forEach(n => { const hh = n.a / cw; out.push({ item: n.it, x: rect.x, y: yy, w: cw, h: hh }); yy += hh; });
+                rect = { x: rect.x + cw, y: rect.y, w: rect.w - cw, h: rect.h };
+            } else {
+                const rh = s / rect.w; let xx = rect.x;
+                row.forEach(n => { const ww = n.a / rh; out.push({ item: n.it, x: xx, y: rect.y, w: ww, h: rh }); xx += ww; });
+                rect = { x: rect.x, y: rect.y + rh, w: rect.w, h: rect.h - rh };
+            }
+        };
+        let row = [], i = 0;
+        while (i < nodes.length) {
+            const side = Math.min(rect.w, rect.h);
+            const cand = row.concat(nodes[i]);
+            if (!row.length || worst(cand, side) <= worst(row, side)) { row = cand; i++; }
+            else { place(row); row = []; }
+        }
+        if (row.length) place(row);
+        return out;
+    }
+    // 2단계 트리맵: groups=[{id,ko,items:[{value,...}]}] → blocks=[{group,x,y,w,h,tiles:[{item,x,y,w,h}]}] (섹터 블록 면적 = 타일 면적 합)
+    function mkLayoutTreemap(groups, W, H) {
+        const gs = groups.map(g => ({ g, value: (g.items || []).reduce((s, it) => s + (mkFin(it.value) && it.value > 0 ? it.value : 0), 0) }));
+        return mkSquarify(gs, 0, 0, W, H).map(r => ({ group: r.item.g, x: r.x, y: r.y, w: r.w, h: r.h, tiles: mkSquarify(r.item.g.items, r.x, r.y, r.w, r.h) }));
+    }
+    // 타일 안에 글자를 넣을 수 있는지와 글자 크기
+    function mkTileText(w, h, label) {
+        if (w < 28 || h < 17) return null;
+        const fs = Math.min(18, Math.floor(Math.min(w / (label.length * 0.62 + 0.5), h * 0.52)));
+        if (fs < 9) return null;
+        return { fs, pctFs: Math.max(8, Math.round(fs * 0.8)), showPct: h >= fs * 2.5 && w >= 34 };
+    }
+    // 변화율 → 색 (중립 슬레이트 → 초록/빨강, ±clamp 에서 포화)
+    const MK_C_NEUTRAL = [58, 66, 86], MK_C_UP = [34, 197, 94], MK_C_DOWN = [239, 68, 68];
+    function mkColor(pct, clamp) {
+        if (!mkFin(pct)) return '#1e293b';
+        const t = Math.min(1, Math.abs(pct) / clamp);
+        const to = pct >= 0 ? MK_C_UP : MK_C_DOWN;
+        const k = i => Math.round(MK_C_NEUTRAL[i] + (to[i] - MK_C_NEUTRAL[i]) * t);
+        return `rgb(${k(0)},${k(1)},${k(2)})`;
+    }
+
+    // 사분면 차트의 점 라벨이 서로 겹치지 않게 후보 위치 중 빈 곳을 고른다. pts: {x,y,label}
+    function mkPlaceLabels(pts) {
+        const placed = [];
+        const hit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+        return pts.map(p => {
+            const w = p.label.length * 5.4 + 2, h = 10;
+            const cands = [[6, 3], [-6 - w, 3], [-w / 2, -6], [-w / 2, 14], [6, -7], [6, 13], [-6 - w, -7], [-6 - w, 13]];
+            let best = null, bestHits = Infinity;
+            for (const [dx, dy] of cands) {
+                const box = { x: p.x + dx, y: p.y + dy - 8, w, h };
+                const hits = placed.filter(o => hit(box, o)).length + pts.filter(q => q !== p && hit(box, { x: q.x - 3, y: q.y - 3, w: 6, h: 6 })).length;
+                if (hits < bestHits) { bestHits = hits; best = { dx, dy, box }; if (!hits) break; }
+            }
+            placed.push(best.box);
+            return { dx: best.dx, dy: best.dy };
+        });
+    }
+
+    // 오늘의 한 줄 요약: 숫자에서만 문장을 만든다. c = {state, idx:{gspc,ixic,dji,rut,vix:{price,pct}}, breadth, secLead[], secLag[], best, worst, risk}
+    function mkBuildSummary(c) {
+        const f = (v, d = 2) => { const s = v.toFixed(d); return (+s === 0 ? (0).toFixed(d) : (v > 0 ? '+' : '') + s) + '%'; };
+        const dirWord = v => v >= 1 ? '뚜렷한 상승' : v >= 0.3 ? '상승' : v > -0.3 ? '보합권 움직임' : v > -1 ? '하락' : '큰 폭의 하락';
+        const out = [];
+        const idx = c.idx || {};
+        const when = c.state === 'REGULAR' ? '장중' : c.state === 'CLOSED' ? '마감 기준' : (c.state === 'PRE' || c.state === 'PREPRE') ? '정규장 시작 전' : (c.state === 'POST' || c.state === 'POSTPOST') ? '정규장 마감 후' : '';
+        const parts = [];
+        [['gspc', 'S&P 500'], ['ixic', '나스닥'], ['dji', '다우'], ['rut', '러셀 2000']].forEach(([k, n]) => { if (mkFin(idx[k])) parts.push(`${n} ${f(idx[k])}`); });
+        if (parts.length) {
+            out.push(`${when ? when + ' ' : ''}지수는 ${parts.join(', ')}${mkFin(idx.gspc) ? `로 S&P 500 기준 ${dirWord(idx.gspc)}입니다` : '입니다'}.`);
+        }
+        if (mkFin(idx.rut) && mkFin(idx.gspc) && Math.abs(idx.rut - idx.gspc) >= 0.5) {
+            const d = idx.rut - idx.gspc;
+            out.push(`러셀 2000이 S&P 500보다 ${Math.abs(d).toFixed(2)}%p ${d > 0 ? '강해 소형주가 상대적으로 앞섰습니다' : '약해 소형주가 상대적으로 뒤처졌습니다'}.`);
+        }
+        if (mkFin(idx.ixic) && mkFin(idx.dji) && Math.abs(idx.ixic - idx.dji) >= 0.7) {
+            const d = idx.ixic - idx.dji;
+            out.push(`나스닥(성장주 비중이 높음)이 다우보다 ${Math.abs(d).toFixed(2)}%p ${d > 0 ? '강했습니다' : '약했습니다'}.`);
+        }
+        const b = c.breadth;
+        if (b && b.n > 0) {
+            const q = b.advPct >= 65 ? '상승이 폭넓게 퍼진 장세' : b.advPct >= 55 ? '상승 종목이 우위' : b.advPct >= 45 ? '오르는 종목과 내리는 종목이 엇비슷한 혼조' : b.advPct >= 35 ? '하락 종목이 우위' : '하락이 폭넓게 퍼진 장세';
+            out.push(`분석 유니버스 ${b.n}개 종목 중 상승 ${b.adv}개(${b.advPct.toFixed(0)}%), 하락 ${b.dec}개로 ${q}입니다.`);
+        }
+        const v = idx.vix;
+        if (v && mkFin(v.price)) {
+            out.push(`VIX는 ${v.price.toFixed(2)}${mkFin(v.pct) ? `(${f(v.pct)})` : ''}로 ${mkVixLabel(v.price)}입니다.`);
+        }
+        if (c.secLead && c.secLead.length && c.secLag && c.secLag.length) {
+            const t = a => a.map(x => `${x.ko} ${f(x.avg)}`).join(', ');
+            out.push(`섹터(시총가중 평균)에서는 ${t(c.secLead)} 순으로 강했고, ${t(c.secLag)} 순으로 약했습니다.`);
+        }
+        if (c.best && c.worst) out.push(`시총 상위 30개 종목 중 상승률 1위는 ${c.best.sym}(${f(c.best.pct)}), 하락률 1위는 ${c.worst.sym}(${f(c.worst.pct)})입니다.`);
+        if (c.risk && mkFin(c.risk.score)) out.push(`가격 지표를 종합한 위험 선호 점수는 ${c.risk.score.toFixed(0)}/100(${c.risk.label})입니다.`);
+        return out.join(' ');
+    }
+
+    // ---------- 보조 순수 함수 (금리·비율) ----------
+    function mkYieldInfoFrom(sp) { // 야후 금리 심볼(^TNX 등)은 4.25 형태. 혹시 42.5 처럼 10배로 오면 보정
+        if (!sp || !sp.c || sp.c.length < 2) return null;
+        const k = sp.c[sp.c.length - 1] > 25 ? 0.1 : 1;
+        const c = sp.c.map(v => v * k);
+        const bp = p => { const b = mkPeriodBase(sp.t, c, p); return b ? (b.last - b.base) * 100 : null; };
+        return { last: c[c.length - 1], c, t: sp.t, d1: bp('1D'), d1m: bp('1M'), d3m: bp('3M') };
+    }
+    // 두 종가 시계열의 비율 a/b (같은 날짜끼리만)
+    function mkRatioSeries(sa, sb) {
+        if (!sa || !sb) return null;
+        const day = t => Math.floor(t / 86400), mb = new Map();
+        sb.t.forEach((t, i) => mb.set(day(t), sb.c[i]));
+        const t = [], c = [];
+        sa.t.forEach((tt, i) => { const d = mb.get(day(tt)); if (d > 0) { t.push(tt); c.push(sa.c[i] / d); } });
+        return c.length >= 2 ? { t, c } : null;
+    }
+    function mkRatioInfo(sr) {
+        if (!sr) return null;
+        const sma50 = mkSmaLast(sr.c, 50), last = sr.c[sr.c.length - 1];
+        return { last, c: sr.c, t: sr.t, r1D: mkPeriodReturn(sr.t, sr.c, '1D'), r1M: mkPeriodReturn(sr.t, sr.c, '1M'), r3M: mkPeriodReturn(sr.t, sr.c, '3M'), dev50: sma50 ? (last / sma50 - 1) * 100 : null };
+    }
+
+    // ---------- 상태·데이터 ----------
+    const MK = {
+        inited: false, loadTs: 0, loading: false, seq: 0, ver: 0, quotes: {}, spark: {}, stats: {},
+        period: '1D', uni: 'all', group: 'theme', sortKey: 'score', sortDir: -1, expanded: {},
+        prog: { done: 0, total: 0 }, failQ: 0, failS: 0, noProxy: false, timer: null, auto: false, raf: 0,
+        tiles: [], treeW: 0, tipKey: null, ptype: 'mouse', ai: { busy: false, html: '', err: '' }, _d: null
+    };
+
+    let mkUniCache = null;
+    function mkUniverseList() {
+        const master = typeof SCREENER_MASTER_DATA !== 'undefined' ? SCREENER_MASTER_DATA : [];
+        if (mkUniCache && mkUniCache.n === master.length) return mkUniCache.list;
+        const seen = new Set(), out = [];
+        master.forEach(s => {
+            if (!s || !s.ticker || seen.has(s.ticker)) return;
+            seen.add(s.ticker);
+            out.push({ ticker: s.ticker, name: s.name || s.ticker, sector: mkSectorOf(s.ticker, s.sector) });
+        });
+        mkUniCache = { n: master.length, list: out };
+        return out;
+    }
+    const mkPlayers = d => d.players.split(' ').filter(Boolean);
+    function mkSymbolSets() {
+        const core = new Set(['SPY']);
+        MK_INDICES.forEach(i => core.add(i.sym));
+        MK_MACRO.forEach(g => g.items.forEach(it => { if (it.ratio) it.ratio.forEach(s => core.add(s)); else core.add(it.sym); }));
+        MK_INDUSTRIES.forEach(d => core.add(d.etf));
+        const rest = new Set();
+        mkUniverseList().forEach(u => { if (!core.has(u.ticker)) rest.add(u.ticker); });
+        MK_INDUSTRIES.forEach(d => mkPlayers(d).forEach(t => { if (!core.has(t)) rest.add(t); }));
+        return { core: [...core], rest: [...rest] };
+    }
+    function mkName(sym) {
+        const u = mkUniverseList().find(x => x.ticker === sym); // 목록이 작아(≈340) 선형 검색으로 충분
+        const st = MK.stats[sym];
+        return (u && u.name) || (st && st.name) || sym;
+    }
+
+    function mkIngest(quotes, spark, syms) {
+        (quotes || []).forEach(q => { if (q && q.symbol) MK.quotes[q.symbol] = q; });
+        if (spark) Object.keys(spark).forEach(s => { const n = mkNormSpark(spark[s]); if (n) MK.spark[s] = n; });
+        syms.forEach(s => { MK.stats[s] = mkComputeStat(s, MK.spark[s], MK.quotes[s]); });
+        MK.ver++;
+    }
+    async function mkFetchBatch(syms, seq) {
+        const [q, s] = await Promise.all([fetchQuotes(syms), fetchSpark(syms, '1y', '1d')]);
+        if (seq !== MK.seq) return;
+        if (q === null) MK.failQ++;
+        if (s === null) MK.failS++;
+        mkIngest(q, s, syms);
+        MK.prog.done++;
+        mkScheduleRender();
+    }
+    // opts.force: 캐시 무시하고 전체 새로 / opts.missingOnly: 응답이 없던 심볼만 다시
+    async function mkLoad(opts = {}) {
+        if (typeof getProxyUrl !== 'function' || !getProxyUrl()) { MK.noProxy = true; mkScheduleRender(); return; }
+        MK.noProxy = false;
+        if (MK.loading) return;
+        if (!opts.force && !opts.missingOnly && MK.loadTs && Date.now() - MK.loadTs < MK_CACHE_MS) return;
+        const sets = mkSymbolSets();
+        const need = opts.missingOnly ? (s => { const st = MK.stats[s]; return !st || !st.hasSpark || !st.hasQuote; }) : (() => true);
+        const core = sets.core.filter(need), rest = sets.rest.filter(need);
+        const batches = [];
+        if (core.length) batches.push(core);
+        for (let i = 0; i < rest.length; i += 100) batches.push(rest.slice(i, i + 100));
+        if (!batches.length) return;
+        const seq = ++MK.seq;
+        MK.loading = true; MK.failQ = 0; MK.failS = 0; MK.prog = { done: 0, total: batches.length };
+        mkScheduleRender();
+        try {
+            await mkFetchBatch(batches[0], seq); // 지수·매크로·ETF 먼저 → 화면 위쪽부터 채워진다
+            let next = 1;
+            const worker = async () => { while (next < batches.length && seq === MK.seq) { const b = batches[next++]; try { await mkFetchBatch(b, seq); } catch (e) { MK.failQ++; MK.failS++; MK.prog.done++; } } };
+            await Promise.all([worker(), worker()]); // 동시에 최대 2개 묶음(요청 4개)만
+        } catch (e) {
+            console.warn('시장 탭 로딩 실패', e);
+        } finally {
+            if (seq === MK.seq) { MK.loading = false; MK.loadTs = Date.now(); mkScheduleRender(); }
+        }
+    }
+    function mkRefresh() { mkLoad({ force: true }); }
+    function mkRetry() { mkLoad({ missingOnly: true }); }
+    function mkToggleAuto(on) {
+        MK.auto = !!on;
+        if (MK.timer) { clearInterval(MK.timer); MK.timer = null; }
+        if (MK.auto) MK.timer = setInterval(() => { if (activeAppTab === 'market' && document.visibilityState !== 'hidden') mkLoad({ force: true }); }, MK_CACHE_MS);
+    }
+
+    // ---------- 파생 데이터 (캐시: 데이터 버전 + 산업 그룹) ----------
+    function mkDerived() {
+        const key = MK.ver + '|' + MK.group;
+        if (MK._d && MK._d.key === key) return MK._d;
+        const uni = mkUniverseList().map(u => ({ ...u, st: MK.stats[u.ticker] || null }));
+        const have = uni.filter(u => u.st && (u.st.hasQuote || u.st.hasSpark));
+        const breadth = mkBreadth(have.map(u => u.st));
+        const secAvg1d = mkSectorAverages(have.map(u => ({ sector: u.sector, cap: u.st.cap, r: u.st.r['1D'] })));
+        const topCap = have.filter(u => u.st.cap && mkFin(u.st.r['1D'])).sort((a, b) => b.st.cap - a.st.cap).slice(0, 30);
+        const byR = topCap.slice().sort((a, b) => b.st.r['1D'] - a.st.r['1D']);
+        const ew1m = mkEwCw(have.map(u => ({ r: u.st.r['1M'], cap: u.st.cap }))), ew3m = mkEwCw(have.map(u => ({ r: u.st.r['3M'], cap: u.st.cap })));
+        const y = s => { const i = mkYieldInfoFrom(MK.spark[s]); return i ? i.last : null; };
+        const curve = mkYieldCurve(y('^TNX'), y('^IRX'));
+        const ratio = mkRatioInfo(mkRatioSeries(MK.spark['HYG'], MK.spark['LQD']));
+        const vixSt = MK.stats['^VIX'], spy = MK.stats['SPY'];
+        const risk = mkRiskComposite({
+            vix: vixSt ? (mkFin(vixSt.price) ? vixSt.price : vixSt.last) : null,
+            spy200: spy ? spy.sma200Diff : null,
+            b50: breadth.above50Pct, b200: breadth.above200Pct,
+            credit: ratio ? ratio.dev50 : null, curve: curve ? curve.spread : null, hl: breadth.hlNet
+        });
+        const rows = mkIndustryRows(MK.group);
+        MK._d = { key, uni, have, breadth, secAvg1d, best: byR.length ? byR[0] : null, worst: byR.length ? byR[byR.length - 1] : null, ew1m, ew3m, curve, ratio, risk, rows };
+        return MK._d;
+    }
+    function mkAvg(arr) { const f = arr.filter(mkFin); return f.length ? { v: f.reduce((a, b) => a + b, 0) / f.length, n: f.length } : null; }
+    function mkIndustryRows(group) {
+        const spy = MK.stats['SPY'], spyR = spy ? spy.r : null;
+        const rows = MK_INDUSTRIES.filter(d => group === 'all' || d.group === group).map(d => {
+            const st = MK.stats[d.etf] || null, r = st ? st.r : null;
+            const players = mkPlayers(d).map(t => MK.stats[t]).filter(s => s && mkFin(s.price)).sort((a, b) => (b.cap || 0) - (a.cap || 0));
+            const basket = {};
+            ['1D', '1W', '1M', '3M', 'YTD'].forEach(p => { basket[p] = mkAvg(players.map(s => s.r[p])); });
+            const rs1 = r && spyR && mkFin(r['1M']) && mkFin(spyR['1M']) ? r['1M'] - spyR['1M'] : null;
+            const rs3 = r && spyR && mkFin(r['3M']) && mkFin(spyR['3M']) ? r['3M'] - spyR['3M'] : null;
+            return { def: d, st, r: r || {}, players, nPlayers: mkPlayers(d).length, basket, rs1, rs3, mom: mkMomentum(r), rs: mkRelStrength(r, spyR), vol: st && mkFin(st.volRatio) ? st.volRatio : null, quad: mkQuadrant(rs3, rs1) };
+        });
+        return mkScoreRows(rows);
+    }
+
+    // ---------- 표시 형식 ----------
+    function mkFmtPct(v, d = 2) { if (!mkFin(v)) return ''; const s = v.toFixed(d); return (+s === 0 ? (0).toFixed(d) : (v > 0 ? '+' : '') + s) + '%'; }
+    function mkPctHtml(v, o = {}) {
+        if (!mkFin(v)) return '<span class="text-slate-600" title="데이터 없음">–</span>';
+        const cls = Math.abs(v) < 0.005 ? 'text-slate-300' : ((v > 0) !== !!o.inv) ? 'text-emerald-400' : 'text-rose-400';
+        return `<span class="${cls} font-mono-numbers">${mkFmtPct(v, o.d === undefined ? 2 : o.d)}</span>`;
+    }
+    function mkBpHtml(v) {
+        if (!mkFin(v)) return '<span class="text-slate-600" title="데이터 없음">–</span>';
+        const cls = Math.abs(v) < 0.5 ? 'text-slate-300' : v > 0 ? 'text-amber-300' : 'text-sky-300';
+        return `<span class="${cls} font-mono-numbers">${v > 0 ? '+' : ''}${v.toFixed(0)}bp</span>`;
+    }
+    function mkFmtPrice(v, d = 2) { return mkFin(v) ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : ''; }
+    function mkFmtCap(v) {
+        if (!mkFin(v) || v <= 0) return '';
+        if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
+        if (v >= 1e9) return `$${(v / 1e9).toFixed(v >= 1e11 ? 0 : 1)}B`;
+        return `$${(v / 1e6).toFixed(0)}M`;
+    }
+    function mkFmtTime(sec) {
+        if (!mkFin(sec)) return '';
+        return new Date(sec * 1000).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    const MK_STATE_KO = { REGULAR: '정규장 진행 중', PRE: '프리마켓', PREPRE: '개장 전', POST: '애프터마켓', POSTPOST: '장 마감 후', CLOSED: '장 마감' };
+    function mkSparkSvg(vals, up) {
+        const v = vals.filter(mkFin);
+        if (v.length < 2) return '';
+        const w = 100, h = 30, mn = Math.min(...v), mx = Math.max(...v), rng = mx - mn || 1;
+        const pts = v.map((x, i) => `${(i / (v.length - 1) * (w - 2) + 1).toFixed(1)},${(h - 3 - (x - mn) / rng * (h - 6)).toFixed(1)}`).join(' ');
+        const col = (up === undefined ? v[v.length - 1] >= v[0] : up) ? '#34d399' : '#fb7185';
+        return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="w-full h-7 block" aria-hidden="true"><polyline fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke" points="${pts}"/></svg>`;
+    }
+    const mkNoData = (msg = '데이터 없음') => `<span class="text-slate-600 text-xs">${msg}</span>`;
+
+    // ---------- 화면 골격 ----------
+    function mkBuildSkeleton() {
+        const root = document.getElementById('marketRoot');
+        if (!root) return false;
+        root.innerHTML = `
+<style>
+#marketRoot .mk-card{background:#131e32;border:1px solid #1e293b;border-radius:1rem;padding:1.1rem;box-shadow:0 10px 25px rgba(0,0,0,.35)}
+#marketRoot .mk-tile{position:absolute;overflow:hidden;box-sizing:border-box;cursor:pointer;box-shadow:inset 0 0 0 1px #0a0f1d;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.12;text-align:center;font-family:'JetBrains Mono',monospace;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+#marketRoot .mk-tile:hover{outline:2px solid #fff;outline-offset:-2px;z-index:6}
+#marketRoot .mk-tile:focus-visible{outline:2px solid #38bdf8;outline-offset:-2px;z-index:6}
+#marketRoot .mk-blk{position:absolute;box-sizing:border-box;pointer-events:none;z-index:3;box-shadow:inset 0 0 0 2px #0a0f1d}
+#marketRoot .mk-lbl{position:absolute;z-index:4;pointer-events:none;font-size:10px;font-weight:700;padding:1px 6px 2px 5px;background:rgba(10,15,29,.78);color:#e2e8f0;border-radius:0 0 6px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+#marketRoot .mk-th{cursor:pointer;white-space:nowrap}
+#marketRoot .mk-th:hover{color:#fff}
+#marketRoot table.mk-tbl td,#marketRoot table.mk-tbl th{padding:6px 8px}
+#marketRoot .mk-sticky{position:sticky;left:0;background:#131e32;z-index:2}
+</style>
+<div class="space-y-6">
+  <div id="mkHeader"></div>
+  <section id="mkSecSnap" class="mk-card space-y-4">
+    <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md bg-sky-950 text-sky-300 text-xs font-bold flex items-center justify-center border border-sky-800">1</span><h3 class="text-base font-extrabold text-white">시장 스냅샷</h3></div>
+    <div id="mkSummary"></div>
+    <div id="mkSnapGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3"></div>
+  </section>
+  <section id="mkSecHeat" class="mk-card space-y-3">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md bg-sky-950 text-sky-300 text-xs font-bold flex items-center justify-center border border-sky-800">2</span><div><h3 class="text-base font-extrabold text-white">시장 히트맵</h3><p class="text-[11px] text-slate-500">타일 면적 = 시가총액 · 색 = 선택 기간 등락률 · 클릭하면 종목 분석 탭으로 이동</p></div></div>
+    </div>
+    <div id="mkHeatCtl" class="flex flex-wrap items-center gap-2"></div>
+    <div id="mkHeatInfo" class="text-[11px] text-slate-400"></div>
+    <div id="mkLegend"></div>
+    <div id="mkTree" role="group" aria-label="시가총액 비례 시장 히트맵" style="position:relative;width:100%;height:480px;background:#0a0f1d;border-radius:10px;overflow:hidden"></div>
+    <div id="mkSecChips" class="flex flex-wrap gap-1.5"></div>
+    <div id="mkMovers" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+  </section>
+  <section id="mkSecInd" class="mk-card space-y-4">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md bg-sky-950 text-sky-300 text-xs font-bold flex items-center justify-center border border-sky-800">3</span><div><h3 class="text-base font-extrabold text-white">산업·테마 보드 &amp; 섹터 로테이션</h3><p class="text-[11px] text-slate-500">대표 ETF의 수익률·상대강도·거래 열기로 어느 산업이 주목받는지 순위를 매깁니다 (점수 산식은 아래에 공개)</p></div></div>
+      <div id="mkIndGroup" class="flex gap-1.5"></div>
+    </div>
+    <div id="mkIndBody" class="space-y-4"></div>
+  </section>
+  <section id="mkSecMacro" class="mk-card space-y-4">
+    <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md bg-sky-950 text-sky-300 text-xs font-bold flex items-center justify-center border border-sky-800">4</span><div><h3 class="text-base font-extrabold text-white">매크로 패널</h3><p class="text-[11px] text-slate-500">금리·달러·원자재·가상자산·신용·글로벌 시장의 가격 흐름 (1일·1개월·3개월)</p></div></div>
+    <div id="mkMacroBody" class="space-y-5"></div>
+  </section>
+  <section id="mkSecBreadth" class="mk-card space-y-4">
+    <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md bg-sky-950 text-sky-300 text-xs font-bold flex items-center justify-center border border-sky-800">5</span><div><h3 class="text-base font-extrabold text-white">시장 폭(Breadth) &amp; 위험 선호 게이지</h3><p class="text-[11px] text-slate-500">분석 유니버스 종목의 일봉 1년치로 계산 · 요인과 가중치를 모두 공개</p></div></div>
+    <div id="mkBreadthBody" class="space-y-4"></div>
+  </section>
+  <section id="mkSecAi" class="mk-card space-y-3">
+    <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md bg-sky-950 text-sky-300 text-xs font-bold flex items-center justify-center border border-sky-800">6</span><h3 class="text-base font-extrabold text-white">AI 시장 해설 (선택)</h3></div>
+    <div id="mkAiBody"></div>
+  </section>
+  <p class="text-[10px] text-slate-500 leading-relaxed">※ 이 탭의 모든 숫자는 Yahoo Finance 시세에서 계산한 값이며, 해석 문장은 계산된 숫자와 일반적인 경험칙으로 자동 생성한 교육용 참고 자료입니다. 미래 전망이나 투자 권유가 아니며, 투자 결정과 책임은 투자자 본인에게 있습니다. 섹터 분류는 자체 큐레이션이라 GICS 와 다를 수 있고, 시세는 거래소 대비 지연될 수 있습니다.</p>
+</div>
+<div id="mkTip" style="position:fixed;z-index:90;pointer-events:none;display:none;max-width:260px" class="bg-slate-950 border border-slate-600 rounded-lg shadow-2xl px-3 py-2 text-[11px] text-slate-200"></div>`;
+        const tree = document.getElementById('mkTree');
+        tree.addEventListener('pointerover', mkTileOver);
+        tree.addEventListener('pointermove', mkTileMove);
+        tree.addEventListener('pointerleave', mkHideTip);
+        tree.addEventListener('pointerdown', e => { MK.ptype = e.pointerType || 'mouse'; });
+        tree.addEventListener('click', mkTileClick);
+        tree.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('mk-tile')) { e.preventDefault(); const k = +e.target.dataset.k; if (MK.tiles[k]) quickSearch(MK.tiles[k].u.ticker); } });
+        tree.addEventListener('focusin', e => { const t = e.target; if (t.classList && t.classList.contains('mk-tile')) { const r = t.getBoundingClientRect(); mkShowTip(+t.dataset.k, r.left + r.width / 2, r.top + r.height / 2); } });
+        tree.addEventListener('focusout', mkHideTip);
+        if (!MK.docBound) {
+            MK.docBound = true;
+            document.addEventListener('pointerdown', e => { if (!e.target.closest || !e.target.closest('#mkTree')) { MK.tipKey = null; mkHideTip(); } });
+            window.addEventListener('scroll', () => { if (MK.ptype === 'touch') mkHideTip(); }, { passive: true });
+        }
+        if (typeof ResizeObserver !== 'undefined') {
+            let timer = null;
+            new ResizeObserver(() => {
+                const w = tree.clientWidth;
+                if (w === MK.treeW) return;
+                clearTimeout(timer); timer = setTimeout(mkRenderTree, 100);
+            }).observe(tree);
+        }
+        return true;
+    }
+
+    // ---------- 렌더링 ----------
+    function mkScheduleRender() {
+        if (MK.raf) return;
+        MK.raf = requestAnimationFrame(() => { MK.raf = 0; mkRenderAll(); });
+    }
+    function mkRenderAll() {
+        if (!MK.inited) return;
+        const noData = !Object.keys(MK.stats).length;
+        if (MK.noProxy && noData) { mkRenderNoProxy(); return; }
+        if (!document.getElementById('mkHeader')) { // 프록시 안내 화면을 걷어내고 골격을 다시 만든다
+            MK.inited = mkBuildSkeleton(); MK.treeW = 0;
+            if (!MK.inited) return;
+        }
+        mkRenderHeader();
+        const guard = (name, fn) => { try { fn(); } catch (e) { console.error(`시장 탭(${name}) 렌더 실패`, e); } };
+        guard('snapshot', mkRenderSnapshot);
+        guard('heat', mkRenderHeat);
+        guard('industry', mkRenderIndustry);
+        guard('macro', mkRenderMacro);
+        guard('breadth', mkRenderBreadth);
+        guard('ai', mkRenderAi);
+    }
+    function mkRenderNoProxy() {
+        const root = document.getElementById('marketRoot');
+        if (!root || root.querySelector('#mkNoProxy')) return;
+        root.innerHTML = `<div id="mkNoProxy" class="mk-card text-center space-y-3 py-10" style="background:#131e32;border:1px solid #1e293b;border-radius:1rem">
+          <div class="text-3xl text-sky-400"><i class="fa-solid fa-plug-circle-xmark"></i></div>
+          <h3 class="text-lg font-extrabold text-white">자체 프록시(Cloudflare Worker)가 연결되지 않았습니다</h3>
+          <p class="text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">시장 · 매크로 탭은 지수·ETF·수백 개 종목의 시세를 한꺼번에 가져와야 해서 <b class="text-slate-200">worker/ 폴더의 프록시</b>가 필요합니다. 프록시를 배포한 뒤 상단의 <b class="text-slate-200">API 설정</b>에서 주소를 입력하면 이 탭이 자동으로 채워집니다. (가짜 데이터는 표시하지 않습니다.)</p>
+          <button type="button" onclick="openApiSettingsModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1.5"><i class="fa-solid fa-gear"></i>API 설정 열기</button>
+        </div>`;
+        MK.treeW = 0;
+    }
+
+    function mkRenderHeader() {
+        const el = document.getElementById('mkHeader');
+        if (!el) return;
+        const ref = MK.stats['^GSPC'] && MK.stats['^GSPC'].marketState ? MK.stats['^GSPC'] : MK.stats['SPY'];
+        const state = ref && ref.marketState;
+        const open = state === 'REGULAR';
+        const missing = mkMissingCount();
+        const pct = MK.prog.total ? Math.round(MK.prog.done / MK.prog.total * 100) : 0;
+        el.innerHTML = `
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <h2 class="text-xl font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-earth-americas text-sky-400"></i>시장 · 매크로</h2>
+    <p class="text-[11px] text-slate-500 mt-0.5">지금 시장이 어떤 상태인지 한눈에: 스냅샷 · 히트맵 · 산업 로테이션 · 매크로 · 시장 폭</p>
+  </div>
+  <div class="flex flex-wrap items-center gap-2 text-[11px]">
+    ${state ? `<span class="px-2 py-1 rounded-lg border ${open ? 'bg-emerald-950 border-emerald-700 text-emerald-300' : 'bg-slate-900 border-slate-700 text-slate-300'}"><i class="fa-solid fa-circle text-[7px] mr-1 ${open ? 'text-emerald-400' : 'text-slate-500'}"></i>${escapeHtml(MK_STATE_KO[state] || state)}</span>` : ''}
+    ${ref && ref.time ? `<span class="text-slate-500" title="시세 기준 시각(내 기기 시간대)">기준 ${escapeHtml(mkFmtTime(ref.time))}</span>` : ''}
+    <label class="flex items-center gap-1 text-slate-400 cursor-pointer select-none"><input type="checkbox" ${MK.auto ? 'checked' : ''} onchange="mkToggleAuto(this.checked)" class="accent-sky-500"/>60초 자동 새로고침</label>
+    <button type="button" onclick="mkRefresh()" ${MK.loading ? 'disabled' : ''} class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-100 font-semibold rounded-lg border border-slate-700 inline-flex items-center gap-1.5"><i class="fa-solid fa-rotate ${MK.loading ? 'fa-spin' : ''}"></i>새로고침</button>
+  </div>
+</div>
+${MK.loading ? `<div class="mt-3"><div class="flex justify-between text-[10px] text-slate-500 mb-1"><span>시세 불러오는 중… (${MK.prog.done}/${MK.prog.total} 묶음)</span><span>${pct}%</span></div><div class="h-1 bg-slate-800 rounded"><div class="h-1 bg-sky-500 rounded transition-all" style="width:${pct}%"></div></div></div>` : ''}
+${!MK.loading && (MK.failQ || MK.failS || missing > 5) && Object.keys(MK.stats).length ? `<div class="mt-3 flex flex-wrap items-center gap-2 text-[11px] bg-amber-950/40 border border-amber-800/60 text-amber-200 rounded-lg px-3 py-2"><i class="fa-solid fa-triangle-exclamation"></i><span>${MK.failQ ? '일부 시세(quotes) 묶음 응답 실패 · ' : ''}${MK.failS ? '일부 일봉(spark) 묶음 응답 실패 · ' : ''}${missing}개 심볼은 시세 또는 일봉 응답이 없어 해당 값을 비워 두었습니다.</span><button type="button" onclick="mkRetry()" class="ml-auto px-2.5 py-1 bg-amber-700 hover:bg-amber-600 text-white font-bold rounded-md">없는 심볼 다시 불러오기</button></div>` : ''}`;
+    }
+    // 시세(quotes) 또는 일봉(spark) 중 하나라도 응답이 없는 심볼 수
+    function mkMissingCount() {
+        if (!MK.loadTs) return 0;
+        const sets = mkSymbolSets();
+        return sets.core.concat(sets.rest).filter(s => { const st = MK.stats[s]; return !st || !st.hasSpark || !st.hasQuote; }).length;
+    }
+
+    // 1) 스냅샷
+    function mkRenderSnapshot() {
+        const D = mkDerived();
+        const ix = k => { const s = MK.stats[k]; return s ? s.r['1D'] : null; };
+        const gs = MK.stats['^GSPC'], hasG = gs && mkFin(gs.r['1D']);
+        const ref = hasG ? gs : MK.stats['SPY'];
+        const vix = MK.stats['^VIX'];
+        const lead = D.secAvg1d.slice(0, 2), lag = D.secAvg1d.length >= 4 ? D.secAvg1d.slice(-2).reverse() : [];
+        const sumText = mkBuildSummary({
+            state: ref ? ref.marketState : null,
+            idx: { gspc: hasG ? gs.r['1D'] : ix('SPY'), ixic: ix('^IXIC') !== null ? ix('^IXIC') : ix('QQQ'), dji: ix('^DJI') !== null ? ix('^DJI') : ix('DIA'), rut: ix('^RUT') !== null ? ix('^RUT') : ix('IWM'),
+                vix: vix ? { price: mkFin(vix.price) ? vix.price : vix.last, pct: vix.r['1D'] } : null },
+            breadth: D.breadth,
+            secLead: lead.map(x => ({ ko: mkSectorKo(x.sector), avg: x.avg })), secLag: lag.map(x => ({ ko: mkSectorKo(x.sector), avg: x.avg })),
+            best: D.best ? { sym: D.best.ticker, pct: D.best.st.r['1D'] } : null, worst: D.worst && D.worst !== D.best ? { sym: D.worst.ticker, pct: D.worst.st.r['1D'] } : null,
+            risk: D.risk
+        });
+        const sumEl = document.getElementById('mkSummary');
+        if (sumEl) sumEl.innerHTML = sumText
+            ? `<div class="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5"><div class="text-[10px] font-bold text-sky-400 mb-1 flex items-center gap-1.5"><i class="fa-solid fa-newspaper"></i>오늘의 시장 한 줄 요약 <span class="font-normal text-slate-500">· 아래 숫자로만 자동 생성 · 투자 권유 아님</span></div><p class="text-[13px] text-slate-200 leading-relaxed">${escapeHtml(sumText)}</p></div>`
+            : `<div class="text-xs text-slate-500">${MK.loading ? '요약을 만들 데이터를 불러오는 중입니다…' : '요약을 만들 데이터가 없습니다.'}</div>`;
+        const grid = document.getElementById('mkSnapGrid');
+        if (!grid) return;
+        grid.innerHTML = MK_INDICES.map(def => {
+            const st = MK.stats[def.sym];
+            if (!st || (!st.hasQuote && !st.hasSpark)) return `<div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3"><div class="text-xs font-bold text-slate-300">${escapeHtml(def.ko)}</div><div class="text-[10px] text-slate-600 font-mono-numbers">${escapeHtml(def.sym)}</div><div class="mt-3 text-xs text-slate-600">${MK.loading ? '불러오는 중…' : '데이터 없음'}</div></div>`;
+            const sp = MK.spark[def.sym];
+            const recent = sp ? sp.c.slice(-63) : [];
+            const up = recent.length > 1 ? ((recent[recent.length - 1] >= recent[0]) !== !!def.inv) : undefined;
+            const chip = (lab, v) => `<div class="text-center"><div class="text-[9px] text-slate-500">${lab}</div><div class="text-[11px]">${mkPctHtml(v, { inv: def.inv, d: 1 })}</div></div>`;
+            return `<div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex flex-col gap-1.5">
+              <div class="flex items-start justify-between gap-1"><div class="min-w-0"><div class="text-xs font-bold text-slate-200 truncate">${escapeHtml(def.ko)}</div><div class="text-[10px] text-slate-600 font-mono-numbers">${escapeHtml(def.sym)}</div></div><div class="text-[11px] font-bold">${mkPctHtml(st.r['1D'], { inv: def.inv })}</div></div>
+              <div class="text-lg font-bold text-white font-mono-numbers leading-none">${st.price !== null ? mkFmtPrice(st.price) : ''}</div>
+              ${mkSparkSvg(recent, up)}
+              <div class="grid grid-cols-3 gap-1 border-t border-slate-800 pt-1.5">${chip('1주', st.r['1W'])}${chip('1개월', st.r['1M'])}${chip('연초 대비', st.r['YTD'])}</div>
+            </div>`;
+        }).join('') + `<div class="col-span-full text-[10px] text-slate-600">VIX 카드는 상승(공포 증가)을 적색, 하락을 녹색으로 표시합니다. 스파크라인은 최근 약 3개월 종가입니다.</div>`;
+    }
+
+    // 2) 히트맵
+    function mkSetPeriod(p) { MK.period = p; mkRenderHeat(); }
+    function mkSetUniverse(v) { MK.uni = v; mkRenderHeat(); }
+    function mkHeatSelection() {
+        const D = mkDerived();
+        const all = D.uni;
+        let sel = all, label = '전체';
+        const capOf = u => (u.st && u.st.cap) || 0;
+        if (MK.uni === 'top50' || MK.uni === 'top100') {
+            const n = MK.uni === 'top50' ? 50 : 100;
+            sel = all.filter(u => capOf(u) > 0).sort((a, b) => capOf(b) - capOf(a)).slice(0, n);
+            label = `시총 상위 ${n}`;
+        } else if (MK.uni.indexOf('sec:') === 0) {
+            const id = MK.uni.slice(4);
+            sel = all.filter(u => u.sector === id);
+            label = mkSectorKo(id);
+        }
+        return { sel, label };
+    }
+    function mkRenderHeat() {
+        const ctl = document.getElementById('mkHeatCtl');
+        if (!ctl) return;
+        const p = MK.period;
+        ctl.innerHTML = `<div class="flex rounded-lg overflow-hidden border border-slate-700" role="group" aria-label="기간 선택">${MK_PERIODS.map(k => `<button type="button" onclick="mkSetPeriod('${k}')" aria-pressed="${k === p}" class="px-3 py-1.5 text-xs font-bold transition ${k === p ? 'bg-sky-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}">${k === 'YTD' ? 'YTD' : k}</button>`).join('')}</div>
+        <select onchange="mkSetUniverse(this.value)" aria-label="종목 범위" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-sky-400">
+          <option value="all" ${MK.uni === 'all' ? 'selected' : ''}>전체 유니버스</option>
+          <option value="top50" ${MK.uni === 'top50' ? 'selected' : ''}>시총 상위 50</option>
+          <option value="top100" ${MK.uni === 'top100' ? 'selected' : ''}>시총 상위 100</option>
+          ${MK_SECTORS.map(s => `<option value="sec:${s.id}" ${MK.uni === 'sec:' + s.id ? 'selected' : ''}>섹터 · ${s.ko}</option>`).join('')}
+        </select>
+        <span class="text-[11px] text-slate-500">${MK_PERIOD_KO[p]} 등락률${p === '1D' ? ' (시세 기준)' : ' (일봉 종가 기준)'}</span>`;
+        const clamp = MK_PERIOD_CLAMP[p];
+        const lg = document.getElementById('mkLegend');
+        if (lg) lg.innerHTML = `<div class="flex items-center gap-2 text-[10px] text-slate-400"><span class="font-mono-numbers">-${clamp}%</span><div class="h-2.5 flex-1 max-w-xs rounded" style="background:linear-gradient(90deg,${mkColor(-clamp, clamp)},${mkColor(0, clamp)},${mkColor(clamp, clamp)})"></div><span class="font-mono-numbers">+${clamp}%</span><span class="text-slate-500">· ±${clamp}% 이상은 같은 색으로 고정(clamp)</span></div>`;
+        mkRenderTree();
+        mkRenderHeatExtras();
+    }
+    function mkTreeHeight(W) { return W >= 900 ? Math.round(Math.max(480, Math.min(640, W * 0.5))) : W >= 520 ? Math.round(W * 0.75) : Math.round(W * 1.45); }
+    function mkRenderTree() {
+        const tree = document.getElementById('mkTree');
+        if (!tree) return;
+        const W = Math.floor(tree.clientWidth);
+        if (W < 40) return; // 숨겨진 탭 — 열릴 때 다시 그린다
+        MK.treeW = W;
+        const H = mkTreeHeight(W);
+        tree.style.height = H + 'px';
+        const p = MK.period, clamp = MK_PERIOD_CLAMP[p];
+        const { sel } = mkHeatSelection();
+        const withRet = sel.filter(u => u.st && mkFin(u.st.r[p]));
+        const sized = withRet.filter(u => u.st.cap);
+        const equal = !sized.length && withRet.length > 0 && !sel.some(u => u.st && u.st.cap); // 시가총액을 전혀 못 받았을 때만 동일 크기
+        const use = equal ? withRet : sized;
+        const groupsMap = {};
+        use.forEach(u => {
+            const g = groupsMap[u.sector] || (groupsMap[u.sector] = { id: u.sector, ko: mkSectorKo(u.sector), items: [] });
+            g.items.push({ value: equal ? 1 : u.st.cap, u, r: u.st.r[p], cap: u.st.cap });
+        });
+        const groups = Object.keys(groupsMap).map(k => groupsMap[k]);
+        const noQuote = sel.filter(u => !u.st || (!u.st.hasQuote && !u.st.hasSpark)).length;
+        const noCap = sel.filter(u => u.st && (u.st.hasQuote || u.st.hasSpark) && !u.st.cap).length;
+        const noRet = sel.filter(u => u.st && u.st.cap && !mkFin(u.st.r[p])).length;
+        const info = document.getElementById('mkHeatInfo');
+        if (info) info.innerHTML = `표시 <b class="text-slate-200 font-mono-numbers">${use.length}</b> / ${sel.length}개 타일${noQuote ? ` · 응답 없음 ${noQuote}` : ''}${!equal && noCap ? ` · 시가총액 없음 ${noCap}` : ''}${noRet ? ` · ${MK_PERIOD_KO[p]} 수익률 계산 불가(상장 기간 부족 등) ${noRet}` : ''}${equal ? ' · <span class="text-amber-300">시가총액(quotes) 응답이 없어 모든 타일을 같은 크기로 표시합니다</span>' : ''}${MK.loading ? ' · 불러오는 중…' : ''}`;
+        MK.tiles = [];
+        if (!use.length) {
+            tree.innerHTML = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:1rem" class="text-xs text-slate-500">${MK.loading ? '시세를 불러오는 중입니다…' : '표시할 종목 데이터가 없습니다. 새로고침으로 다시 시도하세요.'}</div>`;
+            return;
+        }
+        const blocks = mkLayoutTreemap(groups, W, H);
+        const f = v => v.toFixed(2);
+        let html = '';
+        blocks.forEach(bk => {
+            bk.tiles.forEach(t => {
+                const u = t.item.u, k = MK.tiles.length;
+                MK.tiles.push({ u, r: t.item.r, cap: t.item.cap });
+                const tx = mkTileText(t.w, t.h, u.ticker);
+                const label = `${u.ticker}, ${u.name}, ${MK_PERIOD_KO[p]} ${mkFmtPct(t.item.r)}${t.item.cap ? ', 시가총액 ' + mkFmtCap(t.item.cap) : ''}`;
+                html += `<div class="mk-tile" role="button" ${tx ? 'tabindex="0"' : ''} data-k="${k}" aria-label="${escapeHtml(label)}" style="left:${f(t.x)}px;top:${f(t.y)}px;width:${f(t.w)}px;height:${f(t.h)}px;background:${mkColor(t.item.r, clamp)}">${tx ? `<span style="font-size:${tx.fs}px;font-weight:700">${escapeHtml(u.ticker)}</span>${tx.showPct ? `<span style="font-size:${tx.pctFs}px;opacity:.92">${mkFmtPct(t.item.r, p === '1D' ? 2 : 1)}</span>` : ''}` : ''}</div>`;
+            });
+        });
+        blocks.forEach(bk => {
+            html += `<div class="mk-blk" style="left:${f(bk.x)}px;top:${f(bk.y)}px;width:${f(bk.w)}px;height:${f(bk.h)}px"></div>`;
+            if (bk.w >= 64 && bk.h >= 34) {
+                const avg = mkEwCw(bk.group.items.map(i => ({ r: i.r, cap: i.cap }))).cw;
+                html += `<div class="mk-lbl" style="left:${f(bk.x)}px;top:${f(bk.y)}px;max-width:${f(bk.w)}px">${escapeHtml(bk.group.ko)}${bk.w >= 120 && mkFin(avg) && !equal ? ' ' + mkFmtPct(avg, 1) : ''}</div>`;
+            }
+        });
+        tree.innerHTML = html;
+    }
+    function mkRenderHeatExtras() {
+        const p = MK.period;
+        const { sel } = mkHeatSelection();
+        const rows = sel.filter(u => u.st && mkFin(u.st.r[p]) && u.st.cap);
+        const secAvg = mkSectorAverages(rows.map(u => ({ sector: u.sector, cap: u.st.cap, r: u.st.r[p] })));
+        const chips = document.getElementById('mkSecChips');
+        if (chips) chips.innerHTML = secAvg.length ? `<span class="text-[10px] text-slate-500 self-center mr-1">섹터 시총가중 평균 (${MK_PERIOD_KO[p]})</span>` + secAvg.map(s => `<span class="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-[11px] text-slate-300">${escapeHtml(mkSectorKo(s.sector))} ${mkPctHtml(s.avg, { d: 1 })}</span>`).join('') : '';
+        const mv = document.getElementById('mkMovers');
+        if (!mv) return;
+        if (rows.length < 10) { mv.innerHTML = ''; return; }
+        const sorted = rows.slice().sort((a, b) => b.st.r[p] - a.st.r[p]);
+        const list = arr => arr.map(u => `<button type="button" onclick="quickSearch('${escapeHtml(u.ticker)}')" class="flex items-center justify-between gap-2 w-full text-left px-2 py-1 rounded hover:bg-slate-800"><span class="min-w-0 truncate"><b class="text-slate-100 font-mono-numbers">${escapeHtml(u.ticker)}</b> <span class="text-slate-500 text-[11px]">${escapeHtml(u.name)}</span></span>${mkPctHtml(u.st.r[p])}</button>`).join('');
+        mv.innerHTML = `<div class="bg-slate-900/60 border border-slate-800 rounded-xl p-2"><div class="text-[10px] font-bold text-emerald-400 px-2 py-1">${MK_PERIOD_KO[p]} 상승 상위 5 (표시 중인 종목)</div>${list(sorted.slice(0, 5))}</div><div class="bg-slate-900/60 border border-slate-800 rounded-xl p-2"><div class="text-[10px] font-bold text-rose-400 px-2 py-1">${MK_PERIOD_KO[p]} 하락 상위 5 (표시 중인 종목)</div>${list(sorted.slice(-5).reverse())}</div>`;
+    }
+    // 툴팁/클릭
+    function mkTileEl(e) { return e.target && e.target.closest ? e.target.closest('.mk-tile') : null; }
+    function mkShowTip(k, x, y) {
+        const t = MK.tiles[k], tip = document.getElementById('mkTip');
+        if (!t || !tip) return;
+        const u = t.u, st = u.st, p = MK.period;
+        const row = (l, v) => v ? `<div class="flex justify-between gap-4"><span class="text-slate-500">${l}</span><span class="font-mono-numbers">${v}</span></div>` : '';
+        tip.innerHTML = `<div class="font-bold text-white text-xs">${escapeHtml(u.name)} <span class="text-slate-400 font-mono-numbers">${escapeHtml(u.ticker)}</span></div><div class="text-[10px] text-slate-500 mb-1">${escapeHtml(mkSectorKo(u.sector))}</div>
+          ${row('현재가', st.price !== null ? '$' + mkFmtPrice(st.price) : '')}${row(MK_PERIOD_KO[p], mkPctHtml(t.r))}${p !== '1D' ? row('1일', mkPctHtml(st.r['1D'])) : ''}${p !== '1W' ? row('1주', mkPctHtml(st.r['1W'])) : ''}${p !== '1M' ? row('1개월', mkPctHtml(st.r['1M'])) : ''}${p !== '3M' ? row('3개월', mkPctHtml(st.r['3M'])) : ''}${p !== 'YTD' ? row('연초 대비', mkPctHtml(st.r['YTD'])) : ''}
+          ${row('시가총액', mkFmtCap(st.cap))}${row('PER', mkFin(st.pe) ? st.pe.toFixed(1) : '')}${row('거래량/평균', mkFin(st.volRatio) ? st.volRatio.toFixed(2) + '배' : '')}
+          <div class="text-[10px] text-sky-400 mt-1">${MK.ptype === 'touch' ? '한 번 더 누르면 종목 분석 열기' : '클릭하면 종목 분석 열기'}</div>`;
+        tip.style.display = 'block';
+        const w = tip.offsetWidth, h = tip.offsetHeight;
+        let left = x + 14, top = y + 16;
+        if (left + w > window.innerWidth - 8) left = Math.max(8, x - w - 14);
+        if (top + h > window.innerHeight - 8) top = Math.max(8, y - h - 12);
+        tip.style.left = left + 'px'; tip.style.top = top + 'px';
+    }
+    function mkHideTip() { const tip = document.getElementById('mkTip'); if (tip) tip.style.display = 'none'; }
+    function mkTileOver(e) { const el = mkTileEl(e); if (el && e.pointerType !== 'touch') mkShowTip(+el.dataset.k, e.clientX, e.clientY); }
+    function mkTileMove(e) {
+        if (e.pointerType === 'touch') return;
+        const el = mkTileEl(e);
+        if (el) mkShowTip(+el.dataset.k, e.clientX, e.clientY); else mkHideTip();
+    }
+    function mkTileClick(e) {
+        const el = mkTileEl(e);
+        if (!el) return;
+        const k = +el.dataset.k, t = MK.tiles[k];
+        if (!t) return;
+        if (MK.ptype === 'touch' && MK.tipKey !== k) { // 터치: 첫 탭은 정보 보기, 두 번째 탭은 이동
+            MK.tipKey = k;
+            const r = el.getBoundingClientRect();
+            mkShowTip(k, r.left + r.width / 2, r.top + r.height / 2);
+            return;
+        }
+        MK.tipKey = null; mkHideTip();
+        quickSearch(t.u.ticker);
+    }
+
+    // 3) 산업·테마 보드
+    function mkSetGroup(g) { MK.group = g; mkRenderIndustry(); }
+    function mkSort(k) { if (MK.sortKey === k) MK.sortDir = -MK.sortDir; else { MK.sortKey = k; MK.sortDir = -1; } mkRenderIndustry(); }
+    function mkToggleInd(id) { MK.expanded[id] = !MK.expanded[id]; mkRenderIndustry(); }
+    function mkOpenInd(id) {
+        MK.expanded[id] = true;
+        const row = MK_INDUSTRIES.find(d => d.id === id);
+        if (row && row.group !== MK.group && MK.group !== 'all') MK.group = row.group;
+        mkRenderIndustry();
+        const el = document.getElementById('mkInd-' + id);
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    const MK_QUAD_CLS = { leading: '#34d399', weakening: '#fbbf24', lagging: '#fb7185', improving: '#38bdf8' };
+    function mkRenderIndustry() {
+        const gEl = document.getElementById('mkIndGroup'), body = document.getElementById('mkIndBody');
+        if (!gEl || !body) return;
+        gEl.innerHTML = [['theme', '세부 산업·테마'], ['sector', '11개 섹터'], ['all', '전체']].map(([k, l]) => `<button type="button" onclick="mkSetGroup('${k}')" aria-pressed="${MK.group === k}" class="px-3 py-1.5 text-xs font-bold rounded-lg border transition ${MK.group === k ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}">${l}</button>`).join('');
+        const D = mkDerived(), rows = D.rows;
+        const spy = MK.stats['SPY'];
+        if (!rows.some(r => r.st)) { body.innerHTML = `<div class="text-xs text-slate-500 py-6 text-center">${MK.loading ? '산업별 ETF 시세를 불러오는 중입니다…' : 'ETF 데이터가 없습니다. 새로고침으로 다시 시도하세요.'}</div>`; return; }
+        const ranked = rows.filter(r => r.score !== null).sort((a, b) => b.score - a.score);
+        const noScore = rows.filter(r => r.score === null);
+        const stateReg = (spy && spy.marketState === 'REGULAR');
+        const bar = r => { const pt = r.parts; return `<div class="flex h-2 rounded overflow-hidden bg-slate-800" title="모멘텀 ${pt.mom.toFixed(1)} + 상대강도 ${pt.rs.toFixed(1)} + 거래열기 ${pt.vol.toFixed(1)}"><div style="width:${pt.mom}%;background:#38bdf8"></div><div style="width:${pt.rs}%;background:#a78bfa"></div><div style="width:${pt.vol}%;background:#fbbf24"></div></div>`; };
+        const lbRow = (r, i, dim) => `<li><button type="button" onclick="mkOpenInd('${r.def.id}')" class="w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-800/70 flex items-center gap-2.5 ${dim ? 'opacity-90' : ''}">
+          <span class="w-5 text-center text-xs font-bold ${i < 3 && !dim ? 'text-amber-300' : 'text-slate-500'} font-mono-numbers">${dim ? '·' : i + 1}</span>
+          <span class="min-w-0 flex-1"><span class="flex items-baseline gap-1.5"><span class="text-sm font-bold text-slate-100 truncate">${escapeHtml(r.def.ko)}</span><span class="text-[10px] text-slate-500 font-mono-numbers">${escapeHtml(r.def.etf)}</span></span>${bar(r)}</span>
+          <span class="text-right shrink-0"><span class="block text-sm font-bold text-white font-mono-numbers">${r.score.toFixed(0)}</span><span class="block text-[10px] leading-tight">${mkPctHtml(r.r['1M'], { d: 1 })} <span class="text-slate-600">1M</span></span></span></button></li>`;
+        const top = ranked.slice(0, 10), bottom = ranked.length > 13 ? ranked.slice(-3) : [];
+        const leaderboard = `<div class="min-w-0"><div class="flex items-center justify-between mb-1"><h4 class="text-sm font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-ranking-star text-amber-400"></i>주목받는 산업 TOP ${top.length}</h4><span class="text-[10px] text-slate-500 flex items-center gap-2"><span><i class="inline-block w-2 h-2 rounded-sm align-middle" style="background:#38bdf8"></i> 모멘텀</span><span><i class="inline-block w-2 h-2 rounded-sm align-middle" style="background:#a78bfa"></i> 상대강도</span><span><i class="inline-block w-2 h-2 rounded-sm align-middle" style="background:#fbbf24"></i> 거래열기</span></span></div>
+          ${top.length ? `<ol class="space-y-0.5">${top.map((r, i) => lbRow(r, i, false)).join('')}</ol>` : '<div class="text-xs text-slate-500 py-3">점수를 계산할 데이터(1주·1개월·3개월 수익률)가 부족합니다.</div>'}
+          ${bottom.length ? `<div class="text-[10px] text-slate-500 mt-2 mb-0.5 px-2.5">하위 (소외) 3</div><ol class="space-y-0.5">${bottom.map(r => lbRow(r, 0, true)).join('')}</ol>` : ''}
+          ${noScore.length ? `<p class="text-[10px] text-slate-600 mt-2 px-2.5">점수 없음(데이터 부족): ${noScore.map(r => escapeHtml(r.def.ko)).join(', ')}</p>` : ''}</div>`;
+        body.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">${leaderboard}<div class="min-w-0">${mkRotationSvg(rows)}</div></div>
+          <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <div class="text-xs font-bold text-slate-200"><i class="fa-solid fa-calculator text-sky-400 mr-1"></i>점수 산식 (투명 공개)</div>
+            <div><b class="text-slate-300">종합 점수(0~100)</b> = <span class="text-sky-300">모멘텀 ${MK_SCORE_W.mom * 100}%</span> + <span class="text-violet-300">상대강도 ${MK_SCORE_W.rs * 100}%</span> + <span class="text-amber-300">거래 열기 ${MK_SCORE_W.vol * 100}%</span> — 세 항목을 <u>같은 그룹 안의 산업끼리 백분위 순위(0~100)</u>로 바꿔 가중 평균합니다.</div>
+            <div>· <b class="text-slate-300">모멘텀</b> = 0.2×(ETF 1주 수익률) + 0.4×(1개월) + 0.4×(3개월)</div>
+            <div>· <b class="text-slate-300">상대강도</b> = 0.5×(ETF 1개월 − SPY 1개월) + 0.5×(ETF 3개월 − SPY 3개월), 단위 %p</div>
+            <div>· <b class="text-slate-300">거래 열기</b> = ETF의 오늘 거래량 ÷ 3개월 평균 거래량 ${stateReg ? '<span class="text-amber-300">(지금은 장중이라 오늘 거래량이 일부만 반영되어 낮게 나옵니다)</span>' : ''}. 값이 없으면 이 항목을 빼고 나머지 가중치를 다시 정규화합니다.</div>
+            <div class="text-slate-500">백분위 순위라 '상대적인 순서'일 뿐 절대적인 강세·약세를 뜻하지 않고, ETF 한 개가 산업 전체를 대표하지 못할 수 있습니다. 투자 권유가 아닌 관찰용 지표입니다.</div>
+          </div>
+          ${mkIndustryTable(rows)}`;
+    }
+    // 섹터 로테이션: x = 3개월 상대성과(SPY 대비 %p), y = 1개월 상대성과
+    function mkRotationSvg(rows) {
+        const pts = rows.filter(r => mkFin(r.rs1) && mkFin(r.rs3));
+        if (pts.length < 2) return `<div class="text-xs text-slate-500 py-6 text-center">로테이션 차트를 그릴 데이터(SPY 포함 1개월·3개월 수익률)가 부족합니다.</div>`;
+        const maxAbs = Math.max(...pts.map(r => Math.max(Math.abs(r.rs1), Math.abs(r.rs3)))) * 1.1;
+        const lim = [2, 5, 10, 15, 20, 30, 40, 60, 100].find(v => v >= maxAbs) || Math.ceil(maxAbs);
+        const L = 38, R = 350, T = 14, B = 268, cx = (L + R) / 2, cy = (T + B) / 2, hx = (R - L) / 2, hy = (B - T) / 2;
+        const px = v => cx + v / lim * hx, py = v => cy - v / lim * hy;
+        const dots = pts.map(r => ({ r, x: px(r.rs3), y: py(r.rs1), label: r.def.etf }));
+        const lab = mkPlaceLabels(dots);
+        const q = (x, y, t, a, c) => `<text x="${x}" y="${y}" text-anchor="${a}" font-size="11" font-weight="700" fill="${c}" opacity=".55">${t}</text>`;
+        return `<div><h4 class="text-sm font-bold text-white flex items-center gap-1.5 mb-1"><i class="fa-solid fa-arrows-spin text-sky-400"></i>섹터 로테이션 <span class="text-[10px] font-normal text-slate-500">SPY 대비 상대성과(%p) · 점을 누르면 아래 표에서 열림</span></h4>
+          <svg viewBox="0 0 360 300" class="w-full h-auto" role="img" aria-label="산업별 1개월·3개월 SPY 대비 상대성과 사분면 차트">
+            <rect x="${L}" y="${T}" width="${hx}" height="${hy}" fill="#38bdf8" opacity=".05"/><rect x="${cx}" y="${T}" width="${hx}" height="${hy}" fill="#34d399" opacity=".07"/>
+            <rect x="${L}" y="${cy}" width="${hx}" height="${hy}" fill="#fb7185" opacity=".07"/><rect x="${cx}" y="${cy}" width="${hx}" height="${hy}" fill="#fbbf24" opacity=".05"/>
+            <line x1="${L}" y1="${cy}" x2="${R}" y2="${cy}" stroke="#475569" stroke-width="1"/><line x1="${cx}" y1="${T}" x2="${cx}" y2="${B}" stroke="#475569" stroke-width="1"/>
+            <rect x="${L}" y="${T}" width="${R - L}" height="${B - T}" fill="none" stroke="#1e293b"/>
+            ${q(R - 4, T + 14, '선도', 'end', '#34d399')}${q(R - 4, B - 6, '약화', 'end', '#fbbf24')}${q(L + 4, B - 6, '부진', 'start', '#fb7185')}${q(L + 4, T + 14, '개선', 'start', '#38bdf8')}
+            <text x="${R}" y="${cy - 4}" text-anchor="end" font-size="9" fill="#64748b">+${lim}%p</text><text x="${L + 2}" y="${cy - 4}" font-size="9" fill="#64748b">-${lim}%p</text>
+            <text x="${cx + 3}" y="${T + 9}" font-size="9" fill="#64748b">+${lim}</text><text x="${cx + 3}" y="${B - 2}" font-size="9" fill="#64748b">-${lim}</text>
+            <text x="${cx}" y="${B + 20}" text-anchor="middle" font-size="10" fill="#94a3b8">3개월 상대성과 (장기 추세) →</text>
+            <text x="10" y="${cy}" text-anchor="middle" font-size="10" fill="#94a3b8" transform="rotate(-90 10 ${cy})">1개월 상대성과 (단기) →</text>
+            ${dots.map((d, i) => `<g style="cursor:pointer" onclick="mkOpenInd('${d.r.def.id}')"><title>${escapeHtml(d.r.def.ko)} (${escapeHtml(d.r.def.etf)}) · 3개월 ${mkFmtPct(d.r.rs3, 1)}p · 1개월 ${mkFmtPct(d.r.rs1, 1)}p · ${MK_QUAD_KO[d.r.quad]}</title><circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="4.2" fill="${MK_QUAD_CLS[d.r.quad]}" stroke="#0a0f1d" stroke-width="1"/><text x="${(d.x + lab[i].dx).toFixed(1)}" y="${(d.y + lab[i].dy).toFixed(1)}" font-size="9" fill="#cbd5e1" font-family="JetBrains Mono, monospace">${escapeHtml(d.label)}</text></g>`).join('')}
+          </svg>
+          <p class="text-[10px] text-slate-500 leading-relaxed">선도 = 장기·단기 모두 SPY보다 강함 · 약화 = 장기는 강하지만 최근 1개월은 SPY보다 약함 · 개선 = 장기는 약하지만 최근 1개월은 강함 · 부진 = 둘 다 약함. 과거 수익률의 분류일 뿐 이후 흐름을 예측하지 않습니다.</p></div>`;
+    }
+    function mkIndustryTable(rows) {
+        const val = (r, k) => ({ score: r.score, r1d: r.r['1D'], r1w: r.r['1W'], r1m: r.r['1M'], r3m: r.r['3M'], rytd: r.r['YTD'], rs: r.rs1, vol: r.vol, bk: r.basket['1M'] ? r.basket['1M'].v : null }[k]);
+        const sorted = rows.slice().sort((a, b) => {
+            const x = val(a, MK.sortKey), y = val(b, MK.sortKey);
+            if (!mkFin(x) && !mkFin(y)) return 0;
+            if (!mkFin(x)) return 1;
+            if (!mkFin(y)) return -1;
+            return (x - y) * MK.sortDir;
+        });
+        const th = (k, l, tip) => `<th class="mk-th text-right ${MK.sortKey === k ? 'text-sky-300' : ''}" onclick="mkSort('${k}')" title="${escapeHtml(tip)}" scope="col">${l}${MK.sortKey === k ? (MK.sortDir < 0 ? ' ▼' : ' ▲') : ''}</th>`;
+        let html = `<div><h4 class="text-sm font-bold text-white mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-table-list text-sky-400"></i>산업·테마 전체 표 <span class="text-[10px] font-normal text-slate-500">행을 누르면 대표 플레이어가 펼쳐집니다 · 열 제목을 누르면 정렬</span></h4>
+        <div class="overflow-x-auto rounded-xl border border-slate-800"><table class="mk-tbl w-full text-xs text-slate-300 min-w-[820px]"><thead class="bg-slate-900 text-[10px] text-slate-400"><tr>
+          <th class="text-left mk-sticky" style="background:#0f172a" scope="col">산업·테마 (ETF)</th>${th('score', '점수', '종합 점수(0~100)')}${th('r1d', '1일', 'ETF 1일 등락률')}${th('r1w', '1주', 'ETF 1주 수익률')}${th('r1m', '1개월', 'ETF 1개월 수익률')}${th('r3m', '3개월', 'ETF 3개월 수익률')}${th('rytd', 'YTD', 'ETF 연초 대비')}${th('rs', 'RS(1M)', 'SPY 대비 1개월 상대성과(%p)')}${th('vol', '거래열기', '오늘 거래량 ÷ 3개월 평균')}${th('bk', '바스켓 1M', '대표 플레이어 동일가중 평균 1개월 수익률')}<th class="text-center" scope="col">사분면</th></tr></thead><tbody>`;
+        sorted.forEach(r => {
+            const open = !!MK.expanded[r.def.id];
+            const bk = r.basket['1M'];
+            html += `<tr id="mkInd-${r.def.id}" class="border-t border-slate-800 hover:bg-slate-800/40 cursor-pointer" onclick="mkToggleInd('${r.def.id}')"><td class="mk-sticky text-left whitespace-nowrap"><i class="fa-solid fa-chevron-${open ? 'down' : 'right'} text-[9px] text-slate-500 mr-1.5"></i><b class="text-slate-100">${escapeHtml(r.def.ko)}</b> <span class="text-slate-500 font-mono-numbers text-[10px]">${escapeHtml(r.def.etf)}</span>${r.st ? '' : ' <span class="text-slate-600 text-[10px]">데이터 없음</span>'}</td>
+              <td class="text-right font-mono-numbers font-bold text-white">${r.score !== null ? r.score.toFixed(0) : '<span class="text-slate-600">–</span>'}</td>
+              <td class="text-right">${mkPctHtml(r.r['1D'])}</td><td class="text-right">${mkPctHtml(r.r['1W'])}</td><td class="text-right">${mkPctHtml(r.r['1M'])}</td><td class="text-right">${mkPctHtml(r.r['3M'])}</td><td class="text-right">${mkPctHtml(r.r['YTD'])}</td>
+              <td class="text-right">${mkPctHtml(r.rs1, { d: 1 })}</td><td class="text-right font-mono-numbers">${mkFin(r.vol) ? r.vol.toFixed(2) + '배' : '<span class="text-slate-600">–</span>'}</td>
+              <td class="text-right" title="${bk ? bk.n + '/' + r.nPlayers + '개 종목 평균' : ''}">${bk ? mkPctHtml(bk.v) : '<span class="text-slate-600">–</span>'}</td>
+              <td class="text-center">${r.quad ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold" style="color:${MK_QUAD_CLS[r.quad]};border:1px solid ${MK_QUAD_CLS[r.quad]}55">${MK_QUAD_KO[r.quad]}</span>` : '<span class="text-slate-600">–</span>'}</td></tr>`;
+            if (open) {
+                const pl = r.players;
+                html += `<tr class="bg-slate-950/60"><td colspan="11" class="!p-3"><div class="text-[10px] text-slate-500 mb-1.5">대표 플레이어 (시가총액 순) · 응답이 없는 종목은 생략${pl.length < r.nPlayers ? ` · ${pl.length}/${r.nPlayers}개 표시` : ''}</div>
+                  ${pl.length ? `<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">${pl.map(s => `<button type="button" onclick="event.stopPropagation();quickSearch('${escapeHtml(s.sym)}')" class="flex items-center justify-between gap-2 text-left px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-sky-600"><span class="min-w-0"><b class="text-slate-100 font-mono-numbers">${escapeHtml(s.sym)}</b> <span class="text-slate-500 text-[10px] truncate">${escapeHtml(mkName(s.sym))}</span><span class="block text-[10px] text-slate-500 font-mono-numbers">$${mkFmtPrice(s.price)}${s.cap ? ' · ' + mkFmtCap(s.cap) : ''}</span></span><span class="text-right shrink-0">${mkPctHtml(s.r['1D'])}<span class="block text-[10px]">${mkPctHtml(s.r['1M'], { d: 1 })} <span class="text-slate-600">1M</span></span></span></button>`).join('')}</div>` : '<div class="text-xs text-slate-500">플레이어 시세가 없습니다.</div>'}</td></tr>`;
+            }
+        });
+        return html + '</tbody></table></div></div>';
+    }
+
+    // 4) 매크로
+    function mkMacroCard(it, spyR) {
+        let value = '', c1 = null, c2 = null, c3 = null, kindInput = null, series = null, bp = false, sub = '';
+        if (it.kind === 'yield') {
+            const y = mkYieldInfoFrom(MK.spark[it.sym]);
+            if (!y) return null;
+            value = y.last.toFixed(2) + '%'; c1 = y.d1; c2 = y.d1m; c3 = y.d3m; kindInput = y.d1m; series = y.c; bp = true;
+        } else if (it.kind === 'ratio') {
+            const ri = mkRatioInfo(mkRatioSeries(MK.spark[it.ratio[0]], MK.spark[it.ratio[1]]));
+            if (!ri) return null;
+            value = ri.last.toFixed(4); c1 = ri.r1D; c2 = ri.r1M; c3 = ri.r3M; kindInput = ri.r1M; series = ri.c;
+            if (mkFin(ri.dev50)) sub = `50일 평균 대비 ${mkFmtPct(ri.dev50)}`;
+        } else {
+            const st = MK.stats[it.sym], sp = MK.spark[it.sym];
+            if (!st || (!st.hasQuote && !st.hasSpark)) return null;
+            value = st.price !== null ? mkFmtPrice(st.price, st.price >= 1000 ? 0 : 2) : '';
+            c1 = st.r['1D']; c2 = st.r['1M']; c3 = st.r['3M']; series = sp ? sp.c : null;
+            kindInput = it.kind === 'global' ? (mkFin(c2) && spyR && mkFin(spyR['1M']) ? c2 - spyR['1M'] : null) : c2;
+            if (it.kind === 'global' && kindInput !== null) sub = `SPY 대비 1개월 ${mkFmtPct(kindInput, 1)}p`;
+        }
+        const ip = mkInterpret(it.kind, kindInput);
+        return { it, value, c1, c2, c3, series, bp, sub, ip, ipMove: kindInput };
+    }
+    function mkRenderMacro() {
+        const body = document.getElementById('mkMacroBody');
+        if (!body) return;
+        const D = mkDerived(), spy = MK.stats['SPY'], spyR = spy ? spy.r : null;
+        if (!Object.keys(MK.stats).length) { body.innerHTML = `<div class="text-xs text-slate-500">${MK.loading ? '매크로 시세를 불러오는 중입니다…' : '데이터가 없습니다.'}</div>`; return; }
+        const cell = (lab, v, bp) => `<div class="text-center"><div class="text-[9px] text-slate-500">${lab}</div><div class="text-[11px]">${bp ? mkBpHtml(v) : mkPctHtml(v, { d: 1 })}</div></div>`;
+        const card = (d, def) => {
+            if (!d) return `<div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3"><div class="text-xs font-bold text-slate-300">${escapeHtml(def.ko)}</div><div class="text-[10px] text-slate-600 font-mono-numbers">${escapeHtml(def.sym)}</div><div class="mt-2 text-xs text-slate-600">${MK.loading ? '불러오는 중…' : '데이터 없음'}</div></div>`;
+            const recent = d.series ? d.series.slice(-63) : [];
+            const arrow = d.ip ? { up: 'fa-arrow-trend-up text-emerald-400', down: 'fa-arrow-trend-down text-rose-400', flat: 'fa-minus text-slate-500' }[d.ip.dir] : '';
+            return `<div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex flex-col gap-1.5">
+              <div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="text-xs font-bold text-slate-200 truncate">${escapeHtml(def.ko)}</div><div class="text-[10px] text-slate-600 font-mono-numbers">${escapeHtml(def.sym)}</div></div><div class="text-base font-bold text-white font-mono-numbers leading-none">${escapeHtml(d.value)}</div></div>
+              ${mkSparkSvg(recent)}
+              <div class="grid grid-cols-3 gap-1 border-t border-slate-800 pt-1.5">${cell('1일', d.c1, d.bp)}${cell('1개월', d.c2, d.bp)}${cell('3개월', d.c3, d.bp)}</div>
+              ${d.sub ? `<div class="text-[10px] text-slate-500">${escapeHtml(d.sub)}</div>` : ''}
+              ${d.ip ? `<div class="text-[10px] leading-snug text-slate-400 border-t border-slate-800/80 pt-1.5"><i class="fa-solid ${arrow} mr-1"></i><span class="text-slate-500">일반적 해석:</span> ${escapeHtml(d.ip.text)}</div>` : ''}
+            </div>`;
+        };
+        let html = '';
+        MK_MACRO.forEach(g => {
+            let extra = '';
+            if (g.group === 'rates') extra = mkCurvePanel(D.curve);
+            html += `<div><h4 class="text-xs font-bold text-slate-300 mb-2">${escapeHtml(g.ko)}</h4>${extra}<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">${g.items.map(it => card(mkMacroCard(it, spyR), it)).join('')}</div></div>`;
+        });
+        html += `<div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 text-[11px] text-slate-400 leading-relaxed"><div class="text-xs font-bold text-amber-300 mb-1"><i class="fa-solid fa-circle-info mr-1"></i>이 탭에 없는 매크로 데이터</div>CPI·PCE 등 물가 지표, 연준 기준금리와 금리 경로 전망, 고용·GDP 등 경제지표, 경제 캘린더(FOMC·실적 일정), 시장 컨센서스는 <b class="text-slate-300">제공하지 않습니다</b>. 위 카드는 시장 가격에서 계산한 값뿐이며, '일반적 해석'은 과거에 흔했던 경향을 정리한 경험칙이지 전망이나 인과 관계의 단정이 아닙니다.</div>`;
+        body.innerHTML = html;
+    }
+    function mkCurvePanel(c) {
+        const pts = [['3개월', '^IRX'], ['5년', '^FVX'], ['10년', '^TNX'], ['30년', '^TYX']].map(([l, s]) => { const y = mkYieldInfoFrom(MK.spark[s]); return { l, v: y ? y.last : null }; });
+        if (!c || pts.filter(p => p.v !== null).length < 2) return `<div class="mb-3 text-[11px] text-slate-500">수익률 곡선: 10년·3개월 금리 데이터가 없어 판정하지 않습니다.</div>`;
+        const vals = pts.filter(p => p.v !== null).map(p => p.v), mn = Math.min(...vals), mx = Math.max(...vals), rng = (mx - mn) || 1;
+        const X = i => 24 + i * 70, Y = v => 54 - (v - mn) / rng * 36;
+        const line = pts.map((p, i) => p.v === null ? null : `${X(i)},${Y(p.v).toFixed(1)}`).filter(Boolean).join(' ');
+        const tone = { inverted: 'text-rose-300 border-rose-800 bg-rose-950/40', flat: 'text-amber-300 border-amber-800 bg-amber-950/40', normal: 'text-emerald-300 border-emerald-800 bg-emerald-950/40' }[c.state];
+        const txt = { inverted: '단기(3개월) 금리가 장기(10년)보다 높은 역전 상태입니다. 과거에는 경기 둔화·침체 전에 자주 나타났지만, 시차가 길고 예외도 있습니다.', flat: '단기와 장기 금리 차이가 0.5%p 미만으로 평탄합니다. 경기 전환기에 나타나는 경우가 많지만 그 자체가 신호는 아닙니다.', normal: '장기 금리가 단기보다 0.5%p 이상 높은 일반적인(정상) 모양입니다.' }[c.state];
+        return `<div class="mb-3 flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+          <div class="shrink-0"><div class="text-[10px] text-slate-500">수익률 곡선 (10년 − 3개월)</div><div class="flex items-center gap-2 mt-0.5"><span class="text-lg font-bold text-white font-mono-numbers">${c.spread >= 0 ? '+' : ''}${c.spread.toFixed(2)}%p</span><span class="px-2 py-0.5 rounded-md border text-xs font-bold ${tone}">${c.ko}</span></div></div>
+          <svg viewBox="0 0 300 78" class="w-full sm:w-64 h-16 shrink-0" role="img" aria-label="미국채 수익률 곡선: 3개월, 5년, 10년, 30년"><polyline fill="none" stroke="#38bdf8" stroke-width="2" points="${line}"/>${pts.map((p, i) => p.v === null ? '' : `<circle cx="${X(i)}" cy="${Y(p.v).toFixed(1)}" r="3" fill="#38bdf8"/><text x="${X(i)}" y="${Math.max(10, Y(p.v) - 6).toFixed(1)}" text-anchor="middle" font-size="9" fill="#cbd5e1">${p.v.toFixed(2)}</text><text x="${X(i)}" y="74" text-anchor="middle" font-size="9" fill="#64748b">${p.l}</text>`).join('')}</svg>
+          <p class="text-[11px] text-slate-400 leading-relaxed"><span class="text-slate-500">일반적 해석:</span> ${txt} <span class="text-slate-600">(기준: 역전 &lt; 0 ≤ 평탄 &lt; 0.5%p ≤ 정상)</span></p></div>`;
+    }
+
+    // 5) 시장 폭 & 위험 선호
+    function mkArc(cx, cy, r, a0, a1) {
+        const p = a => `${(cx + r * Math.cos(a)).toFixed(2)} ${(cy - r * Math.sin(a)).toFixed(2)}`;
+        return `M ${p(a0)} A ${r} ${r} 0 0 1 ${p(a1)}`;
+    }
+    function mkGaugeSvg(score) {
+        const cx = 110, cy = 104, r = 84, cols = ['#ef4444', '#f97316', '#94a3b8', '#84cc16', '#22c55e'];
+        const segs = cols.map((c, i) => `<path d="${mkArc(cx, cy, r, Math.PI * (1 - i / 5) - 0.012, Math.PI * (1 - (i + 1) / 5) + 0.012)}" fill="none" stroke="${c}" stroke-width="14" opacity=".9"/>`).join('');
+        let needle = '';
+        if (mkFin(score)) {
+            const a = Math.PI * (1 - score / 100), nx = cx + (r - 14) * Math.cos(a), ny = cy - (r - 14) * Math.sin(a);
+            needle = `<line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="#f8fafc" stroke-width="3" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="6" fill="#f8fafc"/>`;
+        }
+        return `<svg viewBox="0 0 220 128" class="w-full max-w-[260px] h-auto mx-auto" role="img" aria-label="위험 선호 게이지 ${mkFin(score) ? score.toFixed(0) + '점' : '계산 불가'}">${segs}${needle}<text x="${cx - r - 2}" y="122" font-size="9" fill="#fb7185" text-anchor="start">Risk-off</text><text x="${cx + r + 2}" y="122" font-size="9" fill="#4ade80" text-anchor="end">Risk-on</text></svg>`;
+    }
+    function mkRenderBreadth() {
+        const body = document.getElementById('mkBreadthBody');
+        if (!body) return;
+        const D = mkDerived(), b = D.breadth, risk = D.risk;
+        if (!b.n && !b.n50 && risk.score === null) { body.innerHTML = `<div class="text-xs text-slate-500">${MK.loading ? '종목 일봉을 불러오는 중입니다…' : '계산할 데이터가 없습니다.'}</div>`; return; }
+        const pctBar = (v, col) => `<div class="h-2 bg-slate-800 rounded overflow-hidden"><div class="h-2" style="width:${mkFin(v) ? Math.max(0, Math.min(100, v)).toFixed(0) : 0}%;background:${col}"></div></div>`;
+        const stat = (title, main, bar, sub) => `<div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3 space-y-1.5"><div class="text-[10px] text-slate-500">${title}</div><div class="text-lg font-bold text-white font-mono-numbers leading-none">${main}</div>${bar || ''}<div class="text-[10px] text-slate-500 leading-snug">${sub}</div></div>`;
+        const spy = MK.stats['SPY'], rsp = MK.stats['RSP'];
+        const rspd = p => spy && rsp && mkFin(spy.r[p]) && mkFin(rsp.r[p]) ? rsp.r[p] - spy.r[p] : null;
+        const ewd = (e) => mkFin(e.ew) && mkFin(e.cw) ? e.ew - e.cw : null;
+        const advTotal = b.adv + b.dec + b.flat;
+        const factorRows = risk.factors.map(f => {
+            const fmt = f.value === null ? '' : f.id === 'vix' ? f.value.toFixed(2) : (f.id === 'b50' || f.id === 'b200') ? f.value.toFixed(1) + '%' : (f.unit === '%' ? mkFmtPct(f.value, 1) : f.unit === '%p' ? (f.value > 0 ? '+' : '') + f.value.toFixed(f.id === 'curve' ? 2 : 1) + '%p' : f.value.toFixed(1));
+            const col = f.score === null ? '#334155' : f.score >= 60 ? '#22c55e' : f.score >= 40 ? '#94a3b8' : '#ef4444';
+            return `<tr class="border-t border-slate-800"><td class="text-left"><span class="text-slate-200">${escapeHtml(f.label)}</span><div class="text-[9px] text-slate-600">${escapeHtml(f.rule)}</div></td><td class="text-right font-mono-numbers">${f.value === null ? '<span class="text-slate-600" title="데이터 없음">–</span>' : escapeHtml(fmt)}</td><td class="text-right font-mono-numbers text-slate-400">${f.w}%${f.wEff !== null && Math.abs(f.wEff - f.w) > 0.5 ? `<div class="text-[9px] text-slate-600">→${f.wEff.toFixed(0)}%</div>` : ''}</td><td style="min-width:90px"><div class="h-2 bg-slate-800 rounded overflow-hidden"><div class="h-2" style="width:${f.score === null ? 0 : f.score.toFixed(0)}%;background:${col}"></div></div></td><td class="text-right font-mono-numbers text-slate-300">${f.score === null ? '<span class="text-slate-600">–</span>' : f.score.toFixed(0)}</td><td class="text-right font-mono-numbers text-slate-100">${f.contrib === null ? '<span class="text-slate-600">–</span>' : f.contrib.toFixed(1)}</td></tr>`;
+        }).join('');
+        body.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div class="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-center space-y-2">
+            <div class="text-xs font-bold text-slate-300">위험 선호 종합 점수 (0 = 위험 회피 · 100 = 위험 선호)</div>
+            ${mkGaugeSvg(risk.score)}
+            <div class="text-3xl font-extrabold text-white font-mono-numbers leading-none">${risk.score !== null ? risk.score.toFixed(0) : '–'}<span class="text-sm text-slate-500"> / 100</span></div>
+            <div class="text-sm font-bold ${risk.score === null ? 'text-slate-500' : risk.score >= 60 ? 'text-emerald-300' : risk.score < 40 ? 'text-rose-300' : 'text-slate-300'}">${risk.label ? escapeHtml(risk.label) : '계산 불가'}</div>
+            <div class="text-[10px] text-slate-500 leading-relaxed">${risk.used}/${risk.total}개 요인 사용${risk.used < risk.total ? ' (값이 없는 요인은 빼고 가중치를 다시 정규화)' : ''}. 가격 지표를 단순 합산한 참고용 점수이며 시장 방향을 예측하지 않습니다.</div>
+          </div>
+          <div class="lg:col-span-3 min-w-0"><div class="overflow-x-auto rounded-xl border border-slate-800"><table class="mk-tbl w-full text-xs text-slate-300 min-w-[520px]"><thead class="bg-slate-900 text-[10px] text-slate-400"><tr><th class="text-left" scope="col">요인 (점수 규칙)</th><th class="text-right" scope="col">현재 값</th><th class="text-right" scope="col">가중치</th><th scope="col">요인 점수</th><th class="text-right" scope="col">점수</th><th class="text-right" scope="col">기여</th></tr></thead><tbody>${factorRows}</tbody><tfoot><tr class="border-t border-slate-700 bg-slate-900/60"><td colspan="5" class="text-right text-[10px] text-slate-400">종합 = Σ(요인 점수 × 가중치) ÷ Σ(사용한 가중치)</td><td class="text-right font-mono-numbers font-bold text-white">${risk.score !== null ? risk.score.toFixed(1) : '–'}</td></tr></tfoot></table></div></div>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          ${stat('상승 / 하락 (1일)', b.n ? `<span class="text-emerald-400">${b.adv}</span> <span class="text-slate-600">/</span> <span class="text-rose-400">${b.dec}</span>` : '', b.n ? `<div class="flex h-2 rounded overflow-hidden bg-slate-800"><div style="width:${(b.adv / advTotal * 100).toFixed(1)}%;background:#22c55e"></div><div style="width:${(b.flat / advTotal * 100).toFixed(1)}%;background:#475569"></div><div style="width:${(b.dec / advTotal * 100).toFixed(1)}%;background:#ef4444"></div></div>` : '', b.n ? `전체 ${b.n}개 중 상승 ${b.advPct.toFixed(0)}%${b.flat ? ` · 보합 ${b.flat}` : ''}` : '데이터 없음')}
+          ${stat('50일선 위 종목', mkFin(b.above50Pct) ? b.above50Pct.toFixed(0) + '%' : '', pctBar(b.above50Pct, '#38bdf8'), b.n50 ? `${b.above50}/${b.n50}개 · 단기 추세가 살아있는 종목 비중` : '데이터 없음')}
+          ${stat('200일선 위 종목', mkFin(b.above200Pct) ? b.above200Pct.toFixed(0) + '%' : '', pctBar(b.above200Pct, '#a78bfa'), b.n200 ? `${b.above200}/${b.n200}개 · 장기 추세가 살아있는 종목 비중` : '데이터 없음')}
+          ${stat('52주 신고가 / 신저가', b.nHL ? `<span class="text-emerald-400">${b.nh}</span> <span class="text-slate-600">/</span> <span class="text-rose-400">${b.nl}</span>` : '', '', b.nHL ? `종가 기준 · 1년치 일봉이 충분한 ${b.nHL}개 종목 중 (순비중 ${b.hlNet >= 0 ? '+' : ''}${b.hlNet.toFixed(1)}%p)` : '데이터 없음')}
+        </div>
+        <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 space-y-2">
+          <div class="text-xs font-bold text-slate-200">동일가중 vs 시총가중 (소수 대형주 쏠림 점검)</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+            <div><div class="text-slate-500 mb-1">ETF: RSP(동일가중 S&amp;P 500) − SPY(시총가중)</div><div class="grid grid-cols-3 gap-1">${['1M', '3M', 'YTD'].map(p => `<div class="text-center bg-slate-950/50 rounded p-1.5"><div class="text-[9px] text-slate-500">${p}</div>${mkPctHtml(rspd(p), { d: 1 })}<span class="text-[9px] text-slate-600">p</span></div>`).join('')}</div></div>
+            <div><div class="text-slate-500 mb-1">유니버스: 동일가중 평균 − 시총가중 평균 수익률</div><div class="grid grid-cols-2 gap-1">${[['1M', D.ew1m], ['3M', D.ew3m]].map(([p, e]) => `<div class="text-center bg-slate-950/50 rounded p-1.5"><div class="text-[9px] text-slate-500">${p} (n=${e.n})</div>${mkPctHtml(ewd(e), { d: 1 })}<span class="text-[9px] text-slate-600">p</span></div>`).join('')}</div></div>
+          </div>
+          <p class="text-[10px] text-slate-500 leading-relaxed">${mkEwCwNote(rspd('3M'), ewd(D.ew3m))}</p>
+        </div>`;
+    }
+    function mkEwCwNote(rspDiff, uniDiff) {
+        const d = mkFin(rspDiff) ? rspDiff : uniDiff;
+        if (!mkFin(d)) return '동일가중과 시총가중 비교에 필요한 데이터가 부족합니다.';
+        const src = mkFin(rspDiff) ? 'RSP−SPY 3개월' : '유니버스 3개월';
+        if (d <= -2) return `${src} 차이가 ${d.toFixed(1)}%p로 시총가중이 더 강했습니다. 일반적으로 소수 대형주가 지수를 이끄는 '좁은 시장'일 때 이런 모양이 나타납니다.`;
+        if (d >= 2) return `${src} 차이가 +${d.toFixed(1)}%p로 동일가중이 더 강했습니다. 일반적으로 상승이 중소형·다수 종목으로 퍼지는 '넓은 시장'일 때 이런 모양이 나타납니다.`;
+        return `${src} 차이가 ${d >= 0 ? '+' : ''}${d.toFixed(1)}%p로 동일가중과 시총가중이 비슷한 흐름입니다.`;
+    }
+
+    // 6) AI 해설 (버튼을 눌렀을 때만 호출)
+    function mkDigest() {
+        const D = mkDerived();
+        const lines = [];
+        const f = (v, d = 2) => mkFin(v) ? (v > 0 ? '+' : '') + v.toFixed(d) + '%' : 'n/a';
+        MK_INDICES.forEach(def => { const s = MK.stats[def.sym]; if (s && s.hasSpark || s && s.hasQuote) lines.push(`${def.ko}(${def.sym}): ${s.price !== null ? mkFmtPrice(s.price) : 'n/a'} | 1D ${f(s.r['1D'])} | 1W ${f(s.r['1W'])} | 1M ${f(s.r['1M'])} | YTD ${f(s.r['YTD'])}`); });
+        if (!lines.length) return '';
+        const b = D.breadth;
+        if (b.n) lines.push(`시장 폭(유니버스 ${b.n}종목): 상승 ${b.adv} / 하락 ${b.dec}, 50일선 위 ${mkFin(b.above50Pct) ? b.above50Pct.toFixed(0) : 'n/a'}%, 200일선 위 ${mkFin(b.above200Pct) ? b.above200Pct.toFixed(0) : 'n/a'}%, 52주 신고가 ${b.nh} / 신저가 ${b.nl}`);
+        if (D.risk.score !== null) lines.push(`위험 선호 종합 점수: ${D.risk.score.toFixed(0)}/100 (${D.risk.label}); 요인: ${D.risk.factors.filter(x => x.score !== null).map(x => `${x.label} ${x.value.toFixed(2)}${x.unit} → ${x.score.toFixed(0)}점`).join('; ')}`);
+        if (D.curve) lines.push(`수익률 곡선(10년-3개월): ${D.curve.spread.toFixed(2)}%p (${D.curve.ko})`);
+        if (D.secAvg1d.length) lines.push(`섹터 1일 시총가중 평균: ${D.secAvg1d.map(s => `${mkSectorKo(s.sector)} ${f(s.avg)}`).join(', ')}`);
+        const ranked = D.rows.filter(r => r.score !== null).sort((a, b2) => b2.score - a.score);
+        if (ranked.length) {
+            lines.push(`주목 산업 상위(점수=모멘텀·상대강도·거래열기 백분위 가중): ${ranked.slice(0, 5).map(r => `${r.def.ko} ${r.score.toFixed(0)}점(1M ${f(r.r['1M'], 1)}, SPY 대비 3M ${f(r.rs3, 1)}p, ${MK_QUAD_KO[r.quad]})`).join(', ')}`);
+            lines.push(`하위: ${ranked.slice(-3).map(r => `${r.def.ko} ${r.score.toFixed(0)}점(1M ${f(r.r['1M'], 1)})`).join(', ')}`);
+        }
+        const mac = [];
+        MK_MACRO.forEach(g => g.items.forEach(it => { if (it.kind === 'ratio') return; const d = mkMacroCard(it, MK.stats['SPY'] ? MK.stats['SPY'].r : null); if (d) mac.push(`${it.ko} ${d.value} (1D ${d.bp ? (mkFin(d.c1) ? d.c1.toFixed(0) + 'bp' : 'n/a') : f(d.c1, 1)}, 1M ${d.bp ? (mkFin(d.c2) ? d.c2.toFixed(0) + 'bp' : 'n/a') : f(d.c2, 1)})`); }));
+        if (mac.length) lines.push('매크로: ' + mac.join('; '));
+        if (D.ratio) lines.push(`HYG/LQD 비율: 1M ${f(D.ratio.r1M)}, 50일 평균 대비 ${f(D.ratio.dev50)}`);
+        return lines.join('\n');
+    }
+    function mkRenderAi() {
+        const el = document.getElementById('mkAiBody');
+        if (!el) return;
+        const has = !!getStoredApiKey('gemini_key');
+        el.innerHTML = `<p class="text-[11px] text-slate-400 leading-relaxed">위에서 계산된 숫자를 Gemini에 보내 시장 상황을 풀어 쓴 해설을 받습니다. <b class="text-amber-300">버튼을 누를 때만 호출되며 호출 1회당 Gemini 사용량(유료일 수 있음)이 발생합니다.</b> AI는 보낸 숫자 밖의 뉴스·원인을 확정적으로 말하지 않도록 지시하지만, 결과는 참고용입니다.</p>
+          <button type="button" onclick="mkRunAi()" ${MK.ai.busy ? 'disabled' : ''} class="px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white font-bold rounded-lg text-xs inline-flex items-center gap-1.5"><i class="fa-solid ${MK.ai.busy ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'}"></i>${MK.ai.busy ? '해설 생성 중…' : 'AI 시장 해설 생성'}</button>
+          ${has ? '' : '<span class="text-[11px] text-slate-500 ml-2">Gemini 키가 없으면 설정 창이 열립니다.</span>'}
+          ${MK.ai.err ? `<div class="mt-2 text-xs text-rose-300 bg-rose-950/40 border border-rose-900 rounded-lg px-3 py-2">${escapeHtml(MK.ai.err)}</div>` : ''}
+          ${MK.ai.html ? `<div class="mt-3 bg-slate-900/70 border border-violet-900/60 rounded-xl p-3.5 text-[13px] text-slate-200 leading-relaxed">${MK.ai.html}<div class="mt-2 text-[10px] text-slate-500">AI가 생성한 교육용 참고 해설입니다. 투자 권유가 아니며 사실 여부는 직접 확인하세요.</div></div>` : ''}`;
+    }
+    async function mkRunAi() {
+        if (MK.ai.busy) return;
+        if (!getStoredApiKey('gemini_key')) { showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 시장 해설을 사용할 수 있습니다.', 'info'); openApiSettingsModal(); return; }
+        const digest = mkDigest();
+        if (!digest) { showToast('데이터 없음', '시장 데이터를 먼저 불러온 뒤 다시 시도하세요.', 'warning'); return; }
+        MK.ai = { busy: true, html: '', err: '' }; mkRenderAi();
+        const prompt = `당신은 교육 목적의 시장 해설자입니다. 아래는 앱이 Yahoo Finance 시세로 계산한 숫자입니다.
+이 숫자에 근거해서만 한국어로 지금의 시장 상황(지수·시장 폭·섹터/산업 흐름·금리·달러·원자재·위험 선호)을 6~9문장으로 해설하세요.
+규칙: 숫자에 없는 사실(뉴스, 경제지표 발표, 실적, 정책)을 단정하지 말고 원인은 '가능성' 수준으로만 언급하세요. 가격 목표·매수/매도 권유·미래 전망 단정 금지. 어려운 용어는 짧게 풀어 설명하세요. 마지막 줄에 '교육용 참고 자료이며 투자 권유가 아닙니다.'를 쓰세요.
+
+[계산된 데이터]
+${digest}`;
+        try {
+            const r = await callGemini(prompt);
+            if (!r || r.error || !r.text) MK.ai = { busy: false, html: '', err: `AI 해설을 받지 못했습니다${r && r.error ? ` (${r.error})` : ''}.` };
+            else MK.ai = { busy: false, err: '', html: escapeHtml(r.text.trim()).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>') };
+        } catch (e) {
+            MK.ai = { busy: false, html: '', err: 'AI 호출 중 오류가 발생했습니다.' };
+        }
+        mkRenderAi();
+    }
+
+    // ---------- 진입점 ----------
+    function mkInit() {
+        if (MK.inited) return;
+        MK.inited = mkBuildSkeleton();
+        if (MK.inited && window.innerWidth < 520) MK.uni = 'top100'; // 좁은 화면은 타일 수를 줄여 글자가 읽히게
+    }
+    if (typeof TAB_HOOKS !== 'undefined') {
+        TAB_HOOKS.market = () => {
+            mkInit();
+            if (!MK.inited) return;
+            const root = document.getElementById('marketRoot');
+            if (root && !root.querySelector('#mkHeader')) { MK.inited = mkBuildSkeleton(); }
+            mkLoad({});
+            mkScheduleRender();
+            setTimeout(mkRenderTree, 60); // 탭이 막 열려 폭이 확정된 뒤 트리맵을 다시 그린다
+        };
+    }
   </script>
 </body>
 </html>
