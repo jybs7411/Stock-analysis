@@ -32,6 +32,7 @@
 1. **올리기** (둘 중 하나, 본인만 쓰는 경우)
    - **Cloudflare Pages**: Workers & Pages → Create → Pages → 이 GitHub 저장소 연결, 빌드 명령 없음, **출력 디렉터리 `docs`**. (비공개 저장소도 무료)
    - **GitHub Pages**: 저장소 Settings → Pages → Branch 를 이 브랜치, 폴더 `/docs` 로 지정. (비공개 저장소는 유료 플랜 필요)
+   - **Pages 메뉴가 안 보이는 경우**: Cloudflare가 Pages를 Workers로 합치는 중이라 Pages 만들기 화면이 숨겨져 있을 수 있습니다. Workers & Pages → Create → **Import a repository**(Workers Builds)로 이 저장소를 연결하세요. 저장소 루트의 `wrangler.jsonc`가 `docs/`를 정적 파일로 올리도록 설정되어 있으므로 빌드 명령은 비우고, 배포 명령은 기본값(`npx wrangler deploy`)을 쓰면 됩니다.
 2. **폰 크롬**에서 올라간 주소(https)를 열고 메뉴(⋮) → **홈 화면에 추가 / 앱 설치**.
 3. 처음 한 번 우측 상단 **API 키 & 구글 검색 설정**에 Worker 주소(와 Gemini 키)를 입력합니다. (폰 브라우저에만 저장되며 PC와 동기화되지 않습니다.)
 
