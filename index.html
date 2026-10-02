@@ -58,9 +58,9 @@
 <body class="bg-[#0a0f1d] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-white">
 
   <!-- Top Navigation Bar -->
-  <header class="border-b border-slate-800 bg-[#0e1726]/90 backdrop-blur sticky top-0 z-50 px-4 lg:px-8 py-3.5">
-    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center space-x-3">
+  <header class="border-b border-slate-800 bg-[#0e1726]/90 backdrop-blur sticky top-0 z-50 px-4 lg:px-8 py-2">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
           <i class="fa-solid fa-chart-pie text-white text-lg"></i>
         </div>
@@ -71,6 +71,39 @@
           <span class="text-xs ml-2 px-2 py-0.5 rounded-full bg-slate-800 text-cyan-400 border border-cyan-800/50 font-semibold">
             Fool × Finviz 5-Pro
           </span>
+        </div>
+
+        <!-- 데이터 연결 상태(초록 점, 마우스를 올리면 상세) · 외부 확인 링크 · API 설정 -->
+        <div class="flex items-center gap-2 text-xs">
+          <div id="liveFeedStatusBadge" class="relative group flex items-center justify-center w-6 h-6 cursor-help" tabindex="0" aria-label="데이터 연결 상태">
+            <span id="liveFeedDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow shadow-emerald-500/60"></span>
+            <div class="pointer-events-none absolute left-0 top-full mt-2 z-[60] hidden group-hover:block group-focus:block whitespace-nowrap px-3 py-2 rounded-lg bg-slate-900 border border-emerald-700 text-emerald-300 text-[11px] font-mono-numbers shadow-xl">
+              <span class="block text-[10px] text-slate-500 font-sans mb-0.5">데이터 연결 상태</span>
+              <span id="liveFeedSourceLabel">Yahoo Finance Live</span>
+            </div>
+          </div>
+          <div class="hidden md:flex items-center gap-1">
+            <a id="btnLinkGoogle" href="https://www.google.com/search?q=JVA+stock+price" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1" title="Google 실시간 검색으로 주가 및 뉴스 확인">
+              <i class="fa-brands fa-google text-cyan-400"></i>
+              <span>Google 확인</span>
+            </a>
+            <a id="btnLinkFinviz" href="https://finviz.com/quote.ashx?t=JVA" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1" title="Finviz 공식 페이지 확인">
+              <i class="fa-solid fa-arrow-up-right-from-square text-amber-400"></i>
+              <span>Finviz 원본</span>
+            </a>
+            <a id="btnLinkFool" href="https://www.fool.com/search/solr.aspx?q=JVA" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1" title="Motley Fool 공식 분석 확인">
+              <i class="fa-solid fa-book-open-reader text-purple-400"></i>
+              <span>Fool 원본</span>
+            </a>
+          </div>
+          <button
+            onclick="openApiSettingsModal()"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 transition shadow"
+            title="자체 프록시 및 Gemini API 설정"
+          >
+            <i class="fa-solid fa-key text-amber-400 text-xs"></i>
+            <span class="font-semibold text-xs">API 키 & 구글 검색 설정</span>
+          </button>
         </div>
       </div>
 
@@ -83,39 +116,11 @@
         <button onclick="quickSearch('PLTR')" class="px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-300 transition">PLTR</button>
         <button onclick="quickSearch('AMZN')" class="px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-300 transition">AMZN</button>
       </div>
-
-      <!-- Header Status & API Settings Button -->
-      <div class="flex items-center space-x-2 text-xs">
-        <div id="liveFeedStatusBadge" class="hidden sm:flex items-center px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-700 text-emerald-300 text-[11px] font-mono-numbers">
-          <span id="liveFeedDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span>
-          <span id="liveFeedSourceLabel">Yahoo Finance Live</span>
-        </div>
-        <!-- External Real Verification Links -->
-        <div class="hidden md:flex items-center gap-1">
-          <a id="btnLinkGoogle" href="https://www.google.com/search?q=JVA+stock+price" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1" title="Google 실시간 검색으로 주가 및 뉴스 확인">
-            <i class="fa-brands fa-google text-cyan-400"></i>
-            <span>Google 확인</span>
-          </a>
-          <a id="btnLinkFinviz" href="https://finviz.com/quote.ashx?t=JVA" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1" title="Finviz 공식 페이지 확인">
-            <i class="fa-solid fa-arrow-up-right-from-square text-amber-400"></i>
-            <span>Finviz 원본</span>
-          </a>
-          <a id="btnLinkFool" href="https://www.fool.com/search/solr.aspx?q=JVA" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1" title="Motley Fool 공식 분석 확인">
-            <i class="fa-solid fa-book-open-reader text-purple-400"></i>
-            <span>Fool 원본</span>
-          </a>
-        </div>
-        <button
-          onclick="openApiSettingsModal()"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 transition shadow"
-          title="자체 프록시 및 Gemini API 설정"
-        >
-          <i class="fa-solid fa-key text-amber-400 text-xs"></i>
-          <span class="font-semibold text-xs">API 키 & 구글 검색 설정</span>
-        </button>
-      </div>
     </div>
   </header>
+
+  <!-- 맨 위로 -->
+  <button type="button" id="toTopBtn" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="맨 위로" aria-label="맨 위로" class="hidden fixed right-4 bottom-20 z-40 w-11 h-11 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/50 grid place-items-center transition active:scale-95"><i class="fa-solid fa-arrow-up"></i></button>
 
   <!-- Live API Configuration Modal -->
   <div id="apiSettingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -183,7 +188,8 @@
 
   <!-- Main View Tabs Navigation -->
   <div class="bg-[#0b1220] border-b border-slate-800 px-4 lg:px-8">
-    <div class="max-w-7xl mx-auto flex items-center gap-2 sm:gap-3 py-2.5 overflow-x-auto whitespace-nowrap">
+    <div class="max-w-7xl mx-auto flex items-center gap-2 py-2">
+    <div class="flex items-center gap-2 sm:gap-3 overflow-x-auto whitespace-nowrap min-w-0 flex-1">
       <button
         onclick="switchAppTab('analysis')"
         id="tabBtn-analysis"
@@ -214,6 +220,16 @@
         <i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장 · 매크로</span>
         <span class="ml-1 px-1.5 py-0.5 rounded-full bg-sky-950 text-sky-300 text-[10px] font-bold border border-sky-800/80">NEW</span>
       </button>
+    </div>
+
+    <!-- 탭 오른쪽 끝: 종목 바로 검색 -->
+    <form id="tabSearchForm" onsubmit="tabSearchSubmit(event)" class="relative shrink-0 flex items-center gap-1.5" autocomplete="off">
+      <div id="tabSearchBox" class="hidden relative">
+        <input id="tabSearchInput" type="text" placeholder="티커 · 회사명" autocomplete="off" spellcheck="false" class="w-40 sm:w-56 px-3 py-2 bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl text-xs text-white placeholder-slate-500 outline-none transition">
+        <div id="tabSearchSuggest" class="hidden absolute z-[60] right-0 top-full mt-1.5 w-72 max-w-[85vw] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto"></div>
+      </div>
+      <button type="button" id="tabSearchBtn" onclick="tabSearchToggle()" title="종목 검색" class="w-9 h-9 grid place-items-center rounded-xl bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-600 text-slate-300 hover:text-cyan-300 transition"><i class="fa-solid fa-magnifying-glass text-sm"></i></button>
+    </form>
     </div>
   </div>
 
@@ -1175,6 +1191,68 @@
       if (TAB_HOOKS[tab]) { try { TAB_HOOKS[tab](); } catch (e) { console.error(`탭(${tab}) 초기화 실패`, e); } }
     }
 
+
+    // ===== 탭 오른쪽 검색 버튼 / 맨 위로 버튼 =====
+    const tabSearchState = { items: [], active: -1, seq: 0, timer: null };
+    function tabSearchToggle(forceOpen) {
+      const box = document.getElementById('tabSearchBox'), input = document.getElementById('tabSearchInput');
+      const open = forceOpen !== undefined ? forceOpen : box.classList.contains('hidden');
+      box.classList.toggle('hidden', !open);
+      if (open) { input.focus(); input.select(); } else { document.getElementById('tabSearchSuggest').classList.add('hidden'); }
+    }
+    function tabSearchRender() {
+      const box = document.getElementById('tabSearchSuggest');
+      const items = tabSearchState.items;
+      if (!items.length) { box.classList.add('hidden'); return; }
+      box.innerHTML = items.map((it, i) => `<div class="px-3 py-2 flex items-center gap-2 cursor-pointer border-b border-slate-800/70 last:border-b-0 ${i === tabSearchState.active ? 'bg-slate-800' : 'hover:bg-slate-800/70'}" onmousedown="event.preventDefault(); tabSearchPick(${i})">
+        <span class="font-mono-numbers font-bold text-cyan-300 text-xs w-20 shrink-0 truncate">${escapeHtml(it.symbol)}</span>
+        <span class="text-xs text-slate-200 truncate flex-1">${escapeHtml(it.name)}</span>
+        ${it.exchange ? `<span class="text-[10px] text-slate-500 shrink-0">${escapeHtml(it.exchange)}</span>` : ''}</div>`).join('');
+      box.classList.remove('hidden');
+    }
+    async function tabSearchUpdate(value) {
+      const q = String(value || '').trim(), seq = ++tabSearchState.seq;
+      if (q.length < (/[가-힣]/.test(q) ? 1 : 2)) { tabSearchState.items = []; tabSearchRender(); return; }
+      tabSearchState.items = localSuggestions(q); tabSearchState.active = -1; tabSearchRender();
+      const remote = await searchSymbols(q);
+      if (seq !== tabSearchState.seq) return;
+      const seen = new Set(), merged = [];
+      [...remote, ...localSuggestions(q)].forEach(it => { if (!seen.has(it.symbol) && merged.length < 8) { seen.add(it.symbol); merged.push(it); } });
+      tabSearchState.items = merged; tabSearchState.active = -1; tabSearchRender();
+    }
+    function tabSearchGo(ticker) {
+      const input = document.getElementById('tabSearchInput');
+      input.value = ''; tabSearchState.items = []; tabSearchRender(); tabSearchToggle(false);
+      const main = document.getElementById('tickerInput'); if (main) main.value = ticker;
+      switchAppTab('analysis'); executeAnalysis(ticker);
+    }
+    function tabSearchPick(i) { const it = tabSearchState.items[i]; if (it) tabSearchGo(it.symbol); }
+    async function tabSearchSubmit(e) {
+      e.preventDefault();
+      const raw = document.getElementById('tabSearchInput').value.trim();
+      if (!raw) return;
+      if (tabSearchState.active >= 0) { tabSearchPick(tabSearchState.active); return; }
+      tabSearchState.seq++;
+      const r = await resolveTickerSmart(raw);
+      if (r.via === 'search' && r.match) showToast('회사명 검색', `"${raw}" → ${r.match.symbol}${r.match.name ? ` (${r.match.name})` : ''} 로 분석합니다.`, 'info');
+      tabSearchGo(r.ticker);
+    }
+    function initTabSearchAndTop() {
+      const input = document.getElementById('tabSearchInput');
+      if (input) {
+        input.addEventListener('input', () => { clearTimeout(tabSearchState.timer); tabSearchState.timer = setTimeout(() => tabSearchUpdate(input.value), 220); });
+        input.addEventListener('keydown', e => {
+          const n = tabSearchState.items.length;
+          if (e.key === 'ArrowDown' && n) { e.preventDefault(); tabSearchState.active = (tabSearchState.active + 1) % n; tabSearchRender(); }
+          else if (e.key === 'ArrowUp' && n) { e.preventDefault(); tabSearchState.active = (tabSearchState.active - 1 + n) % n; tabSearchRender(); }
+          else if (e.key === 'Escape') tabSearchToggle(false);
+        });
+        input.addEventListener('blur', () => setTimeout(() => { const s = document.getElementById('tabSearchSuggest'); if (s) s.classList.add('hidden'); }, 150));
+      }
+      const top = document.getElementById('toTopBtn');
+      if (top) window.addEventListener('scroll', () => top.classList.toggle('hidden', window.scrollY < 500), { passive: true });
+    }
+
     function quickSearch(ticker) {
       const input = document.getElementById('tickerInput');
       if (input) input.value = ticker;
@@ -1663,6 +1741,8 @@
       }
       const feed = proxy ? 'Own Proxy · Yahoo' : 'Public Fallback · Yahoo';
       sourceLabel.textContent = key ? `Google Search + ${feed}` : feed;
+      const dot = document.getElementById('liveFeedDot');
+      if (dot) dot.className = proxy ? 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow shadow-emerald-500/60' : 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow shadow-amber-500/60';
     }
 
     function getStoredApiKey(name) {
@@ -7375,6 +7455,7 @@ SONY|Sony Group ADR|T
       // Default to JVA or NVDA
       initChartEngine();
       initSearchSuggest();
+      initTabSearchAndTop();
       renderMetricGuide();
       initScreenerHeaderTips();
       renderRecentSearches();
