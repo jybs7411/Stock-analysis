@@ -252,8 +252,8 @@
         <!-- Gemini API Key (Optional Grounding) -->
         <div>
           <label class="block font-semibold text-white mb-1 flex items-center justify-between">
-            <span>Gemini API 키 (Google Search Grounding 실시간 검색):</span>
-            <span class="text-[10px] text-cyan-400">선택 사항</span>
+            <span>Gemini API 키 (AI 분석·질문용):</span>
+            <span class="text-[10px] text-cyan-400">선택 사항 · 무료 키 가능</span>
           </label>
           <input
             type="password"
@@ -262,8 +262,12 @@
             class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers outline-none focus:border-cyan-400"
           />
           <p class="text-[11px] text-slate-500 mt-1">
-            Gemini API 키를 입력하시면 <strong>Google Search Grounding</strong>이 활성화되어 최신 실적 뉴스와 Motley Fool 최신 분석을 실시간 검색하여 5인 전문가 보고서에 반영합니다.
+            AI Studio에서 받은 <strong>무료 키로도 동작</strong>합니다. AI는 버튼을 누를 때만 호출되며, 앱이 가져온 검증된 시세·재무 데이터를 근거로 분석합니다.
           </p>
+          <label class="mt-2 flex items-start gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="geminiGroundingInput" class="mt-0.5 accent-cyan-500">
+            <span class="text-[11px] text-slate-400"><strong class="text-slate-200">구글 검색 Grounding 사용</strong> <span class="text-amber-400">(유료 · 기본 꺼짐)</span> — 켜면 최신 뉴스·실적을 검색해 반영하지만, 무료 키로는 막히거나 한도가 매우 작을 수 있습니다. 막히면 자동으로 검색 없이 다시 시도합니다.</span>
+          </label>
         </div>
 
       </div>
@@ -1808,15 +1812,18 @@
       const text = document.getElementById('googleSearchStatusText');
       const sourceLabel = document.getElementById('liveFeedSourceLabel');
 
-      if (key) {
+      if (key && geminiGroundingOn()) {
         icon.className = 'fa-solid fa-circle-check text-cyan-400 text-sm';
-        text.innerHTML = '<strong class="text-cyan-300">구글 실시간 검색(Search Grounding) 연결됨</strong>: 최신 뉴스 및 모틀리 풀 공시가 AI로 자동 수집됩니다.';
+        text.innerHTML = '<strong class="text-cyan-300">구글 실시간 검색(Search Grounding) 연결됨</strong>: 최신 뉴스 및 모틀리 풀 공시가 AI로 자동 수집됩니다. (유료 기능)';
+      } else if (key) {
+        icon.className = 'fa-solid fa-circle-check text-emerald-400 text-sm';
+        text.innerHTML = '<strong class="text-emerald-300">Gemini AI 연결됨 (검색 없음)</strong>: 검증된 시세·재무 데이터를 근거로 AI가 분석합니다. 무료 키로 동작하며, 최신 뉴스는 반영되지 않습니다.';
       } else {
         icon.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-sm';
         text.innerHTML = '현재 <strong class="text-amber-300">구글 실시간 검색(Search Grounding)</strong> 미연결 상태입니다. (시세·재무 지표 기반 자동 분석으로 작동 중)';
       }
       const feed = proxy ? 'Own Proxy · Yahoo' : 'Public Fallback · Yahoo';
-      sourceLabel.textContent = key ? `Google Search + ${feed}` : feed;
+      sourceLabel.textContent = key && geminiGroundingOn() ? `Google Search + ${feed}` : feed;
       const dot = document.getElementById('liveFeedDot');
       if (dot) dot.className = proxy ? 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow shadow-emerald-500/60' : 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow shadow-amber-500/60';
     }
@@ -1824,6 +1831,8 @@
     function getStoredApiKey(name) {
       return localStorage.getItem(`pentanalyst_${name}`) || '';
     }
+    // 구글 검색 Grounding 은 유료 기능이라 기본은 꺼짐 — 무료 Gemini 키로도 (검증된 시세·재무 데이터를 넣어) 동작한다.
+    function geminiGroundingOn() { return getStoredApiKey('gemini_grounding') === '1'; }
 
     function setStoredApiKey(name, val) {
       if (val) localStorage.setItem(`pentanalyst_${name}`, val.trim());
@@ -1842,6 +1851,7 @@
 
     function openApiSettingsModal() {
       document.getElementById('geminiApiKeyInput').value = getStoredApiKey('gemini_key');
+      document.getElementById('geminiGroundingInput').checked = geminiGroundingOn();
       document.getElementById('proxyUrlInput').value = getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL;
       document.getElementById('apiSettingsModal').classList.remove('hidden');
     }
@@ -1858,6 +1868,7 @@
         return;
       }
       setStoredApiKey('gemini_key', gKey);
+      setStoredApiKey('gemini_grounding', document.getElementById('geminiGroundingInput').checked ? '1' : '');
       setStoredApiKey('proxy_url', proxy);
       updateGoogleSearchBannerState();
       closeApiSettingsModal();
@@ -2163,6 +2174,10 @@
     async function callGemini(prompt, { grounding = false, fallbackPrompt = null } = {}) {
       const apiKey = getStoredApiKey('gemini_key');
       if (!apiKey) return null;
+      if (grounding && !geminiGroundingOn()) { // 설정에서 검색 Grounding 을 꺼 둔 경우: 처음부터 검색 없이 (무료 키 가능)
+        const r0 = await callGemini(fallbackPrompt || prompt, { grounding: false });
+        return r0 && !r0.error ? { ...r0, grounded: false } : r0;
+      }
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
       const request = async (text, useSearch) => {
@@ -2186,7 +2201,7 @@
           }
           const j = await resp.json();
           const parts = j?.candidates?.[0]?.content?.parts || [];
-          return { text: parts.map(p => p.text || '').join('') };
+          return { text: parts.map(p => p.text || '').join(''), grounded: !!useSearch };
         } catch (e) {
           console.warn('Gemini 호출 예외:', e);
           return { error: e.message, status: 0 };
@@ -2252,7 +2267,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         showToast('Gemini 응답 오류', 'JSON 형식을 해석하지 못해 AI 분석을 건너뜁니다.', 'warning');
         return null;
       }
-      parsed.__grounded = !r.fallback;
+      parsed.__grounded = r.grounded === true;
       if (r.fallback) showToast('검색 없이 분석', '구글 검색 한도/권한 문제로 검색 없이 분석했습니다. 최신 뉴스·목표가는 반영되지 않습니다.', 'info');
       return parsed;
     }
