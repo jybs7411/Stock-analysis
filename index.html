@@ -209,7 +209,7 @@
     @media (max-width: 639px) {
       #tabStrip { display: none; }
       #tabNav #tabSearchInput:not(:focus) { width: 2.5rem; }
-      #tabSearchForm { margin-left: auto; }
+      #tabSearchForm { margin-left: auto; } #langSwitchMobile { margin-left: auto; } #langSwitchMobile + #tabSearchForm { margin-left: 0; }
       #mobileTabBar { display: block; }
       main { padding-bottom: 5.5rem; }
       #toTopBtn { bottom: 5rem; }
@@ -358,6 +358,7 @@
     </div>
 
     <!-- 탭 오른쪽 끝: 종목 바로 검색 -->
+    <div id="langSwitchMobile" role="group" aria-label="Language" translate="no" class="sm:hidden flex rounded-lg border border-slate-700 overflow-hidden bg-slate-800 shrink-0"><button type="button" data-lang="ko" onclick="setLang('ko')" aria-label="한국어" class="lang-btn px-2 min-h-9 text-[11px] font-bold text-slate-300">KO</button><button type="button" data-lang="en" onclick="setLang('en')" aria-label="English" class="lang-btn px-2 min-h-9 text-[11px] font-bold text-slate-300">EN</button><button type="button" data-lang="de" onclick="setLang('de')" aria-label="Deutsch" class="lang-btn px-2 min-h-9 text-[11px] font-bold text-slate-300">DE</button></div>
     <form id="tabSearchForm" onsubmit="tabSearchSubmit(event)" class="relative shrink-0" autocomplete="off">
       <div id="tabSearchBox" class="relative">
         <input id="tabSearchInput" type="text" placeholder="종목 검색 (티커·회사명)" autocomplete="off" spellcheck="false" class="w-36 sm:w-64 pl-3 pr-9 py-2 bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl text-xs text-white placeholder-slate-500 outline-none transition">
