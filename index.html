@@ -3440,7 +3440,14 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     TA.stochastic = (h, kP = 14, dP = 3, smooth = 3) => {
       const hh = TA.highest(h.map(c => c.high), kP);
       const ll = TA.lowest(h.map(c => c.low), kP);
-      const raw = h.map((c, i) => (hh[i] === null || hh[i] === ll[i]) ? null : ((c.close - ll[i]) / (hh[i] - ll[i])) * 100);
+      // 고저 범위가 0(HH==LL)인 봉은 나눗셈이 불가능하므로 직전 %K 원시값을 이어받는다(첫 봉이면 null) — 안 그러면 SMA 창이 끊겨 %K·%D 가 빈다
+      let prevRaw = null;
+      const raw = h.map((c, i) => {
+        if (hh[i] === null) return null;
+        if (hh[i] === ll[i]) return prevRaw;
+        prevRaw = ((c.close - ll[i]) / (hh[i] - ll[i])) * 100;
+        return prevRaw;
+      });
       const k = smooth > 1 ? TA.sma(raw, smooth) : raw;
       return { k, d: TA.sma(k, dP) };
     };
@@ -3504,7 +3511,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           const flow = tp[j] * h[j].volume;
           if (tp[j] > tp[j - 1]) pos += flow; else if (tp[j] < tp[j - 1]) neg += flow;
         }
-        out[i] = neg === 0 ? 100 : 100 - 100 / (1 + pos / neg);
+        out[i] = (pos === 0 && neg === 0) ? null : neg === 0 ? 100 : 100 - 100 / (1 + pos / neg); // 둘 다 0 이면 정의 불가(100 으로 만들지 않음)
       }
       return out;
     };
@@ -3812,9 +3819,203 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return {
         n, winRate: (wins.length / n) * 100, avgRet: avg(rets), avgWin: avg(wins), avgLoss: avg(losses),
         profitFactor: gl === 0 ? null : gw / gl, total: (eq - 1) * 100, mdd: mdd * 100,
-        avgBars: avg(trades.map(t => t.i1 - t.i0)), buyHold: bh, open: trades.some(t => t.open)
+        avgBars: avg(trades.map(t => t.i1 - t.i0)), buyHold: bh, open: trades.some(t => t.open), nOpen: trades.filter(t => t.open).length
       };
     };
+    // ===== 추가 지표 (TTM 스퀴즈 · 스토캐스틱 RSI · 아룬 · TRIX · 피벗 · RS 라인 · 엘더 임펄스 · VCP) =====
+    // 마지막 p개 값(x=0..p-1)에 대한 최소제곱 회귀선의 x=p-1 지점 값(TradingView linreg(src, p, 0)). 창 안에 null 이 있으면 null.
+    TA.linregEnd = (v, p) => {
+      const out = nullArr(v.length);
+      if (p < 2) return out;
+      let sx = 0, sxx = 0;
+      for (let j = 0; j < p; j++) { sx += j; sxx += j * j; }
+      const den = p * sxx - sx * sx;
+      for (let i = p - 1; i < v.length; i++) {
+        let sy = 0, sxy = 0, ok = true;
+        for (let j = 0; j < p; j++) {
+          const y = v[i - p + 1 + j];
+          if (y === null || y === undefined || !Number.isFinite(y)) { ok = false; break; }
+          sy += y; sxy += j * y;
+        }
+        if (!ok) continue;
+        const slope = (p * sxy - sx * sy) / den, icpt = (sy - slope * sx) / p;
+        out[i] = icpt + slope * (p - 1);
+      }
+      return out;
+    };
+
+    // TTM Squeeze (John Carter / LazyBear 정의): BB(p, bbMult·σ) 가 KC(SMA p ± kcMult × TR 의 p봉 단순평균) 안에 완전히 들어가면 on=true.
+    // 모멘텀 = linreg( 종가 − ((HH+LL)/2 + SMA)/2 , p ). 앱의 켈트너 채널(EMA ± 2×ATR10)과 정의가 달라 스퀴즈 전용 KC 를 따로 쓴다.
+    TA.ttmSqueeze = (h, p = 20, bbMult = 2, kcMult = 1.5) => {
+      const n = h.length, closes = h.map(c => c.close);
+      const bb = bollingerSeries(closes, p, bbMult), ma = TA.sma(closes, p);
+      const trSma = TA.sma(TA.trueRange(h), p);
+      const hh = TA.highest(h.map(c => c.high), p), ll = TA.lowest(h.map(c => c.low), p);
+      const on = nullArr(n), src = nullArr(n), kcU = nullArr(n), kcL = nullArr(n);
+      for (let i = p - 1; i < n; i++) {
+        kcU[i] = ma[i] + kcMult * trSma[i]; kcL[i] = ma[i] - kcMult * trSma[i];
+        on[i] = bb.lower[i] > kcL[i] && bb.upper[i] < kcU[i];
+        src[i] = closes[i] - ((hh[i] + ll[i]) / 2 + ma[i]) / 2;
+      }
+      return { on, mom: TA.linregEnd(src, p), bb, kcU, kcL };
+    };
+
+    // 스토캐스틱 RSI: (RSI − min(RSI,n)) / (max − min) × 100 → SMA(kP) = %K → SMA(dP) = %D. 범위 0이면 직전 원시값을 이어받음.
+    TA.stochRsi = (closes, rsiP = 14, stochP = 14, kP = 3, dP = 3) => {
+      const n = closes.length, rsi = rsiSeries(closes, rsiP), raw = nullArr(n);
+      let prev = null;
+      for (let i = 0; i < n; i++) {
+        if (i < stochP - 1) continue;
+        let mx = -Infinity, mn = Infinity, ok = true;
+        for (let j = i - stochP + 1; j <= i; j++) { const r = rsi[j]; if (r === null) { ok = false; break; } if (r > mx) mx = r; if (r < mn) mn = r; }
+        if (!ok) continue;
+        if (mx === mn) { raw[i] = prev; continue; }
+        prev = ((rsi[i] - mn) / (mx - mn)) * 100; raw[i] = prev;
+      }
+      const k = kP > 1 ? TA.sma(raw, kP) : raw;
+      return { k, d: TA.sma(k, dP), raw };
+    };
+
+    // 아룬: up = 100 × (p − 최근 최고가 이후 경과봉) / p, 창은 p+1봉(현재 포함). 동률이면 가장 최근 봉.
+    TA.aroon = (h, p = 25) => {
+      const n = h.length, up = nullArr(n), down = nullArr(n), osc = nullArr(n);
+      for (let i = p; i < n; i++) {
+        let hi = -Infinity, hiI = i, lo = Infinity, loI = i;
+        for (let j = i - p; j <= i; j++) {
+          if (h[j].high >= hi) { hi = h[j].high; hiI = j; }
+          if (h[j].low <= lo) { lo = h[j].low; loI = j; }
+        }
+        up[i] = 100 * (p - (i - hiI)) / p; down[i] = 100 * (p - (i - loI)) / p; osc[i] = up[i] - down[i];
+      }
+      return { up, down, osc };
+    };
+
+    // TRIX: EMA 를 3번 겹친 값의 1봉 변화율(%) = 100 × (EMA3[i] / EMA3[i−1] − 1). signal = TRIX 의 EMA(sigP)
+    TA.trix = (closes, p = 15, sigP = 9) => {
+      const e3 = TA.ema(TA.ema(TA.ema(closes, p), p), p);
+      const trix = e3.map((x, i) => (i > 0 && x !== null && e3[i - 1] !== null && e3[i - 1] !== 0) ? 100 * (x / e3[i - 1] - 1) : null);
+      return { trix, signal: TA.ema(trix, sigP) };
+    };
+
+    // 피벗 포인트(클래식): 직전 '완료된' 기간(일/주/월)의 H·L·C 로 계산한 값이 다음 기간 내내 유지된다.
+    // PP=(H+L+C)/3, R1=2PP−L, S1=2PP−H, R2=PP+(H−L), S2=PP−(H−L).  mode: 'D' | 'W' | 'M'.  brk[i]=true 면 새 기간 시작(선을 끊는다).
+    const dayNumOf = c => (typeof c.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(c.date)) ? Date.parse(c.date.slice(0, 10) + 'T00:00:00Z') / 86400000 : Math.floor(c.t / 86400);
+    TA.pivotPoints = (h, mode = 'D') => {
+      const n = h.length, pp = nullArr(n), r1 = nullArr(n), r2 = nullArr(n), s1 = nullArr(n), s2 = nullArr(n), brk = new Array(n).fill(false);
+      const keyOf = c => mode === 'W' ? Math.floor((Math.floor(dayNumOf(c)) + 3) / 7) : mode === 'M' ? String(c.date).slice(0, 7) : String(c.date || dayNumOf(c));
+      let cur = null, prev = null;
+      for (let i = 0; i < n; i++) {
+        const c = h[i], k = keyOf(c);
+        if (!cur || cur.k !== k) { if (cur) prev = cur; cur = { k, H: c.high, L: c.low, C: c.close }; brk[i] = i > 0; }
+        else { cur.H = Math.max(cur.H, c.high); cur.L = Math.min(cur.L, c.low); cur.C = c.close; }
+        if (prev) {
+          const P0 = (prev.H + prev.L + prev.C) / 3;
+          pp[i] = P0; r1[i] = 2 * P0 - prev.L; s1[i] = 2 * P0 - prev.H; r2[i] = P0 + (prev.H - prev.L); s2[i] = P0 - (prev.H - prev.L);
+        }
+      }
+      return { pp, r1, r2, s1, s2, brk };
+    };
+    // 봉 간격으로 피벗 기준 기간 자동 선택: 분봉→일, 일봉→주, 주·월봉→월
+    TA.pivotAutoMode = h => {
+      if (TA.isIntraday(h)) return 'D';
+      const avg = TA.timeIndex(h).avg;
+      return avg <= 4 * 86400 ? 'W' : 'M';
+    };
+
+    // 다른 종목(예: SPY)의 종가를 h 의 각 봉에 맞춰 정렬. 같은 날짜(분봉은 날짜+시각) 값을 쓰고, 없으면 직전 값을 최대 6일(분봉은 같은 거래일) 이어받는다.
+    TA.alignClose = (h, other) => {
+      const out = nullArr(h.length);
+      if (!other || !other.length) return out;
+      const keyOf = c => c.hm ? `${c.date} ${c.hm}` : String(c.date);
+      let j = -1;
+      for (let i = 0; i < h.length; i++) {
+        const k = keyOf(h[i]);
+        while (j + 1 < other.length && keyOf(other[j + 1]) <= k) j++;
+        if (j < 0) continue;
+        const o = other[j];
+        if (!(o.close > 0)) continue;
+        if (keyOf(o) === k) { out[i] = o.close; continue; }
+        const gap = h[i].hm ? (o.date === h[i].date ? 0 : 99) : (dayNumOf(h[i]) - dayNumOf(o));
+        if (gap <= 6) out[i] = o.close;
+      }
+      return out;
+    };
+    // RS 라인 = 종목 종가 / 비교 지수 종가, 첫 유효 봉을 100 으로 정규화. 반환: 길이 h 의 배열(정렬 불가 구간은 null)
+    TA.rsLine = (h, other) => {
+      const al = TA.alignClose(h, other), out = nullArr(h.length);
+      let base = null;
+      for (let i = 0; i < h.length; i++) {
+        if (al[i] === null || !(h[i].close > 0)) continue;
+        const r = h[i].close / al[i];
+        if (base === null) base = r;
+        out[i] = 100 * r / base;
+      }
+      return out;
+    };
+    // RS 블루닷: RS 라인이 최근 look 봉 최고(신고가)인데 가격은 같은 구간 종가 최고가 아닌 날. 창 안에 RS 가 하나라도 없으면 false.
+    TA.rsBlueDot = (closes, rs, look = 252) => closes.map((c, i) => {
+      if (i < look - 1 || rs[i] === null) return false;
+      let rmx = -Infinity, cmx = -Infinity;
+      for (let j = i - look + 1; j <= i; j++) { if (rs[j] === null) return false; if (rs[j] > rmx) rmx = rs[j]; if (closes[j] > cmx) cmx = closes[j]; }
+      return rs[i] >= rmx && closes[i] < cmx;
+    });
+    // 가중 수익률(IBD RS 근사): 0.4×R63 + 0.2×R126 + 0.2×R189 + 0.2×R252. 가용 구간만으로 가중치를 재정규화(가장 긴 구간이 126봉 이상일 때만 계산). 순위(퍼센타일)가 아님.
+    // v2 를 주면 두 시계열 모두 값이 있는 구간만 사용 → { score, score2, horizon }. 없으면 { score, horizon }.
+    const RS_HORIZONS = [[63, 0.4], [126, 0.2], [189, 0.2], [252, 0.2]];
+    TA.weightedReturn = (v, i, v2) => {
+      let num = 0, num2 = 0, den = 0, used = 0;
+      const okv = (a, k) => a && a[i] !== null && a[i] !== undefined && a[k] !== null && a[k] !== undefined && a[k] > 0;
+      for (const [n, w] of RS_HORIZONS) {
+        if (i - n < 0 || !okv(v, i - n) || (v2 && !okv(v2, i - n))) continue;
+        num += w * (v[i] / v[i - n] - 1); if (v2) num2 += w * (v2[i] / v2[i - n] - 1); den += w; used = n;
+      }
+      return (used >= 126) ? { score: num / den, score2: v2 ? num2 / den : null, horizon: used } : null;
+    };
+
+    // 엘더 임펄스: EMA(emaP) 기울기와 MACD 히스토그램 기울기가 모두 상승이면 1(녹), 모두 하락이면 -1(적), 엇갈리면 0(청). 계산 불가는 null.
+    TA.elderImpulse = (closes, emaP = 13, fast = 12, slow = 26, sig = 9) => {
+      const e = TA.ema(closes, emaP), ef = TA.ema(closes, fast), es = TA.ema(closes, slow);
+      const macd = closes.map((_, i) => (ef[i] !== null && es[i] !== null) ? ef[i] - es[i] : null);
+      const sg = TA.ema(macd, sig);
+      const hist = macd.map((m, i) => (m !== null && sg[i] !== null) ? m - sg[i] : null);
+      const dir = closes.map((_, i) => {
+        if (i === 0 || e[i] === null || e[i - 1] === null || hist[i] === null || hist[i - 1] === null) return null;
+        const eu = e[i] > e[i - 1], ed = e[i] < e[i - 1], hu = hist[i] > hist[i - 1], hd = hist[i] < hist[i - 1];
+        return (eu && hu) ? 1 : (ed && hd) ? -1 : 0;
+      });
+      return { dir, ema: e, hist };
+    };
+
+    // VCP(변동성 수축 패턴) 탐지 — 정보용. 지그재그로 '고점→저점' 하락 구간(수축)을 뽑아 깊이(%)가 점점 작아지는지, 마지막 수축의 거래량이 마르는지(dry-up) 본다.
+    // 반환: { found, contractions:[{hi,li,depth,avgVol}], dryUp, lastDepth, text }
+    TA.vcp = (h, opts = {}) => {
+      const n = h.length, look = opts.look || 120, res = { found: false, contractions: [], dryUp: false, lastDepth: null, text: '' };
+      if (n < 60) { res.text = '봉 수 부족'; return res; }
+      const atr = TA.atr(h, 14)[n - 1] || h[n - 1].close * 0.02;
+      const dev = opts.dev || Math.min(0.08, Math.max(0.03, 1.5 * atr / h[n - 1].close));
+      const piv = TA.zigzag(h, dev).filter(z => z.i >= n - look);
+      const cons = [];
+      for (let k = 0; k + 1 < piv.length; k++) {
+        if (piv[k].type === 'H' && piv[k + 1].type === 'L') {
+          let vs = 0, cnt = 0; for (let j = piv[k].i; j <= piv[k + 1].i; j++) { vs += h[j].volume || 0; cnt++; }
+          cons.push({ hi: piv[k].i, li: piv[k + 1].i, depth: (piv[k].price - piv[k + 1].price) / piv[k].price * 100, avgVol: cnt ? vs / cnt : 0, hp: piv[k].price, lp: piv[k + 1].price });
+        }
+      }
+      // 깊이가 줄어드는 가장 긴 '끝 구간'
+      let s = cons.length - 1;
+      while (s > 0 && cons[s - 1].depth > cons[s].depth) s--;
+      const seq = cons.slice(Math.max(0, s));
+      res.contractions = seq;
+      if (seq.length >= 2) {
+        res.found = true; res.lastDepth = seq[seq.length - 1].depth;
+        let v50 = 0, c50 = 0; for (let j = Math.max(0, n - 50); j < n; j++) { v50 += h[j].volume || 0; c50++; }
+        const avg50 = c50 ? v50 / c50 : 0, last = seq[seq.length - 1];
+        res.dryUp = avg50 > 0 && last.avgVol <= seq[0].avgVol && last.avgVol < avg50;
+        res.text = `수축 ${seq.length}회 (${seq.map(x => x.depth.toFixed(0) + '%').join(' → ')}) · 마지막 수축 거래량 ${res.dryUp ? '건조(dry-up)' : '건조 아님'}`;
+      } else res.text = seq.length === 1 ? '수축 1회뿐 — VCP 미확인' : '수축 구조 없음 — VCP 미확인';
+      return res;
+    };
+
     // ===== 지표(Study) 레지스트리 =====
     // compute(h, params, st) → 렌더 명세. 공통 필드:
     //   lines:[{v, color, width?, dash?, cv?(구간별 색), name?}]  fills:[{upper, lower, color}]  cloud:{a,b,up,down}
@@ -3869,7 +4070,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         }
       },
       ichimoku: {
-        cat: '추세 · 이동평균', pane: 'main', name: '일목균형표', desc: '전환선·기준선·구름(선행스팬)·후행스팬. 구름 위/아래로 추세와 지지·저항을 한눈에.',
+        cat: '추세 · 이동평균', pane: 'main', name: '일목균형표', desc: '전환선·기준선·구름(선행스팬)·후행스팬. 구름 위/아래로 추세와 지지·저항을 한눈에. 선행스팬은 26봉 앞(원전 관례)에 그립니다 — TradingView 등은 25봉 앞이라 구름 위치가 1봉 다를 수 있습니다.',
         params: [P('tenkan', '전환선', 9, 2, 60), P('kijun', '기준선', 26, 2, 120), P('senkou', '선행스팬B', 52, 2, 240)], label: p => `일목 ${p.tenkan}, ${p.kijun}, ${p.senkou}`,
         compute: (h, p) => {
           const i = TA.ichimoku(h, p.tenkan, p.kijun, p.senkou, p.kijun);
@@ -3961,7 +4162,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         compute: (h, p) => ({ lines: [{ v: TA.roc(closesOf(h), p.period), color: '#2dd4bf', name: 'ROC' }], zero: true, fmt: 'pct' })
       },
       atr: {
-        cat: '변동성 · 채널', pane: 'sub', name: 'ATR (평균 진폭)', desc: '하루 평균 변동 폭. 손절 폭·포지션 크기 산정에 사용 (보통 손절 = 진입가 − 2×ATR).',
+        cat: '변동성 · 채널', pane: 'sub', name: 'ATR (평균 진폭)', desc: '하루 평균 변동 폭(와일더 평활). 손절 폭·포지션 크기 산정에 사용 (보통 손절 = 진입가 − 2×ATR). 첫 값의 시드(첫 N개 평균 vs 첫 봉)가 플랫폼마다 달라 초반 몇 봉은 값이 조금 다를 수 있습니다.',
         params: [P('period', '기간', 14, 2, 100)], label: p => `ATR ${p.period}`,
         compute: (h, p) => ({ lines: [{ v: TA.atr(h, p.period), color: '#fb923c', name: 'ATR' }], min0: true })
       },
@@ -3976,7 +4177,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         compute: h => ({ lines: [{ v: TA.obv(h), color: '#22d3ee', name: 'OBV' }, { v: TA.ema(TA.obv(h), 21), color: '#f59e0b', width: 1, name: 'EMA21' }], fmt: 'vol' })
       },
       mfi: {
-        cat: '거래량', pane: 'sub', name: 'MFI (자금흐름)', desc: '거래량을 반영한 RSI. 80 이상 과매수, 20 이하 과매도.',
+        cat: '거래량', pane: 'sub', name: 'MFI (자금흐름)', desc: '거래량을 반영한 RSI. 80 이상 과매수, 20 이하 과매도. 가격 변화가 없고 거래량도 0인 구간은 값을 만들지 않습니다.',
         params: [P('period', '기간', 14, 2, 100)], label: p => `MFI ${p.period}`,
         compute: (h, p) => ({ lines: [{ v: TA.mfi(h, p.period), color: '#34d399', name: 'MFI' }], levels: [20, 50, 80], range: [0, 100] })
       },
@@ -3986,7 +4187,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         compute: (h, p) => { const v = TA.cmf(h, p.period); return { hist: { v, c: v.map(x => x === null ? null : x >= 0 ? 'rgba(16,185,129,0.55)' : 'rgba(244,63,94,0.55)'), base: 0 }, zero: true, fmtD: 3 }; }
       },
       force: {
-        cat: '거래량', pane: 'sub', name: '엘더 포스인덱스', desc: '가격 변화 × 거래량의 EMA. 상승 추세 속 0선 아래 눌림 = 엘더의 매수 타이밍.',
+        cat: '거래량', pane: 'sub', name: '엘더 포스인덱스', desc: '가격 변화 × 거래량의 EMA. 상승 추세 속 0선 아래 눌림 = 엘더의 매수 타이밍. 엘더의 단기 신호는 기간 2(2일 EMA), 장기 추세 확인은 13.',
         params: [P('period', '기간', 13, 2, 100)], label: p => `Force ${p.period}`, fmt: 'vol',
         compute: (h, p) => ({ lines: [{ v: TA.force(h, p.period), color: '#fbbf24', name: 'Force' }], zero: true, fmt: 'vol' })
       },
@@ -3996,9 +4197,77 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         compute: (h, p) => ({ lines: [{ v: TA.bbExtra(closesOf(h), p.period, p.mult).pctB, color: '#06b6d4', name: '%B' }], levels: [0, 0.5, 1] })
       },
       bbw: {
-        cat: '변동성 · 채널', pane: 'sub', name: '볼린저 밴드폭', desc: '밴드 폭(%). 6개월 최저 부근이면 변동성 수축(스퀴즈) → 이후 큰 방향성 움직임.',
-        params: [P('period', '기간', 20, 2, 200), P('mult', '배수', 2, 0.5, 5, 0.5)], label: p => `BB폭 ${p.period}`,
-        compute: (h, p) => ({ lines: [{ v: TA.bbExtra(closesOf(h), p.period, p.mult).width, color: '#c084fc', name: '폭%' }], fmt: 'pct', min0: true })
+        cat: '변동성 · 채널', pane: 'sub', name: '볼린저 밴드폭', desc: '밴드 폭(%) = (상단−하단)/중심. 최근 N봉(기본 125≈6개월) 안에서 가장 좁은 날은 주황 점으로 표시 — 변동성 수축(스퀴즈) 신호이며 방향을 알려주진 않습니다.',
+        params: [P('period', '기간', 20, 2, 200), P('mult', '배수', 2, 0.5, 5, 0.5), P('low', '최저 판정 구간(봉)', 125, 20, 500)], label: p => `BB폭 ${p.period}`,
+        compute: (h, p) => {
+          const w = TA.bbExtra(closesOf(h), p.period, p.mult).width, n = w.length;
+          const mn = nullArr(n), flag = nullArr(n);
+          for (let i = p.low - 1; i < n; i++) {
+            let m = Infinity, ok = true;
+            for (let j = i - p.low + 1; j <= i; j++) { if (w[j] === null) { ok = false; break; } if (w[j] < m) m = w[j]; }
+            if (!ok) continue;
+            mn[i] = m; flag[i] = w[i] <= m;
+          }
+          return { lines: [{ v: w, color: '#c084fc', name: '폭%' }, { v: mn, color: 'rgba(251,191,36,0.75)', width: 1, dash: [4, 3], name: `${p.low}봉 최저` }], dotRow: { v: flag, onColor: '#f59e0b', offColor: null, at: 'bottom' }, fmt: 'pct', min0: true };
+        }
+      },
+      ttm: {
+        cat: '변동성 · 채널', pane: 'sub', name: 'TTM 스퀴즈', desc: '볼린저(기간, 2σ)가 켈트너(SMA ± 1.5×TR평균) 안에 완전히 들어가면 스퀴즈 ON(빨간 점=변동성 압축), 벗어나면 OFF(초록 점=해제). 막대는 모멘텀(선형회귀): 밝은색=힘이 커지는 중. 방향 예측이 아니라 변동성 상태 표시입니다.',
+        params: [P('period', '기간', 20, 5, 100), P('bb', 'BB 배수', 2, 0.5, 4, 0.5), P('kc', 'KC 배수', 1.5, 0.5, 4, 0.5)], label: p => `Squeeze ${p.period}`,
+        compute: (h, p) => {
+          const r = TA.ttmSqueeze(h, p.period, p.bb, p.kc);
+          const col = r.mom.map((v, i) => {
+            if (v === null) return null;
+            const pv = i > 0 ? r.mom[i - 1] : null, rising = pv !== null && v > pv;
+            return v >= 0 ? (rising ? 'rgba(52,211,153,0.9)' : 'rgba(4,120,87,0.9)') : (!rising && pv !== null ? 'rgba(251,113,133,0.9)' : 'rgba(159,18,57,0.9)');
+          });
+          return { hist: { v: r.mom, c: col, base: 0 }, dotRow: { v: r.on, onColor: '#f43f5e', offColor: '#10b981', at: 'zero' }, zero: true };
+        }
+      },
+      stochrsi: {
+        cat: '모멘텀', pane: 'sub', name: '스토캐스틱 RSI', desc: 'RSI 값에 스토캐스틱을 다시 적용 (0~100). RSI보다 민감해 신호가 잦고 잔신호도 많습니다. 80 위 과열 / 20 아래 침체 — 추세장에선 오래 머물 수 있어 단독 신호로 쓰지 않습니다.',
+        params: [P('rsi', 'RSI 기간', 14, 2, 100), P('stoch', '스토캐스틱 기간', 14, 2, 100), P('k', '%K 평활', 3, 1, 20), P('d', '%D 평활', 3, 1, 20)], label: p => `StochRSI ${p.rsi}, ${p.stoch}, ${p.k}, ${p.d}`,
+        compute: (h, p) => { const r = TA.stochRsi(closesOf(h), p.rsi, p.stoch, p.k, p.d); return { lines: [{ v: r.k, color: '#06b6d4', name: '%K' }, { v: r.d, color: '#f59e0b', name: '%D' }], levels: [20, 50, 80], range: [0, 100] }; }
+      },
+      aroon: {
+        cat: '추세 강도', pane: 'sub', name: '아룬 (Aroon)', desc: '최근 N봉 중 최고가·최저가가 얼마나 최근에 나왔는지(0~100). 아룬 Up이 70 위·Down이 30 아래면 상승 추세 우위, 반대면 하락 우위. 두 선이 얽히면 추세 없음.',
+        params: [P('period', '기간', 25, 5, 100)], label: p => `Aroon ${p.period}`,
+        compute: (h, p) => { const a = TA.aroon(h, p.period); return { lines: [{ v: a.up, color: UP_COLOR, name: 'Up' }, { v: a.down, color: DOWN_COLOR, name: 'Down' }], levels: [30, 50, 70], range: [0, 100] }; }
+      },
+      trix: {
+        cat: '모멘텀', pane: 'sub', name: 'TRIX', desc: '종가 EMA를 3번 겹쳐 잔물결을 걸러낸 뒤 1봉 변화율(%)을 본 모멘텀. 0선 위/아래 교차와 시그널선 교차로 추세 전환을 관찰 (후행성이 큼).',
+        params: [P('period', '기간', 15, 2, 100), P('sig', '시그널', 9, 2, 50)], label: p => `TRIX ${p.period}`, fmtD: 3,
+        compute: (h, p) => { const r = TA.trix(closesOf(h), p.period, p.sig); return { lines: [{ v: r.trix, color: '#a78bfa', name: 'TRIX' }, { v: r.signal, color: '#f59e0b', width: 1.2, name: '시그널' }], zero: true, fmtD: 3 }; }
+      },
+      pivot: {
+        cat: '패턴 · 구조', pane: 'main', name: '피벗 포인트 (일/주/월)', desc: '직전 기간 고·저·종가로 계산한 지지·저항 기준선 (PP=(H+L+C)/3, R1=2PP−L, S1=2PP−H, R2=PP+(H−L), S2=PP−(H−L)). 기준 0=자동(분봉→일, 일봉→주, 주·월봉→월), 1=일, 2=주, 3=월.',
+        params: [P('mode', '기준 (0자동·1일·2주·3월)', 0, 0, 3)], label: p => `피벗 ${['자동', '일', '주', '월'][p.mode] || '자동'}`,
+        compute: (h, p) => {
+          const mode = p.mode === 1 ? 'D' : p.mode === 2 ? 'W' : p.mode === 3 ? 'M' : TA.pivotAutoMode(h);
+          const r = TA.pivotPoints(h, mode);
+          const L = (v, color, name, dash) => ({ v, color, width: 1.1, dash, name, brk: r.brk, noScale: true });
+          return { lines: [L(r.r2, 'rgba(251,113,133,0.7)', 'R2', [3, 3]), L(r.r1, 'rgba(251,113,133,0.95)', 'R1'), L(r.pp, '#fbbf24', 'PP', [6, 3]), L(r.s1, 'rgba(52,211,153,0.95)', 'S1'), L(r.s2, 'rgba(52,211,153,0.7)', 'S2', [3, 3])] };
+        }
+      },
+      rsline: {
+        cat: '추세 강도', pane: 'sub', name: 'RS 라인 (vs SPY)', desc: '종목 종가 ÷ SPY(미국 S&P500 ETF) 종가, 시작점=100. 오르면 시장보다 강한 것. RS 라인이 최근 252봉 신고가인데 가격은 아직 신고가가 아니면 파란 점(블루닷) — 순위(IBD RS Rating)가 아니라 SPY 대비 단순 비율입니다. SPY 데이터가 필요해 불러오는 중에는 비어 있을 수 있습니다.',
+        params: [P('look', '신고가 구간(봉)', 252, 20, 500)], label: p => `RS vs SPY`, fmtD: 2,
+        compute: (h, p, st) => {
+          const spy = TA.spyProvider ? TA.spyProvider(h) : null;
+          if (!spy || !spy.length) return { lines: [], note: 'SPY 데이터 없음 (불러오는 중이거나 불러오지 못함)' };
+          const rs = TA.rsLine(h, spy);
+          if (!rs.some(v => v !== null)) return { lines: [], note: 'SPY 와 겹치는 기간이 없음' };
+          const dots = TA.rsBlueDot(closesOf(h), rs, p.look);
+          return { lines: [{ v: rs, color: st.color || '#38bdf8', width: 1.6, name: 'RS' }], ptDots: { flags: dots, v: rs, color: '#38bdf8' }, fmtD: 2 };
+        }
+      },
+      impulse: {
+        cat: '추세 강도', pane: 'main', name: '엘더 임펄스 (캔들 색)', desc: 'EMA13 기울기와 MACD 히스토그램 기울기를 합친 엘더의 신호등. 둘 다 상승=초록(매수 우위), 둘 다 하락=빨강(엘더는 빨강일 때 신규 매수 금지), 엇갈림=파랑. 캔들 색을 바꿔 보여줍니다.',
+        params: [P('ema', 'EMA 기간', 13, 2, 60), P('fast', 'MACD 단기', 12, 2, 60), P('slow', 'MACD 장기', 26, 5, 120), P('sig', 'MACD 시그널', 9, 2, 50)], label: p => `임펄스 ${p.ema}`,
+        compute: (h, p) => {
+          const r = TA.elderImpulse(closesOf(h), p.ema, p.fast, p.slow, p.sig);
+          return { barColors: r.dir.map(d => d === 1 ? '#10b981' : d === -1 ? '#f43f5e' : d === 0 ? '#38bdf8' : null) };
+        }
       }
     };
 
@@ -4061,71 +4330,129 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return trades;
     }
 
+    // ---------- 공용: 틱 · 신호봉 품질 · 성과 정리 ----------
+    // 종목별 호가 단위를 모르므로 가격 자릿수로 근사한 1틱(최소 0.01). 예) 150달러 → 0.01, 5만원 → 1.
+    const tickOf = p => Math.max(0.01, Math.pow(10, Math.floor(Math.log10(Math.max(p, 1e-9))) - 4));
+    // 신호봉 품질: dir=1 롱(양봉·종가가 범위 상위·위꼬리 작음), dir=-1 숏(대칭). 조건 = 몸통 ≥ 범위 50% · 종가가 진행 방향 상위 1/3 · 반대 꼬리 ≤ 25%.
+    function barQuality(c, dir) {
+      const range = c.high - c.low;
+      if (!(range > 0)) return null;
+      const bodyPct = Math.abs(c.close - c.open) / range;
+      const closePos = dir > 0 ? (c.close - c.low) / range : (c.high - c.close) / range;
+      const oppTail = dir > 0 ? (c.high - Math.max(c.open, c.close)) / range : (Math.min(c.open, c.close) - c.low) / range;
+      const dirOK = dir > 0 ? c.close > c.open : c.close < c.open;
+      return { bodyPct, closePos, oppTail, dirOK, pass: dirOK && bodyPct >= 0.5 && closePos >= 2 / 3 && oppTail <= 0.25 };
+    }
+    const presetEmpty = msg => ({ annot: { markers: [], levels: [], trades: [] }, rows: [{ k: '분석', v: msg, tone: 'warn' }], verdict: { text: msg, tone: 'warn' }, stats: { n: 0 }, statsShort: null, pending: '', rules: [], score: null });
+    // 마지막 봉에서 시작한 거래는 (당일 미완성일 수 있어) 성과 통계에서 제외한다
+    const settledTrades = (trades, n) => trades.filter(t => t.i0 < n - 1);
+
     // ---------- 1) Al Brooks 프라이스 액션 ----------
-    // H1/H2(상승 추세 눌림 후 고점 돌파) · L1/L2(하락 추세 반등 후 저점 이탈) 카운트
-    function brooksSignals(h, ema, start = 21) {
-      const out = [], n = h.length;
-      let bc = 0, bleg = false, bref = 0, sc = 0, sleg = false, sref = 0;
-      for (let i = start; i < n; i++) {
+    // H1/H2(상승 추세 눌림 후 고점 돌파) · L1/L2(하락 추세 반등 후 저점 이탈) 카운트.
+    // - 눌림 = 직전 봉보다 고점이 낮아지는 '다리'. 직전 봉 고점을 (1틱 이상) 넘으면 시도 1회(H1), 다음 다리가 앞선 다리의 저점을 갱신(또는 이중 바닥 ±0.1 ATR)한 뒤
+    //   다시 넘으면 H2(= 두 다리 눌림 확인). 두 번째 다리가 저점을 못 내리면 앞의 시도는 성공으로 보고 이번 시도를 새 H1 로 센다.
+    // - 맥락: 20 EMA 가 5봉 전보다 높고 저가가 EMA − 1.5 ATR 이상. 눌림 깊이는 0.5 ATR 이상이어야 한다.
+    // - 각 신호에 신호봉 품질(q) · EMA 근접(near: 신호봉이 EMA ± prox ATR 이내) · 등급(A/B/C) · 측정 이동 목표(mm)를 붙여 돌려준다. 거르는 것은 호출한 쪽(brooksValid).
+    function brooksSignals(h, ema, start = 21, atr = null, cfg = {}) {
+      const prox = cfg.proxAtr === undefined ? 1.0 : cfg.proxAtr, depthMin = 0.5, ddTol = 0.1;
+      const out = [], n = h.length, atrA = atr || TA.atr(h, 14); // atr 를 안 넘기는 호출자(전일 복기 모듈)는 내부에서 ATR(14)을 계산
+      const mk = () => ({ inLeg: false, c: 0, refHigh: 0, refIdx: -1, preLow: 0, pbLow: Infinity, legLow: Infinity, lastLegLow: null });
+      const S = { '1': mk(), '-1': mk() };
+      for (let i = Math.max(start, 6); i < n; i++) {
         const c = h[i], p = h[i - 1];
-        const e = ema[i], e5 = ema[i - 5];
-        if (e === null || e5 === null) continue;
-        const bullCtx = e > e5 && c.low >= e * 0.97;
-        const bearCtx = e < e5 && c.high <= e * 1.03;
-        // 상승 쪽
-        if (!bullCtx) { bc = 0; bleg = false; }
-        else {
-          if (c.high < p.high) { if (!bleg) { bleg = true; if (bc === 0) bref = p.high; } }
-          else if (c.high > p.high && bleg) {
-            bc++; bleg = false;
-            out.push({ i, dir: 1, n: bc, level: p.high, signalLow: p.low, signalHigh: p.high });
+        const e = ema[i], e5 = ema[i - 5], e1 = ema[i - 1];
+        if (e === null || e5 === null || e1 === null || e === undefined || e5 === undefined || e1 === undefined) continue;
+        let a = atrA[i - 1];
+        if (!a) { let sr = 0, k = 0; for (let j = Math.max(0, i - 14); j < i; j++) { sr += h[j].high - h[j].low; k++; } a = k && sr > 0 ? sr / k : c.close * 0.02; } // ATR 미산출 구간: 직전 봉 평균 고저폭
+        const tick = tickOf(c.close);
+        for (const dir of [1, -1]) {
+          let st = S[dir];
+          // 방향 정규화: 숏은 가격을 뒤집어(−) 롱 로직을 그대로 재사용
+          const H = dir > 0 ? c.high : -c.low, L = dir > 0 ? c.low : -c.high;
+          const pH = dir > 0 ? p.high : -p.low;
+          const ctxOk = dir > 0 ? (e > e5 && c.low >= e - 1.5 * a) : (e < e5 && c.high <= e + 1.5 * a);
+          if (!ctxOk) { S[dir] = mk(); continue; }
+          if (H < pH && !st.inLeg) {
+            st.inLeg = true;
+            if (st.c === 0) { // 새 눌림: 직전 봉 고점이 기준 스윙 고점
+              st.refHigh = pH; st.refIdx = i - 1; st.pbLow = L; st.legLow = L;
+              let pl = Infinity;
+              for (let j = Math.max(0, i - 21); j <= i - 1; j++) pl = Math.min(pl, dir > 0 ? h[j].low : -h[j].high);
+              st.preLow = pl;
+            } else st.legLow = L;
           }
-          if (bc > 0 && c.high > bref) { bc = 0; bleg = false; }
-        }
-        // 하락 쪽
-        if (!bearCtx) { sc = 0; sleg = false; }
-        else {
-          if (c.low > p.low) { if (!sleg) { sleg = true; if (sc === 0) sref = p.low; } }
-          else if (c.low < p.low && sleg) {
-            sc++; sleg = false;
-            out.push({ i, dir: -1, n: sc, level: p.low, signalLow: p.low, signalHigh: p.high });
+          if (st.inLeg) { st.legLow = Math.min(st.legLow, L); st.pbLow = Math.min(st.pbLow, L); }
+          if (st.inLeg && H >= pH + tick) {
+            const depth = st.refHigh - st.pbLow;
+            let cnt = st.c;
+            if (cnt >= 1 && !(st.legLow <= st.lastLegLow + ddTol * a)) cnt = 0; // 두 번째 다리가 저점을 갱신하지 못함 → 새 H1
+            cnt++;
+            st.lastLegLow = st.legLow; st.legLow = Infinity; st.inLeg = false; st.c = cnt;
+            if (depth >= depthMin * a) {
+              const q = barQuality(p, dir);
+              const near = dir > 0 ? p.low <= e1 + prox * a : p.high >= e1 - prox * a;
+              let pts = 0;
+              if (q && q.bodyPct >= 0.65) pts++;
+              if (q && q.closePos >= 0.8) pts++;
+              if (q && q.oppTail <= 0.1) pts++;
+              if (depth >= a) pts++;
+              if (Math.abs(e - e5) / a >= 0.5) pts++;
+              const mmM = st.pbLow + (st.refHigh - st.preLow);
+              out.push({
+                i, dir, n: cnt, level: dir > 0 ? p.high : p.low, signalLow: p.low, signalHigh: p.high,
+                q, near, grade: pts >= 4 ? 'A' : pts === 3 ? 'B' : 'C', depthAtr: depth / a, twoLeg: cnt >= 2,
+                mm: dir > 0 ? mmM : -mmM
+              });
+            }
           }
-          if (sc > 0 && c.low < sref) { sc = 0; sleg = false; }
+          if (st.refIdx >= 0 && H > st.refHigh) S[dir] = mk(); // 직전 스윙 고점 돌파 = 눌림 종료(추세 재개)
         }
       }
       return out;
     }
+    const brooksValid = s => !!(s.q && s.q.pass && s.near);
+    const brooksKeep = (s, o) => o.filter === false || brooksValid(s);
 
-    function analyzeBrooks(h) {
+    // 신호 → 거래 (스톱 주문: 신호봉 고점 +1틱 돌파 시 체결, 손절 = 신호봉 반대편 −1틱(최소 0.5 ATR), 목표 2R 또는 측정 이동)
+    function brooksTrade(h, atr, s, target, maxBars = 30, endIdx = null) {
+      const c = h[s.i], a = atr[s.i - 1] || (c.close * 0.02), tick = tickOf(c.close);
+      const entry = s.dir > 0 ? Math.max(c.open, s.level + tick) : Math.min(c.open, s.level - tick);
+      const stop = s.dir > 0 ? Math.min(s.signalLow - tick, entry - a * 0.5) : Math.max(s.signalHigh + tick, entry + a * 0.5);
+      const R = Math.abs(entry - stop);
+      let tgt = entry + s.dir * 2 * R, tag = '목표(2R)';
+      if (target === 'mm' && Number.isFinite(s.mm) && s.dir * (s.mm - entry) >= R) { tgt = s.mm; tag = '목표(MM)'; }
+      const view = endIdx === null ? h : h.slice(0, endIdx + 1);
+      const ex = walkTrade(view, s.i, entry, s.dir, stop, b => (s.dir > 0 ? b.high >= tgt : b.low <= tgt) ? { price: tgt, reason: tag } : null, maxBars);
+      return mkTrade(h, s.i, entry, s.dir, ex, `${s.dir > 0 ? 'H' : 'L'}2`);
+    }
+
+    function analyzeBrooks(h, opts = {}) {
+      const o = Object.assign({ side: 'long', target: '2R', filter: true }, opts);
+      if (!h || h.length < 2) return presetEmpty('분석에 필요한 봉이 부족합니다.');
       const n = h.length, closes = closesOf(h);
       const ema = TA.ema(closes, 20), atr = TA.atr(h, 14);
-      const all = brooksSignals(h, ema).filter(s => s.n >= 2 && s.n <= 3); // 4번째 이후 시도는 표시하지 않음
-      const sigs = all.filter(s => s.n === 2);                                  // 거래·성과 통계는 H2/L2 기준
-      const markers = all.map(s => ({
-        i: s.i, dir: s.dir > 0 ? 'up' : 'down', text: `${s.dir > 0 ? 'H' : 'L'}${s.n}`,
-        color: s.n === 3 ? '#fbbf24' : (s.dir > 0 ? '#34d399' : '#fb7185'), strong: s.n === 2
+      const raw = brooksSignals(h, ema, 21, atr).filter(s => s.n >= 2 && s.n <= 3);
+      const valid = raw.filter(s => brooksKeep(s, o));
+      const rejected = o.filter === false ? 0 : raw.filter(s => s.n === 2 && s.dir > 0 && !brooksValid(s)).length;
+      const markers = valid.map(s => ({
+        i: s.i, dir: s.dir > 0 ? 'up' : 'down', text: `${s.dir > 0 ? 'H' : 'L'}${s.n}·${s.grade}`,
+        color: s.n === 3 ? '#fbbf24' : (s.dir > 0 ? '#34d399' : '#fb7185'), strong: s.n === 2 && (o.side === 'both' || s.dir > 0)
       }));
+      const sigs = valid.filter(s => s.n === 2 && (o.side === 'both' || s.dir > 0));
+      const trades = simulate(h, sigs, s => brooksTrade(h, atr, s, o.target));
+      const done = settledTrades(trades, n);
+      const stats = TA.tradeStats(done.filter(t => t.dir > 0), h);
+      const statsShort = o.side === 'both' ? TA.tradeStats(done.filter(t => t.dir < 0), h) : null;
 
-      // 거래: 신호봉(i-1) 고/저 돌파 시 진입(스톱 주문), 손절 = 신호봉 반대편 끝(최소 0.5 ATR), 목표 2R, 최대 30봉 보유
-      const trades = simulate(h, sigs, s => {
-        const c = h[s.i], a = atr[s.i - 1] || (c.close * 0.02);
-        const entry = s.dir > 0 ? Math.max(c.open, s.level) : Math.min(c.open, s.level);
-        const stop = s.dir > 0 ? Math.min(s.signalLow, entry - a * 0.5) : Math.max(s.signalHigh, entry + a * 0.5);
-        const R = Math.abs(entry - stop);
-        const target = entry + s.dir * 2 * R;
-        const ex = walkTrade(h, s.i, entry, s.dir, stop, (b) => (s.dir > 0 ? b.high >= target : b.low <= target) ? { price: target, reason: '목표(2R)' } : null, 30);
-        return mkTrade(h, s.i, entry, s.dir, ex, 'H2');
-      });
-
-      // 상태 판단 (Always In)
+      // 상태 판단 (Always In 근사: 최근 10봉 중 EMA 위 마감 수 + EMA 기울기 + 20봉 EMA 교차 횟수)
       const last = h[n - 1], e = ema[n - 1], e6 = ema[n - 6];
       let above = 0, crosses = 0;
       for (let i = n - 10; i < n; i++) if (i >= 0 && ema[i] !== null && h[i].close > ema[i]) above++;
       for (let i = n - 20; i < n; i++) if (i >= 1 && ema[i] !== null && ema[i - 1] !== null && (h[i].close > ema[i]) !== (h[i - 1].close > ema[i - 1])) crosses++;
       let state = '전환/불명확', tone = 'warn';
       if (crosses >= 4) { state = '횡보 (트레이딩 레인지)'; tone = 'info'; }
-      else if (e !== null && e6 !== null && above >= 8 && e > e6) { state = 'Always In 롱 (상승 추세)'; tone = 'good'; }
-      else if (e !== null && e6 !== null && above <= 2 && e < e6) { state = 'Always In 숏 (하락 추세)'; tone = 'bad'; }
+      else if (e !== null && e6 !== null && above >= 8 && e > e6) { state = 'Always In 롱 (상승 추세, 근사)'; tone = 'good'; }
+      else if (e !== null && e6 !== null && above <= 2 && e < e6) { state = 'Always In 숏 (하락 추세, 근사)'; tone = 'bad'; }
       const distAtr = (e !== null && atr[n - 1]) ? (last.close - e) / atr[n - 1] : null;
 
       // 스윙 구조 + 측정 이동(MM)
@@ -4137,7 +4464,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (confirmed.length >= 2) {
         const b = confirmed[confirmed.length - 1], a = confirmed[confirmed.length - 2];
         const leg = Math.abs(b.price - a.price);
-        if (b.type === 'H') { // 상승 레그 완료 후 눌림 중 → 눌림 저점 + 레그 길이
+        if (b.type === 'H') {
           let lo = Infinity; for (let i = b.i; i < n; i++) lo = Math.min(lo, h[i].low);
           const tgt = lo + leg;
           levels.push({ price: b.price, color: '#fbbf24', label: `스윙 고점 ${fmtN(b.price)}`, dash: [5, 4] });
@@ -4153,57 +4480,68 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }
 
       const lastSig = sigs[sigs.length - 1];
-      const stats = TA.tradeStats(trades, h);
+      const lastBarSig = valid.filter(s => s.i === n - 1 && s.n === 2 && (o.side === 'both' || s.dir > 0));
+      const ago = lastSig ? n - 1 - lastSig.i : null;
       const rows = [
         { k: '추세 상태', v: state, tone },
         { k: '20 EMA 대비', v: distAtr === null ? '' : `${distAtr >= 0 ? '+' : ''}${distAtr.toFixed(1)} ATR ${Math.abs(distAtr) > 2.5 ? '(EMA에서 멀리 이탈 — 눌림/되돌림 가능)' : Math.abs(distAtr) < 0.7 ? '(EMA 근처 — 눌림목 구간)' : ''}`, tone: Math.abs(distAtr || 0) > 2.5 ? 'warn' : 'info' },
-        { k: '최근 H2/L2 신호', v: lastSig ? `${lastSig.dir > 0 ? 'H' : 'L'}${lastSig.n} · ${h[lastSig.i].date} (${n - 1 - lastSig.i}봉 전)${n - 1 - lastSig.i <= 3 ? ' ← 최근' : ''}` : '신호 없음', tone: lastSig ? (lastSig.dir > 0 ? 'good' : 'bad') : 'info' },
-        { k: '측정 이동(MM)', v: mmText || '스윙 구조 계산 불가', tone: 'info' }
+        { k: '최근 H2/L2 신호 (품질 필터 통과)', v: lastSig ? `${lastSig.dir > 0 ? 'H' : 'L'}${lastSig.n} 등급 ${lastSig.grade} · ${h[lastSig.i].date} (${ago}봉 전)${ago <= 3 ? ' ← 최근' : ''}` : '신호 없음', tone: lastSig ? (lastSig.dir > 0 ? 'good' : 'bad') : 'info' },
+        { k: '필터로 제외된 H2', v: rejected ? `${rejected}개 (신호봉 품질·EMA 근접 미달)` : '', tone: 'info' },
+        { k: '측정 이동(MM)', v: mmText || '스윙 구조 계산 불가', tone: 'info' },
+        { k: '청산 목표', v: o.target === 'mm' ? '측정 이동(MM) 목표 (1R 이상일 때, 아니면 2R)' : '2R (손절 폭의 2배)', tone: 'info' }
       ];
       let verdict = '횡보 구간입니다. 박스 상·하단에서의 반전 신호(실패한 돌파)를 노리는 편이 낫고, 중간에서는 관망하세요.';
-      if (tone === 'good') verdict = lastSig && lastSig.dir > 0 && n - 1 - lastSig.i <= 3 ? '상승 추세 속 눌림 후 H2 신호가 최근 발생했습니다. 신호봉 고점 돌파 진입, 손절은 신호봉 저점 아래가 기본 시나리오입니다.' : '상승 추세입니다. 20 EMA 부근까지 눌릴 때 H1/H2 신호봉을 기다리세요. EMA에서 멀리 벗어난 추격 매수는 피합니다.';
+      if (tone === 'good') verdict = lastSig && lastSig.dir > 0 && ago <= 3 ? `상승 추세 속 두 다리 눌림 뒤 H2 신호(등급 ${lastSig.grade})가 최근 발생했습니다. 신호봉 고점 +1틱 돌파 진입, 손절은 신호봉 저점 아래가 기본 시나리오입니다.` : '상승 추세입니다. 20 EMA 부근까지 두 다리로 눌릴 때 H2 신호봉을 기다리세요. EMA에서 멀리 벗어난 추격 매수는 피합니다.';
       else if (tone === 'bad') verdict = '하락 추세입니다. 신규 매수보다 관망이 우선이며, 반등이 20 EMA 부근에서 L2 신호를 보일 때가 숏/회피 구간입니다.';
       return {
         annot: { markers, levels, trades },
-        rows, verdict: { text: verdict, tone }, stats,
+        rows, verdict: { text: verdict, tone }, stats, statsShort,
+        statsLabel: o.side === 'both' ? '롱(H2) 거래' : '롱(H2) 거래만 집계',
+        pending: lastBarSig.length ? '마지막 봉(미완성일 수 있음)에서 신호가 나와 성과 통계에서 제외했습니다.' : '',
         rules: [
-          '진입: 상승 추세(20 EMA 우상향·가격이 EMA 위)에서 눌림(고점이 낮아지는 봉) 후 직전 봉 고점을 다시 넘는 두 번째 시도(H2). 하락은 L2.',
-          '손절: 신호봉(직전 봉)의 반대편 끝 (최소 0.5 ATR). 목표: 2R 또는 측정 이동(MM) 목표.',
-          '추세가 강할수록 H1에서도 진입하지만, 횡보 구간의 첫 시도는 실패가 많아 H2를 기준으로 합니다.'
+          '진입: 상승 추세(20 EMA 우상향·저가가 EMA−1.5ATR 이상)에서 눌림(고점이 낮아지는 다리) 후 직전 봉 고점 +1틱을 넘는 시도를 센다. H2 = 두 번째 다리가 앞선 다리의 저점을 갱신(또는 이중 바닥 ±0.1ATR)한 뒤의 재돌파(두 다리 눌림 확인). 눌림 깊이는 0.5 ATR 이상. 하락은 L2(대칭).',
+          '신호봉(= 돌파되는 직전 봉) 품질 필터: 진입 방향 몸통 ≥ 범위의 50%, 종가가 범위 상위 1/3, 반대쪽 꼬리 ≤ 25%, 봉이 EMA ±1 ATR 이내. 등급 A/B/C = 몸통·종가 위치·꼬리·눌림 깊이·EMA 기울기 충족 개수(A≥4, B=3). 통과 못한 신호는 표시하지 않습니다(설정에서 필터를 끌 수 있음 — 표본은 늘지만 잡음도 늘어납니다).',
+          '손절: 신호봉 반대편 −1틱 (최소 0.5 ATR). 목표: 2R(기본) 또는 측정 이동(MM). 틱은 가격 자릿수로 근사한 값(종목별 호가 단위와 다를 수 있음).',
+          '통계는 롱(H2)만 집계하는 것이 기본이며 L2 마커는 참고용입니다(설정에서 숏 포함 시 별도 표로 분리). Always In 판정은 EMA 위치·기울기·교차 횟수로 근사한 값입니다.'
         ]
       };
     }
 
     // ---------- 1b) Brooks 5분봉 (데이트레이딩 화면) — 같은 규칙을 '거래일 안에서만' 적용 ----------
     // H/L 카운트는 매일 장 시작에 리셋하고, 모의 포지션은 그날 장 마감에 청산한다. 20 EMA 는 전일부터 이어서 계산.
-    function analyzeBrooks5(h) {
+    function analyzeBrooks5(h, opts = {}) {
+      const o = Object.assign({ side: 'long', target: '2R', filter: true }, opts);
       const n = h.length, closes = closesOf(h);
-      const ema = TA.ema(closes, 20), atr = TA.atr(h, 14), vw = TA.sessionVwap(h), ses = TA.sessions(h);
+      const ses = TA.sessions(h);
+      if (!n || !ses.length) {
+        return { annot: { markers: [], levels: [], trades: [] }, rows: [{ k: '세션', v: '분봉 거래일을 찾지 못했습니다 (분봉 데이터가 필요)', tone: 'warn' }],
+          verdict: { text: '분봉 거래일(세션) 정보를 찾지 못해 분석하지 않았습니다.', tone: 'warn' }, stats: { n: 0 }, statsShort: null, pending: '', rules: [] };
+      }
+      const ema = TA.ema(closes, 20), atr = TA.atr(h, 14), vw = TA.sessionVwap(h);
       const sigAll = [];
       ses.forEach(s => {
-        brooksSignals(h.slice(s.i0, s.i1 + 1), ema.slice(s.i0, s.i1 + 1), 6).forEach(g => { if (g.n >= 2 && g.n <= 3) sigAll.push({ ...g, i: g.i + s.i0, level: g.level, ses: s }); });
+        brooksSignals(h.slice(s.i0, s.i1 + 1), ema.slice(s.i0, s.i1 + 1), 6, atr.slice(s.i0, s.i1 + 1)).forEach(g => {
+          if (g.n >= 2 && g.n <= 3 && brooksKeep(g, o)) sigAll.push({ ...g, i: g.i + s.i0, ses: s });
+        });
       });
-      const sigs = sigAll.filter(g => g.n === 2);
+      const sigs = sigAll.filter(g => g.n === 2 && (o.side === 'both' || g.dir > 0));
       const markers = sigAll.map(g => ({
-        i: g.i, dir: g.dir > 0 ? 'up' : 'down', text: `${g.dir > 0 ? 'H' : 'L'}${g.n}`,
-        color: g.n === 3 ? '#fbbf24' : (g.dir > 0 ? '#34d399' : '#fb7185'), strong: g.n === 2
+        i: g.i, dir: g.dir > 0 ? 'up' : 'down', text: `${g.dir > 0 ? 'H' : 'L'}${g.n}·${g.grade}`,
+        color: g.n === 3 ? '#fbbf24' : (g.dir > 0 ? '#34d399' : '#fb7185'), strong: g.n === 2 && (o.side === 'both' || g.dir > 0)
       }));
+      const lastSes = ses[ses.length - 1];
       const trades = [];
       sigs.forEach(g => {
-        const c = h[g.i], a = atr[g.i - 1] || (c.close * 0.002);
-        const entry = g.dir > 0 ? Math.max(c.open, g.level) : Math.min(c.open, g.level);
-        const stop = g.dir > 0 ? Math.min(g.signalLow, entry - a * 0.5) : Math.max(g.signalHigh, entry + a * 0.5);
-        const R = Math.abs(entry - stop), target = entry + g.dir * 2 * R;
-        const view = h.slice(0, g.ses.i1 + 1); // 그날 장 마감까지만
-        const ex = walkTrade(view, g.i, entry, g.dir, stop, b => (g.dir > 0 ? b.high >= target : b.low <= target) ? { price: target, reason: '목표(2R)' } : null, 30);
-        if (ex.open && g.ses.i1 < n - 1 && g.ses !== ses[ses.length - 1]) { ex.open = false; ex.reason = '장 마감 청산'; }
-        trades.push(mkTrade(h, g.i, entry, g.dir, ex, 'H2'));
+        const t = brooksTrade(h, atr, g, o.target, 30, g.ses.i1); // 그날 장 마감까지만
+        if (t.open && g.ses !== lastSes) { t.open = false; t.reason = '장 마감 청산'; }
+        trades.push(t);
       });
       // 같은 구간에서 겹치는 신호는 한 포지션만 (먼저 나온 것)
       const kept = []; let free = -1;
       trades.forEach(t => { if (t.i0 <= free) return; kept.push(t); free = t.i1; });
+      const done = settledTrades(kept, n);
 
-      const ls = ses[ses.length - 1], ps = ses.length >= 2 ? ses[ses.length - 2] : null;
+      const ls = lastSes, ps = ses.length >= 2 ? ses[ses.length - 2] : null;
       const last = h[n - 1], e = ema[n - 1], vwLast = vw[n - 1];
       let above = 0, cnt = 0, crosses = 0;
       for (let i = Math.max(ls.i0, n - 10); i < n; i++) { cnt++; if (ema[i] !== null && h[i].close > ema[i]) above++; }
@@ -4213,8 +4551,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (cnt >= 8) {
         state = '전환/불명확'; tone = 'warn';
         if (crosses >= 4) { state = '횡보 (트레이딩 레인지)'; tone = 'info'; }
-        else if (e !== null && e6 !== null && above >= 8 && e > e6) { state = 'Always In 롱 (상승 우위)'; tone = 'good'; }
-        else if (e !== null && e6 !== null && above <= 2 && e < e6) { state = 'Always In 숏 (하락 우위)'; tone = 'bad'; }
+        else if (e !== null && e6 !== null && above >= 8 && e > e6) { state = 'Always In 롱 (상승 우위, 근사)'; tone = 'good'; }
+        else if (e !== null && e6 !== null && above <= 2 && e < e6) { state = 'Always In 숏 (하락 우위, 근사)'; tone = 'bad'; }
       }
       const distAtr = (e !== null && atr[n - 1]) ? (last.close - e) / atr[n - 1] : null;
       const lastSig = sigs[sigs.length - 1];
@@ -4225,51 +4563,75 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (ps) posPd = last.close > ps.high ? '전일 고가 위' : last.close < ps.low ? '전일 저가 아래' : '전일 고저 범위 안';
       const rows = [
         { k: '최근 세션 (현지)', v: `${ls.date} · ${h[ls.i0].hm}~${h[ls.i1].hm}`, tone: 'info' },
-        { k: '추세 상태 (Always In)', v: state, tone },
+        { k: '추세 상태 (Always In 근사)', v: state, tone },
         { k: '20 EMA 대비', v: distAtr === null ? '' : `${distAtr >= 0 ? '+' : ''}${distAtr.toFixed(1)} ATR(5분) ${Math.abs(distAtr) > 2.5 ? '(EMA에서 멀리 이탈)' : Math.abs(distAtr) < 0.7 ? '(EMA 근처 — 눌림 구간)' : ''}`, tone: Math.abs(distAtr || 0) > 2.5 ? 'warn' : 'info' },
         { k: '세션 VWAP 대비', v: vwDiff === null ? '' : `${vwDiff >= 0 ? '+' : ''}${vwDiff.toFixed(2)}% (${vwDiff >= 0 ? 'VWAP 위' : 'VWAP 아래'})`, tone: vwDiff === null ? 'info' : vwDiff >= 0 ? 'good' : 'bad' },
         { k: '전일 고가 / 저가 / 종가', v: ps ? `${fmtN(ps.high)} / ${fmtN(ps.low)} / ${fmtN(ps.close)}` : '', tone: 'info' },
         { k: '현재가 위치', v: posPd, tone: posPd === '전일 고가 위' ? 'good' : posPd === '전일 저가 아래' ? 'bad' : 'info' },
         { k: '시가 갭 (전일 종가 대비)', v: gap === null ? '' : `${gap >= 0 ? '+' : ''}${gap.toFixed(2)}%`, tone: 'info' },
-        { k: '최근 H2/L2 신호', v: lastSig ? `${lastSig.dir > 0 ? 'H' : 'L'}${lastSig.n} · ${sig.date} ${sig.hm}` : '신호 없음', tone: lastSig ? (lastSig.dir > 0 ? 'good' : 'bad') : 'info' }
+        { k: '최근 H2/L2 신호 (품질 필터 통과)', v: lastSig ? `${lastSig.dir > 0 ? 'H' : 'L'}${lastSig.n} 등급 ${lastSig.grade} · ${sig.date} ${sig.hm}` : '신호 없음', tone: lastSig ? (lastSig.dir > 0 ? 'good' : 'bad') : 'info' }
       ];
       let verdict = '횡보 구간입니다. 레인지 상·하단의 실패한 돌파를 노리는 편이 낫고, 중간에서는 관망하세요 (20 EMA를 자주 가로지르는 날은 H2/L2도 실패가 많습니다).';
       if (state.startsWith('판단 보류')) verdict = '이 세션의 5분봉이 아직 충분하지 않아 추세 상태를 판단하지 않습니다.';
       else if (tone === 'good') verdict = `최근 세션은 20 EMA 위에서 거래되는 상승 우위 상태입니다${vwDiff !== null ? ` (VWAP ${vwDiff >= 0 ? '위' : '아래'} ${Math.abs(vwDiff).toFixed(2)}%)` : ''}. 20 EMA 부근으로 눌릴 때 H2 신호봉이 나오는지가 핵심 관찰 포인트입니다.`;
       else if (tone === 'bad') verdict = `최근 세션은 20 EMA 아래에서 거래되는 하락 우위 상태입니다${vwDiff !== null ? ` (VWAP ${vwDiff >= 0 ? '위' : '아래'} ${Math.abs(vwDiff).toFixed(2)}%)` : ''}. 반등이 20 EMA 부근에서 L2 신호를 보이는지가 핵심 관찰 포인트입니다.`;
       verdict += ' (교육용 설명이며 매매 권유가 아닙니다)';
+      const lastBarSig = sigs.filter(g => g.i === n - 1).length > 0;
       return {
         annot: { markers, levels: [], trades: kept },
-        rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(kept, h),
+        rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(done.filter(t => t.dir > 0), h),
+        statsShort: o.side === 'both' ? TA.tradeStats(done.filter(t => t.dir < 0), h) : null,
+        statsLabel: o.side === 'both' ? '롱(H2) 거래' : '롱(H2) 거래만 집계',
+        pending: lastBarSig ? '마지막 봉(미완성일 수 있음)에서 신호가 나와 성과 통계에서 제외했습니다.' : '',
         rules: [
           '데이트레이딩(5분봉) 화면입니다. H/L 카운트는 매 거래일 장 시작에 리셋되고, 모의 포지션은 그날 장 마감까지만 보유합니다 (오버나이트 없음).',
-          '진입: 20 EMA 우상향(우하향) 구간에서 눌림(반등) 후 직전 봉 고점(저점)을 다시 넘는 두 번째 시도(H2/L2). H3/L3은 노란색으로만 표시하고 성과 집계에서는 제외합니다.',
-          '손절: 신호봉 반대편 끝 (최소 0.5 ATR). 목표: 2R, 최대 30봉(2시간 30분) 보유. 세션 VWAP와 전일 고가·저가·종가는 지지/저항 참고선입니다.',
+          '진입: 20 EMA 우상향(우하향) 구간에서 두 다리 눌림(반등) 후 직전 봉 고점(저점) ±1틱을 넘는 두 번째 시도(H2/L2). 신호봉 품질 필터(몸통≥50%·종가 상위 1/3·반대 꼬리≤25%)와 EMA 근접(±1ATR)을 통과한 것만 표시. H3/L3은 노란색으로만 표시하고 성과 집계에서는 제외합니다.',
+          '손절: 신호봉 반대편 −1틱 (최소 0.5 ATR). 목표: 2R, 최대 30봉(2시간 30분) 보유. 세션 VWAP와 전일 고가·저가·종가는 지지/저항 참고선입니다.',
           '5분봉 신호는 일봉보다 잡음이 많고 표본이 작습니다. 수수료·슬리피지를 반영하지 않으므로 실제 성과와 크게 다를 수 있습니다.'
         ]
       };
     }
 
-    // ---------- 2) Minervini 트렌드 템플릿 (스테이지 2) ----------
-    function analyzeMinervini(h) {
+    // ---------- 2) Minervini 트렌드 템플릿 ----------
+    // 한 시점(i)의 템플릿 조건 평가. 52주 구간과 200일선 상승 확인 간격은 '가용한 봉' 안에서 계산하고 부족하면 note 에 "N봉 기준"을 적는다.
+    // 8번째 조건(RS Rating ≥ 70)은 순위를 알 수 없어 'SPY 대비 가중 수익률 우위'로 근사 — IBD RS Rating 과 다르다. SPY 없으면 ok=null(미확인).
+    function minerviniEval(h, i, ma, spyAl) {
+      const { s50, s150, s200, closes } = ma;
+      if (s50[i] === null || s150[i] === null || s200[i] === null) return null;
+      const c = closes[i], win = Math.min(252, i + 1);
+      let hi = -Infinity, lo = Infinity;
+      for (let j = i - win + 1; j <= i; j++) { if (h[j].high > hi) hi = h[j].high; if (h[j].low < lo) lo = h[j].low; }
+      const L = Math.min(22, i - 199); // 200일선의 첫 값은 199번 봉
+      const wn = win < 252 ? `${win}봉 기준` : '';
+      const items = [
+        { k: '현재가 > 150일선, 200일선', ok: c > s150[i] && c > s200[i] },
+        { k: '150일선 > 200일선', ok: s150[i] > s200[i] },
+        { k: '200일선이 1개월 이상 상승 중', ok: L >= 5 ? s200[i] > s200[i - L] : null, note: L < 22 ? (L >= 5 ? `${L}봉 전 대비` : '봉 부족') : '' },
+        { k: '50일선 > 150일선, 200일선', ok: s50[i] > s150[i] && s50[i] > s200[i] },
+        { k: '현재가 > 50일선', ok: c > s50[i] },
+        { k: '52주 저점보다 30% 이상 위', ok: c >= lo * 1.3, note: wn },
+        { k: '52주 고점의 25% 이내', ok: c >= hi * 0.75, note: wn }
+      ];
+      let rs = null;
+      if (spyAl) { const w = TA.weightedReturn(closes, i, spyAl); if (w) rs = { stock: w.score * 100, spy: w.score2 * 100, horizon: w.horizon }; }
+      items.push({
+        k: 'RS: SPY 대비 가중 수익률 우위 (근사 · IBD RS Rating 아님)', ok: rs ? rs.stock > rs.spy : null,
+        note: rs ? `종목 ${pctS(rs.stock)} vs SPY ${pctS(rs.spy)}${rs.horizon < 252 ? ` · ${rs.horizon}봉 기준` : ''}` : 'SPY 데이터 없음 — 미확인', rs: true
+      });
+      const base = items.slice(0, 7), passed7 = base.filter(x => x.ok === true).length;
+      const rsKnown = items[7].ok !== null;
+      return { items, passed7, all7: passed7 === 7, passed: passed7 + (items[7].ok === true ? 1 : 0), total: 7 + (rsKnown ? 1 : 0), rs, win, rsKnown };
+    }
+
+    function analyzeMinervini(h, opts = {}) {
+      const o = Object.assign({ rsFilter: false, spy: null }, opts);
+      if (!h || h.length < 2) return presetEmpty('분석에 필요한 봉이 부족합니다.');
       const n = h.length, closes = closesOf(h);
-      const s50 = TA.sma(closes, 50), s150 = TA.sma(closes, 150), s200 = TA.sma(closes, 200);
-      const hi252 = TA.highest(h.map(c => c.high), 252), lo252 = TA.lowest(h.map(c => c.low), 252);
+      const ma = { s50: TA.sma(closes, 50), s150: TA.sma(closes, 150), s200: TA.sma(closes, 200), closes };
+      const spyAl = (o.spy && o.spy.length) ? TA.alignClose(h, o.spy) : null;
+      const ev = h.map((_, i) => minerviniEval(h, i, ma, spyAl));
+      const okArr = ev.map(e => e ? (e.all7 && (!o.rsFilter || e.items[7].ok === true)) : null);
       const vol50 = TA.sma(h.map(c => c.volume || 0), 50);
-      const crit = i => {
-        if ([s50[i], s150[i], s200[i], hi252[i], lo252[i]].some(v => v === null) || i < 22 || s200[i - 22] === null) return null;
-        const c = closes[i];
-        return [
-          ['현재가 > 150일선, 200일선', c > s150[i] && c > s200[i]],
-          ['150일선 > 200일선', s150[i] > s200[i]],
-          ['200일선이 1개월 이상 상승 중', s200[i] > s200[i - 22]],
-          ['50일선 > 150일선, 200일선', s50[i] > s150[i] && s50[i] > s200[i]],
-          ['현재가 > 50일선', c > s50[i]],
-          ['52주 저점보다 30% 이상 위', c >= lo252[i] * 1.3],
-          ['52주 고점의 25% 이내', c >= hi252[i] * 0.75]
-        ];
-      };
-      const okArr = h.map((_, i) => { const c = crit(i); return c ? c.every(x => x[1]) : null; });
       const shade = [];
       okArr.forEach((ok, i) => { if (ok) shade.push({ i, color: 'rgba(16,185,129,0.07)' }); });
 
@@ -4286,12 +4648,11 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const trades = simulate(h, sigs, s => {
         if (s.i + 1 >= n) return null;
         const i0 = s.i + 1, entry = h[i0].open;
-        const ex = walkTrade(h, i0, entry, 1, entry * 0.92, (c, j) => s50[j] !== null && c.close < s50[j] ? { price: c.close, reason: '50일선 이탈' } : null, 150);
+        const ex = walkTrade(h, i0, entry, 1, entry * 0.92, (c, j) => ma.s50[j] !== null && c.close < ma.s50[j] ? { price: c.close, reason: '50일선 이탈' } : null, 150);
         return mkTrade(h, i0, entry, 1, ex, 'BO');
       });
 
-      const c = crit(n - 1);
-      const passed = c ? c.filter(x => x[1]).length : null;
+      const e = ev[n - 1];
       const last = h[n - 1];
       const perf6 = n > 126 ? (last.close / closes[n - 127] - 1) * 100 : null;
       const levels = [];
@@ -4299,73 +4660,152 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (Number.isFinite(pv)) levels.push({ price: pv, color: '#fbbf24', label: `피벗(20일 고점) ${fmtN(pv)}`, dash: [5, 4] });
       levels.push({ price: last.close * 0.92, color: '#fb7185', label: `손절 -8% ${fmtN(last.close * 0.92)}`, dash: [2, 3] });
 
-      const rows = c ? c.map(x => ({ k: x[0], v: x[1] ? '충족 ✓' : '미충족 ✗', tone: x[1] ? 'good' : 'bad' })) : [{ k: '트렌드 템플릿', v: '200일선 계산에 필요한 데이터(약 1년 이상)가 부족합니다', tone: 'warn' }];
-      rows.push({ k: '상대강도(RS) 참고', v: perf6 === null ? '' : `최근 6개월 수익률 ${pctS(perf6)} (시장 대비 RS 순위는 이 앱에서 계산하지 않음)`, tone: 'info' });
-      let verdict = '데이터가 부족해 판단할 수 없습니다.', tone = 'warn';
-      if (c) {
-        if (passed === 7) { verdict = '트렌드 템플릿 7개 조건을 모두 충족하는 스테이지 2(상승 추세) 종목입니다. 거래량이 실린 피벗(20일 고점) 돌파 때 진입을 고려하고, 손절은 -7~8%가 기본입니다.'; tone = 'good'; }
-        else if (passed >= 5) { verdict = `${passed}/7 충족 — 상승 추세에 근접했지만 아직 템플릿 미완성입니다. 미충족 조건이 해소되는지 지켜보세요.`; tone = 'warn'; }
-        else { verdict = `${passed}/7 충족 — 스테이지 2가 아닙니다. 이 기법에서는 매수 대상이 아닙니다.`; tone = 'bad'; }
+      const rows = e ? e.items.map(x => ({ k: x.k, v: (x.ok === true ? '충족 ✓' : x.ok === false ? '미충족 ✗' : '미확인 ?') + (x.note ? ` (${x.note})` : ''), tone: x.ok === true ? 'good' : x.ok === false ? 'bad' : 'warn' }))
+        : [{ k: '트렌드 템플릿', v: `200일선 계산에 최소 200봉이 필요합니다 (현재 ${n}봉)`, tone: 'warn' }];
+      const vcp = TA.vcp(h);
+      if (e) rows.push({ k: 'VCP (정보용)', v: vcp.text, tone: vcp.found && vcp.dryUp ? 'good' : vcp.found ? 'warn' : 'info' });
+      rows.push({ k: '최근 6개월 수익률 (참고)', v: perf6 === null ? '' : pctS(perf6), tone: 'info' });
+      let verdict = '데이터가 부족해 판단할 수 없습니다.', tone = 'warn', score = null;
+      if (e) {
+        score = e.rsKnown ? `${e.passed}/8` : `${e.passed}/7 (RS 미확인)`;
+        const T = e.total, P0 = e.passed;
+        const rsTxt = e.rsKnown ? '' : ' RS 조건은 SPY 데이터가 없어 확인하지 못했습니다.';
+        const wnTxt = e.win < 252 ? ` (52주 구간은 가용한 ${e.win}봉 기준)` : '';
+        if (P0 === T) { verdict = `트렌드 템플릿 ${P0}/${T} 충족${wnTxt} — 상승 추세 조건을 모두 갖춘 후보 상태입니다(조건 충족 여부일 뿐 '스테이지 2' 단정이나 상승 보장이 아닙니다).${rsTxt} 거래량이 실린 피벗(20일 고점) 돌파 때 진입을 고려하고, 손절은 −7~8%가 기본입니다.`; tone = 'good'; }
+        else if (P0 >= T - 2) { verdict = `트렌드 템플릿 ${P0}/${T} 충족${wnTxt} — 상승 추세에 근접했지만 아직 미완성입니다. 미충족 조건이 해소되는지 지켜보세요.${rsTxt}`; tone = 'warn'; }
+        else { verdict = `트렌드 템플릿 ${P0}/${T} 충족${wnTxt} — 이 기법의 매수 후보 조건에 미달입니다.${rsTxt}`; tone = 'bad'; }
       }
+      const lastBarSig = sigs.length && sigs[sigs.length - 1].i === n - 1;
       return {
-        annot: { markers, levels, shade, trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(trades, h), score: passed === null ? null : `${passed}/7`,
+        annot: { markers, levels, shade, trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(settledTrades(trades, n), h), score,
+        pending: lastBarSig ? '마지막 봉에서 돌파 신호가 나왔습니다. 진입은 다음 봉 시가라 아직 거래가 없어 성과 통계에 반영되지 않았습니다.' : '',
         rules: [
-          '템플릿 7조건(Mark Minervini, "Trade Like a Stock Market Wizard"): 가격>150·200일선, 150>200일선, 200일선 1개월+ 상승, 50>150·200일선, 가격>50일선, 52주 저점 +30%, 52주 고점 -25% 이내.',
-          '진입: 템플릿 충족 + 직전 20봉 고점 돌파 + 거래량이 50일 평균의 1.4배 이상 (차트의 ▲돌파). 초록 배경 = 템플릿 충족 구간.',
-          '청산: 손절 -8% 또는 종가가 50일선 아래로 마감.'
+          '트렌드 템플릿 8조건(Mark Minervini, "Trade Like a Stock Market Wizard"): 가격>150·200일선, 150>200일선, 200일선 1개월+ 상승(가급적 4~5개월), 50>150·200일선, 가격>50일선, 52주 저점 +30%(해설에 따라 +25%), 52주 고점 −25% 이내, RS Rating ≥ 70.',
+          'RS Rating(≥70)은 전 종목 대비 순위라 이 앱에서 계산할 수 없습니다. 대신 SPY 대비 가중 수익률(0.4×3개월+0.2×6개월+0.2×9개월+0.2×12개월)이 SPY보다 높은지로 근사하며 IBD RS Rating 과 다릅니다. SPY 데이터를 불러오지 못하면 "미확인"으로 두고 7개 조건으로 판정합니다.',
+          '데이터가 252봉(52주)·222봉(200일선+1개월)보다 짧으면 가용한 봉 안에서 계산하고 "N봉 기준"으로 표기합니다 (200일선 자체는 최소 200봉 필요). 진입: 템플릿(가격·이평 7조건) 충족 + 직전 20봉 고점 돌파 + 거래량 50일 평균의 1.4배 이상 (차트의 ▲돌파). 초록 배경 = 템플릿 충족 구간.',
+          '청산: 손절 −8% 또는 종가가 50일선 아래로 마감. VCP(수축이 점점 작아지고 마지막 수축에서 거래량이 마르는 패턴)는 지그재그로 근사한 정보용 표시이며 진입 조건이 아닙니다.'
         ]
       };
     }
 
     // ---------- 3) 터틀 / 돈치안 채널 돌파 ----------
-    function analyzeTurtle(h) {
-      const n = h.length;
-      const atr20 = TA.atr(h, 20);
-      const hh = (a, b, p) => { let m = -Infinity; for (let j = a - p; j < a; j++) if (j >= 0) m = Math.max(m, h[j][b]); return m; };
-      const ll = (a, p) => { let m = Infinity; for (let j = a - p; j < a; j++) if (j >= 0) m = Math.min(m, h[j].low); return m; };
-      const markers = [], sigs = [];
-      for (let i = 56; i < n; i++) {
-        const c = h[i], u20 = hh(i, 'high', 20), u55 = hh(i, 'high', 55), l20 = ll(i, 20);
-        if (c.high > u55) markers.push({ i, dir: 'up', text: '55일', color: '#a78bfa', strong: true });
-        else if (c.high > u20) markers.push({ i, dir: 'up', text: '20일', color: '#34d399', strong: false });
-        if (c.high > u20) sigs.push({ i, level: u20, sys: c.high > u55 ? 2 : 1 });
-        if (c.low < l20 && !(c.high > u20)) markers.push({ i, dir: 'down', text: '이탈', color: '#fb7185', strong: false });
+    // 한 포지션 시뮬레이션: 돌파 가격(level)에 진입(시가가 더 높으면 시가), 손절 = 마지막 진입가 − 2N, 청산 = exitN 일 저점 이탈.
+    // pyramid=true 면 ½N 오를 때마다 1유닛 추가(최대 4유닛) 하고 손절을 마지막 진입가 − 2N 으로 올린다. 수익률은 유닛 평균 단가 기준.
+    function walkTurtle(h, i0, level, N, exitN, pyramid, maxBars = 200) {
+      const llOf = (j, p) => { let m = Infinity; for (let q = j - p; q < j; q++) if (q >= 0) m = Math.min(m, h[q].low); return m; };
+      const entry = Math.max(h[i0].open, level);
+      const units = [entry], adds = [];
+      let stop = entry - 2 * N, nextAdd = entry + 0.5 * N;
+      const fin = (j, price, reason, open) => {
+        const avg = units.reduce((a, b) => a + b, 0) / units.length;
+        return { i0, i1: j, p0: entry, p1: price, dir: 1, ret: (price / avg - 1) * 100, reason, open: !!open, units: units.length, adds, avg };
+      };
+      for (let j = i0; j < h.length; j++) {
+        const c = h[j], lv = j > i0 ? llOf(j, exitN) : -Infinity, L = Math.max(stop, lv);
+        if (c.low <= L) return fin(j, j > i0 ? Math.min(c.open, L) : stop, (j > i0 && lv >= stop) ? `${exitN}일 저점 이탈` : '손절(2N)');
+        if (pyramid) {
+          while (units.length < 4 && c.high >= nextAdd) {
+            const fill = j > i0 ? Math.max(nextAdd, c.open) : nextAdd;
+            units.push(fill); adds.push({ i: j, p: fill });
+            stop = fill - 2 * N; nextAdd = fill + 0.5 * N;
+          }
+        }
+        if (j > i0 && j - i0 >= maxBars) return fin(j, c.close, '기간 만료');
       }
-      // 거래(시스템 1): 20일 고점 돌파 진입, 손절 2N, 10일 저점 이탈 청산
-      const trades = simulate(h, sigs, s => {
-        const c = h[s.i], N = atr20[s.i - 1] || c.close * 0.02;
-        const entry = Math.max(c.open, s.level), stop = entry - 2 * N;
-        const ex = walkTrade(h, s.i, entry, 1, stop, (b, j) => { const lv = ll(j, 10); return b.low <= lv ? { price: Math.min(b.open, lv), reason: '10일 저점 이탈', level: true } : null; }, 200);
-        return mkTrade(h, s.i, entry, 1, ex, 'S1');
-      });
+      const last = h.length - 1;
+      return fin(last, h[last].close, '보유 중', true);
+    }
+    // 시스템 1: 20일 돌파 진입 / 10일 이탈 청산, 직전 S1 신호(실제로 진입하지 않은 것 포함)가 수익이었으면 다음 S1 신호는 건너뜀(55일 돌파는 안전장치로 진입).
+    // 시스템 2: 55일 돌파 진입 / 20일 이탈 청산(필터 없음).
+    function turtleSim(h, atr20, sys, pyramid, u20, u55) {
+      const n = h.length, trades = [], skipped = [];
+      let lastS1Win = false, i = 56;
+      const Nof = j => atr20[j - 1] || h[j].close * 0.02;
+      while (i < n) {
+        if (sys === 2) {
+          if (h[i].high > u55[i]) { const t = walkTurtle(h, i, u55[i], Nof(i), 20, pyramid); t.tag = 'S2'; trades.push(t); i = t.i1 + 1; } else i++;
+          continue;
+        }
+        if (!(h[i].high > u20[i])) { i++; continue; }
+        const t = walkTurtle(h, i, u20[i], Nof(i), 10, pyramid);
+        const win = !t.open && t.ret > 0;
+        if (!lastS1Win) { t.tag = 'S1'; trades.push(t); lastS1Win = win; i = t.i1 + 1; continue; }
+        skipped.push(i);
+        let fs = -1; for (let j = i; j <= t.i1; j++) if (h[j].high > u55[j]) { fs = j; break; }
+        if (fs >= 0) { const t2 = walkTurtle(h, fs, u55[fs], Nof(fs), 20, pyramid); t2.tag = 'S2안전장치'; trades.push(t2); lastS1Win = win; i = Math.max(t.i1, t2.i1) + 1; }
+        else { lastS1Win = win; i = t.i1 + 1; }
+      }
+      return { trades, skipped, lastS1Win };
+    }
+
+    function analyzeTurtle(h, opts = {}) {
+      const o = Object.assign({ sys: '1', pyramid: false }, opts);
+      if (!h || h.length < 2) return presetEmpty('분석에 필요한 봉이 부족합니다.');
+      const sys = String(o.sys) === '2' ? 2 : 1, n = h.length;
+      const atr20 = TA.atr(h, 20);
+      const hh = (a, p) => { let m = -Infinity; for (let j = a - p; j < a; j++) if (j >= 0) m = Math.max(m, h[j].high); return m; };
+      const ll = (a, p) => { let m = Infinity; for (let j = a - p; j < a; j++) if (j >= 0) m = Math.min(m, h[j].low); return m; };
+      const u20 = h.map((_, i) => hh(i, 20)), u55 = h.map((_, i) => hh(i, 55));
+      const markers = [];
+      for (let i = 56; i < n; i++) {
+        const c = h[i], l20 = ll(i, 20);
+        if (c.high > u55[i]) markers.push({ i, dir: 'up', text: '55일', color: '#a78bfa', strong: sys === 2 });
+        else if (c.high > u20[i]) markers.push({ i, dir: 'up', text: '20일', color: '#34d399', strong: sys === 1 });
+        if (c.low < l20 && !(c.high > u20[i])) markers.push({ i, dir: 'down', text: '이탈', color: '#fb7185', strong: false });
+      }
+      const sim = n > 57 ? turtleSim(h, atr20, sys, !!o.pyramid, u20, u55) : { trades: [], skipped: [], lastS1Win: false };
+      const trades = sim.trades;
+      sim.skipped.forEach(i => markers.push({ i, dir: 'dot', text: 'skip', color: '#94a3b8', strong: false }));
+      trades.forEach(t => (t.adds || []).forEach(a => markers.push({ i: a.i, dir: 'dot', text: '+1', color: '#38bdf8', strong: false })));
+      const done = settledTrades(trades, n);
+
       const last = h[n - 1], N = atr20[n - 1];
-      const u20 = hh(n, 'high', 20), u55 = hh(n, 'high', 55), l10 = ll(n, 10);
+      const exitN = sys === 2 ? 20 : 10, entN = sys === 2 ? 55 : 20;
+      const uNext = hh(n, entN), lExit = ll(n, exitN);        // 내일 기준 돌파선·청산선(표시선)
+      const uPrior = hh(n - 1, entN);                          // 오늘 봉이 넘어야 하는 선 = 오늘 이전 N일 고점
+      const brkToday = n > entN && last.high > uPrior;
       const levels = [];
-      if (Number.isFinite(u20)) levels.push({ price: u20, color: '#34d399', label: `20일 돌파선 ${fmtN(u20)}`, dash: [5, 4] });
-      if (Number.isFinite(l10)) levels.push({ price: l10, color: '#fb7185', label: `10일 청산선 ${fmtN(l10)}`, dash: [5, 4] });
+      if (Number.isFinite(uNext)) levels.push({ price: uNext, color: '#34d399', label: `${entN}일 돌파선 ${fmtN(uNext)}`, dash: [5, 4] });
+      if (Number.isFinite(lExit)) levels.push({ price: lExit, color: '#fb7185', label: `${exitN}일 청산선 ${fmtN(lExit)}`, dash: [5, 4] });
       const lt = trades[trades.length - 1];
-      const inPos = lt && lt.open;
+      const inPos = !!(lt && lt.open);
+      const skippedToday = sys === 1 && sim.skipped.length && sim.skipped[sim.skipped.length - 1] === n - 1;
+      let stateTxt = '대기 (돌파 신호 없음)', stateTone = 'info';
+      if (inPos) { stateTxt = `시스템${sys} 롱 보유 구간 (${lt.tag} · 진입 ${h[lt.i0].date}, ${fmtN(lt.p0)} · ${lt.units > 1 ? lt.units + '유닛 · ' : ''}현재 ${pctS(lt.ret)})`; stateTone = 'good'; }
+      else if (skippedToday) { stateTxt = '20일 돌파 발생 — 직전 S1 신호가 수익이라 건너뜀(skip). 55일 돌파 시 진입'; stateTone = 'warn'; }
+      else if (brkToday) { stateTxt = `${entN}일 고점 돌파 발생 (오늘 고가 ${fmtN(last.high)} > 직전 ${entN}일 고점 ${fmtN(uPrior)})`; stateTone = 'good'; }
       const rows = [
-        { k: '현재 상태', v: inPos ? `시스템1 롱 보유 구간 (진입 ${h[lt.i0].date}, ${fmtN(lt.p0)} · 현재 ${pctS(lt.ret)})` : last.close > u20 ? '20일 고점 돌파 상태 — 신규 진입 구간(당일 돌파 확인)' : '대기 (돌파 신호 없음)', tone: inPos ? 'good' : last.close > u20 ? 'good' : 'info' },
+        { k: '현재 상태', v: stateTxt, tone: stateTone },
         { k: '1N (ATR 20)', v: N ? `${fmtN(N)} (가격의 ${fmtN(N / last.close * 100, 1)}%)` : '', tone: 'info' },
-        { k: '20일 돌파선 / 10일 청산선', v: `${fmtN(u20)} / ${fmtN(l10)}`, tone: 'info' },
-        { k: '55일 돌파선', v: fmtN(u55), tone: 'info' },
+        { k: `${entN}일 돌파선 / ${exitN}일 청산선 (내일 기준)`, v: `${fmtN(uNext)} / ${fmtN(lExit)}`, tone: 'info' },
+        { k: sys === 1 ? '55일 돌파선 (S2·안전장치)' : '20일 돌파선 (S1)', v: fmtN(sys === 1 ? hh(n, 55) : hh(n, 20)), tone: 'info' },
         { k: '손절 (진입가 − 2N)', v: N ? `현재가 기준 ${fmtN(last.close - 2 * N)}` : '', tone: 'warn' },
         { k: '포지션 크기 규칙', v: N ? `1유닛 = (계좌 × 1%) ÷ ${fmtN(N)} 주 (1N 변동 시 계좌 1% 손익)` : '', tone: 'info' }
       ];
-      const verdict = inPos ? '추세 추종 포지션 보유 중입니다. 10일 저점(청산선) 이탈 전까지 보유하고, 손절 2N은 지킵니다.' : last.close > u20 ? '20일 고점 돌파가 발생했습니다. 거짓 돌파가 잦으므로 손절(2N)을 먼저 정하고 진입하세요.' : '돌파 신호가 없습니다. 20일 고점(돌파선) 위로 마감할 때까지 기다립니다.';
+      if (sys === 1) rows.push({ k: 'S1 skip 규칙', v: sim.skipped.length || trades.some(t => t.tag === 'S1') ? `직전 S1 신호 ${sim.lastS1Win ? '수익 → 다음 S1 신호는 건너뜀 (55일 돌파는 진입)' : '없음/손실 → 다음 S1 신호는 진입'} · 이 구간에서 건너뛴 신호 ${sim.skipped.length}회` : '아직 S1 신호 없음 → 첫 신호는 진입', tone: 'info' });
+      if (o.pyramid) rows.push({ k: '피라미딩', v: '½N 상승마다 1유닛 추가(최대 4), 손절은 마지막 진입가 − 2N 으로 상향', tone: 'info' });
+      let verdict = `돌파 신호가 없습니다. ${entN}일 고점(돌파선) 위로 올라설 때까지 기다립니다.`;
+      if (inPos) verdict = `추세 추종 포지션 보유 중입니다. ${exitN}일 저점(청산선) 이탈 전까지 보유하고, 손절 2N은 지킵니다.`;
+      else if (skippedToday) verdict = '20일 돌파가 나왔지만, 터틀 S1 규칙상 직전 S1 신호가 수익이었으므로 이번 신호는 건너뜁니다. 55일 고점을 넘으면 그때 진입합니다.';
+      else if (brkToday) verdict = `${entN}일 고점 돌파가 발생했습니다. 거짓 돌파가 잦으므로 손절(2N)을 먼저 정하고 진입하세요.`;
+      const lastBarTrade = trades.some(t => t.i0 === n - 1);
       return {
-        annot: { markers, levels, trades }, rows, verdict: { text: verdict, tone: inPos || last.close > u20 ? 'good' : 'info' }, stats: TA.tradeStats(trades, h),
+        annot: { markers, levels, trades }, rows, verdict: { text: verdict, tone: inPos || brkToday ? 'good' : skippedToday ? 'warn' : 'info' },
+        stats: TA.tradeStats(done, h), statsLabel: sys === 1 ? '시스템1 (skip 규칙 적용)' : '시스템2 (55일/20일)',
+        pending: lastBarTrade ? '마지막 봉(미완성일 수 있음)에서 시작된 거래는 성과 통계에서 제외했습니다.' : '',
         rules: [
-          '터틀 트레이딩(Richard Dennis·William Eckhardt 교육, Curtis Faith 공개): 시스템1 = 20일 고점 돌파 진입 / 10일 저점 이탈 청산, 시스템2 = 55일 돌파 / 20일 이탈.',
-          '손절은 진입가 − 2N(N = 20일 ATR). 리스크는 1유닛당 계좌의 1%. 추세 추종이라 승률은 낮고(30~45%) 큰 추세에서 크게 이기는 구조입니다.',
-          '차트의 ▲20일/▲55일 = 돌파, ▼이탈 = 20일 저점 이탈. 통계는 시스템1(롱)만 집계합니다.'
+          '터틀 트레이딩(Richard Dennis·William Eckhardt 교육, Curtis Faith 공개): 시스템1 = 20일 고점 돌파 진입 / 10일 저점 이탈 청산, 시스템2 = 55일 돌파 / 20일 이탈. 돌파 판정은 "오늘 고가 > 오늘 이전 N일 고점".',
+          '시스템1 skip 규칙: 직전 S1 신호(실제로 진입하지 않은 것도 가정해서)가 수익이었으면 다음 S1 신호는 건너뜁니다. 건너뛰는 동안 55일 돌파가 나오면 안전장치로 진입(S2 규칙으로 청산). 시스템2에는 필터가 없습니다.',
+          '손절은 진입가 − 2N(N = 20일 ATR). 리스크는 1유닛당 계좌의 1%. 설정에서 ½N 피라미딩(최대 4유닛, 손절 상향)을 켤 수 있고 수익률은 유닛 평균 단가 기준입니다. 추세 추종이라 승률은 낮고(30~45%) 큰 추세에서 크게 이기는 구조입니다.',
+          '차트의 ▲20일/▲55일 = 돌파, ▼이탈 = 20일 저점 이탈, skip = 건너뛴 S1 신호, +1 = 피라미딩 추가. 통계는 선택한 시스템의 롱만 집계합니다.'
         ]
       };
     }
 
-    // ---------- 4) 엘더 트리플 스크린 (주봉 추세 + 일봉 오실레이터) ----------
-    function analyzeElder(h) {
+    // ---------- 4) 엘더 트리플 스크린 (주봉 추세 + 일봉 오실레이터 + 스톱 진입) + 임펄스 시스템 ----------
+    function analyzeElder(h, opts = {}) {
+      const o = Object.assign({ osc: 'stoch', blockRed: true }, opts);
+      if (!h || h.length < 2) return presetEmpty('분석에 필요한 봉이 부족합니다.');
       const n = h.length, closes = closesOf(h);
       // 1) 주봉 MACD 히스토그램 기울기 = '조류'. 진행 중인 주는 쓰지 않고 완료된 주만 사용(미래 참조 방지)
       const wk = TA.resampleWeekly(h);
@@ -4379,146 +4819,231 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       });
       const shade = [];
       tide.forEach((t, i) => { if (t === 1) shade.push({ i, color: 'rgba(16,185,129,0.10)' }); else if (t === -1) shade.push({ i, color: 'rgba(244,63,94,0.10)' }); });
-      // 2) 일봉 스토캐스틱 K/D 교차 (과매도권에서 상향 = 매수, 과매수권에서 하향 = 매도/회피)
-      const st = TA.stochastic(h, 14, 3, 3);
-      const sigs = [], markers = [];
+      // 2) 일봉 오실레이터: 스토캐스틱 K/D 교차(과매도권 상향) 또는 포스인덱스 2일 EMA 가 0 아래로 내려옴(눌림)
+      const st = TA.stochastic(h, 14, 3, 3), fi2 = TA.force(h, 2), imp = TA.elderImpulse(closes);
+      const sigs = [], markers = []; let blocked = 0;
       for (let i = 6; i < n; i++) {
-        const k = st.k[i], d = st.d[i], pk = st.k[i - 1], pd = st.d[i - 1];
-        if (k === null || d === null || pk === null || pd === null) continue;
-        let minK = 100, maxK = 0; for (let j = i - 5; j <= i; j++) { if (st.k[j] !== null) { minK = Math.min(minK, st.k[j]); maxK = Math.max(maxK, st.k[j]); } }
-        if (tide[i] === 1 && pk <= pd && k > d && minK < 30) { sigs.push({ i }); markers.push({ i, dir: 'up', text: '매수', color: '#34d399', strong: true }); }
-        else if (tide[i] === -1 && pk >= pd && k < d && maxK > 70) markers.push({ i, dir: 'down', text: '회피', color: '#fb7185', strong: false });
+        let hit = false;
+        if (o.osc === 'force') {
+          hit = tide[i] === 1 && fi2[i] !== null && fi2[i - 1] !== null && fi2[i - 1] >= 0 && fi2[i] < 0;
+        } else {
+          const k = st.k[i], d = st.d[i], pk = st.k[i - 1], pd = st.d[i - 1];
+          if (k !== null && d !== null && pk !== null && pd !== null) {
+            let minK = 100, maxK = 0; for (let j = i - 5; j <= i; j++) { if (st.k[j] !== null) { minK = Math.min(minK, st.k[j]); maxK = Math.max(maxK, st.k[j]); } }
+            if (tide[i] === 1 && pk <= pd && k > d && minK < 30) hit = true;
+            else if (tide[i] === -1 && pk >= pd && k < d && maxK > 70) markers.push({ i, dir: 'down', text: '회피', color: '#fb7185', strong: false });
+          }
+        }
+        if (!hit) continue;
+        if (o.blockRed && imp.dir[i] === -1) { blocked++; continue; } // 임펄스 적색 = 신규 매수 금지
+        sigs.push({ i }); markers.push({ i, dir: 'up', text: '신호', color: '#34d399', strong: true });
       }
-      // 거래: 신호 다음 봉 시가 매수, 손절 = 최근 5봉 저점, 청산 = 조류가 하락 전환 / %K가 과매수권에서 %D 하향 교차
-      const trades = simulate(h, sigs, s => {
-        if (s.i + 1 >= n) return null;
-        const i0 = s.i + 1, entry = h[i0].open;
-        let stop = Infinity; for (let j = Math.max(0, s.i - 4); j <= s.i; j++) stop = Math.min(stop, h[j].low);
-        if (!(stop < entry)) return null;
-        const ex = walkTrade(h, i0, entry, 1, stop, (c, j) => {
+      // 3) 스톱 진입: 신호 다음 날부터 '전일 고점 +1틱' 위 buy-stop. 2봉 안에 체결되지 않으면 취소. 손절 = 최근 5봉 저점, 청산 = 조류 하락 전환 / 과매수권 %K 하향 교차
+      const trades = [], cancelled = []; let free = -1, pendingOrder = null;
+      sigs.forEach(sg => {
+        if (sg.i <= free) return;
+        let fill = -1, trig = 0;
+        for (let j = sg.i + 1; j <= sg.i + 2 && j < n; j++) {
+          trig = h[j - 1].high + tickOf(h[j - 1].high);
+          if (h[j].high >= trig) { fill = j; break; }
+        }
+        if (fill < 0) {
+          if (sg.i + 2 <= n - 1) { cancelled.push(sg.i + 2); markers.push({ i: sg.i + 2, dir: 'dot', text: '취소', color: '#94a3b8', strong: false }); }
+          else pendingOrder = { s: sg.i, level: h[n - 1].high + tickOf(h[n - 1].high), left: 2 - (n - 1 - sg.i) };
+          return;
+        }
+        const entry = Math.max(h[fill].open, trig);
+        let stop = Infinity; for (let j = Math.max(0, sg.i - 4); j <= fill - 1; j++) stop = Math.min(stop, h[j].low);
+        if (!(stop < entry)) return;
+        const ex = walkTrade(h, fill, entry, 1, stop, (c, j) => {
           if (tide[j] === -1) return { price: c.close, reason: '조류 하락 전환' };
           if (st.k[j] !== null && st.d[j] !== null && st.k[j - 1] > st.d[j - 1] && st.k[j] < st.d[j] && st.k[j] > 70) return { price: c.close, reason: '과매수권 하향 교차' };
           return null;
         }, 60);
-        return mkTrade(h, i0, entry, 1, ex, 'TS');
+        const t = mkTrade(h, fill, entry, 1, ex, 'TS');
+        trades.push(t); free = t.i1;
       });
-      const tNow = tide[n - 1], k = st.k[n - 1], d = st.d[n - 1];
+      const done = settledTrades(trades, n);
+      const tNow = tide[n - 1], k = st.k[n - 1];
       const tideTxt = tNow === 1 ? '상승 (주봉 MACD 히스토그램 상승)' : tNow === -1 ? '하락 (주봉 MACD 히스토그램 하락)' : '중립/데이터 부족';
       let osc = '';
       if (k !== null) osc = k < 30 ? `과매도 (%K ${fmtN(k, 0)})` : k > 70 ? `과매수 (%K ${fmtN(k, 0)})` : `중립 (%K ${fmtN(k, 0)})`;
+      const f2 = fi2[n - 1];
+      const impNow = imp.dir[n - 1];
       const lt = trades[trades.length - 1];
       const rows = [
         { k: '1단계 · 주봉 조류', v: tideTxt, tone: tNow === 1 ? 'good' : tNow === -1 ? 'bad' : 'info' },
-        { k: '2단계 · 일봉 스토캐스틱', v: osc, tone: k !== null && k < 30 ? 'good' : k !== null && k > 70 ? 'warn' : 'info' },
-        { k: '3단계 · 진입 방식', v: '신호 다음 날 시가(또는 전일 고점 돌파 스톱)로 진입, 손절은 최근 5봉 저점', tone: 'info' },
-        { k: '현재 포지션', v: lt && lt.open ? `보유 구간 (진입 ${h[lt.i0].date}, ${pctS(lt.ret)})` : '없음', tone: lt && lt.open ? 'good' : 'info' }
+        { k: o.osc === 'force' ? '2단계 · 포스인덱스 2일 EMA' : '2단계 · 일봉 스토캐스틱', v: o.osc === 'force' ? (f2 === null ? '' : `${f2 < 0 ? '0 아래 (눌림)' : '0 위'}`) : osc, tone: o.osc === 'force' ? (f2 !== null && f2 < 0 ? 'good' : 'info') : (k !== null && k < 30 ? 'good' : k !== null && k > 70 ? 'warn' : 'info') },
+        { k: '임펄스 시스템 (오늘)', v: impNow === 1 ? '초록 — 매수 우위(매도 금지)' : impNow === -1 ? '빨강 — 신규 매수 금지' : impNow === 0 ? '파랑 — 중립(양방향 가능)' : '', tone: impNow === 1 ? 'good' : impNow === -1 ? 'bad' : 'info' },
+        { k: '3단계 · 진입 방식', v: pendingOrder ? `buy-stop 대기 중 — 다음 봉 ${fmtN(pendingOrder.level)} 돌파 시 체결 (남은 ${pendingOrder.left}봉, 미체결 시 취소)` : '신호 다음 날부터 전일 고점 +1틱 위 buy-stop, 2봉 안에 미체결이면 취소 · 손절은 최근 5봉 저점', tone: pendingOrder ? 'warn' : 'info' },
+        { k: '현재 포지션', v: lt && lt.open ? `보유 구간 (진입 ${h[lt.i0].date}, ${pctS(lt.ret)})` : '없음', tone: lt && lt.open ? 'good' : 'info' },
+        { k: '취소된 주문 / 임펄스로 걸러진 신호', v: (cancelled.length || blocked) ? `${cancelled.length}건 / ${blocked}건` : '', tone: 'info' }
       ];
       let verdict, tone;
-      if (tNow === 1 && k !== null && k < 30) { verdict = '주봉 조류는 상승이고 일봉은 과매도입니다. 스토캐스틱이 %D를 위로 돌파하면 매수 신호입니다 (조류와 같은 방향의 눌림목 매수).'; tone = 'good'; }
-      else if (tNow === 1) { verdict = '주봉 조류가 상승입니다. 일봉 오실레이터가 과매도권으로 내려올 때까지 기다리는 구간입니다. 급하게 추격하지 마세요.'; tone = 'info'; }
+      if (tNow === 1 && o.osc !== 'force' && k !== null && k < 30) { verdict = '주봉 조류는 상승이고 일봉은 과매도입니다. 스토캐스틱이 %D를 위로 돌파하면 신호가 나오고, 그다음 전일 고점 위 buy-stop이 체결돼야 진입입니다 (조류와 같은 방향의 눌림목).'; tone = 'good'; }
+      else if (tNow === 1) { verdict = '주봉 조류가 상승입니다. 일봉 오실레이터가 눌림(과매도·포스인덱스 0 아래)으로 내려올 때까지 기다리는 구간입니다. 급하게 추격하지 마세요.'; tone = 'info'; }
       else if (tNow === -1) { verdict = '주봉 조류가 하락입니다. 이 기법은 조류에 역행하는 매수를 하지 않습니다 (신규 매수 보류).'; tone = 'bad'; }
       else { verdict = '조류를 판단할 데이터가 부족합니다.'; tone = 'warn'; }
+      if (tNow === 1 && impNow === -1 && o.blockRed) verdict += ' 지금은 임펄스가 빨강이라 엘더 규칙상 신규 매수를 미룹니다.';
+      const lastBarSig = sigs.some(s => s.i === n - 1);
       return {
-        annot: { markers, levels: [], shade, trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(trades, h),
+        annot: { markers, levels: [], shade, trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(done, h),
+        pending: pendingOrder ? `마지막 신호의 buy-stop 주문이 아직 체결되지 않아 거래가 없고 성과 통계에 반영되지 않았습니다 (${lastBarSig ? '마지막 봉 신호' : '대기 중'}).` : '',
         rules: [
-          'Alexander Elder 「Come Into My Trading Room」의 트리플 스크린: ① 큰 시간대(주봉)로 조류 방향 확인 → ② 작은 시간대(일봉) 오실레이터로 조류 반대 방향 눌림에서 진입 → ③ 돌파/스톱 주문으로 진입.',
-          '이 구현: 조류 = 완료된 주봉의 MACD(12,26,9) 히스토그램 기울기. 초록 배경 = 상승 조류, 빨강 = 하락 조류. 일봉 스토캐스틱(14,3,3)이 과매도(<30)에서 %K가 %D를 상향 교차하면 ▲매수.',
-          '청산: 조류가 하락으로 바뀌거나 %K가 과매수(>70)에서 %D 아래로 교차. 손절은 최근 5봉 저점.'
+          'Alexander Elder 「Come Into My Trading Room」의 트리플 스크린: ① 큰 시간대(주봉)로 조류 방향 확인 → ② 작은 시간대(일봉) 오실레이터로 조류 반대 방향 눌림에서 신호 → ③ 전일 고점 위 buy-stop 으로 진입.',
+          '이 구현: 조류 = 완료된 주봉의 MACD(12,26,9) 히스토그램 기울기(초록/빨강 배경). 2단계 신호는 설정에서 선택 — 스토캐스틱(14,3,3) 과매도(<30)에서 %K 상향 교차, 또는 포스인덱스 2일 EMA 가 0 아래로 내려옴. 임펄스 시스템(EMA13 기울기 + MACD 히스토그램 기울기: 둘 다 상승=초록, 둘 다 하락=빨강, 엇갈림=파랑)이 빨강이면 신호를 걸러냅니다(설정에서 끌 수 있음).',
+          '3단계: 신호 다음 날부터 매일 "전일 고점 +1틱"에 buy-stop 을 둡니다 (체결가 = 그 가격 또는 더 높은 시가). 2봉 안에 체결되지 않으면 취소(차트의 "취소"). 손절은 최근 5봉 저점, 청산은 조류가 하락으로 바뀌거나 %K가 과매수(>70)에서 %D 아래로 교차할 때.'
         ]
       };
     }
 
     // ---------- 5) 일목균형표 (삼역호전) ----------
-    function analyzeIchimoku(h) {
+    // 삼역호전 '상태' = 가격이 구름 위 · 전환선 > 기준선 · 후행스팬(오늘 종가)이 26봉 전 종가 위 — 세 조건이 동시에 참인 봉.
+    // '이벤트' = 상태가 거짓 → 참으로 바뀐 봉(= 세 조건이 모두 갖춰져 완성된 날). 어느 조건이 마지막이었는지·순서를 표시한다.
+    // 구름 두께가 1 ATR 미만이면 신뢰도 낮음(얇은 구름)으로 보고 표시만 하고 거래 신호에서는 제외.
+    function analyzeIchimoku(h, opts = {}) {
+      if (!h || h.length < 2) return presetEmpty('분석에 필요한 봉이 부족합니다.');
       const n = h.length;
       const ic = TA.ichimoku(h, 9, 26, 52, 26), atr = TA.atr(h, 14);
-      const cloudTop = i => (ic.spanA[i] === null || ic.spanB[i] === null) ? null : Math.max(ic.spanA[i], ic.spanB[i]);
-      const cloudBot = i => (ic.spanA[i] === null || ic.spanB[i] === null) ? null : Math.min(ic.spanA[i], ic.spanB[i]);
-      const markers = [], sigs = [];
+      const cTop = i => (ic.spanA[i] === null || ic.spanB[i] === null) ? null : Math.max(ic.spanA[i], ic.spanB[i]);
+      const cBot = i => (ic.spanA[i] === null || ic.spanB[i] === null) ? null : Math.min(ic.spanA[i], ic.spanB[i]);
+      const cond = h.map((c, i) => {
+        const t = ic.tenkan[i], k = ic.kijun[i], top = cTop(i), bot = cBot(i);
+        if (t === null || k === null || top === null || i < 26) return null;
+        const px = c.close;
+        const cloud = px > top ? 1 : px < bot ? -1 : 0;
+        const tk = t > k ? 1 : t < k ? -1 : 0;
+        const ch = px > h[i - 26].close ? 1 : px < h[i - 26].close ? -1 : 0;
+        return { cloud, tk, ch, bull: cloud === 1 && tk === 1 && ch === 1, bear: cloud === -1 && tk === -1 && ch === -1 };
+      });
+      const thick = i => { const a = ic.spanA[i], b = ic.spanB[i]; return (a === null || b === null || !atr[i]) ? null : Math.abs(a - b) / atr[i]; };
+      // 조건별로 '가장 최근에 참이 된 봉' 을 거슬러 찾기
+      const since = (i, key, val) => { let j = i; while (j - 1 >= 0 && cond[j - 1] && cond[j - 1][key] === val) j--; return j; };
+      const markers = [], sigs = [], shade = [];
+      cond.forEach((c, i) => { if (c && c.bull) shade.push({ i, color: 'rgba(16,185,129,0.07)' }); else if (c && c.bear) shade.push({ i, color: 'rgba(244,63,94,0.07)' }); });
+      const events = [];
       for (let i = 27; i < n; i++) {
+        const c = cond[i], p = cond[i - 1];
+        if (!c || !p) continue;
         const t = ic.tenkan[i], k = ic.kijun[i], pt = ic.tenkan[i - 1], pk = ic.kijun[i - 1];
-        if (t === null || k === null || pt === null || pk === null || cloudTop(i) === null) continue;
-        if (pt <= pk && t > k) {
-          const strong = h[i].close > cloudTop(i) && h[i].close > h[i - 26].close;
-          markers.push({ i, dir: 'up', text: strong ? '삼역호전' : 'TK↑', color: strong ? '#34d399' : '#94a3b8', strong });
-          if (strong) sigs.push({ i });
-        } else if (pt >= pk && t < k) {
-          const strong = h[i].close < cloudBot(i) && h[i].close < h[i - 26].close;
-          markers.push({ i, dir: 'down', text: strong ? '삼역역전' : 'TK↓', color: strong ? '#fb7185' : '#94a3b8', strong });
+        if (pt !== null && pk !== null && c) {
+          if (pt <= pk && t > k && !c.bull) markers.push({ i, dir: 'up', text: 'TK↑', color: '#94a3b8', strong: false });
+          else if (pt >= pk && t < k && !c.bear) markers.push({ i, dir: 'down', text: 'TK↓', color: '#94a3b8', strong: false });
+        }
+        const th = thick(i), thin = th !== null && th < 1;
+        if (c.bull && !p.bull) {
+          const idx = { 구름돌파: since(i, 'cloud', 1), 전환선: since(i, 'tk', 1), 후행스팬: since(i, 'ch', 1) };
+          const order = Object.keys(idx).sort((a, b) => idx[a] - idx[b]);
+          events.push({ i, dir: 1, thin, order, lastCond: order[order.length - 1] });
+          markers.push({ i, dir: 'up', text: thin ? '호전(얇)' : '삼역호전', color: thin ? '#94a3b8' : '#34d399', strong: !thin });
+          if (!thin) sigs.push({ i });
+        } else if (c.bear && !p.bear) {
+          const idx = { 구름이탈: since(i, 'cloud', -1), 전환선: since(i, 'tk', -1), 후행스팬: since(i, 'ch', -1) };
+          const order = Object.keys(idx).sort((a, b) => idx[a] - idx[b]);
+          events.push({ i, dir: -1, thin, order, lastCond: order[order.length - 1] });
+          markers.push({ i, dir: 'down', text: thin ? '역전(얇)' : '삼역역전', color: thin ? '#94a3b8' : '#fb7185', strong: !thin });
         }
       }
-      // 거래: 삼역호전 다음 봉 시가 매수, 종가가 기준선 아래로 마감 시 청산, 하드 손절 -10%
+      // 거래: 삼역호전 완성 다음 봉 시가 매수, 종가가 기준선 아래로 마감 시 청산, 하드 손절 -10%
       const trades = simulate(h, sigs, s => {
         if (s.i + 1 >= n) return null;
         const i0 = s.i + 1, entry = h[i0].open;
         const ex = walkTrade(h, i0, entry, 1, entry * 0.9, (c, j) => ic.kijun[j] !== null && c.close < ic.kijun[j] ? { price: c.close, reason: '기준선 이탈' } : null, 150);
         return mkTrade(h, i0, entry, 1, ex, 'IK');
       });
-      const last = h[n - 1], i = n - 1;
-      const top = cloudTop(i), bot = cloudBot(i);
+      const last = h[n - 1], i = n - 1, cNow = cond[i];
+      const top = cTop(i), bot = cBot(i);
       const pos = top === null ? null : last.close > top ? 'above' : last.close < bot ? 'below' : 'inside';
       const tk = ic.tenkan[i] !== null && ic.kijun[i] !== null ? (ic.tenkan[i] > ic.kijun[i] ? 'bull' : 'bear') : null;
       const chi = n > 26 ? (last.close > h[n - 27].close ? 'bull' : 'bear') : null;
       const fa = ic.spanA[n + 25], fb = ic.spanB[n + 25];
       const futCloud = (fa !== null && fb !== null) ? (fa > fb ? 'bull' : 'bear') : null;
-      const bull3 = pos === 'above' && tk === 'bull' && chi === 'bull', bear3 = pos === 'below' && tk === 'bear' && chi === 'bear';
+      const bull3 = !!(cNow && cNow.bull), bear3 = !!(cNow && cNow.bear);
+      const th = thick(i), thin = th !== null && th < 1;
+      const lastBull = [...events].reverse().find(e => e.dir === 1), lastBear = [...events].reverse().find(e => e.dir === -1);
+      let held = 0; if (bull3) { for (let j = i; j >= 0 && cond[j] && cond[j].bull; j--) held++; } else if (bear3) { for (let j = i; j >= 0 && cond[j] && cond[j].bear; j--) held++; }
       const lt = trades[trades.length - 1];
       const rows = [
         { k: '가격 vs 구름', v: pos === 'above' ? '구름 위 (강세)' : pos === 'below' ? '구름 아래 (약세)' : pos === 'inside' ? '구름 안 (방향 불명확)' : '데이터 부족', tone: pos === 'above' ? 'good' : pos === 'below' ? 'bad' : 'warn' },
         { k: '전환선 vs 기준선', v: tk === 'bull' ? '전환선 > 기준선 (호전)' : tk === 'bear' ? '전환선 < 기준선 (역전)' : '', tone: tk === 'bull' ? 'good' : tk === 'bear' ? 'bad' : 'info' },
         { k: '후행스팬', v: chi === 'bull' ? '26일 전 가격 위 (강세)' : chi === 'bear' ? '26일 전 가격 아래 (약세)' : '', tone: chi === 'bull' ? 'good' : chi === 'bear' ? 'bad' : 'info' },
+        { k: '구름 두께', v: th === null ? '' : `${th.toFixed(1)} ATR ${thin ? '(1 ATR 미만 — 얇아서 지지·저항·신호 신뢰도 낮음)' : '(충분)'}`, tone: th === null ? 'info' : thin ? 'warn' : 'good' },
         { k: '미래 구름 (26일 후)', v: futCloud === 'bull' ? '양운 (선행A > 선행B)' : futCloud === 'bear' ? '음운 (선행A < 선행B)' : '', tone: futCloud === 'bull' ? 'good' : futCloud === 'bear' ? 'bad' : 'info' },
+        { k: '삼역호전 상태', v: bull3 ? `충족 중 (${held}봉째)${lastBull ? ` · 완성 ${h[lastBull.i].date} (마지막 조건: ${lastBull.lastCond}, 순서 ${lastBull.order.join('→')})` : ' · 데이터 시작 시점부터 유지'}` : '미충족', tone: bull3 ? 'good' : 'info' },
+        { k: '최근 삼역호전 / 삼역역전 완성', v: `${lastBull ? h[lastBull.i].date : '없음'} / ${lastBear ? h[lastBear.i].date : '없음'}`, tone: 'info' },
         { k: '청산 기준선', v: ic.kijun[i] !== null ? `기준선 ${fmtN(ic.kijun[i])} (종가 이탈 시 청산)` : '', tone: 'info' },
         { k: '현재 포지션', v: lt && lt.open ? `보유 구간 (진입 ${h[lt.i0].date}, ${pctS(lt.ret)})` : '없음', tone: lt && lt.open ? 'good' : 'info' }
       ];
       let verdict, tone;
-      if (bull3) { verdict = '삼역호전(가격이 구름 위 · 전환선>기준선 · 후행스팬이 가격 위)입니다. 일목의 가장 강한 매수 상태이며, 종가가 기준선 아래로 마감하면 청산합니다.'; tone = 'good'; }
-      else if (bear3) { verdict = '삼역역전(구름 아래 · 전환선<기준선 · 후행스팬이 가격 아래)입니다. 매수 대상이 아닙니다.'; tone = 'bad'; }
+      const fresh = lastBull && lastBull.i === n - 1;
+      if (bull3) {
+        verdict = `삼역호전 상태입니다 (가격이 구름 위 · 전환선>기준선 · 후행스팬이 26일 전 가격 위${fresh ? ' — 오늘 막 완성' : `, ${held}봉째 유지`}). 일목의 가장 강한 매수 상태이며, 종가가 기준선 아래로 마감하면 청산합니다.`;
+        if (thin) verdict += ' 다만 구름이 1 ATR 미만으로 얇아 신뢰도가 낮고 거래 신호에서는 제외했습니다.';
+        tone = 'good';
+      } else if (bear3) { verdict = '삼역역전 상태입니다 (구름 아래 · 전환선<기준선 · 후행스팬이 26일 전 가격 아래). 매수 대상이 아닙니다.'; tone = 'bad'; }
       else if (pos === 'inside') { verdict = '가격이 구름 안에 있어 방향성이 불분명합니다. 구름 위로 안착할 때까지 관망하세요.'; tone = 'warn'; }
-      else { verdict = '세 조건이 엇갈려 있습니다. 삼역호전이 완성되는지 지켜보세요.'; tone = 'info'; }
+      else if (cNow) { verdict = '세 조건이 엇갈려 있습니다(삼역호전 상태 아님). 세 조건이 모두 갖춰지는 날이 완성 이벤트입니다.'; tone = 'info'; }
+      else { verdict = '일목균형표를 계산할 데이터가 부족합니다.'; tone = 'warn'; }
+      const lastBarSig = sigs.length && sigs[sigs.length - 1].i === n - 1;
       return {
-        annot: { markers, levels: [], trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(trades, h),
+        annot: { markers, levels: [], shade, trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(settledTrades(trades, n), h),
+        pending: lastBarSig ? '마지막 봉에서 삼역호전이 완성됐습니다. 진입은 다음 봉 시가라 아직 거래가 없어 성과 통계에 반영되지 않았습니다.' : '',
         rules: [
-          '일목균형표(호소다 고이치): 전환선(9)·기준선(26)·선행스팬A/B(구름, 26일 앞에 표시)·후행스팬(종가를 26일 뒤로). 구름은 지지/저항대 역할.',
-          '삼역호전 = ① 가격이 구름 위 ② 전환선이 기준선을 상향 돌파(또는 위) ③ 후행스팬이 26일 전 가격 위 — 세 조건이 모두 맞을 때 가장 강한 매수 신호입니다.',
-          '청산: 종가가 기준선 아래로 마감. 하드 손절은 진입가 −10%. 구름이 두꺼울수록 지지/저항이 강합니다.'
+          '일목균형표(호소다 고이치): 전환선(9)·기준선(26)·선행스팬A/B(구름, 26봉 앞에 표시)·후행스팬(종가를 26봉 뒤로). 구름은 지지/저항대 역할. 선행스팬을 TradingView 등은 25봉 앞(= 오늘 포함 26)으로 그려 구름이 1봉 다르게 보일 수 있습니다(관례 차이).',
+          '삼역호전 = ① 가격이 구름 위 ② 전환선 > 기준선 ③ 후행스팬이 26일 전 가격 위. 초록 배경 = 세 조건이 모두 참인 "상태", 차트의 ▲삼역호전 = 상태가 거짓에서 참으로 바뀌어 "완성된 날"(이벤트). 원전은 세 사건이 순서대로 일어나는 것을 보며, 이 구현은 마지막으로 갖춰진 조건과 순서를 표시합니다.',
+          '구름 두께가 1 ATR 미만이면 얇은 구름으로 신뢰도가 낮다고 보고(회색 마커 “호전(얇)”/“역전(얇)”) 거래 신호에서 제외합니다. 청산: 종가가 기준선 아래로 마감. 하드 손절은 진입가 −10%.'
         ]
       };
     }
 
     // ---------- 프리셋 정의 ----------
+    // options: 프리셋 패널에 표시되는 설정(select/check). analyze(h, opts) 로 전달되며 모두 기본값이 있다. needsSpy: 일봉일 때 SPY 일봉을 한 번 불러와 opts.spy 로 전달.
     const CHART_PRESETS = {
       brooks: {
         name: 'Al Brooks 프라이스 액션', short: 'Brooks', icon: 'fa-wave-square', color: 'amber',
-        tag: '프라이스 액션 · 스윙', desc: '20 EMA + 눌림목 H2/L2 신호 + 측정 이동(MM) 목표', source: 'Al Brooks, 「Trading Price Action」 시리즈',
+        tag: '프라이스 액션 · 스윙', desc: '20 EMA + 두 다리 눌림 H2/L2 신호(품질 필터·등급) + 측정 이동(MM) 목표', source: 'Al Brooks, 「Trading Price Action」 시리즈',
         interval: 'D', chartType: 'candles', range: '6M',
         studies: [{ id: 'ema', params: { period: 20 }, color: '#f59e0b', width: 2.4 }],
+        options: [
+          { k: 'side', label: '거래 방향', type: 'select', def: 'long', choices: [['long', '롱(H2)만'], ['both', '롱+숏 (숏은 별도 통계)']] },
+          { k: 'filter', label: '신호봉 품질·EMA 근접 필터', type: 'check', def: true },
+          { k: 'target', label: '청산 목표', type: 'select', def: '2R', choices: [['2R', '2R'], ['mm', '측정 이동(MM)']] }
+        ],
         analyze: analyzeBrooks
       },
       minervini: {
         name: 'Minervini 트렌드 템플릿', short: 'Minervini', icon: 'fa-stairs', color: 'emerald',
-        tag: '성장주 · 스테이지 2', desc: '50/150/200일선 정배열 + 52주 고점 근접 + 거래량 동반 돌파', source: 'Mark Minervini, 「Trade Like a Stock Market Wizard」',
-        interval: 'D', chartType: 'candles', range: '1Y',
-        studies: [{ id: 'sma', params: { period: 50 }, color: '#38bdf8' }, { id: 'sma', params: { period: 150 }, color: '#f59e0b' }, { id: 'sma', params: { period: 200 }, color: '#ef4444' }, { id: 'volume', params: { ma: 50 } }],
+        tag: '성장주 · 스테이지 2', desc: '50/150/200일선 정배열 + 52주 고점 근접 + RS(SPY 대비) + 거래량 동반 돌파, VCP 정보', source: 'Mark Minervini, 「Trade Like a Stock Market Wizard」',
+        interval: 'D', chartType: 'candles', range: '1Y', needsSpy: true,
+        studies: [{ id: 'sma', params: { period: 50 }, color: '#38bdf8' }, { id: 'sma', params: { period: 150 }, color: '#f59e0b' }, { id: 'sma', params: { period: 200 }, color: '#ef4444' }, { id: 'volume', params: { ma: 50 } }, { id: 'rsline', params: {}, color: '#38bdf8' }],
+        options: [{ k: 'rsFilter', label: '돌파 신호에 RS(SPY 우위) 조건 포함', type: 'check', def: false }],
         analyze: analyzeMinervini
       },
       turtle: {
         name: '터틀 돈치안 돌파', short: 'Turtle', icon: 'fa-water', color: 'sky',
-        tag: '추세 추종 · 돌파', desc: '20/55일 고점 돌파 진입, 10일 저점 이탈 청산, ATR 기반 손절', source: 'Richard Dennis 터틀 규칙 (Curtis Faith 공개)',
+        tag: '추세 추종 · 돌파', desc: 'S1(20일/10일, skip 규칙)·S2(55일/20일), 2N 손절, ½N 피라미딩 옵션', source: 'Richard Dennis 터틀 규칙 (Curtis Faith 공개)',
         interval: 'D', chartType: 'candles', range: '1Y',
         studies: [{ id: 'donchian', params: { period: 20 }, color: '#38bdf8' }, { id: 'donchian', params: { period: 55 }, color: '#a78bfa' }, { id: 'atr', params: { period: 20 } }],
+        options: [
+          { k: 'sys', label: '시스템', type: 'select', def: '1', choices: [['1', 'S1 · 20일 돌파 / 10일 이탈 (skip 규칙)'], ['2', 'S2 · 55일 돌파 / 20일 이탈']] },
+          { k: 'pyramid', label: '½N 피라미딩 (최대 4유닛)', type: 'check', def: false }
+        ],
         analyze: analyzeTurtle
       },
       elder: {
         name: '엘더 트리플 스크린', short: 'Elder', icon: 'fa-layer-group', color: 'violet',
-        tag: '다중 시간대 · 눌림목', desc: '주봉 추세 방향 + 일봉 스토캐스틱 과매도 반등 진입', source: 'Alexander Elder, 「Come Into My Trading Room」',
+        tag: '다중 시간대 · 눌림목', desc: '주봉 조류 + 일봉 눌림 신호 + 전일 고점 buy-stop 진입, 임펄스 시스템', source: 'Alexander Elder, 「Come Into My Trading Room」',
         interval: 'D', chartType: 'candles', range: '1Y',
-        studies: [{ id: 'ema', params: { period: 13 }, color: '#38bdf8' }, { id: 'ema', params: { period: 26 }, color: '#f59e0b' }, { id: 'stoch', params: {} }, { id: 'macd', params: {} }],
+        studies: [{ id: 'ema', params: { period: 13 }, color: '#38bdf8' }, { id: 'ema', params: { period: 26 }, color: '#f59e0b' }, { id: 'impulse', params: {} }, { id: 'stoch', params: {} }, { id: 'force', params: { period: 2 }, color: '#fbbf24' }],
+        options: [
+          { k: 'osc', label: '2단계 신호', type: 'select', def: 'stoch', choices: [['stoch', '스토캐스틱 과매도 상향 교차'], ['force', '포스인덱스 2일 EMA 0 아래']] },
+          { k: 'blockRed', label: '임펄스 빨강이면 신호 제외', type: 'check', def: true }
+        ],
         analyze: analyzeElder
       },
       ichimoku: {
         name: '일목균형표 삼역호전', short: 'Ichimoku', icon: 'fa-cloud', color: 'rose',
-        tag: '추세 · 구름대', desc: '구름 위 + 전환선>기준선 + 후행스팬 상향 = 가장 강한 매수 상태', source: '호소다 고이치(一目山人), 일목균형표',
+        tag: '추세 · 구름대', desc: '구름 위 + 전환선>기준선 + 후행스팬 상향 = 삼역호전(상태 배경·완성일 마커), 얇은 구름 제외', source: '호소다 고이치(一目山人), 일목균형표',
         interval: 'D', chartType: 'candles', range: '6M',
         studies: [{ id: 'ichimoku', params: {} }],
         analyze: analyzeIchimoku
@@ -4528,6 +5053,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         tag: '데이트레이딩 · 5분봉', desc: '20 EMA + 세션 VWAP + 전일 고저종가 + H2/L2 (같은 날 안에서만 집계)', source: 'Al Brooks, 「Trading Price Action: Trading Ranges」 — 분봉 적용',
         interval: '5m', chartType: 'candles', range: '5D', prevLevels: true,
         studies: [{ id: 'ema', params: { period: 20 }, color: '#f59e0b', width: 2.2 }, { id: 'svwap', params: {}, color: '#38bdf8' }, { id: 'volume', params: { ma: 20 } }],
+        options: [{ k: 'side', label: '거래 방향', type: 'select', def: 'long', choices: [['long', '롱(H2)만'], ['both', '롱+숏 (숏은 별도 통계)']] }, { k: 'filter', label: '신호봉 품질·EMA 근접 필터', type: 'check', def: true }],
         analyze: analyzeBrooks5
       }
     };
@@ -4561,7 +5087,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       type: 'candles', log: false, auto: true, manual: null, magnet: true,
       barW: 7, R: 0,
       studies: [], drawings: [], tool: 'cursor', draft: null, sel: -1, measure: null,
-      presetId: null, presetResult: null, annot: null, showSignals: true, showPrev: true, sessions: [],
+      presetId: null, presetOpts: {}, presetResult: null, annot: null, showSignals: true, showPrev: true, sessions: [],
       mouse: null, hoverIdx: null,
       W: 0, H: 0, dpr: 1, layout: null, scale: null,
       drag: null, pointers: new Map(), raf: 0, raf2: 0, ready: false, loading: false, saveTimer: null
@@ -4743,7 +5269,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         if (st.hidden || STUDY_DEFS[st.id].pane !== 'main') return;
         const sp = chSpec(st), iEnd = i1;
         const take = arr => { if (!arr) return; for (let i = Math.max(0, i0); i <= Math.min(arr.length - 1, iEnd); i++) { const v = arr[i]; if (v !== null && v !== undefined && Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } } };
-        (sp.lines || []).forEach(l => take(l.v));
+        (sp.lines || []).forEach(l => { if (!l.noScale) take(l.v); });
         (sp.fills || []).forEach(f => { take(f.upper); take(f.lower); });
         if (sp.dots) take(sp.dots.v);
       });
@@ -4976,7 +5502,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           }
         }
       });
-      chDrawSeries(ctx, sc, i0, i1);
+      chDrawSeries(ctx, sc, i0, i1, chBarColors(mainSts));
       // 오버레이 선 · 점 · 지그재그 · 수평선
       mainSts.forEach(st => {
         const sp = chSpec(st);
@@ -5048,7 +5574,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (label) { ctx.fillStyle = color; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.font = '10px "JetBrains Mono", monospace'; ctx.fillText(label, pw - 6, y - 2); }
     }
 
-    function chDrawSeries(ctx, sc, i0, i1) {
+    // 지표(엘더 임펄스 등)가 캔들 색을 지정하면 그 색으로 칠한다 (처음 발견한 barColors 사용)
+    function chBarColors(sts) { for (const st of sts) { const sp = chSpec(st); if (sp.barColors) return sp.barColors; } return null; }
+    function chDrawSeries(ctx, sc, i0, i1, barCol) {
       const d = chData(), bw = CH.barW;
       if (CH.type === 'line' || CH.type === 'area') {
         const pts = [];
@@ -5069,7 +5597,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         const c = d[i], x = chX(i);
         const prevClose = i > 0 ? d[i - 1].close : c.open;
         const up = CH.type === 'hollow' ? c.close >= prevClose : c.close >= c.open;
-        const col = up ? CH_UP : CH_DN;
+        const col = (barCol && barCol[i]) || (up ? CH_UP : CH_DN);
         const yH = sc.yOf(c.high), yL = sc.yOf(c.low), yO = sc.yOf(c.open), yC = sc.yOf(c.close);
         ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
         const xc = Math.round(x) + 0.5;
@@ -5149,7 +5677,24 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           ctx.fillRect(Math.round(chX(i) - bw / 2), Math.min(y, zeroY), bw, Math.max(1, Math.abs(y - zeroY)));
         }
       }
-      (spec.lines || []).forEach(l => chLinePath(ctx, l.v, sc, i0, iMax, l.color, l.width, l.dash, l.cv));
+      (spec.lines || []).forEach(l => chLinePath(ctx, l.v, sc, i0, iMax, l.color, l.width, l.dash, l.cv, l.brk));
+      if (spec.dotRow) { // 0선(또는 패널 바닥)에 상태 점: TTM 스퀴즈 ON/OFF, 밴드폭 최저 등
+        const dr = spec.dotRow, yy = dr.at === 'bottom' ? pane.y1 - 7 : sc.yOf(0), rad = Math.max(2, Math.min(3.4, CH.barW * 0.36));
+        for (let i = Math.max(0, i0); i <= Math.min(i1, dr.v.length - 1); i++) {
+          const v = dr.v[i]; if (v === null || v === undefined) continue;
+          const col = v ? dr.onColor : dr.offColor; if (!col) continue;
+          ctx.fillStyle = col; ctx.strokeStyle = 'rgba(2,6,23,0.85)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(chX(i), yy, rad, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        }
+      }
+      if (spec.ptDots) { // 선 위의 강조 점 (RS 블루닷)
+        const pd = spec.ptDots; ctx.fillStyle = pd.color;
+        for (let i = Math.max(0, i0); i <= Math.min(i1, pd.flags.length - 1); i++) {
+          if (!pd.flags[i] || pd.v[i] === null || pd.v[i] === undefined) continue;
+          ctx.beginPath(); ctx.arc(chX(i), sc.yOf(pd.v[i]), Math.max(2, Math.min(3.6, CH.barW * 0.4)), 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      const hasData = (spec.lines || []).some(l => l.v.some(v => v !== null && v !== undefined)) || (spec.hist && spec.hist.v.some(v => v !== null && v !== undefined));
+      if (spec.note && !hasData) { ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(spec.note, pw / 2, (pane.y0 + pane.y1) / 2); }
       ctx.restore();
       // 축 라벨: 상·하단 + 기준선 + 마지막 값 태그
       ctx.font = '10px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#64748b';
@@ -5636,13 +6181,47 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       CH.studies = chDefaultStudies(); CH.type = 'candles'; CH.ha = null;
       chRenderPresetPanel(); chResize(true); chBuildLegend(); chSyncToolbar(); chDraw();
     }
+    // ----- 비교 지수(SPY) 지연 로드·캐시: RS 라인·Minervini RS 조건용. 주기별로 1회만 불러오고 실패하면 다시 시도하지 않는다(없으면 '데이터 없음/미확인').
+    const CH_SPY = { cache: {}, loading: {}, failed: {} };
+    const chSpyKey = iv => `${CH_IV[iv].range}|${CH_IV[iv].iv}`;
+    const chSpyGet = iv => CH_SPY.cache[chSpyKey(iv)] || null;
+    async function chSpyLoad(iv) {
+      if (!CH_IV[iv]) return;
+      const key = chSpyKey(iv);
+      if (CH_SPY.cache[key] || CH_SPY.loading[key] || CH_SPY.failed[key]) return;
+      CH_SPY.loading[key] = true;
+      let res = null;
+      try { res = await fetchRealYahooFinanceData('SPY', CH_IV[iv].range, CH_IV[iv].iv); } catch (e) { res = null; }
+      CH_SPY.loading[key] = false;
+      if (res && res.history && res.history.length > 20) CH_SPY.cache[key] = res.history; else CH_SPY.failed[key] = true;
+      CH.studies.forEach(st => { if (st.id === 'rsline') st._spec = null; });
+      chRunPreset(); chBuildLegend(); chDraw();
+    }
+    TA.spyProvider = hist => {
+      if (hist !== CH.hist || !CH_IV[CH.interval]) return null;
+      const d = chSpyGet(CH.interval);
+      if (!d) chSpyLoad(CH.interval);
+      return d;
+    };
     function chRunPreset() {
       const P = CH.presetId ? CHART_PRESETS[CH.presetId] : null;
       CH.annot = null; CH.presetResult = null;
       if (P && CH.hist.length >= 5 && CH.interval === P.interval) {
-        try { CH.presetResult = P.analyze(CH.hist); CH.annot = CH.presetResult.annot; } catch (e) { console.warn('프리셋 분석 실패', e); }
+        try {
+          const opts = Object.assign({}, CH.presetOpts[CH.presetId] || {});
+          if (P.needsSpy && CH.interval === 'D') { opts.spy = chSpyGet('D'); if (!opts.spy) chSpyLoad('D'); }
+          CH.presetResult = P.analyze(CH.hist, opts); CH.annot = CH.presetResult.annot;
+        } catch (e) { console.warn('프리셋 분석 실패', e); }
       }
       chRenderPresetPanel();
+    }
+    function chPresetOpt(k, raw) {
+      const P = CH.presetId ? CHART_PRESETS[CH.presetId] : null;
+      if (!P || !P.options) return;
+      const def = P.options.find(x => x.k === k); if (!def) return;
+      const cur = CH.presetOpts[CH.presetId] = CH.presetOpts[CH.presetId] || {};
+      cur[k] = def.type === 'check' ? !!raw : String(raw);
+      chRunPreset(); chDraw();
     }
     function chToggleSignals(on) { CH.showSignals = !!on; chDraw(); }
     const CH_TONE = { good: 'text-emerald-300', bad: 'text-rose-300', warn: 'text-amber-300', info: 'text-slate-200' };
@@ -5659,19 +6238,30 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }
       const r = CH.presetResult;
       if (!r) { box.innerHTML = `<div class="text-sm text-slate-400">${escapeHtml(P.name)}: 분석에 필요한 데이터가 부족합니다.</div>`; return; }
-      const st = r.stats || { n: 0 };
       const stat = (label, val, cls = 'text-white') => `<div class="rounded-lg bg-slate-950/70 border border-slate-800 px-3 py-2"><div class="text-[10px] text-slate-500">${label}</div><div class="text-sm font-bold font-mono-numbers ${cls}">${val}</div></div>`;
-      const statHtml = st.n ? `
+      const statBlock = (st, title) => {
+        if (!st || !st.n) return `<p class="text-[11px] text-slate-500">${title ? escapeHtml(title) + ': ' : ''}이 종목의 불러온 구간에서는 이 규칙의 신호(거래)가 한 번도 발생하지 않았습니다 (마지막 봉 신호 제외).</p>`;
+        const small = st.n < 20;
+        return `${title ? `<div class="text-[10px] text-slate-400 mb-1">${escapeHtml(title)}</div>` : ''}
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-          ${stat('신호 횟수', `${st.n}회`)}
+          ${stat('신호 횟수', `${st.n}회`, small ? 'text-amber-300' : 'text-white')}
           ${stat('승률', `${st.winRate.toFixed(0)}%`, st.winRate >= 50 ? 'text-emerald-300' : 'text-amber-300')}
           ${stat('평균 수익률', pctS(st.avgRet), st.avgRet >= 0 ? 'text-emerald-300' : 'text-rose-300')}
           ${stat('평균 이익 / 손실', `${pctS(st.avgWin)} / ${pctS(st.avgLoss)}`, 'text-slate-200')}
           ${stat('손익비(PF)', st.profitFactor === null ? '∞' : st.profitFactor.toFixed(2), st.profitFactor === null || st.profitFactor >= 1 ? 'text-emerald-300' : 'text-rose-300')}
           ${stat('누적 vs 보유', `${pctS(st.total, 0)} / ${st.buyHold === null ? '' : pctS(st.buyHold, 0)}`, st.buyHold !== null && st.total >= st.buyHold ? 'text-emerald-300' : 'text-amber-300')}
         </div>
-        <p class="text-[10px] text-slate-500 leading-snug">※ 이 종목에 불러온 구간(${CH.hist.length}봉)에서 규칙을 그대로 적용한 단순 시뮬레이션입니다. 평균 보유 ${st.avgBars.toFixed(0)}봉, 최대 낙폭 ${st.mdd.toFixed(1)}%. 수수료·슬리피지·세금 미반영이며 표본이 적을 수 있습니다. 과거 성과는 미래 수익을 보장하지 않습니다.</p>`
-        : '<p class="text-[11px] text-slate-500">이 종목의 불러온 구간에서는 이 규칙의 신호(거래)가 한 번도 발생하지 않았습니다.</p>';
+        ${small ? `<p class="text-[11px] text-amber-300 leading-snug mt-1.5"><i class="fa-solid fa-triangle-exclamation mr-1"></i>표본이 ${st.n}회로 20회 미만입니다 — 승률·수익률이 우연일 가능성이 커서 통계로서 의미가 약합니다.</p>` : ''}
+        <p class="text-[10px] text-slate-500 leading-snug mt-1.5">※ 이 종목에 불러온 구간(${CH.hist.length}봉)에서 규칙을 그대로 적용한 단순 시뮬레이션입니다. 평균 보유 ${st.avgBars.toFixed(0)}봉, 최대 낙폭 ${st.mdd.toFixed(1)}%${st.nOpen ? `, 보유 중(미청산) ${st.nOpen}건은 현재가 기준 평가 포함` : ''}. 수수료·슬리피지·세금 미반영이며 표본이 적을 수 있습니다. 과거 성과는 미래 수익을 보장하지 않습니다.</p>`;
+      };
+      const statHtml = statBlock(r.stats, r.statsLabel || '') + (r.statsShort ? `<div class="mt-3">${statBlock(r.statsShort, '숏(L2) 거래 — 롱과 분리 집계')}</div>` : '');
+      const optHtml = (P.options && P.options.length) ? `<div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-300 border-t border-b border-slate-800/80 py-2"><span class="text-slate-500">설정</span>${P.options.map(op => {
+        const cur = (CH.presetOpts[CH.presetId] || {})[op.k];
+        const val = cur === undefined ? op.def : cur;
+        if (op.type === 'check') return `<label class="flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" ${val ? 'checked' : ''} onchange="chPresetOpt('${op.k}', this.checked)" class="accent-cyan-500">${escapeHtml(op.label)}</label>`;
+        return `<label class="flex items-center gap-1.5">${escapeHtml(op.label)}<select onchange="chPresetOpt('${op.k}', this.value)" class="bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-100 outline-none focus:border-cyan-400">${op.choices.map(c => `<option value="${c[0]}" ${String(val) === c[0] ? 'selected' : ''}>${escapeHtml(c[1])}</option>`).join('')}</select></label>`;
+      }).join('')}</div>` : '';
+      const limitNotes = (window.TA_LIMIT_NOTES && window.TA_LIMIT_NOTES.length) ? `<details class="group"><summary class="cursor-pointer text-[10px] text-slate-500 hover:text-slate-300 select-none"><i class="fa-solid fa-circle-info mr-1"></i>이 분석의 한계 (펼치기)</summary><ul class="mt-1.5 space-y-1 text-[10px] text-slate-500 leading-snug list-disc pl-5">${window.TA_LIMIT_NOTES.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul></details>` : '';
       box.innerHTML = `
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div><div class="flex items-center gap-2"><i class="fa-solid ${P.icon} text-cyan-300"></i><h4 class="text-sm font-bold text-white">${escapeHtml(P.name)}</h4><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">${escapeHtml(P.tag)}</span>${r.score ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono-numbers">${escapeHtml(r.score)}</span>` : ''}</div>
@@ -5682,9 +6272,11 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           </div></div>
         <div class="rounded-xl border px-3.5 py-2.5 text-sm leading-relaxed ${CH_TONE_BOX[r.verdict.tone] || CH_TONE_BOX.info} ${CH_TONE[r.verdict.tone] || ''}"><i class="fa-solid fa-lightbulb mr-1.5"></i>${escapeHtml(r.verdict.text)}</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">${r.rows.filter(x => x.v).map(x => `<div class="flex items-start justify-between gap-3 py-1 border-b border-slate-800/70 text-xs"><span class="text-slate-400 shrink-0">${escapeHtml(x.k)}</span><span class="text-right font-mono-numbers ${CH_TONE[x.tone] || 'text-slate-200'}">${escapeHtml(x.v)}</span></div>`).join('')}</div>
-        <div><div class="text-[11px] font-bold text-slate-300 mb-1.5"><i class="fa-solid fa-chart-column text-amber-400 mr-1"></i>이 종목에서의 과거 신호 성과 (참고용)</div>${statHtml}</div>
+        ${optHtml}
+        <div><div class="text-[11px] font-bold text-slate-300 mb-1.5"><i class="fa-solid fa-chart-column text-amber-400 mr-1"></i>이 종목에서의 과거 신호 성과 (참고용)</div>${r.pending ? `<p class="text-[11px] text-amber-300 leading-snug mb-1.5"><i class="fa-solid fa-hourglass-half mr-1"></i>${escapeHtml(r.pending)}</p>` : ''}${statHtml}</div>
         <details class="group"><summary class="cursor-pointer text-xs font-semibold text-cyan-300 hover:text-cyan-200 select-none"><i class="fa-solid fa-book-open mr-1"></i>이 기법의 규칙 (펼치기)</summary>
           <ul class="mt-2 space-y-1.5 text-[11px] text-slate-400 leading-snug list-disc pl-5">${r.rules.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul></details>
+        ${limitNotes}
         <p class="text-[10px] text-slate-600 leading-snug">※ 널리 알려진 기법의 공개된 규칙을 코드로 옮긴 것이며, 수익을 보장하는 '인증된 전략'은 아닙니다. 교육·참고용이며 투자 권유가 아닙니다.</p>`;
     }
 
@@ -15877,7 +16469,149 @@ ${digest}`;
     })();
   </script>
   <script id="mod-signals">
-    // ===== 신호 엔진 모듈 (구현 예정: 스텁) — window.taSignalsLite(history, spyHistory) =====
+    // ===== 신호 엔진 모듈 — window.taSignalsLite(history, spyHistory, opts) =====
+    // 관심종목·스크리너가 쓰는 가벼운 신호 엔진. 입력: 일봉 배열 [{t,date,open,high,low,close,volume}] (오래된 것 → 최신, 약 2년), spyHistory 는 선택(SPY 일봉).
+    // opts.excludeLast=true 면 마지막 봉(당일 미완성일 수 있음)을 빼고 '완성봉 기준'으로 계산한다.
+    // 반환: { chips:[{id,label,tone:'bull'|'bear'|'warn'|'info',barsAgo:number|null,detail}], stats:{rsi14,adx14,sma20Diff,sma50Diff,sma200Diff,hi252,pctFromHigh,atrPct,rsScore,volRatio50,bbwPctile} }
+    //  - 퍼센트 값은 숫자(%), 계산 불가는 null. 가용 봉이 부족하면 해당 칩은 만들지 않는다. barsAgo: 이벤트형 칩 0 = 마지막(완성)봉, 상태형 칩 null.
+    //  - rsScore = (종목 가중 수익률 − SPY 가중 수익률) %p. 가중 = 0.4×R63+0.2×R126+0.2×R189+0.2×R252 (가용 구간 재정규화). 순위가 아니다. SPY 없으면 null.
+    // RSI 70/30 단독·골든크로스·캔들 패턴 단독 칩은 오탐이 많아 만들지 않는다. 의존: TA(메인 스크립트), rsiSeries, minerviniEval.
+    (function () {
+      window.TA_LIMIT_NOTES = [
+        '지표는 과거 가격을 가공한 값이며 미래를 예측하지 않습니다.',
+        '백테스트는 수수료·슬리피지·세금을 반영하지 않고 표본이 작아 과최적화에 취약합니다.',
+        'ADX 20 미만(횡보)에서는 추세 신호가 휩쏘(가짜 신호)로 끝나기 쉽습니다.',
+        '캔들 패턴은 학술 연구에서 초과수익이 확인되지 않았습니다.',
+        'RS(상대강도)는 SPY 대비 단순 비교이거나 앱 내 종목 집단 안의 순위일 뿐, IBD RS Rating 과 다릅니다.',
+        '데이터가 약 250봉이면 52주·200일 조건 일부가 계산되지 않거나 가용 구간 기준으로 계산됩니다.',
+        '구현 관례(일목 선행스팬 26 vs 25, VWAP 대표가격 근사 등)가 플랫폼마다 조금씩 다릅니다.',
+        '교육·참고용 정보이며 투자 권유가 아닙니다.'
+      ];
+      const num = v => typeof v === 'number' && Number.isFinite(v);
+      const emptyStats = () => ({ rsi14: null, adx14: null, sma20Diff: null, sma50Diff: null, sma200Diff: null, hi252: null, pctFromHigh: null, atrPct: null, rsScore: null, volRatio50: null, bbwPctile: null });
+      const f1 = v => v.toFixed(1), f2 = v => v.toFixed(2);
+
+      window.taSignalsLite = function (history, spyHistory, opts) {
+        opts = opts || {};
+        const out = { chips: [], stats: emptyStats() };
+        try {
+          if (!Array.isArray(history) || typeof TA === 'undefined') return out;
+          let h = history.filter(c => c && num(c.high) && num(c.low) && num(c.close)).map(c => ({ ...c, open: num(c.open) ? c.open : c.close, volume: num(c.volume) ? c.volume : 0 }));
+          if (opts.excludeLast) h = h.slice(0, -1);
+          const n = h.length;
+          if (n < 30) return out;
+          const i = n - 1, last = h[i], closes = h.map(c => c.close), vols = h.map(c => c.volume);
+          const spy = Array.isArray(spyHistory) && spyHistory.length ? spyHistory.filter(c => c && num(c.close)) : null;
+          const spyAl = spy && spy.length ? TA.alignClose(h, spy) : null;
+          const chips = out.chips, st = out.stats;
+          const add = (id, label, tone, barsAgo, detail) => chips.push({ id, label, tone, barsAgo, detail });
+          const avgPrior = (arr, p) => { if (i < p) return null; let s = 0; for (let j = i - p; j < i; j++) s += arr[j]; return s / p; };
+
+          const sma20 = TA.sma(closes, 20), sma50 = TA.sma(closes, 50), sma200 = TA.sma(closes, 200), ema20 = TA.ema(closes, 20);
+          const rsi = rsiSeries(closes, 14), adx = TA.adx(h, 14), atr = TA.atr(h, 14);
+
+          // ----- stats -----
+          if (rsi[i] !== null) st.rsi14 = rsi[i];
+          if (adx.adx[i] !== null) st.adx14 = adx.adx[i];
+          if (sma20[i] !== null) st.sma20Diff = (last.close / sma20[i] - 1) * 100;
+          if (sma50[i] !== null) st.sma50Diff = (last.close / sma50[i] - 1) * 100;
+          if (sma200[i] !== null) st.sma200Diff = (last.close / sma200[i] - 1) * 100;
+          const hiWin = Math.min(252, n);
+          if (n >= 120) {
+            let hi = -Infinity; for (let j = i - hiWin + 1; j <= i; j++) if (h[j].high > hi) hi = h[j].high;
+            st.hi252 = hi; st.pctFromHigh = (last.close / hi - 1) * 100; st.hiBars = hiWin;
+          }
+          if (atr[i] !== null && last.close > 0) st.atrPct = atr[i] / last.close * 100;
+          const vAvg50 = avgPrior(vols, 50);
+          if (vAvg50 !== null && vAvg50 > 0) st.volRatio50 = last.volume / vAvg50;
+          const bbw = TA.bbExtra(closes, 20, 2).width;
+          if (bbw[i] !== null) {
+            const from = Math.max(0, i - 124); let cnt = 0, le = 0;
+            for (let j = from; j <= i; j++) if (bbw[j] !== null) { cnt++; if (bbw[j] <= bbw[i]) le++; }
+            if (cnt >= 60) st.bbwPctile = le / cnt * 100;
+          }
+          let rsW = null;
+          if (spyAl) { rsW = TA.weightedReturn(closes, i, spyAl); if (rsW) st.rsScore = (rsW.score - rsW.score2) * 100; }
+
+          // ----- ① 스테이지2 · ② 피벗 돌파 (Minervini, 가용 구간) -----
+          let ev = null;
+          if (typeof minerviniEval === 'function') ev = minerviniEval(h, i, { s50: sma50, s150: TA.sma(closes, 150), s200: sma200, closes }, spyAl);
+          if (ev && ev.all7) {
+            const rsTxt = ev.rsKnown ? `RS(SPY 대비 가중 수익률) ${ev.items[7].ok ? '우위' : '열위'}` : 'RS 조건은 SPY 데이터가 없어 미확인';
+            add('stage2', ev.rsKnown ? `스테이지2 (템플릿 ${ev.passed}/8)` : '스테이지2 (템플릿 7/7)', 'bull', null,
+              `Minervini 트렌드 템플릿 가격·이평 7조건 충족: 종가>150·200일선, 150>200일선, 200일선 상승(1개월 이상), 50일선>150·200일선, 종가>50일선, 52주 저점 +30% 이상, 52주 고점 −25% 이내. ${rsTxt}.${ev.win < 252 ? ` 52주 구간은 가용한 ${ev.win}봉 기준.` : ''} 조건 충족 여부일 뿐 상승 보장이 아닙니다.`);
+            if (i >= 50 && vAvg50 > 0) {
+              let pv = -Infinity; for (let j = i - 20; j < i; j++) pv = Math.max(pv, h[j].high);
+              if (last.close > pv && last.volume >= vAvg50 * 1.4) add('pivotBO', '피벗 돌파', 'bull', 0, `종가 ${f2(last.close)} > 직전 20봉 고가 ${f2(pv)}, 거래량 ${f1(last.volume / vAvg50)}배(직전 50봉 평균 대비, 기준 1.4배 이상), 스테이지2 조건 충족.`);
+            }
+          }
+
+          // ----- ③ RS 블루닷 -----
+          if (spyAl && n >= 252) {
+            const rs = TA.rsLine(h, spy);
+            if (TA.rsBlueDot(closes, rs, 252)[i]) add('rsBlue', 'RS 블루닷', 'bull', null, 'RS 라인(종목÷SPY)이 최근 252봉 신고가인데 가격은 같은 구간 종가 기준 신고가가 아닙니다 — 가격보다 먼저 상대강도가 신고가를 낸 상태(순위가 아닌 SPY 대비 비율).');
+          }
+
+          // ----- ④ 스퀴즈 ON · ⑤ 스퀴즈 해제↑ -----
+          if (n >= 40) {
+            const sq = TA.ttmSqueeze(h);
+            let run = 0; for (let j = i; j >= 0 && sq.on[j] === true; j--) run++;
+            if (run >= 5) add('sqzOn', `스퀴즈 ON ${run}봉`, 'info', null, `볼린저(20, 2σ)가 켈트너(SMA20 ± 1.5×TR평균) 안에 ${run}봉 연속으로 들어가 있습니다 — 변동성 압축 상태(방향은 알 수 없음).`);
+            if (sq.on[i - 1] === true && sq.on[i] === false && sq.mom[i] !== null && sq.mom[i - 1] !== null && sq.mom[i] > 0 && sq.mom[i] > sq.mom[i - 1]) add('sqzRel', '스퀴즈 해제↑', 'bull', 0, `전날 스퀴즈 ON → 오늘 OFF, 모멘텀(선형회귀) ${f2(sq.mom[i])} > 0 이고 전날(${f2(sq.mom[i - 1])})보다 상승.`);
+          }
+
+          // ----- ⑥ 눌림목 -----
+          if (ema20[i] !== null && ema20[i - 5] !== null && sma50[i] !== null && rsi[i] !== null && atr[i] !== null) {
+            if (ema20[i] > ema20[i - 5] && Math.abs(last.close - ema20[i]) <= atr[i] && last.close > sma50[i] && rsi[i] >= 40 && rsi[i] <= 55) {
+              add('pullback', '눌림목', 'bull', null, `종가가 EMA20(${f2(ema20[i])}) ±1 ATR(${f2(atr[i])}) 이내, EMA20 우상향(5봉 전보다 높음), 종가>SMA50, RSI14 ${f1(rsi[i])} (40~55).`);
+            }
+          }
+
+          // ----- ⑦ 추세 강함 -----
+          if (adx.adx[i] !== null && adx.adx[i - 5] !== null && adx.plusDI[i] !== null && adx.minusDI[i] !== null) {
+            if (adx.adx[i] > 25 && adx.plusDI[i] > adx.minusDI[i] && adx.adx[i] > adx.adx[i - 5]) add('trend', '추세 강함', 'bull', null, `ADX14 ${f1(adx.adx[i])} > 25 이고 5봉 전(${f1(adx.adx[i - 5])})보다 높음, +DI ${f1(adx.plusDI[i])} > −DI ${f1(adx.minusDI[i])}.`);
+          }
+
+          // ----- ⑧ 일목 삼역호전 유지 -----
+          if (n >= 80) {
+            const ic = TA.ichimoku(h, 9, 26, 52, 26);
+            const A = ic.spanA[i], B = ic.spanB[i], t = ic.tenkan[i], k = ic.kijun[i];
+            if (A !== null && B !== null && t !== null && k !== null && atr[i]) {
+              const top = Math.max(A, B), th = Math.abs(A - B) / atr[i];
+              if (last.close > top && t > k && last.close > h[i - 26].close && th >= 1) add('ichi3', '일목 삼역호전 유지', 'bull', null, `종가가 구름 위(${f2(top)}), 전환선 ${f2(t)} > 기준선 ${f2(k)}, 후행스팬(종가) > 26봉 전 종가 ${f2(h[i - 26].close)}, 구름 두께 ${f1(th)} ATR(1 이상).`);
+            }
+          }
+
+          // ----- ⑨ 52주 신고가 근접 -----
+          if (n >= 200 && st.hi252 !== null) {
+            const v20 = avgPrior(vols, 20);
+            if (v20 !== null && v20 > 0 && last.close >= st.hi252 * 0.97 && last.volume >= v20) add('hi52', '52주 신고가 근접', 'bull', null, `종가가 ${hiWin}봉 고점 ${f2(st.hi252)}의 ${f1(last.close / st.hi252 * 100)}% (기준 97% 이상), 거래량이 직전 20봉 평균 이상.${hiWin < 252 ? ` (가용 ${hiWin}봉 기준)` : ''}`);
+          }
+
+          // ----- ⑩ 과열 경고 -----
+          if (i >= 2 && rsi[i] !== null) {
+            const ext = sma50[i] !== null && last.close > sma50[i] * 1.25, hot = rsi[i] > 80;
+            const bear2 = h[i].close < h[i].open && h[i - 1].close < h[i - 1].open && vols[i] > vols[i - 1] && vols[i - 1] > vols[i - 2];
+            if ((ext || hot) && bear2) add('overheat', '과열 경고', 'warn', 0, `${ext ? `종가가 SMA50의 ${f1(last.close / sma50[i] * 100)}%(125% 초과)` : `RSI14 ${f1(rsi[i])} (80 초과)`}인 상태에서 2일 연속 거래량이 늘면서 음봉 마감.`);
+          }
+
+          // ----- ⑪ 추세 이탈 -----
+          if (i >= 5 && sma50[i] !== null && last.close < sma50[i]) {
+            let was = true; for (let j = 1; j <= 5; j++) if (sma50[i - j] === null || !(closes[i - j] > sma50[i - j])) { was = false; break; }
+            if (was) add('breakdown', '추세 이탈', 'bear', 0, `종가 ${f2(last.close)}가 SMA50(${f2(sma50[i])}) 아래로 마감 — 직전 5봉은 모두 SMA50 위였음.`);
+          }
+
+          // ----- ⑫ 거래량 급증 -----
+          if (vAvg50 !== null && vAvg50 > 0 && last.volume >= vAvg50 * 2 && last.high > last.low) {
+            const pos = (last.close - last.low) / (last.high - last.low);
+            if (pos >= 0.6) add('volSurge', '거래량 급증', 'bull', 0, `거래량 ${f1(last.volume / vAvg50)}배(직전 50봉 평균 대비, 기준 2배 이상), 종가가 당일 범위의 ${f1(pos * 100)}% 위치(기준 60% 이상).`);
+          }
+        } catch (e) {
+          if (typeof console !== 'undefined') console.warn('taSignalsLite 실패', e);
+        }
+        return out;
+      };
+    })();
   </script>
   <script id="mod-watch">
     // ===== 관심종목 탭 모듈 (구현 예정: 스텁) =====
