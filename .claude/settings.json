@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./docs/**)",
+      "Read(./i18n/ko_keys.json)",
+      "Read(./tools/package-lock.json)",
+      "Read(./tools/node_modules/**)",
+      "Read(./i18n/work/**)"
+    ]
+  }
+}
