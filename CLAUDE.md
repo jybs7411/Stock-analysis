@@ -5,7 +5,7 @@
 ## 절대 규칙
 - `index.html` 전체를 Read 하지 말 것. **Grep으로 함수/ID를 찾고 → Read는 offset/limit로 ~150줄만.**
 - `docs/`는 `tools/build.py`가 만든 **생성물**(index.html 복사본 포함). 읽기·검색·수정 금지. 소스는 항상 루트 `index.html`.
-- `i18n/ko_keys.json`(400KB), `tools/package-lock.json`, `node_modules/`, `i18n/work/`는 읽지 말 것. 필요하면 스크립트/`jq`/`grep`으로 일부만.
+- `i18n/*.json`·`i18n/*.js`(번역 사전, 각 400~500KB; en/de 완성), `tools/package-lock.json`, `node_modules/`, `i18n/work/`는 읽지 말 것. 필요하면 스크립트/`jq`/`grep`으로 일부만.
 - diff는 `git diff --stat` 또는 `git diff -- <파일>`. `docs/` 포함 전체 diff 출력 금지.
 - 대량·기계적 작업(일괄 치환, 검사, i18n 추출)은 스크립트로 하고 요약만 확인.
 - 파일 삭제·덮어쓰기·이름 변경·이동은 먼저 사용자에게 확인.
@@ -31,6 +31,10 @@
 - `worker/index.js` — Yahoo 프록시 Worker (`/api/spark`, `/api/quotes` 등). 변경 시 재배포 필요.
 - `tools/` — `build.py`(index.html→docs/), `i18n-extract.mjs`/`i18n-build.mjs`/`i18n-merge.py`(번역). index.html을 고친 뒤 docs 갱신: `cd tools && python3 build.py`.
 - `pwa/`, `site/` — PWA 자산·Pages 배포 설정.
+
+## 다국어(ko/en/de)
+- 엔진은 `index.html`의 `i18n-boot`/`i18n-engine`, 사전은 `i18n/{en,de}.js`(생성물). 문구를 바꾼 뒤: `cd tools && node i18n-extract.mjs`(키 추출) → 새 키만 번역해 `i18n/work/*.tsv`에 추가 → `python3 i18n-merge.py && node i18n-build.mjs && python3 build.py`.
+- 새 UI 문구를 한국어로 추가했다면 사전을 통째로 읽지 말고 `grep -c`/스크립트로 누락 키만 확인.
 
 ## 세션 습관
 - 작업이 바뀌면 `/clear`, 이어가야 하면 `/compact <유지할 내용>`. 토큰 확인은 `/context`.

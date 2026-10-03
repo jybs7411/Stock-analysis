@@ -5,7 +5,11 @@
       "Read(./i18n/ko_keys.json)",
       "Read(./tools/package-lock.json)",
       "Read(./tools/node_modules/**)",
-      "Read(./i18n/work/**)"
+      "Read(./i18n/work/**)",
+      "Read(./i18n/en.json)",
+      "Read(./i18n/de.json)",
+      "Read(./i18n/en.js)",
+      "Read(./i18n/de.js)"
     ]
   }
 }
