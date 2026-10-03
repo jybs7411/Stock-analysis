@@ -1,11 +1,15 @@
 {
-  // 시세 프록시 Worker (worker/index.js). Cloudflare 에서 이 저장소를 pentanalyst-proxy 에 Git 연결(Root directory = 저장소 루트)하면
-  // 푸시할 때마다 이 설정으로 자동 배포됩니다. (화면용 정적 파일 배포 설정은 site/wrangler.jsonc — 별개의 Worker)
-  "name": "pentanalyst-proxy",
+  // 화면(docs/ 정적 파일) + 시세 프록시(worker/index.js)를 한 Worker(stock-analysis)로 배포합니다.
+  // /api/* 요청은 Worker 코드가, 나머지는 docs/ 의 정적 파일이 처리합니다. 화면과 API 가 같은 주소라 CORS 설정이 따로 필요 없습니다.
+  // (site/wrangler.jsonc 는 Root directory 를 "site" 로 둔 경우를 위한 같은 내용의 설정입니다. 둘 중 하나만 쓰이며, 바꿀 때는 둘 다 고치세요.)
+  "name": "stock-analysis",
   "main": "worker/index.js",
-  "compatibility_date": "2024-11-01",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "docs",
+    "run_worker_first": ["/api/*"]
+  },
   "vars": {
-    // 프론트엔드를 올린 주소로 제한하려면 바꾸세요 (파일로 열어 쓰면 Origin 이 null 이라 "*" 필요)
     "ALLOWED_ORIGIN": "*"
   },
   // PR/브랜치 푸시 때 Cloudflare 가 실행하는 `wrangler preview` 용 설정 (없으면 빌드가 "missing a `previews` block" 으로 실패).
