@@ -147,6 +147,7 @@ export function mapFundamentals(symbol, result) {
     country: profile.country || null,
     exchange: price.exchangeName || null,
     currency: price.currency || null,
+    financialCurrency: fin.financialCurrency || null, // 재무제표 통화(ADR 등은 가격 통화와 다를 수 있음)
     epsTrailing: num(stats.trailingEps),
     epsForward: num(stats.forwardEps)
   };
