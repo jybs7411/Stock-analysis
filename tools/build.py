@@ -48,8 +48,15 @@ open(os.path.join(OUT, 'index.html'), 'w', encoding='utf-8').write(html)
 shutil.copy(os.path.join(ROOT, 'pwa', 'manifest.webmanifest'), OUT)
 shutil.rmtree(os.path.join(OUT, 'icons'), ignore_errors=True)
 shutil.copytree(os.path.join(ROOT, 'pwa', 'icons'), os.path.join(OUT, 'icons'))
+# 번역 사전(i18n/en.js, de.js) 복사 — 선택한 언어일 때만 앱이 읽는다
+shutil.rmtree(os.path.join(OUT, 'i18n'), ignore_errors=True)
+os.makedirs(os.path.join(OUT, 'i18n'))
+for lang in ('en', 'de'):
+    src_js = os.path.join(ROOT, 'i18n', lang + '.js')
+    if os.path.exists(src_js):
+        shutil.copy(src_js, os.path.join(OUT, 'i18n', lang + '.js'))
 h = hashlib.sha1()
-for p in (os.path.join(OUT, 'index.html'), css_path):
+for p in [os.path.join(OUT, 'index.html'), css_path] + sorted(os.path.join(OUT, 'i18n', f) for f in os.listdir(os.path.join(OUT, 'i18n'))):
     h.update(open(p, 'rb').read())
 sw = open(os.path.join(ROOT, 'pwa', 'sw.js'), encoding='utf-8').read().replace('__BUILD__', h.hexdigest()[:10])
 open(os.path.join(OUT, 'sw.js'), 'w', encoding='utf-8').write(sw)

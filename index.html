@@ -10,6 +10,124 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <!-- 언어(한국어/English/Deutsch): 선택한 언어의 번역 사전(i18n/<언어>.js)을 먼저 읽고, 화면의 한국어 문구를 자동으로 바꿔 보여준다 -->
+  <script id="i18n-boot">
+    (function () {
+      var L = 'ko';
+      try {
+        var s = localStorage.getItem('pentanalyst_lang');
+        if (s === 'ko' || s === 'en' || s === 'de') L = s;
+        else { var n = String(navigator.language || 'ko').toLowerCase(); L = n.indexOf('ko') === 0 ? 'ko' : n.indexOf('de') === 0 ? 'de' : 'en'; }
+      } catch (e) { /* 저장소 사용 불가: 기본 한국어 */ }
+      window.LANG = L;
+      window.LOCALE = { ko: 'ko-KR', en: 'en-US', de: 'de-DE' }[L];
+      document.documentElement.lang = L;
+      window.setLang = function (l) { try { localStorage.setItem('pentanalyst_lang', l); } catch (e) { /* ignore */ } location.reload(); };
+      window.tr = function (x) { return x; };
+      if (L !== 'ko') document.write('<script src="i18n/' + L + '.js"><\/script>');
+      document.addEventListener('DOMContentLoaded', function () { document.querySelectorAll('.lang-btn').forEach(function (b) { b.classList.toggle('is-on', b.dataset.lang === L); }); });
+    })();
+  </script>
+  <script id="i18n-engine">
+    (function () {
+      if (window.LANG === 'ko' || !window.__I18N) return;
+      var D = window.__I18N, HAN = /[가-힣]/;
+      var exact = D.exact || {};
+      var pats = (D.pat || []).map(function (p) { return { re: new RegExp(p[0]), t: p[1], hint: p[2] }; });
+      // 짧은 조각 대체용 트라이(정확히 맞는 문구가 없을 때, 아는 문구를 긴 것부터 찾아 바꿈)
+      var trie = {};
+      Object.keys(exact).forEach(function (k) {
+        if (k.length < 2) return;
+        var n = trie;
+        for (var i = 0; i < k.length; i++) { var c = k.charAt(i); n = n[c] || (n[c] = {}); }
+        n.$ = exact[k];
+      });
+      var cache = new Map();
+      function subst(core) {
+        var out = '', i = 0, len = core.length;
+        while (i < len) {
+          var n = trie, j = i, best = null, bestEnd = i;
+          while (j < len && (n = n[core.charAt(j)])) { j++; if (n.$ !== undefined) { best = n.$; bestEnd = j; } }
+          if (best !== null) { out += best; i = bestEnd; } else { out += core.charAt(i); i++; }
+        }
+        return out;
+      }
+      function tr1(core, depth) {
+        if (exact[core] !== undefined) return exact[core];
+        if (depth < 4) {
+          for (var i = 0; i < pats.length; i++) {
+            var p = pats[i];
+            if (core.indexOf(p.hint) < 0) continue;
+            var m = p.re.exec(core);
+            if (!m) continue;
+            return p.t.replace(/\{(\d+)\}/g, function (_, k) { var v = m[+k + 1]; return v === undefined ? '' : (HAN.test(v) ? trText(v, depth + 1) : v); });
+          }
+        }
+        return subst(core);
+      }
+      function trText(s, depth) {
+        if (typeof s !== 'string' || !HAN.test(s)) return s;
+        var c = cache.get(s); if (c !== undefined) return c;
+        var m = /^(\s*)([\s\S]*?)(\s*)$/.exec(s);
+        var r = m[1] + tr1(m[2].replace(/\s+/g, ' '), depth || 0) + m[3];
+        if (cache.size > 30000) cache.clear();
+        cache.set(s, r);
+        return r;
+      }
+      window.tr = function (x) { return trText(x, 0); };
+      // ---- DOM ----
+      var SKIP = { SCRIPT: 1, STYLE: 1, TEXTAREA: 1, NOSCRIPT: 1 }, ATTRS = ['title', 'placeholder', 'aria-label', 'alt', 'label'];
+      function doText(n) {
+        var d = n.data;
+        if (n.__tr === d || !HAN.test(d) || (n.parentNode && SKIP[n.parentNode.tagName])) return;
+        var r = trText(d, 0);
+        if (r !== d) { n.__tr = r; n.data = r; }
+      }
+      function doEl(el) {
+        for (var i = 0; i < ATTRS.length; i++) {
+          var v = el.getAttribute(ATTRS[i]);
+          if (v && HAN.test(v)) { var r = trText(v, 0); if (r !== v) el.setAttribute(ATTRS[i], r); }
+        }
+      }
+      function walkTree(root) {
+        if (root.nodeType === 3) { doText(root); return; }
+        if (root.nodeType !== 1 || SKIP[root.tagName]) return;
+        doEl(root);
+        var w = document.createTreeWalker(root, 5), n;
+        while ((n = w.nextNode())) { if (n.nodeType === 3) doText(n); else if (!SKIP[n.tagName]) doEl(n); }
+      }
+      var pending = new Set(), queued = false;
+      function flush() {
+        queued = false;
+        var list = Array.from(pending); pending.clear();
+        for (var i = 0; i < list.length; i++) { var n = list[i]; if (n.isConnected !== false) walkTree(n); }
+      }
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          var m = muts[i];
+          if (m.type === 'childList') { for (var j = 0; j < m.addedNodes.length; j++) pending.add(m.addedNodes[j]); }
+          else pending.add(m.target);
+        }
+        if (!queued) { queued = true; Promise.resolve().then(flush); }
+      }).observe(document, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS });
+      // ---- 캔버스 글자·알림창 ----
+      var P = window.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype;
+      if (P) ['fillText', 'strokeText', 'measureText'].forEach(function (f) {
+        var o = P[f];
+        P[f] = function (t) { var a = Array.prototype.slice.call(arguments); if (typeof t === 'string' && HAN.test(t)) a[0] = trText(t, 0); return o.apply(this, a); };
+      });
+      ['alert', 'confirm', 'prompt'].forEach(function (f) { var o = window[f]; window[f] = function (m) { var a = Array.prototype.slice.call(arguments); if (typeof m === 'string') a[0] = trText(m, 0); return o.apply(window, a); }; });
+      // 디버그: 번역되지 않고 남은 한국어 문구 목록 (window.__i18nLeft())
+      window.__i18nLeft = function () {
+        var out = new Set(), w = document.createTreeWalker(document.documentElement, 5), n;
+        while ((n = w.nextNode())) {
+          if (n.nodeType === 3) { if (HAN.test(n.data) && !(n.parentNode && SKIP[n.parentNode.tagName])) out.add(n.data.replace(/\s+/g, ' ').trim()); }
+          else if (!SKIP[n.tagName]) ATTRS.forEach(function (a) { var v = n.getAttribute(a); if (v && HAN.test(v)) out.add('[' + a + '] ' + v); });
+        }
+        return Array.from(out);
+      };
+    })();
+  </script>
   <title>PentAnalyst - 5인 전문가 다각도 주식 분석 터미널</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -78,6 +196,7 @@
     @media (pointer: coarse) { #tabNav [id^=tabBtn-] { min-height: 44px; } main button:not([class*=" h-"]):not([class^="h-"]), main select { min-height: 40px; } }
     /* 터치 화면: 작은 버튼을 손가락으로 누르기 쉽게 (높이만 키움) */
     @media (max-width: 639px) { #toastNotification { top: 0.75rem; bottom: auto; left: 0.75rem; right: 0.75rem; max-width: none; } }
+    .lang-btn.is-on { background: #0e7490; color: #fff; }
     /* 폰: 노치·제스처 바 영역 피하기 */
     body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
     #tabNav.is-stuck [id^=tabBtn-] { padding: 0.4rem 0.8rem; }
@@ -154,6 +273,7 @@
             <i class="fa-solid fa-key text-amber-400 text-xs"></i>
             <span class="font-semibold text-xs">API 키 & 구글 검색 설정</span>
           </button>
+          <div id="langSwitch" role="group" aria-label="Language" translate="no" class="flex rounded-lg border border-slate-700 overflow-hidden bg-slate-800 shrink-0"><button type="button" data-lang="ko" onclick="setLang('ko')" aria-label="한국어" class="lang-btn px-2.5 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">KO</button><button type="button" data-lang="en" onclick="setLang('en')" aria-label="English" class="lang-btn px-2.5 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">EN</button><button type="button" data-lang="de" onclick="setLang('de')" aria-label="Deutsch" class="lang-btn px-2.5 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">DE</button></div>
         </div>
       </div>
 
@@ -2353,6 +2473,8 @@
 
       const request = async (text, useSearch, apiKey) => {
         const keyUsed = apiKey === free ? '무료 키' : '유료 키';
+        // 앱 언어가 한국어가 아니면 응답 언어를 지정한다 (프롬프트는 한국어여도 AI 가 이해함)
+        if (window.LANG && window.LANG !== 'ko') text += `\n\nIMPORTANT: Write every human-readable text of your response in ${window.LANG === 'de' ? 'GERMAN (Deutsch)' : 'ENGLISH'}. Keep JSON keys, ticker symbols, numbers and fixed enum values (e.g. BUY/HOLD, [david>victor] line prefixes, [sum]) unchanged.`;
         const body = { contents: [{ parts: [{ text }] }] };
         // 주의: googleSearch 도구는 responseMimeType: application/json 과 함께 쓰지 않는다 (JSON 모드 미사용).
         if (useSearch) body.tools = [{ googleSearch: {} }];
@@ -6839,8 +6961,8 @@ ${buildVerifiedDataText(analysisInputs)}`;
       if ('speechSynthesis' in window) {
         audioStatus.textContent = '브라우저 음성 엔진으로 브리핑 재생 중...';
         const msg = new SpeechSynthesisUtterance();
-        msg.text = `PentAnalyst 모닝 브리핑입니다. 분석 종목은 ${currentAnalysisData.name}, 티커는 ${currentAnalysisData.ticker}입니다. 현재 주가는 ${currentAnalysisData.price} 달러이며, 5인 전문가 종합 컨센서스는 ${currentAnalysisData.consensus || '없음'}입니다. ${currentAnalysisData.targetAvg !== null ? `애널리스트 평균 목표 주가는 ${currentAnalysisData.targetAvg} 달러입니다.` : '목표 주가 데이터는 없습니다.'}`;
-        msg.lang = 'ko-KR';
+        msg.text = tr(`PentAnalyst 모닝 브리핑입니다. 분석 종목은 ${currentAnalysisData.name}, 티커는 ${currentAnalysisData.ticker}입니다. 현재 주가는 ${currentAnalysisData.price} 달러이며, 5인 전문가 종합 컨센서스는 ${currentAnalysisData.consensus || '없음'}입니다. ${currentAnalysisData.targetAvg !== null ? `애널리스트 평균 목표 주가는 ${currentAnalysisData.targetAvg} 달러입니다.` : '목표 주가 데이터는 없습니다.'}`);
+        msg.lang = window.LOCALE || 'ko-KR';
         msg.rate = 1.0;
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(msg);
@@ -13128,7 +13250,7 @@ ${pdFactsText(d)}`;
         if (!el) return;
         if (txt) { el.textContent = txt; return; }
         const t = Math.max(fxS.sparkAt, fxS.quoteAt);
-        el.textContent = t ? `마지막 갱신 ${new Date(t).toLocaleTimeString('ko-KR', { hour12: false })}${fxS.auto ? ' · 60초마다 자동 갱신' : ''}` : '';
+        el.textContent = t ? `마지막 갱신 ${new Date(t).toLocaleTimeString(window.LOCALE || 'ko-KR', { hour12: false })}${fxS.auto ? ' · 60초마다 자동 갱신' : ''}` : '';
     }
 
     // 차트용 원본 OHLC (환율은 소수점이 중요하므로 반올림하지 않는 자체 파서 사용). 동일 요청은 55초 캐시 + 진행 중 요청 공유.
@@ -14627,7 +14749,7 @@ ${pdFactsText(d)}`;
     }
     function mkFmtTime(sec) {
         if (!mkFin(sec)) return '';
-        return new Date(sec * 1000).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        return new Date(sec * 1000).toLocaleString(window.LOCALE || 'ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
     const MK_STATE_KO = { REGULAR: '정규장 진행 중', PRE: '프리마켓', PREPRE: '개장 전', POST: '애프터마켓', POSTPOST: '장 마감 후', CLOSED: '장 마감' };
     function mkSparkSvg(vals, up) {
@@ -18086,7 +18208,7 @@ ${digest}`;
           if (isNum(was) && isNum(now) && was !== 0) ch = kind === 'pp' ? `${now - was >= 0 ? '+' : '−'}${Math.abs(now - was).toFixed(1)}p` : pctText((now / was - 1) * 100);
           return `<tr class="border-t border-slate-800/80"><td class="py-1 text-slate-300">${l}</td><td class="text-right font-mono-numbers text-slate-100">${wasS}</td><td class="text-right font-mono-numbers text-slate-100">${nowS}</td><td class="text-right font-mono-numbers text-slate-100">${ch}</td></tr>`;
         };
-        $('wlDSince').innerHTML = (isNum(a.price) || isNum(it.addPrice)) ? `<p class="text-[11px] text-slate-400 mb-1">${new Date(it.addedAt).toLocaleDateString('ko-KR')} 추가</p><table class="w-full text-xs"><thead><tr class="text-slate-400"><th class="text-left font-normal"></th><th class="text-right font-normal">추가 시</th><th class="text-right font-normal">지금</th><th class="text-right font-normal">변화</th></tr></thead><tbody>
+        $('wlDSince').innerHTML = (isNum(a.price) || isNum(it.addPrice)) ? `<p class="text-[11px] text-slate-400 mb-1">${new Date(it.addedAt).toLocaleDateString(window.LOCALE || 'ko-KR')} 추가</p><table class="w-full text-xs"><thead><tr class="text-slate-400"><th class="text-left font-normal"></th><th class="text-right font-normal">추가 시</th><th class="text-right font-normal">지금</th><th class="text-right font-normal">변화</th></tr></thead><tbody>
           ${row2('가격', isNum(it.addPrice) ? esc(fmtP(it.addPrice, r.cur)) : '—', v ? esc(fmtP(v.price, r.cur)) : '—', it.addPrice, v ? v.price : null, 'pct')}
           ${row2('PER', cell(a.pe), f ? cell(f.pe) : '—', a.pe, f ? f.pe : null, 'pct')}${row2('목표가 평균', isNum(a.targetAvg) ? esc(fmtP(a.targetAvg, r.cur)) : '—', f && isNum(f.targetAvg) ? esc(fmtP(f.targetAvg, r.cur)) : '—', a.targetAvg, f ? f.targetAvg : null, 'pct')}${row2('ROE', cell(a.roe, true), f ? cell(f.roe, true) : '—', a.roe, f ? f.roe : null, 'pp')}${row2('영업이익률', cell(a.opMargin, true), f ? cell(f.opMargin, true) : '—', a.opMargin, f ? f.opMargin : null, 'pp')}</tbody></table>
           <p class="text-[11px] text-slate-400 mt-1">추가할 때 재무 값을 받지 못했다면 '—' 로 비어 있어요. 값은 지어내지 않아요.</p>` : '<p class="text-xs text-slate-400">추가 시점 가격 정보가 없어요.</p>';
