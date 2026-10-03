@@ -8460,6 +8460,8 @@ SONY|Sony Group ADR|T
       initScreenerHeaderTips();
       renderRecentSearches();
       executeAnalysis('JVA', { noRecord: true }); // 첫 화면용 기본 종목은 검색 기록에 남기지 않음
+      // 관심종목이 있으면 그 화면에서 시작 (매일 쓰는 '내 종목 현황'이 첫 화면)
+      try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); if (w && w.items && Object.keys(w.items).length) switchAppTab('watch'); } catch (e) { /* 저장값 없음 */ }
       runScreenerFilter();
     });
   </script>
