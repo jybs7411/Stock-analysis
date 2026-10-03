@@ -54,16 +54,46 @@
       }
       function tr1(core, depth) {
         if (exact[core] !== undefined) return exact[core];
+        // 앞에 이모지·기호만 붙은 문구("💡 설명")는 기호를 떼고 본문이 사전에 있으면 그대로 번역
+        var lm = /^([^A-Za-z0-9가-힣]{1,4})([\s\S]+)$/.exec(core);
+        if (lm && exact[lm[2]] !== undefined) return lm[1] + exact[lm[2]];
+        // 여러 문구를 공백으로 이어 붙인 문장(예: 이름 + 설명)은 조각이 전부 사전·패턴에 있을 때만 조각별로 번역
+        if (depth < 2) {
+          var sg = segs(core, depth);
+          if (sg !== null) return sg;
+        }
         if (depth < 4) {
-          for (var i = 0; i < pats.length; i++) {
-            var p = pats[i];
-            if (core.indexOf(p.hint) < 0) continue;
-            var m = p.re.exec(core);
-            if (!m) continue;
-            return p.t.replace(/\{(\d+)\}/g, function (_, k) { var v = m[+k + 1]; return v === undefined ? '' : (HAN.test(v) ? trText(v, depth + 1) : v); });
-          }
+          var pr = pat1(core, depth);
+          if (pr !== null) return pr;
         }
         return subst(core);
+      }
+      function pat1(core, depth) {
+        for (var i = 0; i < pats.length; i++) {
+          var p = pats[i];
+          if (core.indexOf(p.hint) < 0) continue;
+          var m = p.re.exec(core);
+          if (!m) continue;
+          return p.t.replace(/\{(\d+)\}/g, function (_, k) { var v = m[+k + 1]; return v === undefined ? '' : (HAN.test(v) ? trText(v, depth + 1) : v); });
+        }
+        return null;
+      }
+      function segs(core, depth) {
+        var w = core.split(' '), n = w.length;
+        if (n < 2 || n > 60) return null;
+        var best = new Array(n + 1); best[0] = [];
+        for (var i = 0; i < n; i++) {
+          if (!best[i]) continue;
+          var s = '';
+          for (var j = i; j < n; j++) {
+            s = j === i ? w[j] : s + ' ' + w[j];
+            var t = exact[s];
+            if (t === undefined && j === i && !HAN.test(s)) t = s; // 숫자·기호만 있는 낱말은 그대로
+            if (t === undefined && HAN.test(s)) { t = pat1(s, depth + 1); if (t !== null && HAN.test(t)) t = null; }
+            if (t !== undefined && t !== null && (!best[j + 1] || best[j + 1].length > best[i].length + 1)) best[j + 1] = best[i].concat([t]);
+          }
+        }
+        return best[n] ? best[n].join(' ') : null;
       }
       function trText(s, depth) {
         if (typeof s !== 'string' || !HAN.test(s)) return s;
