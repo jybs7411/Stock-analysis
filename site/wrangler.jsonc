@@ -1,7 +1,19 @@
 {
-  // 폰용 화면(docs/ 폴더)을 Cloudflare 에 올리기 위한 설정 — 정적 파일만 올리는 Workers(Static Assets) 방식.
-  // Cloudflare 가 저장소 이름으로 만든 Worker(stock-analysis)에 맞춘 이름입니다. 이 Worker 는 시세 프록시(pentanalyst-proxy, worker/ 폴더)와는 별개입니다. Git 연결 시 Root directory 를 "site" 로 지정하세요.
+  // 루트 wrangler.jsonc 와 같은 Worker(stock-analysis, 화면 + 시세 프록시 통합) 설정 — Git 연결 시 Root directory 를 "site" 로 둔 경우용입니다.
+  // 루트 설정과 내용을 같게 유지하세요(경로만 ../ 기준). 이 설정만 쓰이면 프록시가 빠진 채 배포되는 일이 없도록 main 을 포함합니다.
   "name": "stock-analysis",
+  "main": "../worker/index.js",
   "compatibility_date": "2025-01-01",
-  "assets": { "directory": "../docs" }
+  "assets": {
+    "directory": "../docs",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "ALLOWED_ORIGIN": "*"
+  },
+  "previews": {
+    "vars": {
+      "ALLOWED_ORIGIN": "https://jybs7411.github.io"
+    }
+  }
 }

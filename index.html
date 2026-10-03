@@ -2177,9 +2177,17 @@
     const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
     const geminiModel = () => (getStoredApiKey('gemini_model') || GEMINI_DEFAULT_MODEL).replace(/[^A-Za-z0-9._-]/g, '');
 
+    // 화면과 시세 프록시가 같은 Worker(*.workers.dev)에 함께 배포되므로, 주소를 따로 입력하지 않았거나
+    // 예전 별도 프록시(pentanalyst-proxy)를 가리키면 이 페이지와 같은 주소의 /api 를 쓴다.
+    const OLD_PROXY_RE = /^https?:\/\/pentanalyst-proxy\.[^/]+\.workers\.dev$/i;
+    function sameOriginProxy() {
+      return /^https?:$/.test(location.protocol) && /\.workers\.dev$/i.test(location.hostname) ? location.origin : '';
+    }
     function getProxyUrl() {
-      const v = (getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL || '').trim();
-      return v.replace(/\/+$/, '');
+      const v = (getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL || '').trim().replace(/\/+$/, '');
+      const same = sameOriginProxy();
+      if (same && (!v || OLD_PROXY_RE.test(v))) return same;
+      return v;
     }
 
     function openApiSettingsModal() {
