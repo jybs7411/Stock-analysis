@@ -3340,11 +3340,11 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           const lines = g.rules.map(r => {
             const range = prev === null ? `${r.to}${g.unit} 미만` : (r.to === Infinity ? `${prev}${g.unit} 이상` : `${prev}~${r.to}${g.unit}`);
             prev = r.to;
-            return `${RATING_META[r.rating].label}: ${range} (${r.text})`;
+            return `${tr(RATING_META[r.rating].label)}: ${tr(range)} (${tr(r.text)})`;
           });
-          th.title = `${g.name}\n${g.what}\n\n${lines.join('\n')}`;
+          th.title = `${tr(g.name)}\n${tr(g.what)}\n\n${lines.join('\n')}`;
         } else if (c.tip) {
-          th.title = `${c.label}\n${c.tip}`;
+          th.title = `${tr(c.label)}\n${tr(c.tip)}`;
         }
       });
     }
@@ -8183,7 +8183,7 @@ SONY|Sony Group ADR|T
 
     const baseFilterLabel = def => def.label.replace(/\s*\(.*\)\s*$/, '');
     const filterTip = def => { const g = def.guide && METRIC_GUIDE[def.guide]; return g ? `${g.name}\n${g.what}` : (def.tip || ''); };
-    const presetSummary = filters => activeScreenerFilters(filters).map(a => `${baseFilterLabel(a.def)} ${a.opt.label}`).join(' · ');
+    const presetSummary = filters => activeScreenerFilters(filters).map(a => `${baseFilterLabel({ label: tr(a.def.label) })} ${tr(a.opt.label)}`).join(' · ');
 
     // ======================================================================
     // UI 렌더링
@@ -10870,7 +10870,7 @@ SONY|Sony Group ADR|T
             if (!bdwOk(v)) return '';
             const sym = (typeof CURRENCY_SYMBOLS !== 'undefined' && CURRENCY_SYMBOLS[BDW.currency]) || (BDW.currency + ' ');
             const abs = Math.abs(v);
-            if (BDW.currency === 'KRW') return abs >= 1e12 ? `${sym}${(abs / 1e12).toFixed(2)}조` : abs >= 1e8 ? `${sym}${(abs / 1e8).toFixed(1)}억` : `${sym}${Math.round(abs).toLocaleString('en-US')}`;
+            if (BDW.currency === 'KRW' && window.LANG === 'ko') return abs >= 1e12 ? `${sym}${(abs / 1e12).toFixed(2)}조` : abs >= 1e8 ? `${sym}${(abs / 1e8).toFixed(1)}억` : `${sym}${Math.round(abs).toLocaleString('en-US')}`;
             return abs >= 1e9 ? `${sym}${(abs / 1e9).toFixed(2)}B` : abs >= 1e6 ? `${sym}${(abs / 1e6).toFixed(1)}M` : abs >= 1e3 ? `${sym}${(abs / 1e3).toFixed(1)}K` : `${sym}${abs.toFixed(0)}`;
         }
 
