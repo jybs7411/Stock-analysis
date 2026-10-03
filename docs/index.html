@@ -444,6 +444,15 @@
             class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers outline-none focus:border-cyan-400"
           />
           <p class="text-[11px] text-slate-500 mt-1">AI Studio의 모델 목록에 나오는 이름 그대로 입력하세요 (예: <code>gemini-3.5-flash-lite</code>). 이름이 틀리면 AI 호출이 오류로 실패하므로, 비워 두면 기본값으로 돌아갑니다.</p>
+          <label class="block font-semibold text-white mt-3 mb-1">백테스트 왕복 비용 <span class="text-[10px] text-slate-500 font-normal">(수수료+슬리피지, % · 비우면 0.2)</span></label>
+          <input
+            type="number"
+            id="btCostInput"
+            min="0" max="5" step="0.05"
+            placeholder="0.2"
+            class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers outline-none focus:border-cyan-400"
+          />
+          <p class="text-[11px] text-slate-500 mt-1">매매 규칙 시뮬레이션의 거래마다 이 비율만큼 수익률에서 뺍니다(0 = 비용 없음). 종목 유동성과 증권사에 따라 실제와 다를 수 있습니다.</p>
           <label class="mt-3 flex items-start gap-2 cursor-pointer select-none">
             <input type="checkbox" id="autoAiInput" class="mt-0.5 accent-cyan-500">
             <span class="text-[11px] text-slate-400"><strong class="text-slate-200">종목을 검색하면 AI 분석도 자동 실행</strong> — 데이터가 뜨면 이어서 AI 분석(종목 분석·불단왕·전일 복기)이 자동으로 채워집니다. <span class="text-emerald-400">무료 키로만</span> 호출하며, 유료 키(검색 Grounding)를 켜 둔 경우 종목 분석 탭은 과금 방지를 위해 자동 실행하지 않고 버튼으로만 실행합니다. 끄면 버튼을 눌렀을 때만 호출합니다.</span>
@@ -2140,6 +2149,14 @@
     // 배포한 자체 프록시(Cloudflare Worker) 주소를 여기에 고정할 수도 있고,
     // 비워 두면 'API 키 & 구글 검색 설정' 창에서 입력한 값(localStorage)을 사용합니다.
     const DEFAULT_PROXY_URL = '';
+    // 백테스트 왕복 비용(%, 수수료+슬리피지 합산). 설정 창에서 바꾸며 기본 0.2% (한쪽 0.1%). 0 이면 비용 없음.
+    const BT_COST_DEFAULT = 0.2;
+    function btCostPct() {
+      const raw = getStoredApiKey('bt_cost');
+      if (raw === '') return BT_COST_DEFAULT;
+      const v = parseFloat(raw);
+      return Number.isFinite(v) && v >= 0 && v <= 5 ? v : BT_COST_DEFAULT;
+    }
     const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
     const geminiModel = () => (getStoredApiKey('gemini_model') || GEMINI_DEFAULT_MODEL).replace(/[^A-Za-z0-9._-]/g, '');
 
@@ -2160,6 +2177,7 @@
       document.getElementById('geminiApiKeyInput').value = getStoredApiKey('gemini_key');
       document.getElementById('geminiPaidKeyInput').value = getStoredApiKey('gemini_key_paid');
       document.getElementById('geminiModelInput').value = getStoredApiKey('gemini_model');
+      document.getElementById('btCostInput').value = getStoredApiKey('bt_cost');
       document.getElementById('autoAiInput').checked = autoAiOn();
       document.getElementById('geminiGroundingInput').checked = geminiGroundingOn();
       document.getElementById('proxyUrlInput').value = getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL;
@@ -2181,6 +2199,8 @@
       setStoredApiKey('gemini_key', gKey);
       setStoredApiKey('gemini_key_paid', gPaid);
       setStoredApiKey('gemini_model', document.getElementById('geminiModelInput').value.trim());
+      const btRaw = parseFloat(document.getElementById('btCostInput').value);
+      setStoredApiKey('bt_cost', Number.isFinite(btRaw) && btRaw >= 0 && btRaw <= 5 ? String(btRaw) : '');
       localStorage.setItem('pentanalyst_auto_ai', document.getElementById('autoAiInput').checked ? '1' : '0');
       setStoredApiKey('gemini_grounding', document.getElementById('geminiGroundingInput').checked ? '1' : '');
       setStoredApiKey('proxy_url', proxy);
@@ -2479,13 +2499,22 @@
       const a = cleaned.indexOf('{');
       const b = cleaned.lastIndexOf('}');
       if (a === -1 || b === -1 || b <= a) return null;
-      try { return JSON.parse(cleaned.slice(a, b + 1)); } catch (e) { return null; }
+      const body = cleaned.slice(a, b + 1);
+      try { return JSON.parse(body); } catch (e) { /* 아래에서 느슨하게 복구 */ }
+      // 흔한 깨짐 복구: 문자열 안의 실제 줄바꿈·탭을 이스케이프하고, 닫는 괄호 앞의 끝 쉼표를 제거
+      try {
+        const fixed = body
+          .replace(/"(?:[^"\\]|\\.)*"/g, s => s.replace(/\r/g, '').replace(/\n/g, '\\n').replace(/\t/g, '\\t'))
+          .replace(/,(\s*[}\]])/g, '$1');
+        return JSON.parse(fixed);
+      } catch (e) { return null; }
     }
 
     // grounding=true 인 호출이 한도/권한 오류(429·403·400)로 실패하면, 검색 없이 한 번 더 시도한다.
     // (무료 키는 구글 검색 grounding 이 막혀 있거나 한도가 매우 작을 수 있음)
     // 검색 없는 재시도에는 fallbackPrompt 를 사용 — 검색한 것처럼 지어내지 않도록 프롬프트를 바꾼다.
-    async function callGemini(prompt, { grounding = false, fallbackPrompt = null } = {}) {
+    // json=true: 검색 도구 없는 호출에서만 JSON 모드(responseMimeType)를 켠다. 검색 grounding 과는 절대 함께 쓰지 않는다.
+    async function callGemini(prompt, { grounding = false, fallbackPrompt = null, json = false } = {}) {
       const free = geminiFreeKey(), paid = geminiPaidKey();
       if (!free && !paid) return null;
       const wantSearch = grounding && geminiGroundingOn();
@@ -2498,8 +2527,10 @@
         // 앱 언어가 한국어가 아니면 응답 언어를 지정한다 (프롬프트는 한국어여도 AI 가 이해함)
         if (window.LANG && window.LANG !== 'ko') text += `\n\nIMPORTANT: Write every human-readable text of your response in ${window.LANG === 'de' ? 'GERMAN (Deutsch)' : 'ENGLISH'}. Keep JSON keys, ticker symbols, numbers and fixed enum values (e.g. BUY/HOLD, [david>victor] line prefixes, [sum]) unchanged.`;
         const body = { contents: [{ parts: [{ text }] }] };
-        // 주의: googleSearch 도구는 responseMimeType: application/json 과 함께 쓰지 않는다 (JSON 모드 미사용).
+        // 주의: googleSearch 도구는 responseMimeType: application/json 과 함께 쓰지 않는다
+        // (일부 모델에서 JSON 모드를 켜면 검색 grounding 이 조용히 꺼진다). 검색 호출은 항상 일반 텍스트 모드.
         if (useSearch) body.tools = [{ googleSearch: {} }];
+        else if (json) body.generationConfig = { responseMimeType: 'application/json' };
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 45000);
         try {
@@ -2581,7 +2612,18 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         showToast('Gemini 호출 실패', `AI 분석을 건너뜁니다 (${r.keyUsed || '키'} 사용 중 오류): ${r.error}`, 'warning');
         return null;
       }
-      const parsed = extractJson(r.text);
+      let parsed = extractJson(r.text);
+      if (!parsed && r.text) {
+        // 검색 grounding 응답은 앞부분이 잘리거나 JSON 이 깨질 수 있다(일부 Gemini 3.x 모델에서 보고됨).
+        // 그래서 JSON 모드를 grounding 과 섞지 않고, 검색 없는 '변환 전용' 호출로 한 번 더 정리한다.
+        console.warn('Gemini grounding 응답을 JSON 으로 해석하지 못함. 길이:', String(r.text).length, '| 앞 400자:', String(r.text).slice(0, 400));
+        const schemaAt = prompt.indexOf('Return STRICT JSON ONLY');
+        const fixPrompt = `Below is a draft analysis of the US stock "${ticker}". It may be incomplete or malformed (for example, its beginning may be cut off). Convert it into valid JSON that matches the schema at the end. Use only facts found in the draft${verifiedText ? ' or in the VERIFIED DATA' : ''}; use null for anything missing and never invent numbers.\n${verifiedText ? `\nVERIFIED DATA:\n${verifiedText}\n` : ''}\nDRAFT:\n${r.text}\n\n${schemaAt >= 0 ? prompt.slice(schemaAt) : 'Return STRICT JSON ONLY.'}`;
+        const r2 = await callGemini(fixPrompt, { json: true });
+        if (r2 && !r2.error) parsed = extractJson(r2.text);
+        else if (r2 && r2.error) console.warn('Gemini JSON 정리 호출 실패:', r2.error);
+        if (parsed) parsed.__repaired = true;
+      }
       if (!parsed) {
         showToast('Gemini 응답 오류', 'JSON 형식을 해석하지 못해 AI 분석을 건너뜁니다.', 'warning');
         return null;
@@ -3948,7 +3990,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return out;
     };
 
-    // 거래 성과 요약 (수수료·슬리피지·세금 미반영)
+    // 거래 성과 요약 (각 거래의 ret 는 왕복 비용 btCostPct() 차감 후 값, 세금 미반영)
     TA.tradeStats = (trades, h) => {
       const n = trades.length;
       if (!n) return { n: 0 };
@@ -4460,7 +4502,10 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return { j: last, price: h[last].close, reason: '보유 중', open: true };
     }
     function mkTrade(h, i0, p0, dir, ex, tag) {
-      return { i0, i1: ex.j, p0, p1: ex.price, dir, ret: dir * (ex.price / p0 - 1) * 100, reason: ex.reason, open: !!ex.open, tag };
+      const gross = dir * (ex.price / p0 - 1) * 100;
+      // 분봉(hm 필드가 있는 봉)은 한 거래의 값폭이 작아 일봉용 비용(%)을 그대로 빼면 왜곡되므로 이 설정을 적용하지 않는다(전일 복기 화면은 계속 비용 미반영).
+      const cost = (h[i0] && h[i0].hm) ? 0 : btCostPct();
+      return { i0, i1: ex.j, p0, p1: ex.price, dir, ret: gross - cost, retGross: gross, reason: ex.reason, open: !!ex.open, tag };
     }
     // 신호 배열(진입 봉 순서) → 한 번에 한 포지션만 보유하는 거래 목록
     function simulate(h, signals, build) {
@@ -4842,7 +4887,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       let stop = entry - 2 * N, nextAdd = entry + 0.5 * N;
       const fin = (j, price, reason, open) => {
         const avg = units.reduce((a, b) => a + b, 0) / units.length;
-        return { i0, i1: j, p0: entry, p1: price, dir: 1, ret: (price / avg - 1) * 100, reason, open: !!open, units: units.length, adds, avg };
+        return { i0, i1: j, p0: entry, p1: price, dir: 1, ret: (price / avg - 1) * 100 - btCostPct(), retGross: (price / avg - 1) * 100, reason, open: !!open, units: units.length, adds, avg };
       };
       for (let j = i0; j < h.length; j++) {
         const c = h[j], lv = j > i0 ? llOf(j, exitN) : -Infinity, L = Math.max(stop, lv);
@@ -6396,7 +6441,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           ${stat('누적 vs 보유', `${pctS(st.total, 0)} / ${st.buyHold === null ? '' : pctS(st.buyHold, 0)}`, st.buyHold !== null && st.total >= st.buyHold ? 'text-emerald-300' : 'text-amber-300')}
         </div>
         ${small ? `<p class="text-[11px] text-amber-300 leading-snug mt-1.5"><i class="fa-solid fa-triangle-exclamation mr-1"></i>표본이 ${st.n}회로 20회 미만입니다 — 승률·수익률이 우연일 가능성이 커서 통계로서 의미가 약합니다.</p>` : ''}
-        <p class="text-[10px] text-slate-500 leading-snug mt-1.5">※ 이 종목에 불러온 구간(${CH.hist.length}봉)에서 규칙을 그대로 적용한 단순 시뮬레이션입니다. 평균 보유 ${st.avgBars.toFixed(0)}봉, 최대 낙폭 ${st.mdd.toFixed(1)}%${st.nOpen ? `, 보유 중(미청산) ${st.nOpen}건은 현재가 기준 평가 포함` : ''}. 수수료·슬리피지·세금 미반영이며 표본이 적을 수 있습니다. 과거 성과는 미래 수익을 보장하지 않습니다.</p>`;
+        <p class="text-[10px] text-slate-500 leading-snug mt-1.5">※ 이 종목에 불러온 구간(${CH.hist.length}봉)에서 규칙을 그대로 적용한 단순 시뮬레이션입니다. 평균 보유 ${st.avgBars.toFixed(0)}봉, 최대 낙폭 ${st.mdd.toFixed(1)}%${st.nOpen ? `, 보유 중(미청산) ${st.nOpen}건은 현재가 기준 평가 포함` : ''}. 거래마다 왕복 비용 ${btCostPct()}%(수수료·슬리피지, 설정에서 변경)를 뺐고 세금은 미반영이며 표본이 적을 수 있습니다. 과거 성과는 미래 수익을 보장하지 않습니다.</p>`;
       };
       const statHtml = statBlock(r.stats, r.statsLabel || '') + (r.statsShort ? `<div class="mt-3">${statBlock(r.statsShort, '숏(L2) 거래 — 롱과 분리 집계')}</div>` : '');
       const optHtml = (P.options && P.options.length) ? `<div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-300 border-t border-b border-slate-800/80 py-2"><span class="text-slate-500">설정</span>${P.options.map(op => {
@@ -16219,13 +16264,13 @@ ${digest}`;
       function loadAll() { try { const o = JSON.parse(localStorage.getItem(VAL_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
       function saveAll(o) { try { localStorage.setItem(VAL_KEY, JSON.stringify(o)); } catch (e) { /* 저장 불가 환경: 무시 */ } }
       function defaults() {
-        return { eps: '', epsManual: '', pe: '', mosReq: '', r: '10', gT: '2.5', n: '10', fcf: '', netDebt: '', fcfOk: false,
+        return { eps: '', epsManual: '', pe: '', mosReq: '', r: '10', gT: '2.5', n: '10', fcf: '', netDebt: '', sbc: '', fcfOk: false,
           sc: { bear: { g: '', pe: '', n: '' }, base: { g: '', pe: '', n: '' }, bull: { g: '', pe: '', n: '' } } };
       }
       function mergeState(base, saved) {
         const out = JSON.parse(JSON.stringify(base));
         if (!saved || typeof saved !== 'object') return out;
-        ['eps', 'epsManual', 'pe', 'mosReq', 'r', 'gT', 'n', 'fcf', 'netDebt'].forEach(k => { if (typeof saved[k] === 'string') out[k] = saved[k]; });
+        ['eps', 'epsManual', 'pe', 'mosReq', 'r', 'gT', 'n', 'fcf', 'netDebt', 'sbc'].forEach(k => { if (typeof saved[k] === 'string') out[k] = saved[k]; });
         if (typeof saved.fcfOk === 'boolean') out.fcfOk = saved.fcfOk;
         ['bear', 'base', 'bull'].forEach(s => ['g', 'pe', 'n'].forEach(k => { const v = saved.sc && saved.sc[s] && saved.sc[s][k]; if (typeof v === 'string') out.sc[s][k] = v; }));
         return out;
@@ -16349,7 +16394,15 @@ ${digest}`;
         return w;
       }
 
+      // 기준 FCF 에서 주식보상비용(SBC)을 빼 실질 현금 부담으로 본다(입력했을 때만). 희석률은 따로 반영하지 않는다 — 이중 계산 방지.
       function fcfPlan() {
+        const p = fcfPlanBase();
+        if (!p.ok) return p;
+        const sbc = valNum(VS.st.sbc);
+        if (sbc !== null && sbc > 0) return { ...p, fcf0: p.fcf0 - sbc * 1e9, src: `${p.src} − SBC ${sbc}(10억)`, sbcApplied: true };
+        return p;
+      }
+      function fcfPlanBase() {
         const { c, st } = VS;
         const typed = valNum(st.fcf);
         if (typed !== null) return { ok: true, fcf0: typed * 1e9, src: '직접 입력(가정)' };
@@ -16367,7 +16420,7 @@ ${digest}`;
         if (c.mcap === null) return na('시가총액 정보가 없습니다(시총·발행주식수 모두 없음).');
         const plan = fcfPlan();
         if (!plan.ok) return na(plan.msg);
-        if (plan.fcf0 <= 0) return na(`FCF 가 0 이하(${big(plan.fcf0, cur)})라 성장률로 현재가를 설명할 수 없습니다.`);
+        if (plan.fcf0 <= 0) return na(`${plan.sbcApplied ? 'SBC 차감 후 ' : ''}FCF 가 0 이하(${big(plan.fcf0, cur)})라 성장률로 현재가를 설명할 수 없습니다.`);
         const r = valNum(st.r), gT = valNum(st.gT), n = valNum(st.n), nd = valNum(st.netDebt);
         if (r === null || gT === null || n === null) return hint('할인율·영구성장률·예측 기간을 모두 입력하세요.');
         if (r <= gT) return na('할인율은 영구성장률보다 커야 합니다.');
@@ -16388,6 +16441,7 @@ ${digest}`;
         h += row('기준 FCF', `<span class="text-white">${esc(big(plan.fcf0, cur))}</span><span class="block text-xs font-normal text-slate-300">${esc(plan.src)}</span>`);
         h += row('시가총액 (+ 입력한 순부채)', `<span class="text-white">${esc(big(target, cur))}</span><span class="block text-xs font-normal text-slate-300">${esc(c.mcapSrc)}${nd !== null ? ` + 순부채 ${esc(big(nd * 1e9, cur))}` : ''}</span>`);
         h += row('FCF 수익률 (FCF ÷ 대상 가치)', `<span class="text-white">${esc(pct(plan.fcf0 / target * 100, 2, false))}</span>`);
+        if (nd !== null && nd !== 0) h += warn('순부채를 입력하면 기업가치(시총+순부채)를 이자 지급 후 FCF 와 비교하게 되어 값이 어긋납니다. 순부채를 비우거나, 이자 지급 전 FCF 를 직접 입력하세요.');
         if (sol.ok || sol.reason === 'low' || sol.reason === 'high') {
           const cells = [-1, 0, 1].map(dr => {
             const rr = r + dr;
@@ -16532,6 +16586,7 @@ ${digest}`;
               ${section('②', '역방향 DCF (현 주가가 내포한 성장률)', '시가총액 기준 단순 모형 · 가격이 요구하는 FCF 성장률 역산', `
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">${field('할인율', 'r', { unit: '%' })}${field('영구성장률', 'gT', { unit: '%' })}${field('예측 기간', 'n', { unit: '년' })}</div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 items-end">${field('기준 FCF 직접 입력 (선택, 10억 단위)', 'fcf', { unit: '10억', ph: c.fcfAuto !== null ? 'Yahoo 값 사용' : '예: 12.5' })}${field('순부채 (선택, 10억 단위)', 'netDebt', { unit: '10억', ph: '비움 = 0' })}</div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 items-end">${field('SBC 차감 (선택, 10억 단위)', 'sbc', { unit: '10억', ph: '예: 6.4 (연간 주식보상비용)' })}</div>
                 <div data-out="fcfNote" class="mt-2"></div>
                 <label data-role="fcfOkWrap" class="flex items-start gap-2 mt-2 min-h-11 text-xs text-slate-300 cursor-pointer"><input type="checkbox" data-k="fcfOk" class="mt-0.5 w-5 h-5 shrink-0 accent-cyan-500"><span>Yahoo FCF 가 가격과 같은 통화(${esc(cur)})라고 확인했습니다 (재무 통화를 알 수 없어 필요)</span></label>
                 <div data-out="dcf" class="mt-3"></div>`)}
@@ -16636,7 +16691,7 @@ ${digest}`;
     (function () {
       window.TA_LIMIT_NOTES = [
         '지표는 과거 가격을 가공한 값이며 미래를 예측하지 않습니다.',
-        '백테스트는 수수료·슬리피지·세금을 반영하지 않고 표본이 작아 과최적화에 취약합니다.',
+        '백테스트는 일봉 거래에 설정의 왕복 비용만 단순 반영하고 세금은 반영하지 않으며, 표본이 작아 과최적화에 취약합니다.',
         'ADX 20 미만(횡보)에서는 추세 신호가 휩쏘(가짜 신호)로 끝나기 쉽습니다.',
         '캔들 패턴은 학술 연구에서 초과수익이 확인되지 않았습니다.',
         'RS(상대강도)는 SPY 대비 단순 비교이거나 앱 내 종목 집단 안의 순위일 뿐, IBD RS Rating 과 다릅니다.',

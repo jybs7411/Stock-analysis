@@ -1,6 +1,8 @@
 // PentAnalyst 서비스 워커 — 앱 껍데기(HTML·CSS·아이콘·글꼴)만 저장한다. 시세·검색 같은 API 응답은 절대 저장하지 않는다(항상 최신).
 // eed15bd159 는 build.py 가 내용 해시로 바꿔 넣는다 (배포할 때마다 캐시가 새로 만들어짐).
 const VERSION = 'eed15bd159';
+// afed5afe29 는 build.py 가 내용 해시로 바꿔 넣는다 (배포할 때마다 캐시가 새로 만들어짐).
+const VERSION = 'afed5afe29';
 const SHELL = 'pa-shell-' + VERSION;
 const RUNTIME = 'pa-runtime';
 const PRECACHE = ['./', 'app.css', 'fa/css/all.min.css', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
