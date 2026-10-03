@@ -7,5 +7,12 @@
   "vars": {
     // 프론트엔드를 올린 주소로 제한하려면 바꾸세요 (파일로 열어 쓰면 Origin 이 null 이라 "*" 필요)
     "ALLOWED_ORIGIN": "*"
+  },
+  // PR/브랜치 푸시 때 Cloudflare 가 실행하는 `wrangler preview` 용 설정 (없으면 빌드가 "missing a `previews` block" 으로 실패).
+  // 미리보기는 운영과 분리된 값만 쓰도록 Origin 을 프론트엔드 주소 하나로 제한합니다.
+  "previews": {
+    "vars": {
+      "ALLOWED_ORIGIN": "https://jybs7411.github.io"
+    }
   }
 }
