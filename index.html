@@ -51,10 +51,32 @@
       #tabSearchInput:focus::placeholder { color: #64748b; }
       #tabNav [id^=tabBtn-] { padding-top: 0.55rem; padding-bottom: 0.55rem; }
     }
-    /* 터치 화면: 작은 버튼을 손가락으로 누르기 쉽게 (높이만 키움) */
-    @media (pointer: coarse) {
-      main button:not([class*=" h-"]):not([class^="h-"]), main select { min-height: 32px; }
+    /* ===== 탭 구조: 큰 화면 8탭 / 태블릿 6탭+더보기 / 폰 하단 탭바 ===== */
+    #tabMoreBtn { display: none; }
+    #tabNav [id^=tabBtn-] { padding-left: 0.75rem; padding-right: 0.75rem; }
+    #tabSearchInput { width: 12rem; }
+    @media (min-width: 1280px) { #tabSearchInput { width: 16rem; } }
+    @media (max-width: 1279px) { #tabNav .tab-extra { display: none; } #tabMoreBtn { display: flex; } }
+    @media (max-width: 899px) { #tabNav .tab-phone-more { display: none; } #tabSearchInput { width: 11rem; } }
+    @media (max-width: 639px) {
+      #tabStrip { display: none; }
+      #tabNav #tabSearchInput:not(:focus) { width: 2.5rem; }
+      #tabSearchForm { margin-left: auto; }
+      #mobileTabBar { display: block; }
+      main { padding-bottom: 5.5rem; }
+      #toTopBtn { bottom: 5rem; }
     }
+    @media (min-width: 640px) { #mobileTabBar { display: none !important; } }
+    #mobileTabBar .mtab { min-height: 52px; }
+    #mobileTabBar .mtab.is-on { color: #fff; background: rgba(34,211,238,0.08); box-shadow: inset 0 2px 0 #22d3ee; }
+    /* ===== 읽기 쉬움: 낮은 대비 글자 밝게, 작은 글자 최소 11px, 키보드 포커스 표시 ===== */
+    html body .text-slate-500 { color: #8795ab; }
+    html body .text-slate-600 { color: #75859b; }
+    html body .text-\[8px\], html body .text-\[9px\], html body .text-\[10px\] { font-size: 11px; }
+    :focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { .animate-pulse, .animate-spin { animation: none !important; } }
+    @media (pointer: coarse) { #tabNav [id^=tabBtn-] { min-height: 44px; } main button:not([class*=" h-"]):not([class^="h-"]), main select { min-height: 40px; } }
+    /* 터치 화면: 작은 버튼을 손가락으로 누르기 쉽게 (높이만 키움) */
     /* 폰: 노치·제스처 바 영역 피하기 */
     body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
     #tabNav.is-stuck [id^=tabBtn-] { padding: 0.4rem 0.8rem; }
@@ -154,45 +176,34 @@
       <button type="button" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="맨 위로 (PentAnalyst)" class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 grid place-items-center shadow shadow-cyan-500/20 shrink-0"><i class="fa-solid fa-chart-pie text-white text-sm"></i></button>
       <button type="button" onclick="openApiSettingsModal()" title="API 키 · 프록시 설정" class="w-9 h-9 rounded-xl bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-600 text-amber-400 grid place-items-center transition shrink-0 mr-1"><i class="fa-solid fa-key text-xs"></i></button>
     </div>
-    <div class="flex items-center gap-2 sm:gap-3 overflow-x-auto whitespace-nowrap min-w-0 flex-1">
-      <button
-        onclick="switchAppTab('analysis')"
-        id="tabBtn-analysis"
-        class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-cyan-950 text-cyan-300 border border-cyan-700/80 shadow-md shadow-cyan-950/50 transition"
-      >
-        <i class="fa-solid fa-users-viewfinder"></i>
-        <span class="sm:hidden">5인 분석</span><span class="hidden sm:inline">5인 전문가 심층 분석</span>
+    <div id="tabStrip" role="tablist" aria-label="화면 선택" class="flex items-center gap-2 sm:gap-3 overflow-x-auto whitespace-nowrap min-w-0 flex-1">
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-watch" onclick="switchAppTab('watch')" id="tabBtn-watch" title="관심종목" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-star text-yellow-400"></i><span>관심종목</span>
       </button>
-
-      <button
-        onclick="switchAppTab('screener')"
-        id="tabBtn-screener"
-        class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition"
-      >
-        <i class="fa-solid fa-filter text-amber-400"></i>
-        <span class="sm:hidden">스크리너</span><span class="hidden sm:inline" title="Finviz × Fool">스마트 스크리너</span>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-analysis" onclick="switchAppTab('analysis')" id="tabBtn-analysis" title="5인 전문가 심층 분석" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-users-viewfinder text-cyan-400"></i><span>5인 분석</span>
       </button>
-
-      <button onclick="switchAppTab('bdw')" id="tabBtn-bdw" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-fire text-orange-400"></i><span class="sm:hidden">불단왕</span><span class="hidden sm:inline">불단왕 매매법</span>
-        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-orange-950 text-orange-300 text-[10px] font-bold border border-orange-800/80">NEW</span>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-screener" onclick="switchAppTab('screener')" id="tabBtn-screener" title="스마트 스크리너 (Finviz × Fool)" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+        <i class="fa-solid fa-filter text-amber-400"></i><span>스크리너</span>
       </button>
-      <button onclick="switchAppTab('prevday')" id="tabBtn-prevday" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-bdw" onclick="switchAppTab('bdw')" id="tabBtn-bdw" title="불단왕 매매법" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-phone-more">
+        <i class="fa-solid fa-fire text-orange-400"></i><span>불단왕</span>
+      </button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-prevday" onclick="switchAppTab('prevday')" id="tabBtn-prevday" title="전일 복기" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
         <i class="fa-solid fa-clock-rotate-left text-violet-400"></i><span>전일 복기</span>
-        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-violet-950 text-violet-300 text-[10px] font-bold border border-violet-800/80">NEW</span>
       </button>
-      <button onclick="switchAppTab('fx')" id="tabBtn-fx" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span>
-        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 text-[10px] font-bold border border-emerald-800/80">NEW</span>
-      </button>
-      <button onclick="switchAppTab('market')" id="tabBtn-market" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-earth-americas text-sky-400"></i><span class="sm:hidden">시장</span><span class="hidden sm:inline">시장 · 매크로</span>
-        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-sky-950 text-sky-300 text-[10px] font-bold border border-sky-800/80">NEW</span>
-      </button>
-      <button onclick="switchAppTab('multi')" id="tabBtn-multi" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-multi" onclick="switchAppTab('multi')" id="tabBtn-multi" title="멀티 차트 (4분할)" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-phone-more">
         <i class="fa-solid fa-table-cells-large text-fuchsia-400"></i><span>멀티 차트</span>
-        <span class="ml-1 px-1.5 py-0.5 rounded-full bg-fuchsia-950 text-fuchsia-300 text-[10px] font-bold border border-fuchsia-800/80">NEW</span>
       </button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-fx" onclick="switchAppTab('fx')" id="tabBtn-fx" title="환율" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-extra">
+        <i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span>
+      </button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-market" onclick="switchAppTab('market')" id="tabBtn-market" title="시장 · 매크로" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-extra">
+        <i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장·매크로</span>
+      </button>
+      <div class="relative tab-more-wrap">
+        <button type="button" id="tabMoreBtn" aria-haspopup="true" aria-expanded="false" onclick="toggleMoreMenu(event)" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition"><i class="fa-solid fa-ellipsis text-slate-300"></i><span>더보기</span></button>
+      </div>
     </div>
 
     <!-- 탭 오른쪽 끝: 종목 바로 검색 -->
@@ -207,6 +218,20 @@
   </div>
   </div>
 
+
+  <!-- 더보기 메뉴 (태블릿: 환율·시장 / 폰: 불단왕·멀티·환율·시장) -->
+  <div id="tabMoreMenu" class="hidden fixed z-[70] min-w-[11rem] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5 space-y-0.5" role="menu"></div>
+
+  <!-- 폰 하단 탭바 -->
+  <nav id="mobileTabBar" aria-label="화면 선택" class="fixed bottom-0 inset-x-0 z-[60] bg-[#0b1220]/95 backdrop-blur border-t border-slate-800 hidden" style="padding-bottom: env(safe-area-inset-bottom)">
+    <div class="grid grid-cols-5">
+      <button type="button" id="mtabBtn-watch" onclick="switchAppTab('watch')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid fa-star text-base text-yellow-400"></i><span>관심</span></button>
+      <button type="button" id="mtabBtn-analysis" onclick="switchAppTab('analysis')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid fa-users-viewfinder text-base text-cyan-400"></i><span>분석</span></button>
+      <button type="button" id="mtabBtn-screener" onclick="switchAppTab('screener')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid fa-filter text-base text-amber-400"></i><span>스크리너</span></button>
+      <button type="button" id="mtabBtn-prevday" onclick="switchAppTab('prevday')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid fa-clock-rotate-left text-base text-violet-400"></i><span>복기</span></button>
+      <button type="button" id="mtabBtn-more" onclick="toggleMoreMenu(event)" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400" aria-haspopup="true"><i class="fa-solid fa-ellipsis text-base text-slate-300"></i><span>더보기</span></button>
+    </div>
+  </nav>
 
   <!-- 맨 위로 -->
   <button type="button" id="toTopBtn" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="맨 위로" aria-label="맨 위로" class="hidden fixed right-4 bottom-20 z-40 w-11 h-11 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/50 grid place-items-center transition active:scale-95"><i class="fa-solid fa-arrow-up"></i></button>
@@ -307,6 +332,10 @@
   <main class="flex-grow max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
 
     <!-- TAB 1: 5-EXPERT DEEP ANALYSIS VIEW -->
+    <!-- TAB 0: 관심종목 (module: watch) -->
+    <div id="view-watch" class="hidden space-y-4">
+      <div id="watchRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
+    </div>
     <div id="view-analysis" class="space-y-6">
 
     <!-- Search Hero Section -->
@@ -798,6 +827,11 @@
         </div>
       </div>
 
+      <!-- 밸류에이션 계산기 (module: valcalc) — 사용자가 직접 넣는 가정으로만 계산 -->
+      <section id="valCalcSection" class="hidden">
+        <div id="valCalcBody"></div>
+      </section>
+
       <!-- Deep analysis (Yahoo Finance via own proxy) -->
       <section id="deepSection" class="hidden space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -1268,6 +1302,7 @@
 
     // 탭 정의: 각 탭은 view-<id> 영역과 tabBtn-<id> 버튼을 가진다. 모듈은 TAB_HOOKS[id] 에 '탭이 열릴 때' 실행할 함수를 등록한다.
     const APP_TABS = {
+      watch: { on: 'bg-yellow-950 text-yellow-300 border-yellow-700/80 shadow-md shadow-yellow-950/50' },
       analysis: { on: 'bg-cyan-950 text-cyan-300 border-cyan-700/80 shadow-md shadow-cyan-950/50' },
       screener: { on: 'bg-amber-950 text-amber-300 border-amber-700/80 shadow-md shadow-amber-950/50' },
       bdw: { on: 'bg-orange-950 text-orange-300 border-orange-700/80 shadow-md shadow-orange-950/50' },
@@ -1285,8 +1320,18 @@
       Object.keys(APP_TABS).forEach(id => {
         const view = document.getElementById(`view-${id}`), btn = document.getElementById(`tabBtn-${id}`);
         if (view) view.classList.toggle('hidden', id !== tab);
-        if (btn) btn.className = `flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm transition border ${id === tab ? 'font-bold ' + APP_TABS[id].on : 'font-semibold bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'}`;
+        if (btn) {
+          btn.className = `flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm transition border ${id === tab ? 'font-bold ' + APP_TABS[id].on : 'font-semibold bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'}${btn.classList.contains('tab-extra') ? ' tab-extra' : ''}${btn.classList.contains('tab-phone-more') ? ' tab-phone-more' : ''}`;
+          btn.setAttribute('aria-selected', id === tab ? 'true' : 'false');
+        }
+        const mb = document.getElementById(`mtabBtn-${id}`);
+        if (mb) mb.classList.toggle('is-on', id === tab);
       });
+      const mm = document.getElementById('mtabBtn-more');
+      if (mm) mm.classList.toggle('is-on', ['bdw', 'multi', 'fx', 'market'].includes(tab));
+      const moreB = document.getElementById('tabMoreBtn');
+      if (moreB) moreB.classList.toggle('text-white', ['fx', 'market'].includes(tab));
+      closeMoreMenu();
       if (tab === 'analysis' && currentAnalysisData) {
         setTimeout(() => { chResize(true); renderMiniTrendPreview(); }, 50);
       } else if (tab === 'screener') {
@@ -1295,6 +1340,34 @@
       if (TAB_HOOKS[tab]) { try { TAB_HOOKS[tab](); } catch (e) { console.error(`탭(${tab}) 초기화 실패`, e); } }
     }
 
+
+
+    // 더보기 메뉴: 태블릿(환율·시장) / 폰(불단왕·멀티·환율·시장)
+    const MORE_ITEMS = [
+      { id: 'bdw', icon: 'fa-fire text-orange-400', label: '불단왕 매매법', phoneOnly: true },
+      { id: 'multi', icon: 'fa-table-cells-large text-fuchsia-400', label: '멀티 차트', phoneOnly: true },
+      { id: 'fx', icon: 'fa-money-bill-transfer text-emerald-400', label: '환율' },
+      { id: 'market', icon: 'fa-earth-americas text-sky-400', label: '시장 · 매크로' }
+    ];
+    function closeMoreMenu() {
+      const m = document.getElementById('tabMoreMenu'); if (m) m.classList.add('hidden');
+      const b = document.getElementById('tabMoreBtn'); if (b) b.setAttribute('aria-expanded', 'false');
+    }
+    function toggleMoreMenu(ev) {
+      if (ev) ev.stopPropagation();
+      const menu = document.getElementById('tabMoreMenu');
+      if (!menu.classList.contains('hidden')) { closeMoreMenu(); return; }
+      const phone = window.innerWidth < 640, narrow = window.innerWidth < 900;
+      menu.innerHTML = MORE_ITEMS.filter(it => narrow || !it.phoneOnly).map(it => `<button type="button" role="menuitem" onclick="switchAppTab('${it.id}')" class="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm ${activeAppTab === it.id ? 'bg-slate-800 text-white font-bold' : 'text-slate-200 hover:bg-slate-800'}"><i class="fa-solid ${it.icon} w-5 text-center"></i>${it.label}</button>`).join('');
+      const anchor = ev && ev.currentTarget ? ev.currentTarget.getBoundingClientRect() : { left: 8, right: 8, top: 60, bottom: 60 };
+      menu.classList.remove('hidden');
+      const w = menu.offsetWidth;
+      if (phone) { menu.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, anchor.right - w)) + 'px'; menu.style.top = ''; menu.style.bottom = (window.innerHeight - anchor.top + 8) + 'px'; }
+      else { menu.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, anchor.right - w)) + 'px'; menu.style.bottom = ''; menu.style.top = (anchor.bottom + 6) + 'px'; }
+      const b = document.getElementById('tabMoreBtn'); if (b) b.setAttribute('aria-expanded', 'true');
+    }
+    document.addEventListener('click', e => { if (!e.target.closest('#tabMoreMenu')) closeMoreMenu(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMoreMenu(); });
 
     // ===== 탭 오른쪽 검색 버튼 / 맨 위로 버튼 =====
     const tabSearchState = { items: [], active: -1, seq: 0, timer: null };
@@ -2597,6 +2670,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         if (activeCurrency === 'USD') upsertScreenerEntry(upperTicker, market, fundamentals); // 스크리너는 미국(USD) 종목 기준
         renderAnalysisResult(currentAnalysisData);
         renderDeepAnalysis(deep);
+        renderValCalcCard();
         updateAiButton();
         if (market && !opts.noRecord) recordSearch(upperTicker, market, currentAnalysisData.name);
 
@@ -2623,6 +2697,15 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       } finally {
         if (seq === analysisSeq && analyzeBtn) analyzeBtn.disabled = false;
       }
+    }
+
+    // 밸류에이션 계산기 카드: 모듈(mod-valcalc)이 있으면 그려 넣고, 없으면 숨김
+    function renderValCalcCard() {
+      const sec = document.getElementById('valCalcSection');
+      if (!sec) return;
+      if (typeof window.valCalcRender !== 'function' || !currentAnalysisData || !analysisInputs) { sec.classList.add('hidden'); return; }
+      try { const ok = window.valCalcRender(document.getElementById('valCalcBody'), { data: currentAnalysisData, inputs: analysisInputs }); sec.classList.toggle('hidden', ok === false); }
+      catch (e) { console.error('밸류에이션 계산기 오류', e); sec.classList.add('hidden'); }
     }
 
     function updateAiButton(running = false) {
@@ -15241,6 +15324,22 @@ ${digest}`;
       if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.multi = onOpen;
       window.addEventListener('resize', () => { if (built) { P.forEach(p => resizePanel(p)); if (S.focus >= 0) applyFocus(); } });
       window.MC_DEBUG = { S, P };
+    })();
+  </script>
+
+  <script id="mod-valcalc">
+    // ===== 밸류에이션 계산기 모듈 (구현 예정: 스텁) — window.valCalcRender(el, { data, inputs }) → false 면 카드 숨김 =====
+  </script>
+  <script id="mod-signals">
+    // ===== 신호 엔진 모듈 (구현 예정: 스텁) — window.taSignalsLite(history, spyHistory) =====
+  </script>
+  <script id="mod-watch">
+    // ===== 관심종목 탭 모듈 (구현 예정: 스텁) =====
+    (function () {
+      if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.watch = function () {
+        const r = document.getElementById('watchRoot');
+        if (r && !r.dataset.ready) { r.innerHTML = '<div class="text-sm text-slate-400 py-10 text-center">관심종목 준비 중...</div>'; }
+      };
     })();
   </script>
 
