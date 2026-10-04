@@ -10,6 +10,14 @@
 - 대량·기계적 작업(일괄 치환, 검사, i18n 추출)은 스크립트로 하고 요약만 확인.
 - 파일 삭제·덮어쓰기·이름 변경·이동은 먼저 사용자에게 확인.
 
+## 버전 규칙
+- 앱 버전은 `index.html`의 `const APP_VERSION`(메인 스크립트, `switchAppTab` 위)이 단일 출처이며 화면 맨 아래 푸터(`#appVersion`)에 표시된다.
+- **앱을 수정(업데이트)할 때마다 `APP_VERSION`을 올린다.** 기능 추가·동작 변경은 minor(1.1.0→1.2.0), 버그 수정·문구 수정은 patch(1.1.0→1.1.1).
+
+## 탭 간 종목 동기화
+- 어느 탭에서든 종목을 고르면 `appSetSymbol(sym, 탭id)`로 공용 '현재 종목'(`APP_SYM`)을 갱신한다. 다른 탭은 열릴 때 `APP_SYM_APPLY[탭id]`로 그 종목에 맞춘다(`switchAppTab` → `appSyncTab`).
+- 새 탭/모듈이 종목을 다룬다면: 종목이 확정되는 지점에서 `appSetSymbol`을 호출하고, `APP_SYM_APPLY.<탭id>`를 등록한다.
+
 ## index.html 구조 (줄 번호는 수정 시 어긋나므로 `<script id=...>`로 찾기: `grep -n '<script' index.html`)
 | 블록 | 역할 | 전역 접두 |
 |---|---|---|
