@@ -1384,6 +1384,7 @@
       <p class="text-slate-600">
         ※ 본 분석은 투자 권유나 금융 자문이 아니며, 모든 투자 결정과 책임은 투자자 본인에게 있습니다. 화폐 단위는 미국 달러(USD $) 기준입니다.
       </p>
+      <p id="appVersion" translate="no" class="text-slate-600 font-mono-numbers"></p>
     </div>
   </footer>
 
@@ -1460,6 +1461,28 @@
     const TAB_HOOKS = {};
     let activeAppTab = 'analysis';
 
+    // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
+    const APP_VERSION = '1.1.0';
+    (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
+
+    // ===== 탭 간 종목 동기화 =====
+    // 어느 탭에서든 종목을 고르면 appSetSymbol 로 공용 '현재 종목'을 갱신한다.
+    // 다른 탭은 열릴 때 APP_SYM_APPLY[탭] 으로 그 종목에 맞춘다 (종목이 바뀐 뒤 처음 열릴 때 한 번만).
+    const APP_SYM = { sym: '', ver: 0, seen: {} };
+    const APP_SYM_APPLY = {};
+    function appSetSymbol(sym, srcTab) {
+      sym = String(sym || '').trim().toUpperCase();
+      if (!sym) return;
+      if (APP_SYM.sym !== sym) { APP_SYM.sym = sym; APP_SYM.ver++; }
+      if (srcTab) APP_SYM.seen[srcTab] = APP_SYM.ver;   // 고른 탭 자신은 이미 그 종목이다
+    }
+    function appSyncTab(tab) {
+      if (!APP_SYM.sym || APP_SYM.seen[tab] === APP_SYM.ver) return;
+      APP_SYM.seen[tab] = APP_SYM.ver;
+      const fn = APP_SYM_APPLY[tab];
+      if (fn) { try { fn(APP_SYM.sym); } catch (e) { console.error(`탭(${tab}) 종목 동기화 실패`, e); } }
+    }
+
     function switchAppTab(tab) {
       if (!APP_TABS[tab]) tab = 'analysis';
       activeAppTab = tab;
@@ -1483,6 +1506,7 @@
       } else if (tab === 'screener') {
         runScreenerFilter();
       }
+      appSyncTab(tab);
       if (TAB_HOOKS[tab]) { try { TAB_HOOKS[tab](); } catch (e) { console.error(`탭(${tab}) 초기화 실패`, e); } }
     }
 
@@ -1546,12 +1570,13 @@
       input.value = ''; tabSearchState.items = []; tabSearchRender(); tabSearchToggle();
       // 불단왕·전일 복기 탭에서 검색하면 그 탭 안에서 바로 분석한다 (종목 분석 탭으로 넘어가지 않음)
       if (activeAppTab === 'bdw' && typeof window.bdwAnalyzeTicker === 'function') {
-        bdwSwitch('analyze'); window.bdwAnalyzeTicker(ticker); return;
+        window.bdwAnalyzeTicker(ticker); bdwSwitch('analyze'); return;   // 분석을 먼저 시작해 둬야 패널이 열릴 때 이전 종목을 다시 불러오지 않는다
       }
       if (activeAppTab === 'prevday' && typeof pdAnalyze === 'function') {
         pdAnalyze(ticker); return;
       }
       const main = document.getElementById('tickerInput'); if (main) main.value = ticker;
+      appSetSymbol(resolveTickerInput(ticker), 'analysis');
       switchAppTab('analysis'); executeAnalysis(ticker);
     }
     function tabSearchPick(i) { const it = tabSearchState.items[i]; if (it) tabSearchGo(it.symbol); }
@@ -1634,6 +1659,7 @@
     function quickSearch(ticker) {
       const input = document.getElementById('tickerInput');
       if (input) input.value = ticker;
+      appSetSymbol(resolveTickerInput(ticker), 'analysis');
       switchAppTab('analysis');
       executeAnalysis(ticker);
     }
@@ -2636,6 +2662,16 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     // ===== Main analysis pipeline =====
     let analysisSeq = 0;
+    let analysisPending = '';
+    // 다른 탭에서 고른 종목을 5인 분석 탭이 열릴 때 반영 (호출한 쪽이 곧바로 executeAnalysis 를 부르는 경우를 피하려고 한 박자 늦춘다)
+    APP_SYM_APPLY.analysis = sym => {
+      Promise.resolve().then(() => {
+        const cur = currentAnalysisData && currentAnalysisData.ticker;
+        if (APP_SYM.sym !== sym || cur === sym || analysisPending === sym) return;
+        const input = document.getElementById('tickerInput'); if (input) input.value = sym;
+        executeAnalysis(sym, { noRecord: true });
+      });
+    };
 
     const EXPERT_COLORS = [
       "text-amber-400 bg-amber-950/60 border-amber-700/60",
@@ -2861,6 +2897,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const analyzeBtn = document.getElementById('analyzeBtn');
 
       const upperTicker = resolveTickerInput(ticker);
+      analysisPending = upperTicker;
+      if (!opts.noShare) appSetSymbol(upperTicker, 'analysis');   // 다른 탭(불단왕·전일 복기·멀티 차트)이 열릴 때 이 종목을 따라간다
       tickerText.textContent = upperTicker;
       loadingSubtext.textContent = '시세, 재무 지표, 실적·애널리스트·수급 데이터를 수집 중...';
       loading.classList.remove('hidden');
@@ -8648,7 +8686,7 @@ SONY|Sony Group ADR|T
       renderMetricGuide();
       initScreenerHeaderTips();
       renderRecentSearches();
-      executeAnalysis('JVA', { noRecord: true }); // 첫 화면용 기본 종목은 검색 기록에 남기지 않음
+      executeAnalysis('JVA', { noRecord: true, noShare: true }); // 첫 화면용 기본 종목은 검색 기록에 남기지 않음
       // 관심종목이 있으면 그 화면에서 시작 (매일 쓰는 '내 종목 현황'이 첫 화면)
       try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); if (w && w.items && Object.keys(w.items).length) switchAppTab('watch'); } catch (e) { /* 저장값 없음 */ }
       runScreenerFilter();
@@ -10596,6 +10634,7 @@ SONY|Sony Group ADR|T
                 try { const r = await resolveTickerSmart(raw); if (r && r.ticker) ticker = String(r.ticker).toUpperCase(); } catch (e) { /* 검색 실패 → 입력값 그대로 */ }
                 if (seq !== BDW.seq) return;
                 BDW.ticker = ticker; $bdw('bdwTicker').value = ticker; bdwSavePrefs(); bdwRenderQuick();
+                appSetSymbol(ticker, 'bdw');   // 다른 탭이 열릴 때 이 종목을 따라간다
                 BDW.an = {}; BDW.raw = {}; BDW.src = {}; BDW.res = null; BDW.fund = null; BDW.rs = null; BDW.turnover = null; BDW.view = {}; BDW.aiText = ''; BDW.name = '';
                 const out = $bdw('bdwAiOut'); if (out) { out.classList.add('hidden'); out.innerHTML = ''; }
                 const hasProxy = !!getProxyUrl();
@@ -11304,6 +11343,12 @@ SONY|Sony Group ADR|T
         function bdwOnVisible() {
             bdwInit();
             const t = $bdw('bdwTicker');
+            // 다른 탭에서 고른 종목이 있으면 그 종목을 바로 분석한다 (분석 패널이 실제로 보일 때)
+            if (BDW.syncWanted) {
+                BDW.syncWanted = false;
+                const s = APP_SYM.sym;
+                if (s && s !== BDW.ticker) window.bdwAnalyzeTicker(s);
+            }
             const cur = (typeof currentAnalysisData !== 'undefined' && currentAnalysisData && currentAnalysisData.ticker) || '';
             if (t && cur && !BDW.userTicker && !BDW.loading && (t.value === '' || t.value === BDW.autoFilled)) { t.value = cur; BDW.autoFilled = cur; }
             bdwRenderQuick();
@@ -11312,7 +11357,8 @@ SONY|Sony Group ADR|T
         window.BDW_HOOKS = window.BDW_HOOKS || {};
         window.BDW_HOOKS.analyze = bdwOnVisible;
         window.bdwState = BDW;   // 읽기용(디버깅·테스트) 핸들
-        window.bdwAnalyzeTicker = tk => { bdwInit(); const t = $bdw('bdwTicker'); if (t) t.value = tk; BDW.userTicker = true; return bdwRun(tk); };
+        window.bdwAnalyzeTicker = tk => { bdwInit(); const t = $bdw('bdwTicker'); if (t) t.value = tk; BDW.userTicker = true; BDW.syncWanted = false; return bdwRun(tk); };
+        APP_SYM_APPLY.bdw = () => { BDW.syncWanted = true; };   // 불단왕의 분석 패널이 보일 때(bdwOnVisible) 반영
         bdwInit();
     })();
   </script>
@@ -12382,6 +12428,7 @@ ${pdFactsText(d)}`;
         if (seq !== PD.seq) return;
         t = String(t).toUpperCase();
         PD.ticker = t; $pd('pdTicker').value = t; pdStatus('loading', t);
+        appSetSymbol(t, 'prevday');   // 다른 탭이 열릴 때 이 종목을 따라간다
         const mk = PD_MARKET.map(m => m.sym);
         const [r5, rd, ...ms] = await Promise.all([
           fetchRealYahooFinanceData(t, '5d', '5m'),
@@ -12800,12 +12847,15 @@ ${pdFactsText(d)}`;
       PD.ready = true;
       pdRenderShell();
     }
+    APP_SYM_APPLY.prevday = sym => { PD.syncSym = sym; };
     TAB_HOOKS.prevday = () => {
       pdInit();
       const analysed = (typeof currentAnalysisData !== 'undefined' && currentAnalysisData && currentAnalysisData.ticker) || '';
       // 종목 분석 탭에서 새 종목을 분석했으면 그 종목을 따라가고, 아니면 이 탭에서 직접 입력한 종목을 유지한다
       let want = PD.ticker || analysed || 'AAPL';
       if (analysed && analysed !== PD.seenAnalysed) { PD.seenAnalysed = analysed; want = analysed; }
+      // 다른 탭(불단왕·멀티 차트 등)에서 가장 최근에 고른 종목이 있으면 그것이 우선
+      if (PD.syncSym) { want = PD.syncSym; PD.syncSym = ''; }
       pdRenderQuick();
       if (!getProxyUrl()) { if (!PD.data) { $pd('pdTicker').value = want; pdStatus('noproxy'); } return; }
       if (!PD.loading && (!PD.data || want !== PD.ticker)) { $pd('pdTicker').value = want; pdAnalyze(want); return; }
@@ -15625,6 +15675,7 @@ ${digest}`;
           S.panels.forEach(c => { c.t = t; });
           P.forEach(p => { p.cfg = S.panels[p.i]; syncControls(p); loadPanel(p); });
           save();
+          appSetSymbol(t, 'multi');
         });
         root.querySelector('#mcSync').addEventListener('change', e => { S.sync = e.target.checked; save(); if (!S.sync) clearHover(); });
         root.querySelector('#mcH').addEventListener('change', e => {
@@ -15729,6 +15780,7 @@ ${digest}`;
       }
       function setTicker(p, t) {
         p.cfg.t = t; p.inp.value = t; save(); loadPanel(p);
+        appSetSymbol(t, 'multi');   // 다른 탭이 열릴 때 이 종목을 따라간다
       }
 
       // ---------- 데이터 ----------
@@ -16166,7 +16218,19 @@ ${digest}`;
         const cfgs = list.map(t => mkCfg(t, 'D'));
         if (built && P.length === 4) { setAll(cfgs); }
         else { load(); S.panels = cfgs; save(); }
+        appSetSymbol(list[0], 'multi');
         return list.slice(0, 4);
+      };
+      // 다른 탭에서 고른 종목을 멀티 차트가 열릴 때 반영한다.
+      // 한 종목 4시간대 보기(4칸이 같은 종목)면 4칸 모두, 4종목 보기면 이미 있는 종목이 아닐 때 첫 칸만 바꾼다.
+      APP_SYM_APPLY.multi = sym => {
+        if (!S.panels) load();
+        const cfgs = S.panels;
+        if (!cfgs || cfgs.some(c => c.t === sym)) return;
+        const targets = cfgs.every(c => c.t === cfgs[0].t) ? [0, 1, 2, 3] : [0];
+        targets.forEach(i => { if (cfgs[i]) cfgs[i].t = sym; });
+        save();
+        if (built && P.length === 4) targets.forEach(i => { const p = P[i]; p.cfg = cfgs[i]; syncControls(p); loadPanel(p); });
       };
       window.MC_DEBUG = { S, P };
     })();
@@ -18382,8 +18446,9 @@ ${digest}`;
       function goTo(kind, sym) {
         try {
           if (kind === 'analyze') { quickSearch(sym); return; }
-          if (kind === 'prev') { switchAppTab('prevday'); if (typeof pdAnalyze === 'function') pdAnalyze(sym); return; }
+          if (kind === 'prev') { appSetSymbol(sym, 'prevday'); switchAppTab('prevday'); if (typeof pdAnalyze === 'function') pdAnalyze(sym); return; }
           if (kind === 'bdw') {
+            appSetSymbol(sym, 'bdw');   // 아래에서 직접 분석하므로 탭 전환 때 같은 종목을 또 불러오지 않게 표시
             switchAppTab('bdw');
             if (typeof bdwSwitch === 'function') bdwSwitch('analyze');
             if (typeof window.bdwAnalyzeTicker === 'function') window.bdwAnalyzeTicker(sym);
