@@ -16,7 +16,7 @@ src = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read()
 # 1) CSS 빌드
 os.makedirs(OUT, exist_ok=True)
 css_path = os.path.join(OUT, 'app.css')
-tw = os.path.join(TOOLS, 'node_modules', '.bin', 'tailwindcss')
+tw = os.path.join(TOOLS, 'node_modules', '.bin', 'tailwindcss.cmd' if os.name == 'nt' else 'tailwindcss')
 if not os.path.exists(tw):
     sys.exit('먼저 tools 폴더에서 npm install 을 실행하세요.')
 subprocess.run([tw, '-c', 'tailwind.config.js', '-i', 'in.css', '-o', css_path, '--minify'], cwd=TOOLS, check=True, stderr=subprocess.DEVNULL)

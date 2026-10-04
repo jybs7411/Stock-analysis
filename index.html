@@ -1493,7 +1493,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.1.0';
+    const APP_VERSION = '1.2.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -7555,6 +7555,65 @@ BP|BP p.l.c. ADR|E
 UL|Unilever PLC ADR|C
 DEO|Diageo plc ADR|C
 SONY|Sony Group ADR|T
+GTLB|GitLab Inc.|T
+ESTC|Elastic N.V.|T
+MNDY|monday.com Ltd.|T
+DOCN|DigitalOcean Holdings|T
+PATH|UiPath Inc.|T
+TENB|Tenable Holdings|T
+QLYS|Qualys Inc.|T
+DUOL|Duolingo Inc.|T
+NTNX|Nutanix Inc.|T
+DBX|Dropbox Inc.|T
+SLAB|Silicon Laboratories|S
+CRUS|Cirrus Logic|S
+POWI|Power Integrations|S
+RMBS|Rambus Inc.|S
+DIOD|Diodes Incorporated|S
+FORM|FormFactor Inc.|S
+MKSI|MKS Instruments|S
+ACLS|Axcelis Technologies|S
+CROX|Crocs Inc.|C
+BOOT|Boot Barn Holdings|C
+CAVA|CAVA Group|C
+BROS|Dutch Bros Inc.|C
+WING|Wingstop Inc.|C
+TXRH|Texas Roadhouse|C
+FIVE|Five Below Inc.|C
+OLLI|Ollie's Bargain Outlet|C
+ELF|e.l.f. Beauty Inc.|C
+CELH|Celsius Holdings|C
+POST|Post Holdings|C
+DAR|Darling Ingredients|C
+HALO|Halozyme Therapeutics|H
+INSM|Insmed Incorporated|H
+MEDP|Medpace Holdings|H
+RGEN|Repligen Corporation|H
+PEN|Penumbra Inc.|H
+GMED|Globus Medical|H
+LNTH|Lantheus Holdings|H
+SEIC|SEI Investments|F
+EWBC|East West Bancorp|F
+WAL|Western Alliance Bancorp|F
+CNO|CNO Financial Group|F
+PRI|Primerica Inc.|F
+STEP|StepStone Group|F
+AR|Antero Resources|E
+MTDR|Matador Resources|E
+CHRD|Chord Energy|E
+MP|MP Materials Corp.|E
+ATI|ATI Inc.|E
+CRS|Carpenter Technology|E
+CWEN|Clearway Energy|E
+POWL|Powell Industries|E
+BLDR|Builders FirstSource|E
+AGCO|AGCO Corporation|E
+OSK|Oshkosh Corporation|E
+MOG-A|Moog Inc. Class A|E
+STAG|STAG Industrial|E
+NNN|NNN REIT Inc.|E
+KRC|Kilroy Realty Corp.|E
+EPRT|Essential Properties Realty Trust|E
 `;
     const SECTOR_CODES = { T: 'Tech', S: 'Semiconductors', A: 'Automotive', H: 'Healthcare', F: 'Finance', C: 'Consumer', E: 'Energy', M: 'Communication' };
     SCREENER_EXTRA_UNIVERSE.trim().split('\n').forEach(line => {
@@ -8726,10 +8785,14 @@ SONY|Sony Group ADR|T
       renderMetricGuide();
       initScreenerHeaderTips();
       renderRecentSearches();
-      executeAnalysis('JVA', { noRecord: true, noShare: true }); // 첫 화면용 기본 종목은 검색 기록에 남기지 않음
       // 관심종목이 있으면 그 화면에서 시작 (매일 쓰는 '내 종목 현황'이 첫 화면)
       try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); if (w && w.items && Object.keys(w.items).length) switchAppTab('watch'); } catch (e) { /* 저장값 없음 */ }
       runScreenerFilter();
+      // 프록시가 있으면 백그라운드로 스크리너 전체 종목 큐잉 및 시장 탭 사전 로딩
+      if (getProxyUrl()) {
+        enqueueScreener(SCREENER_MASTER_DATA, false);
+        setTimeout(() => { if (typeof mkLoad === 'function') { mkInit(); mkLoad({}); } }, 120);
+      }
     });
   </script>
   <!-- 기능 모듈: 각 모듈은 자기 script 블록 안에서만 작업한다 (메인 스크립트의 전역 함수를 호출해 사용) -->
@@ -14265,7 +14328,7 @@ ${pdFactsText(d)}`;
     const MK_PERIODS = ['1D', '1W', '1M', '3M', 'YTD'];
     const MK_PERIOD_CLAMP = { '1D': 3, '1W': 5, '1M': 10, '3M': 15, 'YTD': 25 }; // 히트맵 색 포화 기준(±%)
     const MK_PERIOD_KO = { '1D': '1일', '1W': '1주', '1M': '1개월', '3M': '3개월', '6M': '6개월', '1Y': '1년', 'YTD': '연초 대비' };
-    const MK_CACHE_MS = 60000;
+    const MK_CACHE_MS = 300000;
 
     // 섹터 분류(자체 큐레이션, GICS 와 완전히 같지는 않음). 여기에 없는 종목은 기존 스크리너의 큰 분류에서 가져온다.
     const MK_SECTORS = [
@@ -14274,17 +14337,18 @@ ${pdFactsText(d)}`;
         { id: 'ind', ko: '산업재' }, { id: 'mat', ko: '소재' }, { id: 'util', ko: '유틸리티' }, { id: 'reit', ko: '부동산' }
     ];
     const MK_SECTOR_TICKERS = {
-        tech: 'AAPL MSFT PLTR CRM ORCL ADBE NOW SNOW SMCI IBM CSCO ACN INTU PANW CRWD FTNT ADSK WDAY TEAM DDOG ZS NET MDB SHOP ANET DELL HPQ HPE NTAP WDC STX KEYS TYL ROP CDNS SNPS FICO ADP PAYX GDDY TWLO OKTA HUBS U APP TTD SAP MSTR ENPH FSLR',
-        semi: 'NVDA AVGO TSM AMD QCOM ARM INTC MU AMAT LRCX KLAC ASML TXN ADI MRVL NXPI ON MCHP MPWR TER GFS SWKS QRVO',
+        tech: 'AAPL MSFT PLTR CRM ORCL ADBE NOW SNOW SMCI IBM CSCO ACN INTU PANW CRWD FTNT ADSK WDAY TEAM DDOG ZS NET MDB SHOP ANET DELL HPQ HPE NTAP WDC STX KEYS TYL ROP CDNS SNPS FICO ADP PAYX GDDY TWLO OKTA HUBS U APP TTD SAP MSTR ENPH FSLR GTLB ESTC MNDY DOCN PATH TENB QLYS DUOL NTNX DBX',
+        semi: 'NVDA AVGO TSM AMD QCOM ARM INTC MU AMAT LRCX KLAC ASML TXN ADI MRVL NXPI ON MCHP MPWR TER GFS SWKS QRVO SLAB CRUS POWI RMBS DIOD FORM MKSI ACLS',
         comm: 'GOOGL GOOG META NFLX DIS PINS SNAP SPOT T VZ TMUS CMCSA CHTR WBD EA TTWO LYV FOXA MTCH RBLX BIDU',
-        disc: 'AMZN TSLA F GM RIVN LCID NIO XPEV LI TM NKE MCD SBUX HD LOW TJX ROST BKNG MAR HLT CMG YUM DPZ DRI LULU DECK ORLY AZO EBAY ETSY CHWY MELI SE BABA PDD JD CPNG ABNB CCL RCL NCLH EXPE LVS WYNN MGM DKNG TPR RL SONY',
-        stap: 'COST WMT TGT DG DLTR KR SYY KO PEP PG CL KMB MDLZ GIS HSY KHC MNST KDP STZ PM MO EL TSN UL DEO JVA',
-        fin: 'BRK-B JPM V MA BAC GS MS COIN HOOD XYZ WFC C SCHW BLK SPGI MCO ICE CME AXP COF PYPL USB PNC TFC MET PRU AIG CB TRV PGR ALL AFL MMC AON BX KKR APO SOFI AFRM UPST NU IBKR',
-        enrg: 'XOM CVX COP EOG SLB OXY PSX MPC VLO KMI WMB OKE HAL DVN FANG BKR SHEL BP',
-        ind: 'CAT GE LMT RTX DAL UAL AAL LUV HON UPS FDX BA NOC GD LHX DE EMR ETN ITW PH MMM WM RSG CSX UNP NSC URI PCAR GWW FAST CARR OTIS TT JCI UBER RKLB JOBY PLUG',
-        mat: 'LIN APD SHW ECL FCX NEM NUE RIO BHP',
-        util: 'NEE DUK SO D AEP SRE EXC VST CEG OKLO',
-        reit: 'PLD AMT EQIX SPG O PSA DLR CCI WELL'
+        disc: 'AMZN TSLA F GM RIVN LCID NIO XPEV LI TM NKE MCD SBUX HD LOW TJX ROST BKNG MAR HLT CMG YUM DPZ DRI LULU DECK ORLY AZO EBAY ETSY CHWY MELI SE BABA PDD JD CPNG ABNB CCL RCL NCLH EXPE LVS WYNN MGM DKNG TPR RL SONY CROX BOOT CAVA BROS WING TXRH FIVE OLLI ELF',
+        stap: 'COST WMT TGT DG DLTR KR SYY KO PEP PG CL KMB MDLZ GIS HSY KHC MNST KDP STZ PM MO EL TSN UL DEO JVA CELH POST DAR',
+        hlth: 'LLY NVO UNH JNJ ABBV MRK PFE TMO DHR ABT ISRG SYK BSX MDT EW BDX VRTX REGN GILD AMGN BMY BIIB MRNA ILMN HUM CI ELV CNC MCK COR HCA IQV A DXCM IDXX ALGN PODD VEEV ZTS GEHC CVS AZN NVS SNY HALO INSM MEDP RGEN PEN GMED LNTH',
+        fin: 'BRK-B JPM V MA BAC GS MS COIN HOOD XYZ WFC C SCHW BLK SPGI MCO ICE CME AXP COF PYPL USB PNC TFC MET PRU AIG CB TRV PGR ALL AFL MMC AON BX KKR APO SOFI AFRM UPST NU IBKR SEIC EWBC WAL CNO PRI STEP',
+        enrg: 'XOM CVX COP EOG SLB OXY PSX MPC VLO KMI WMB OKE HAL DVN FANG BKR SHEL BP AR MTDR CHRD',
+        ind: 'CAT GE LMT RTX DAL UAL AAL LUV HON UPS FDX BA NOC GD LHX DE EMR ETN ITW PH MMM WM RSG CSX UNP NSC URI PCAR GWW FAST CARR OTIS TT JCI UBER RKLB JOBY PLUG POWL BLDR AGCO OSK MOG-A',
+        mat: 'LIN APD SHW ECL FCX NEM NUE RIO BHP MP ATI CRS',
+        util: 'NEE DUK SO D AEP SRE EXC VST CEG OKLO CWEN',
+        reit: 'PLD AMT EQIX SPG O PSA DLR CCI WELL STAG NNN KRC EPRT'
     };
     const MK_COARSE_TO_SECTOR = { Tech: 'tech', Semiconductors: 'semi', Automotive: 'disc', Healthcare: 'hlth', Finance: 'fin', Consumer: 'disc', Communication: 'comm' }; // 'Energy' 는 스크리너에서 에너지+산업재+유틸리티+소재+부동산을 묶은 거친 분류라 개별 섹터로 확정할 수 없음
     const MK_SECTOR_BY_TICKER = (() => { const m = {}; Object.keys(MK_SECTOR_TICKERS).forEach(id => MK_SECTOR_TICKERS[id].split(' ').forEach(t => { m[t] = id; })); return m; })();
@@ -14795,11 +14859,39 @@ ${pdFactsText(d)}`;
         return (u && u.name) || (st && st.name) || sym;
     }
 
+    function mkSyncQuotesToScreener(quotes) {
+        if (typeof SCREENER_MASTER_DATA === 'undefined' || !Array.isArray(quotes)) return;
+        quotes.forEach(q => {
+            if (!q || !q.symbol) return;
+            const entry = SCREENER_MASTER_DATA.find(s => s.ticker === q.symbol);
+            if (!entry) return;
+            if (Number.isFinite(q.price) && entry.price === null) entry.price = q.price;
+            if (Number.isFinite(q.change) && !entry.change) entry.change = q.change;
+            if (Number.isFinite(q.changePct) && entry.chgPct === null) entry.chgPct = q.changePct;
+            if (Number.isFinite(q.marketCap) && entry.marketCapVal === null) {
+                const mcapB = q.marketCap / 1e9;
+                entry.marketCapVal = mcapB;
+                entry.marketCap = typeof formatMarketCap === 'function' ? formatMarketCap(mcapB) : `${mcapB.toFixed(1)}B`;
+                entry.capCategory = typeof capCategoryFromVal === 'function' ? capCategoryFromVal(mcapB) : null;
+            }
+            if (Number.isFinite(q.pe) && entry.pe === null) entry.pe = q.pe;
+            if (Number.isFinite(q.forwardPe) && entry.fpe === null) entry.fpe = q.forwardPe;
+            if (Number.isFinite(q.high52) && entry.fromHigh52 === null && entry.price) entry.fromHigh52 = (entry.price / q.high52 - 1) * 100;
+            if (Number.isFinite(q.low52) && entry.fromLow50 === null && entry.price) entry.fromLow52 = (entry.price / q.low52 - 1) * 100;
+            if (Number.isFinite(q.avgVolume) && entry.avgVol === null) entry.avgVol = q.avgVolume;
+            // entry.loaded는 건드리지 않음 (상세 재무 및 OHLCV 지표 큐는 그대로 동작)
+        });
+        if (typeof activeAppTab !== 'undefined' && activeAppTab === 'screener' && typeof runScreenerFilter === 'function') {
+            runScreenerFilter();
+        }
+    }
+
     function mkIngest(quotes, spark, syms) {
         (quotes || []).forEach(q => { if (q && q.symbol) MK.quotes[q.symbol] = q; });
         if (spark) Object.keys(spark).forEach(s => { const n = mkNormSpark(spark[s]); if (n) MK.spark[s] = n; });
         syms.forEach(s => { MK.stats[s] = mkComputeStat(s, MK.spark[s], MK.quotes[s]); });
         MK.ver++;
+        mkSyncQuotesToScreener(quotes);
     }
     async function mkFetchBatch(syms, seq) {
         const [q, s] = await Promise.all([fetchQuotes(syms), fetchSpark(syms, '1y', '1d')]);
