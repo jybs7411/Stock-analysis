@@ -469,6 +469,20 @@
             <input type="checkbox" id="geminiGroundingInput" class="mt-0.5 accent-cyan-500">
             <span class="text-[11px] text-slate-400"><strong class="text-slate-200">구글 검색 Grounding 사용</strong> <span class="text-amber-400">(유료 · 기본 꺼짐)</span> — 켜면 최신 뉴스·실적을 검색해 반영하지만, 무료 키로는 막히거나 한도가 매우 작을 수 있습니다. 막히면 자동으로 검색 없이 다시 시도합니다.</span>
           </label>
+          <div class="mt-4 pt-4 border-t border-slate-800">
+            <label class="block font-semibold text-white mb-1 flex items-center justify-between">
+              <span>Google Drive Client ID (관심종목 자동 백업):</span>
+              <span class="text-[10px] text-cyan-400">선택 사항</span>
+            </label>
+            <input
+              type="text"
+              id="gdriveClientIdInput"
+              placeholder="Google Cloud OAuth 2.0 Web Client ID 입력"
+              autocomplete="off" spellcheck="false"
+              class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers outline-none focus:border-cyan-400"
+            />
+            <p class="text-[11px] text-slate-500 mt-1">Google Cloud Console에서 발급받은 웹 클라이언트 ID입니다. 입력해 두면 관심종목이 구글 드라이브에 안전하게 자동 백업됩니다.</p>
+          </div>
         </div>
 
       </div>
@@ -2172,6 +2186,8 @@
       document.getElementById('autoAiInput').checked = autoAiOn();
       document.getElementById('geminiGroundingInput').checked = geminiGroundingOn();
       document.getElementById('proxyUrlInput').value = getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL;
+      const gCidEl = document.getElementById('gdriveClientIdInput');
+      if (gCidEl) gCidEl.value = localStorage.getItem('pentanalyst_gdrive_client_id') || '';
       document.getElementById('apiSettingsModal').classList.remove('hidden');
     }
 
@@ -2193,6 +2209,13 @@
       localStorage.setItem('pentanalyst_auto_ai', document.getElementById('autoAiInput').checked ? '1' : '0');
       setStoredApiKey('gemini_grounding', document.getElementById('geminiGroundingInput').checked ? '1' : '');
       setStoredApiKey('proxy_url', proxy);
+      const gCidEl = document.getElementById('gdriveClientIdInput');
+      if (gCidEl) {
+        const val = gCidEl.value.trim();
+        if (val) localStorage.setItem('pentanalyst_gdrive_client_id', val);
+        else localStorage.removeItem('pentanalyst_gdrive_client_id');
+      }
+      try { window.dispatchEvent(new CustomEvent('gdrive-config-changed')); } catch (e) {}
       updateGoogleSearchBannerState();
       closeApiSettingsModal();
 
@@ -17338,7 +17361,12 @@ ${digest}`;
         if (HAS_DOM && !RT.baseTitle) RT.baseTitle = document.title;
       }
       function saveState() {
-        try { localStorage.setItem(KEY, JSON.stringify(ST)); RT.saveErr = false; return true; }
+        try {
+          localStorage.setItem(KEY, JSON.stringify(ST));
+          RT.saveErr = false;
+          if (typeof GDRIVE !== 'undefined' && GDRIVE.scheduleBackup) GDRIVE.scheduleBackup();
+          return true;
+        }
         catch (e) {
           RT.saveErr = true;
           if (typeof showToast === 'function') showToast('저장 실패', '브라우저 저장 공간이 부족하거나 막혀 있어 관심종목을 저장하지 못했어요. JSON 내보내기로 백업해 두세요.', 'error');
@@ -18294,14 +18322,49 @@ ${digest}`;
 
       // ---------- 렌더 묶음 ----------
       function setHtml(el, html) { if (!el) return; if (el.__h === html) return; el.__h = html; el.innerHTML = html; }
+      function renderGDriveSlot() {
+        const slot = $('wlGDriveSlot');
+        if (!slot) return;
+        const enabled = typeof GDRIVE !== 'undefined' && GDRIVE.isEnabled();
+        const lastBackup = typeof GDRIVE !== 'undefined' ? GDRIVE.getLastBackup() : null;
+        if (enabled) {
+          let timeText = '';
+          if (lastBackup) {
+            try {
+              const dt = new Date(lastBackup);
+              const m = String(dt.getMonth() + 1).padStart(2, '0');
+              const d = String(dt.getDate()).padStart(2, '0');
+              const h = String(dt.getHours()).padStart(2, '0');
+              const min = String(dt.getMinutes()).padStart(2, '0');
+              timeText = `${m}/${d} ${h}:${min}`;
+            } catch (e) {}
+          }
+          slot.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-medium text-[11px]"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Drive 자동백업 켜짐</span>` +
+            (timeText ? `<span class="text-slate-400 text-[11px]" title="${esc(lastBackup)}">백업됨: ${timeText}</span>` : '') +
+            `<button type="button" data-act="gdriveBackup" class="${BTN}" title="Google Drive에 즉시 백업"><i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i>지금 백업</button>` +
+            `<button type="button" data-act="gdriveRestore" class="${BTN}" title="Google Drive에서 백업 가져오기"><i class="fa-solid fa-cloud-arrow-down text-emerald-400"></i>드라이브에서 복원</button>` +
+            `<button type="button" data-act="gdriveConfig" class="${BTN} text-slate-400 hover:text-white" title="Client ID 설정"><i class="fa-solid fa-gear"></i></button>` +
+            `<button type="button" data-act="gdriveDisconnect" class="${BTN} text-rose-400 hover:text-rose-300" title="Google Drive 연결 해제"><i class="fa-solid fa-link-slash"></i>연결 해제</button>`;
+        } else {
+          slot.innerHTML = `<button type="button" data-act="gdriveConnect" class="${BTN} text-cyan-300 border-cyan-800/60 hover:bg-cyan-950/40"><i class="fa-brands fa-google-drive"></i>Google Drive 연결</button>` +
+            `<span class="text-slate-300">Google Drive에 자동 백업하고 다른 기기와 동기화할 수 있어요.</span>`;
+        }
+      }
       function renderFoot() {
         const el = $('wlFoot');
-        if (!el || el.dataset.ready) return;
-        el.dataset.ready = '1';
-        el.innerHTML = `<div class="space-y-3 pt-2 text-xs text-slate-400 leading-relaxed">
-          <div class="flex flex-wrap items-center gap-2"><button type="button" data-act="exportJson" class="${BTN}"><i class="fa-solid fa-download"></i>JSON 내보내기</button><button type="button" data-act="importJson" class="${BTN}"><i class="fa-solid fa-upload"></i>JSON 가져오기</button>
-          <span class="text-slate-300">이 브라우저에만 저장됩니다 — 기기 간 동기화는 없어요. 기기를 옮길 땐 내보내기·가져오기를 쓰세요.</span></div>
-          <p>교육용 정보이며 투자 권유가 아니에요 · 시세는 지연될 수 있어요 · 앱을 닫거나 이 탭을 벗어나면 알림이 오지 않아요 · 이 브라우저에만 저장돼요 · 신호는 과거 가격을 가공한 값이며 예측이 아니에요.</p></div>`;
+        if (!el) return;
+        if (!el.dataset.ready) {
+          el.dataset.ready = '1';
+          el.innerHTML = `<div class="space-y-3 pt-2 text-xs text-slate-400 leading-relaxed">
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" data-act="exportJson" class="${BTN}"><i class="fa-solid fa-download"></i>JSON 내보내기</button>
+              <button type="button" data-act="importJson" class="${BTN}"><i class="fa-solid fa-upload"></i>JSON 가져오기</button>
+              <span class="text-slate-600 hidden sm:inline">|</span>
+              <span id="wlGDriveSlot" class="flex flex-wrap items-center gap-2"></span>
+            </div>
+            <p>교육용 정보이며 투자 권유가 아니에요 · 시세는 지연될 수 있어요 · 앱을 닫거나 이 탭을 벗어나면 알림이 오지 않아요 · 이 브라우저에만 저장돼요 · 신호는 과거 가격을 가공한 값이며 예측이 아니에요.</p></div>`;
+        }
+        renderGDriveSlot();
       }
       function renderAll() {
         if (!RT.built || !ST) return;
@@ -18481,6 +18544,257 @@ ${digest}`;
       }
       function newGroupId() { return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
 
+      // ---------- 구글 드라이브 자동 백업 연동 ----------
+      const GDRIVE = (function () {
+        const CLIENT_ID_KEY = 'pentanalyst_gdrive_client_id';
+        const ENABLED_KEY = 'pentanalyst_gdrive_enabled';
+        const LAST_BACKUP_KEY = 'pentanalyst_gdrive_last_backup';
+        const FILE_NAME = 'pentanalyst_watchlist_backup.json';
+        const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+        let tokenClient = null;
+        let accessToken = null;
+        let tokenExpiresAt = 0;
+        let backupTimer = null;
+        let busy = false;
+
+        function getClientId() {
+          try { return (localStorage.getItem(CLIENT_ID_KEY) || '').trim(); } catch (e) { return ''; }
+        }
+        function isEnabled() {
+          try { return localStorage.getItem(ENABLED_KEY) === '1'; } catch (e) { return false; }
+        }
+        function getLastBackup() {
+          try { return localStorage.getItem(LAST_BACKUP_KEY) || null; } catch (e) { return null; }
+        }
+
+        function loadGis() {
+          if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+            return Promise.resolve(window.google);
+          }
+          return new Promise((resolve, reject) => {
+            const existing = document.getElementById('gsi-client-script');
+            if (existing) {
+              if (window.google?.accounts?.oauth2) return resolve(window.google);
+              existing.addEventListener('load', () => resolve(window.google));
+              existing.addEventListener('error', () => reject(new Error('Google Identity Services 스크립트 로드 실패')));
+              return;
+            }
+            const s = document.createElement('script');
+            s.id = 'gsi-client-script';
+            s.src = 'https://accounts.google.com/gsi/client';
+            s.async = true;
+            s.defer = true;
+            s.onload = () => resolve(window.google);
+            s.onerror = () => reject(new Error('Google Identity Services 로드 실패. 네트워크 연결을 확인하세요.'));
+            document.head.appendChild(s);
+          });
+        }
+
+        function getToken(interactive) {
+          if (accessToken && Date.now() < tokenExpiresAt - 60000) {
+            return Promise.resolve(accessToken);
+          }
+          const cid = getClientId();
+          if (!cid) {
+            return Promise.reject(new Error('no_client_id'));
+          }
+          return loadGis().then(google => {
+            return new Promise((resolve, reject) => {
+              try {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                  client_id: cid,
+                  scope: SCOPE,
+                  callback: (resp) => {
+                    if (resp.error) {
+                      reject(new Error(resp.error_description || resp.error));
+                      return;
+                    }
+                    accessToken = resp.access_token;
+                    const exp = Number(resp.expires_in) || 3500;
+                    tokenExpiresAt = Date.now() + exp * 1000;
+                    resolve(accessToken);
+                  }
+                });
+                tokenClient.requestAccessToken({ prompt: interactive ? '' : 'none' });
+              } catch (err) {
+                reject(err);
+              }
+            });
+          });
+        }
+
+        async function findBackupFile(token) {
+          const q = encodeURIComponent(`name = '${FILE_NAME}' and trashed = false`);
+          const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&spaces=drive`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            throw new Error(errJson.error?.message || `드라이브 조회 실패 (${res.status})`);
+          }
+          const data = await res.json();
+          return (data.files && data.files.length) ? data.files[0] : null;
+        }
+
+        async function backup(silent) {
+          if (busy) return;
+          ensure();
+          const cid = getClientId();
+          if (!cid) {
+            if (!silent) promptClientId();
+            return;
+          }
+          busy = true;
+          try {
+            const token = await getToken(!silent);
+            const backupData = Object.assign(
+              { app: 'PentAnalyst', kind: 'watchlist', exportedAt: new Date().toISOString() },
+              JSON.parse(JSON.stringify(ST))
+            );
+            const content = JSON.stringify(backupData, null, 1);
+            const existingFile = await findBackupFile(token);
+
+            if (existingFile && existingFile.id) {
+              const patchRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`, {
+                method: 'PATCH',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json; charset=UTF-8'
+                },
+                body: content
+              });
+              if (!patchRes.ok) throw new Error(`백업 갱신 실패 (${patchRes.status})`);
+            } else {
+              const boundary = '-------PentAnalystBoundary' + Math.random().toString(36).slice(2);
+              const metadata = JSON.stringify({ name: FILE_NAME, mimeType: 'application/json' });
+              const body = [
+                `--${boundary}`,
+                'Content-Type: application/json; charset=UTF-8',
+                '',
+                metadata,
+                `--${boundary}`,
+                'Content-Type: application/json',
+                '',
+                content,
+                `--${boundary}--`
+              ].join('\r\n');
+
+              const createRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': `multipart/related; boundary=${boundary}`
+                },
+                body: body
+              });
+              if (!createRes.ok) throw new Error(`백업 생성 실패 (${createRes.status})`);
+            }
+
+            const nowIso = new Date().toISOString();
+            localStorage.setItem(LAST_BACKUP_KEY, nowIso);
+            renderGDriveSlot();
+            if (!silent) {
+              notify('드라이브 백업 완료', `Google Drive에 ${Object.keys(ST.items).length}개 종목을 백업했어요.`, 'success');
+            }
+          } catch (e) {
+            if (e.message === 'no_client_id') {
+              if (!silent) promptClientId();
+            } else if (!silent) {
+              notify('드라이브 백업 실패', e.message || '백업 중 오류가 발생했습니다.', 'error');
+            }
+          } finally {
+            busy = false;
+          }
+        }
+
+        async function restore() {
+          ensure();
+          const cid = getClientId();
+          if (!cid) {
+            promptClientId();
+            return;
+          }
+          try {
+            const token = await getToken(true);
+            notify('드라이브 확인 중', '백업 파일을 검색하고 있어요…', 'info');
+            const file = await findBackupFile(token);
+            if (!file || !file.id) {
+              notify('백업 파일 없음', 'Google Drive에 저장된 관심종목 백업 파일이 없어요.', 'warning');
+              return;
+            }
+            const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error(`파일 다운로드 실패 (${res.status})`);
+            const text = await res.text();
+            importText(text);
+          } catch (e) {
+            notify('복원 실패', e.message || '백업 복원 중 오류가 발생했습니다.', 'error');
+          }
+        }
+
+        function promptClientId() {
+          const cur = getClientId();
+          const v = window.prompt(
+            'Google Cloud Console에서 발급받은 OAuth 2.0 Web Client ID를 입력해주세요.\\n(예: xxx.apps.googleusercontent.com)\\n\\n※ Google Cloud Console의 "승인된 자바스크립트 원본"에 현재 사이트 주소가 등록되어 있어야 합니다.',
+            cur
+          );
+          if (v !== null) {
+            const trimmed = v.trim();
+            if (trimmed) {
+              localStorage.setItem(CLIENT_ID_KEY, trimmed);
+              notify('Client ID 저장됨', 'Google Drive 연결을 진행합니다.', 'info');
+              connect();
+            } else {
+              localStorage.removeItem(CLIENT_ID_KEY);
+              renderGDriveSlot();
+            }
+          }
+        }
+
+        async function connect() {
+          const cid = getClientId();
+          if (!cid) {
+            promptClientId();
+            return;
+          }
+          try {
+            await getToken(true);
+            localStorage.setItem(ENABLED_KEY, '1');
+            notify('Google Drive 연결 완료', '관심종목 변경 시 클라우드에 자동 백업됩니다.', 'success');
+            renderGDriveSlot();
+            backup(false);
+          } catch (e) {
+            notify('연결 실패', e.message || 'Google Drive 연결에 실패했습니다.', 'error');
+          }
+        }
+
+        function disconnect() {
+          localStorage.removeItem(ENABLED_KEY);
+          if (accessToken && window.google?.accounts?.oauth2?.revoke) {
+            try { window.google.accounts.oauth2.revoke(accessToken, () => {}); } catch (e) {}
+          }
+          accessToken = null;
+          tokenExpiresAt = 0;
+          renderGDriveSlot();
+          notify('연결 해제', 'Google Drive 자동 백업 연결을 해제했어요.', 'info');
+        }
+
+        function scheduleBackup() {
+          if (!isEnabled() || !getClientId()) return;
+          clearTimeout(backupTimer);
+          backupTimer = setTimeout(() => {
+            backup(true);
+          }, 5000);
+        }
+
+        return {
+          getClientId, isEnabled, getLastBackup, promptClientId, connect, disconnect, backup, restore, scheduleBackup
+        };
+      })();
+      try { window.addEventListener('gdrive-config-changed', () => renderGDriveSlot()); } catch (e) {}
+
       // ---------- 입력 처리 ----------
       function numField(v) { if (v === '' || v == null) return null; const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : NaN; }
       function commitTargets(silent) {
@@ -18547,6 +18861,11 @@ ${digest}`;
           case 'pasteFocus': { const i = $('wlAddInput'); if (i) { i.focus(); i.scrollIntoView({ block: 'center', behavior: 'smooth' }); } break; }
           case 'exportJson': exportJson(); break;
           case 'importJson': $('wlImport').click(); break;
+          case 'gdriveConnect': GDRIVE.connect(); break;
+          case 'gdriveBackup': GDRIVE.backup(false); break;
+          case 'gdriveRestore': GDRIVE.restore(); break;
+          case 'gdriveConfig': GDRIVE.promptClientId(); break;
+          case 'gdriveDisconnect': GDRIVE.disconnect(); break;
           default: break;
         }
       }
