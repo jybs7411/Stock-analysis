@@ -334,14 +334,45 @@ function chartToSpark(json) {
 
 export function mapSpark(data) {
   const out = {};
+  if (!data || typeof data !== 'object') return out;
+
+  // 1) 신규 Yahoo Finance spark 포맷: { "AAPL": { timestamp, close, fulldayPrice, fulldayChange, ... }, ... }
+  Object.keys(data).forEach(sym => {
+    if (sym === 'spark' || sym === 'error') return;
+    const item = data[sym];
+    if (!item || !Array.isArray(item.timestamp) || !Array.isArray(item.close)) return;
+    const t = item.timestamp, c = item.close;
+    const tt = [], cc = [];
+    for (let i = 0; i < t.length; i++) {
+      if (c[i] !== null && c[i] !== undefined && Number.isFinite(c[i])) {
+        tt.push(t[i]);
+        cc.push(c[i]);
+      }
+    }
+    if (cc.length) {
+      const price = num(item.fulldayPrice) ?? cc[cc.length - 1];
+      const change = num(item.fulldayChange);
+      const prev = (price !== null && change !== null) ? price - change : (num(item.chartPreviousClose) ?? num(item.previousClose));
+      out[sym] = {
+        t: tt,
+        c: cc,
+        prev,
+        price,
+        currency: item.currency || null
+      };
+    }
+  });
+
+  // 2) 레거시 v8 chart/spark 응답 포맷 호환: { spark: { result: [...] } }
   const results = (data && data.spark && data.spark.result) || [];
   results.forEach(item => {
     const sym = item && item.symbol;
     const resp = item && item.response && item.response[0];
-    if (!sym || !resp) return;
+    if (!sym || !resp || out[sym]) return;
     const m = chartToSpark({ chart: { result: [resp] } });
     if (m) out[sym] = m;
   });
+
   return out;
 }
 
