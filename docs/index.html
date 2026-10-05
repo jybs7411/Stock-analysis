@@ -1594,7 +1594,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.14.0';
+    const APP_VERSION = '1.15.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -3394,6 +3394,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         add('Dividend yield% / ex-date', dv.yield != null ? `${dv.yield} / ${dv.exDate || '-'}` : '');
         add('Recent headlines', (deep.news || []).slice(0, 5).map(n => n.title).join(' | '));
       }
+      if (f && f.shortRatio != null) add('Short ratio (days to cover)', f.shortRatio);
+      const rf = computeRedFlags(inp).filter(x => x.rating !== 'good');
+      if (rf.length) add('위험 신호 점검 (앱 계산)', rf.map(x => `[${x.label}] ${x.text}`).join(' / '));
       return lines.join('\n');
     }
 
@@ -3588,6 +3591,36 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         </div>`;
     }
 
+    // ===== 위험 신호 점검 (악마의 변호인용) =====
+    // Yahoo 재무 요약값으로만 계산하는 단순 점검입니다. 감사·주석·자본화 같은 공시 원문은 보지 못하므로 '분식 탐지'가 아니라 '확인해 볼 신호'입니다.
+    function computeRedFlags(inp) {
+      if (!inp) return [];
+      const f = inp.fundamentals || {}, deep = inp.deep || {};
+      const fin = deep.financials || {}, e = deep.earnings || {}, ni = (deep.ownership || {}).netInsider || {};
+      const out = [];
+      const add = (rating, label, text) => out.push({ rating, label, text });
+      const q = (fin.quarterly || []).filter(x => hasVal(x.earnings));
+      const ttmNi = q.length >= 4 ? q.slice(-4).reduce((a, x) => a + Number(x.earnings), 0) : null;
+      if (hasVal(fin.operatingCashflow) && ttmNi !== null) {
+        if (ttmNi > 0 && fin.operatingCashflow < 0) add('bad', '이익의 질', `순이익은 ${fmtBig(ttmNi)} 흑자인데 영업현금흐름은 ${fmtBig(fin.operatingCashflow)} 적자 — 장부상 이익이 현금으로 들어오지 않음`);
+        else if (ttmNi > 0 && fin.operatingCashflow < ttmNi * 0.5) add('warn', '이익의 질', `영업현금흐름(${fmtBig(fin.operatingCashflow)})이 최근 4분기 순이익(${fmtBig(ttmNi)})의 절반 미만 — 발생액(이익-현금) 괴리 확인 필요`);
+        else if (ttmNi > 0) add('good', '이익의 질', `영업현금흐름이 순이익의 ${(fin.operatingCashflow / ttmNi * 100).toFixed(0)}% — 이익이 현금으로 뒷받침됨`);
+      }
+      if (hasVal(fin.freeCashflow) && fin.freeCashflow < 0) add('warn', '잉여현금흐름', `FCF ${fmtBig(fin.freeCashflow)} 적자 — 투자·운영에 외부 자금(증자·차입)이 필요할 수 있음`);
+      if (hasVal(fin.debtToEquity) && fin.debtToEquity > 200) add('warn', '부채', `부채비율 ${fin.debtToEquity}% — 금리 상승·실적 부진에 취약`);
+      if (hasVal(fin.currentRatio) && fin.currentRatio < 1) add('warn', '단기 유동성', `유동비율 ${fin.currentRatio} — 1년 안에 갚을 빚이 단기 자산보다 많음`);
+      if (hasVal(fin.totalCash) && hasVal(fin.totalDebt) && fin.totalDebt > fin.totalCash * 3 && fin.totalDebt > 0) add('info', '순부채', `현금 ${fmtBig(fin.totalCash)} 대비 총부채 ${fmtBig(fin.totalDebt)}`);
+      if (hasVal(fin.revenueGrowth) && hasVal(fin.earningsGrowth) && fin.revenueGrowth > 0 && fin.earningsGrowth < -20) add('warn', '마진 압박', `매출은 ${fin.revenueGrowth}% 늘었지만 이익은 ${fin.earningsGrowth}% 감소 (최근 분기 YoY)`);
+      const hist = (e.history || []).filter(h => hasVal(h.surprisePct));
+      const missed = hist.slice(-4).filter(h => h.surprisePct < 0).length;
+      if (hist.length >= 2 && missed >= 2) add('warn', '실적 예상 하회', `최근 ${Math.min(4, hist.length)}분기 중 ${missed}번 EPS가 예상보다 낮음`);
+      if (hasVal(f.shortFloat) && f.shortFloat >= 10) add(f.shortFloat >= 20 ? 'bad' : 'warn', '공매도', `Short Float ${f.shortFloat}% — 하락 베팅이 많음${hasVal(f.shortRatio) ? ` (Days to Cover ${f.shortRatio}일)` : ''}`);
+      else if (hasVal(f.shortRatio) && f.shortRatio >= 5) add('warn', '공매도 청산 소요', `Days to Cover ${f.shortRatio}일 — 공매도 물량을 되사는 데 거래량 기준 ${f.shortRatio}일 걸림`);
+      if (hasVal(ni.sellShares) && hasVal(ni.buyShares) && ni.sellShares > 0 && ni.buyShares === 0) add('warn', '내부자 거래', `최근 내부자 매수 없이 매도만 ${fmtShares(ni.sellShares)}주 (${ni.period || '최근'})`);
+      else if (hasVal(ni.netShares) && ni.netShares > 0) add('good', '내부자 거래', `내부자 순매수 ${fmtShares(ni.netShares)}주 (${ni.period || '최근'})`);
+      return out;
+    }
+
     const PERIOD_LABEL = { '0q': '이번 분기', '+1q': '다음 분기', '0y': '올해', '+1y': '내년' };
 
     function renderDeepAnalysis(deep) {
@@ -3689,6 +3722,17 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const insiders = (ow.insiderTransactions || []).filter(x => x.name);
       body += tableHtml(['날짜', '내부자', '거래', '주식'], insiders.map(x => [x.date || '', `${x.name}${x.relation ? ` (${x.relation})` : ''}`, x.text || '', fmtShares(x.shares)]));
       cards.push(deepCard('수급 · 내부자 거래', 'fa-people-group', 'bg-purple-950 text-purple-400', body));
+
+      // 4-2. 위험 신호 점검
+      const flags = computeRedFlags(analysisInputs);
+      if (flags.length) {
+        const order = { bad: 0, warn: 1, info: 2, good: 3 };
+        flags.sort((a, b) => order[a.rating] - order[b.rating]);
+        const nWarn = flags.filter(x => x.rating === 'bad' || x.rating === 'warn').length;
+        body = `<div class="text-[11px] text-slate-400 mb-2">${nWarn ? `확인이 필요한 신호 <b class="text-amber-300">${nWarn}개</b>` : '눈에 띄는 위험 신호 없음'} · 재무 요약값 기준의 단순 점검이며 감사·주석은 보지 못합니다.</div>` +
+          `<ul class="space-y-1.5">${flags.map(x => { const m = RATING_META[x.rating] || RATING_META.info; return `<li class="flex gap-2 text-xs leading-snug"><span class="mt-0.5 shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${m.badge}">${escapeHtml(x.label)}</span><span class="text-slate-300">${escapeHtml(x.text)}</span></li>`; }).join('')}</ul>`;
+        cards.push(deepCard('위험 신호 점검 (Red Flag)', 'fa-skull', 'bg-rose-950 text-rose-400', body));
+      }
 
       // 5. 배당
       body = metricRows([
@@ -7451,7 +7495,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       victor: { name: '빅터', role: '차트·기술', icon: 'fa-chart-line', av: 'bg-blue-500/20 text-blue-300 border-blue-500/50', nm: 'text-blue-300', bub: 'border-blue-500/30' },
       clara: { name: '클라라', role: '가치평가·DCF', icon: 'fa-scale-balanced', av: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50', nm: 'text-emerald-300', bub: 'border-emerald-500/30' },
       marcus: { name: '마커스', role: '매크로·리스크', icon: 'fa-shield-halved', av: 'bg-purple-500/20 text-purple-300 border-purple-500/50', nm: 'text-purple-300', bub: 'border-purple-500/30' },
-      sophia: { name: '소피아', role: '수급·공매도', icon: 'fa-robot', av: 'bg-pink-500/20 text-pink-300 border-pink-500/50', nm: 'text-pink-300', bub: 'border-pink-500/30' }
+      sophia: { name: '소피아', role: '수급·공매도', icon: 'fa-robot', av: 'bg-pink-500/20 text-pink-300 border-pink-500/50', nm: 'text-pink-300', bub: 'border-pink-500/30' },
+      devil: { name: '레드', role: '악마의 변호인', icon: 'fa-skull', av: 'bg-rose-500/20 text-rose-300 border-rose-500/50', nm: 'text-rose-300', bub: 'border-rose-500/40' }
     };
     const debate = { ticker: '', topic: '', log: [], busy: false, skip: false, playing: Promise.resolve() };
     const debateSleep = ms => new Promise(r => setTimeout(r, ms));
@@ -7494,7 +7539,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     function debateParse(text) {
       const out = [];
       String(text || '').split(/\r?\n/).forEach(line => {
-        const m = line.trim().match(/^[\[［]\s*(david|victor|clara|marcus|sophia|sum)\s*(?:[>＞→]\s*(david|victor|clara|marcus|sophia))?\s*[\]］]\s*(.+)$/i);
+        const m = line.trim().match(/^[\[［]\s*(david|victor|clara|marcus|sophia|devil|sum)\s*(?:[>＞→]\s*(david|victor|clara|marcus|sophia|devil))?\s*[\]］]\s*(.+)$/i);
         if (m) out.push({ who: m[1].toLowerCase(), to: (m[2] || '').toLowerCase(), text: m[3].trim() });
       });
       return out;
@@ -7502,15 +7547,15 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     function debatePrompt(d, userText, more) {
       const log = debate.log.slice(-26).map(x => `${x.who === 'user' ? '투자자(사용자)' : x.who === 'sum' ? '위원회 정리' : DEBATERS[x.who].name}: ${x.text}`).join('\n');
-      const n = more ? 8 : 10;
-      return `너는 투자 교육 앱의 '5인 투자 위원회 난상토론' 대본 작가다. 아래 5명이 채팅하듯 서로의 말을 받아 토론한다.
-참여자: david(데이비드, 해자·장기 성장·사업 경쟁력), victor(빅터, 차트·이동평균·RSI 등 기술적 분석), clara(클라라, 가치평가·DCF·P/E·목표가), marcus(마커스, 매크로·금리·지정학 리스크), sophia(소피아, 수급·공매도·기관 보유).
+      const n = more ? 9 : 12;
+      return `너는 투자 교육 앱의 '5인 투자 위원회 난상토론' 대본 작가다. 아래 5명과 악마의 변호인 1명이 채팅하듯 서로의 말을 받아 토론한다.
+참여자: david(데이비드, 해자·장기 성장·사업 경쟁력), victor(빅터, 차트·이동평균·RSI 등 기술적 분석), clara(클라라, 가치평가·DCF·P/E·목표가), marcus(마커스, 매크로·금리·지정학 리스크), sophia(소피아, 수급·공매도·기관 보유), devil(레드, 악마의 변호인 — 위원회가 기우는 쪽의 반대편에서 "왜 이 종목을 사면(또는 안 사면) 망하는가"를 집요하게 공격하는 역할. 아래 '위험 신호 점검' 데이터를 우선 근거로 쓴다).
 종목: ${d.name} (${d.ticker}), 현재가 ${d.price ? fmtPx(d.price) : '(데이터 없음)'} ${d.change}.
 토론 주제: ${debate.topic}
 ${log ? `지금까지의 대화:\n${log}\n` : ''}${userText ? `방금 투자자(사용자)가 끼어들어 말했다: "${userText}" — 첫 발언자들이 이 말에 직접 답한다.\n` : ''}
 규칙:
 - ${log ? '위 대화에 이어서' : '토론을 시작해서'} 정확히 ${n}개의 발언과 마지막 [sum] 1줄을 쓴다. 발언 하나는 1~3문장, 말투는 동료끼리 대화하듯 자연스럽게(존댓말).
-- 각 발언은 앞선 발언자의 구체적인 주장을 이름을 불러 짚으며 동의·반박·보완한다. 모두가 쉽게 동의하지 말고, 관점 차이에서 오는 갈등을 드러내라. 5명 모두 최소 한 번 발언한다. 자기 전문 분야의 근거로 말한다.
+- 각 발언은 앞선 발언자의 구체적인 주장을 이름을 불러 짚으며 동의·반박·보완한다. 모두가 쉽게 동의하지 말고, 관점 차이에서 오는 갈등을 드러내라. 6명 모두 최소 한 번 발언하고, devil 은 최소 두 번 발언하며 다수 의견의 약한 고리(확증 편향, 데이터로 확인되지 않은 낙관, 최악의 시나리오)를 짚는다. 자기 전문 분야의 근거로 말한다.
 - 수치·사실은 아래 검증 데이터에 있는 것만 인용한다. 없는 수치·뉴스·목표가·실적을 지어내지 말고, 모르면 모른다고 말한다.
 - 마지막 [sum] 줄은 합의된 점과 끝내 갈린 쟁점을 2문장으로 정리하고, 투자 권유가 아님을 밝힌다.
 출력 형식: 한 줄에 발언 하나. \`[발언자id]\` 또는 \`[발언자id>대상id]\` 로 시작 (예: [victor>clara] 클라라님 말씀대로… ). 마지막 줄은 [sum] 로 시작. 설명·마크다운·번호 금지.

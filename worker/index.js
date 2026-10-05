@@ -117,6 +117,7 @@ export function mapFundamentals(symbol, result) {
     pBook: num(stats.priceToBook),
     roe: roe === null ? null : Number((roe * 100).toFixed(1)),
     shortFloat: shortPct === null ? null : Number((shortPct * 100).toFixed(2)),
+    shortRatio: num(stats.shortRatio),
     targetAvg: num(fin.targetMeanPrice),
     targetMin: num(fin.targetLowPrice),
     targetMax: num(fin.targetHighPrice),
