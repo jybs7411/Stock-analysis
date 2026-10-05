@@ -188,24 +188,23 @@
     .font-mono-numbers {
       font-family: 'JetBrains Mono', monospace;
     }
-    #tabNav [id^=tabBtn-] > span.rounded-full { display: none; } /* 탭이 7개라 NEW 배지는 숨김 */
-    #tabNav [id^=tabBtn-] { padding-left: 0.85rem; padding-right: 0.85rem; }
-    @media (max-width: 1399px) { #tabNav [id^=tabBtn-] { padding-left: 0.65rem; padding-right: 0.65rem; gap: 0.35rem; } #tabNav [id^=tabBtn-] > i { font-size: 0.8em; } }
     /* 폰: 탭 검색창은 돋보기만 보이다가 누르면 펼쳐짐 (탭이 보일 공간 확보) */
     @media (max-width: 639px) {
       #tabSearchInput { width: 2.5rem; padding-left: 0; padding-right: 0; color: transparent; cursor: pointer; }
       #tabSearchInput::placeholder { color: transparent; }
       #tabSearchInput:focus { position: absolute; right: 0; top: 0; z-index: 61; width: min(80vw, 20rem); padding-left: 0.75rem; padding-right: 2.25rem; color: #fff; cursor: text; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
       #tabSearchInput:focus::placeholder { color: #64748b; }
-      #tabNav [id^=tabBtn-] { padding-top: 0.55rem; padding-bottom: 0.55rem; }
     }
-    /* ===== 탭 구조: 큰 화면 8탭 / 태블릿 6탭+더보기 / 폰 하단 탭바 ===== */
-    #tabMoreBtn { display: none; }
-    #tabNav [id^=tabBtn-] { padding-left: 0.75rem; padding-right: 0.75rem; }
+    /* ===== 탭 구조: 5개 허브(상단) + 허브 안 보조 탭(둘째 줄) / 폰은 하단 5칸 탭바 ===== */
     #tabSearchInput { width: 12rem; }
     @media (min-width: 1280px) { #tabSearchInput { width: 16rem; } }
-    @media (max-width: 1279px) { #tabNav .tab-extra { display: none; } #tabMoreBtn { display: flex; } }
-    @media (max-width: 899px) { #tabNav .tab-phone-more { display: none; } #tabSearchInput { width: 11rem; } }
+    @media (max-width: 899px) { #tabSearchInput { width: 11rem; } }
+    .hubtab { display: flex; align-items: center; gap: .5rem; padding: .5rem .9rem; border-radius: .75rem; font-size: .875rem; font-weight: 600; border: 1px solid; transition: all .15s; white-space: nowrap; }
+    .hubtab:hover { color: #fff; }
+    .subtab { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .8rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; color: #94a3b8; border: 1px solid transparent; transition: all .15s; white-space: nowrap; }
+    .subtab:not(.hidden) { display: inline-flex; }
+    .subtab:hover { color: #fff; background: #1e293b; }
+    .subtab.is-on { color: #fff; background: #1e293b; border-color: #475569; font-weight: 700; }
     @media (max-width: 639px) {
       #tabStrip { display: none; }
       #tabNav #tabSearchInput:not(:focus) { width: 2.5rem; }
@@ -326,38 +325,7 @@
       <button type="button" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="맨 위로 (PentAnalyst)" class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 grid place-items-center shadow shadow-cyan-500/20 shrink-0"><i class="fa-solid fa-chart-pie text-white text-sm"></i></button>
       <button type="button" onclick="openApiSettingsModal()" title="설정" class="w-9 h-9 rounded-xl bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-600 text-amber-400 grid place-items-center transition shrink-0 mr-1"><i class="fa-solid fa-gear text-xs"></i></button>
     </div>
-    <div id="tabStrip" role="tablist" aria-label="화면 선택" class="flex items-center gap-2 sm:gap-3 overflow-x-auto whitespace-nowrap min-w-0 flex-1">
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-watch" onclick="switchAppTab('watch')" id="tabBtn-watch" title="관심종목" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-star text-yellow-400"></i><span>관심종목</span>
-      </button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-analysis" onclick="switchAppTab('analysis')" id="tabBtn-analysis" title="5인 전문가 심층 분석" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-users-viewfinder text-cyan-400"></i><span>5인 분석</span>
-      </button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-screener" onclick="switchAppTab('screener')" id="tabBtn-screener" title="스마트 스크리너 (Finviz × Fool)" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-filter text-amber-400"></i><span>스크리너</span>
-      </button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-bdw" onclick="switchAppTab('bdw')" id="tabBtn-bdw" title="불단왕 매매법" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-phone-more">
-        <i class="fa-solid fa-fire text-orange-400"></i><span>불단왕</span>
-      </button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-prevday" onclick="switchAppTab('prevday')" id="tabBtn-prevday" title="전일 복기" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
-        <i class="fa-solid fa-clock-rotate-left text-violet-400"></i><span>전일 복기</span>
-      </button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-multi" onclick="switchAppTab('multi')" id="tabBtn-multi" title="멀티 차트 (4분할)" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-phone-more">
-        <i class="fa-solid fa-table-cells-large text-fuchsia-400"></i><span>멀티 차트</span>
-      </button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-fx" onclick="switchAppTab('fx')" id="tabBtn-fx" title="환율" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-extra">
-        <i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span>
-      </button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-market" onclick="switchAppTab('market')" id="tabBtn-market" title="시장 · 매크로" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-extra">
-        <i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장·매크로</span>
-      </button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-calendar" onclick="switchAppTab('calendar')" id="tabBtn-calendar" title="금융 달력" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-extra">
-        <i class="fa-solid fa-calendar-days text-rose-400"></i><span>금융 달력</span>
-      </button>
-      <div class="relative tab-more-wrap">
-        <button type="button" id="tabMoreBtn" aria-haspopup="true" aria-expanded="false" onclick="toggleMoreMenu(event)" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition"><i class="fa-solid fa-ellipsis text-slate-300"></i><span>더보기</span></button>
-      </div>
-    </div>
+    <div id="tabStrip" role="tablist" aria-label="메뉴" class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1"></div>
 
     <!-- 탭 오른쪽 끝: 종목 바로 검색 -->
     <form id="tabSearchForm" onsubmit="tabSearchSubmit(event)" class="relative shrink-0" autocomplete="off">
@@ -368,22 +336,25 @@
       <button type="submit" id="tabSearchBtn" title="검색" class="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 grid place-items-center rounded-lg text-slate-400 hover:text-cyan-300 transition"><i class="fa-solid fa-magnifying-glass text-xs"></i></button>
     </form>
     </div>
+    <div id="subTabRow" role="tablist" aria-label="화면 선택" class="hidden max-w-7xl mx-auto flex items-center gap-1.5 pb-2 overflow-x-auto whitespace-nowrap">
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-watch" onclick="switchAppTab('watch')" id="tabBtn-watch" title="관심종목" class="subtab hidden"><i class="fa-solid fa-star text-yellow-400"></i><span>관심종목</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-analysis" onclick="switchAppTab('analysis')" id="tabBtn-analysis" title="5인 전문가 심층 분석" class="subtab hidden"><i class="fa-solid fa-users-viewfinder text-cyan-400"></i><span>5인 분석</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-multi" onclick="switchAppTab('multi')" id="tabBtn-multi" title="멀티 차트 (4분할)" class="subtab hidden"><i class="fa-solid fa-table-cells-large text-fuchsia-400"></i><span>멀티 차트</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-screener" onclick="switchAppTab('screener')" id="tabBtn-screener" title="스마트 스크리너 (Finviz × Fool)" class="subtab hidden"><i class="fa-solid fa-filter text-amber-400"></i><span>스크리너</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-market" onclick="switchAppTab('market')" id="tabBtn-market" title="시장 · 매크로" class="subtab hidden"><i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장·매크로</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-fx" onclick="switchAppTab('fx')" id="tabBtn-fx" title="환율" class="subtab hidden"><i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-calendar" onclick="switchAppTab('calendar')" id="tabBtn-calendar" title="금융 달력" class="subtab hidden"><i class="fa-solid fa-calendar-days text-rose-400"></i><span>금융 달력</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-bdw" onclick="switchAppTab('bdw')" id="tabBtn-bdw" title="불단왕 매매법" class="subtab hidden"><i class="fa-solid fa-fire text-orange-400"></i><span>불단왕</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-prevday" onclick="switchAppTab('prevday')" id="tabBtn-prevday" title="전일 복기" class="subtab hidden"><i class="fa-solid fa-clock-rotate-left text-violet-400"></i><span>전일 복기</span></button>
+    </div>
   </div>
   </div>
 
 
-  <!-- 더보기 메뉴 (태블릿: 환율·시장 / 폰: 불단왕·멀티·환율·시장) -->
-  <div id="tabMoreMenu" class="hidden fixed z-[70] min-w-[11rem] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5 space-y-0.5" role="menu"></div>
 
   <!-- 폰 하단 탭바 -->
-  <nav id="mobileTabBar" aria-label="화면 선택" class="fixed bottom-0 inset-x-0 z-[60] bg-[#0b1220]/95 backdrop-blur border-t border-slate-800 hidden" style="padding-bottom: env(safe-area-inset-bottom)">
-    <div class="grid grid-cols-5">
-      <button type="button" id="mtabBtn-watch" onclick="switchAppTab('watch')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid fa-star text-base text-yellow-400"></i><span>관심</span></button>
-      <button type="button" id="mtabBtn-analysis" onclick="switchAppTab('analysis')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid fa-users-viewfinder text-base text-cyan-400"></i><span>분석</span></button>
-      <button type="button" id="mtabBtn-screener" onclick="switchAppTab('screener')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid fa-filter text-base text-amber-400"></i><span>스크리너</span></button>
-      <button type="button" id="mtabBtn-prevday" onclick="switchAppTab('prevday')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid fa-clock-rotate-left text-base text-violet-400"></i><span>복기</span></button>
-      <button type="button" id="mtabBtn-more" onclick="toggleMoreMenu(event)" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400" aria-haspopup="true"><i class="fa-solid fa-ellipsis text-base text-slate-300"></i><span>더보기</span></button>
-    </div>
+  <nav id="mobileTabBar" aria-label="메뉴" class="fixed bottom-0 inset-x-0 z-[60] bg-[#0b1220]/95 backdrop-blur border-t border-slate-800 hidden" style="padding-bottom: env(safe-area-inset-bottom)">
+    <div id="mobileTabGrid" class="grid grid-cols-5"></div>
   </nav>
 
   <!-- 맨 위로 -->
@@ -1631,7 +1602,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.10.2';
+    const APP_VERSION = '1.11.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -1652,24 +1623,47 @@
       if (fn) { try { fn(APP_SYM.sym); } catch (e) { console.error(`탭(${tab}) 종목 동기화 실패`, e); } }
     }
 
+    // 허브(상단 5개) → 보조 탭(둘째 줄). 탭 id·view-<id>·TAB_HOOKS 는 그대로, 내비게이션만 묶는다.
+    const APP_HUBS = [
+      { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch'] },
+      { id: 'analyze', label: '분석', short: '분석', icon: 'fa-users-viewfinder text-cyan-400', on: APP_TABS.analysis.on, tabs: ['analysis', 'multi'] },
+      { id: 'discover', label: '발굴', short: '발굴', icon: 'fa-filter text-amber-400', on: APP_TABS.screener.on, tabs: ['screener'] },
+      { id: 'market', label: '시장', short: '시장', icon: 'fa-earth-americas text-sky-400', on: APP_TABS.market.on, tabs: ['market', 'fx', 'calendar'] },
+      { id: 'method', label: '매매법', short: '매매법', icon: 'fa-book-open text-orange-400', on: APP_TABS.bdw.on, tabs: ['bdw', 'prevday'] }
+    ];
+    const hubOf = tab => APP_HUBS.find(h => h.tabs.includes(tab)) || APP_HUBS[1];
+    const HUB_LAST_KEY = 'pentanalyst_hub_last_v1';
+    function hubLastTab(hub) {
+      try { const m = JSON.parse(localStorage.getItem(HUB_LAST_KEY) || '{}'); if (hub.tabs.includes(m[hub.id])) return m[hub.id]; } catch (e) { /* 저장값 없음 */ }
+      return hub.tabs[0];
+    }
+    function switchHub(hubId) { const h = APP_HUBS.find(x => x.id === hubId); if (h) switchAppTab(hubLastTab(h)); }
+    (function buildHubNav() {
+      const strip = document.getElementById('tabStrip'), grid = document.getElementById('mobileTabGrid');
+      if (strip) strip.innerHTML = APP_HUBS.map(h => `<button type="button" role="tab" aria-selected="false" id="hubBtn-${h.id}" onclick="switchHub('${h.id}')" class="hubtab bg-slate-900 text-slate-400 border-slate-800"><i class="fa-solid ${h.icon}"></i><span>${h.label}</span></button>`).join('');
+      if (grid) grid.innerHTML = APP_HUBS.map(h => `<button type="button" id="mtabBtn-${h.id}" onclick="switchHub('${h.id}')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid ${h.icon.split(' ')[0]} text-base ${h.icon.split(' ').slice(1).join(' ')}"></i><span>${h.short}</span></button>`).join('');
+    })();
+
     function switchAppTab(tab) {
       if (!APP_TABS[tab]) tab = 'analysis';
       activeAppTab = tab;
+      const hub = hubOf(tab);
+      try { const m = JSON.parse(localStorage.getItem(HUB_LAST_KEY) || '{}'); m[hub.id] = tab; localStorage.setItem(HUB_LAST_KEY, JSON.stringify(m)); } catch (e) { /* 저장 불가 */ }
       Object.keys(APP_TABS).forEach(id => {
         const view = document.getElementById(`view-${id}`), btn = document.getElementById(`tabBtn-${id}`);
         if (view) view.classList.toggle('hidden', id !== tab);
         if (btn) {
-          btn.className = `flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm transition border ${id === tab ? 'font-bold ' + APP_TABS[id].on : 'font-semibold bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'}${btn.classList.contains('tab-extra') ? ' tab-extra' : ''}${btn.classList.contains('tab-phone-more') ? ' tab-phone-more' : ''}`;
+          btn.classList.toggle('hidden', !hub.tabs.includes(id));
+          btn.classList.toggle('is-on', id === tab);
           btn.setAttribute('aria-selected', id === tab ? 'true' : 'false');
         }
-        const mb = document.getElementById(`mtabBtn-${id}`);
-        if (mb) mb.classList.toggle('is-on', id === tab);
       });
-      const mm = document.getElementById('mtabBtn-more');
-      if (mm) mm.classList.toggle('is-on', ['bdw', 'multi', 'fx', 'market', 'calendar'].includes(tab));
-      const moreB = document.getElementById('tabMoreBtn');
-      if (moreB) moreB.classList.toggle('text-white', ['fx', 'market', 'calendar'].includes(tab));
-      closeMoreMenu();
+      const row = document.getElementById('subTabRow'); if (row) row.classList.toggle('hidden', hub.tabs.length < 2);
+      APP_HUBS.forEach(h => {
+        const hb = document.getElementById(`hubBtn-${h.id}`), on = h.id === hub.id;
+        if (hb) { hb.className = `hubtab ${on ? 'font-bold ' + h.on : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'}`; hb.setAttribute('aria-selected', on ? 'true' : 'false'); }
+        const mb = document.getElementById(`mtabBtn-${h.id}`); if (mb) mb.classList.toggle('is-on', on);
+      });
       if (tab === 'analysis' && currentAnalysisData) {
         setTimeout(() => { chResize(true); renderMiniTrendPreview(); }, 50);
       } else if (tab === 'screener') {
@@ -1678,36 +1672,6 @@
       appSyncTab(tab);
       if (TAB_HOOKS[tab]) { try { TAB_HOOKS[tab](); } catch (e) { console.error(`탭(${tab}) 초기화 실패`, e); } }
     }
-
-
-
-    // 더보기 메뉴: 태블릿(환율·시장) / 폰(불단왕·멀티·환율·시장)
-    const MORE_ITEMS = [
-      { id: 'bdw', icon: 'fa-fire text-orange-400', label: '불단왕 매매법', phoneOnly: true },
-      { id: 'multi', icon: 'fa-table-cells-large text-fuchsia-400', label: '멀티 차트', phoneOnly: true },
-      { id: 'fx', icon: 'fa-money-bill-transfer text-emerald-400', label: '환율' },
-      { id: 'market', icon: 'fa-earth-americas text-sky-400', label: '시장 · 매크로' },
-      { id: 'calendar', icon: 'fa-calendar-days text-rose-400', label: '금융 달력' }
-    ];
-    function closeMoreMenu() {
-      const m = document.getElementById('tabMoreMenu'); if (m) m.classList.add('hidden');
-      const b = document.getElementById('tabMoreBtn'); if (b) b.setAttribute('aria-expanded', 'false');
-    }
-    function toggleMoreMenu(ev) {
-      if (ev) ev.stopPropagation();
-      const menu = document.getElementById('tabMoreMenu');
-      if (!menu.classList.contains('hidden')) { closeMoreMenu(); return; }
-      const phone = window.innerWidth < 640, narrow = window.innerWidth < 900;
-      menu.innerHTML = MORE_ITEMS.filter(it => narrow || !it.phoneOnly).map(it => `<button type="button" role="menuitem" onclick="switchAppTab('${it.id}')" class="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm ${activeAppTab === it.id ? 'bg-slate-800 text-white font-bold' : 'text-slate-200 hover:bg-slate-800'}"><i class="fa-solid ${it.icon} w-5 text-center"></i>${it.label}</button>`).join('');
-      const anchor = ev && ev.currentTarget ? ev.currentTarget.getBoundingClientRect() : { left: 8, right: 8, top: 60, bottom: 60 };
-      menu.classList.remove('hidden');
-      const w = menu.offsetWidth;
-      if (phone) { menu.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, anchor.right - w)) + 'px'; menu.style.top = ''; menu.style.bottom = (window.innerHeight - anchor.top + 8) + 'px'; }
-      else { menu.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, anchor.right - w)) + 'px'; menu.style.bottom = ''; menu.style.top = (anchor.bottom + 6) + 'px'; }
-      const b = document.getElementById('tabMoreBtn'); if (b) b.setAttribute('aria-expanded', 'true');
-    }
-    document.addEventListener('click', e => { if (!e.target.closest('#tabMoreMenu')) closeMoreMenu(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMoreMenu(); });
 
     // ===== 탭 오른쪽 검색 버튼 / 맨 위로 버튼 =====
     const tabSearchState = { items: [], active: -1, seq: 0, timer: null };
