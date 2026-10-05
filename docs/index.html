@@ -186,6 +186,7 @@
     .hubtab:hover { color: #fff; }
     .subtab { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .8rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; color: #94a3b8; border: 1px solid transparent; transition: all .15s; white-space: nowrap; }
     .subtab:not(.hidden) { display: inline-flex; }
+    .subtab.hidden { display: none; }
     .subtab:hover { color: #fff; background: #1e293b; }
     .subtab.is-on { color: #fff; background: #1e293b; border-color: #475569; font-weight: 700; }
     @media (max-width: 639px) {
@@ -1594,7 +1595,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.15.0';
+    const APP_VERSION = '1.15.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
