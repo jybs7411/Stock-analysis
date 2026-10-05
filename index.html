@@ -1124,7 +1124,7 @@
         <!-- Target Persona Selector -->
         <div>
           <label class="block text-xs font-semibold text-slate-300 mb-2">질문할 대상을 선택하세요:</label>
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" id="expertSelectorGroup">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2" id="expertSelectorGroup">
             <button type="button" onclick="selectChatTarget('roundtable')" data-target="roundtable" class="chat-target-btn active px-3 py-2 rounded-xl text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/80 flex items-center justify-center gap-1.5 transition">
               <i class="fa-solid fa-people-group"></i> 5인 합동 토론
             </button>
@@ -1142,6 +1142,9 @@
             </button>
             <button type="button" onclick="selectChatTarget('sophia')" data-target="sophia" class="chat-target-btn px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500 flex items-center justify-center gap-1.5 transition">
               <i class="fa-solid fa-robot text-pink-400"></i> 소피아 (수급)
+            </button>
+            <button type="button" onclick="selectChatTarget('devil')" data-target="devil" class="chat-target-btn px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500 flex items-center justify-center gap-1.5 transition">
+              <i class="fa-solid fa-skull text-rose-400"></i> 레드 (반론)
             </button>
           </div>
         </div>
@@ -1612,7 +1615,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.15.1';
+    const APP_VERSION = '1.16.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -7418,12 +7421,13 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       victor: { label: '빅터 (차트 & 기술)', prompt: 'Finviz 스타일의 기술적 분석가 빅터로서 답하세요.' },
       clara: { label: '클라라 (가치 & DCF)', prompt: 'DCF·가치평가 애널리스트 클라라로서 답하세요.' },
       marcus: { label: '마커스 (매크로 & 리스크)', prompt: '매크로·지정학 리스크 매니저 마커스로서 답하세요.' },
-      sophia: { label: '소피아 (수급 & 숏)', prompt: '퀀트·공매도·수급 전문가 소피아로서 답하세요.' }
+      sophia: { label: '소피아 (수급 & 숏)', prompt: '퀀트·공매도·수급 전문가 소피아로서 답하세요.' },
+      devil: { label: '레드 (악마의 변호인)', prompt: '악마의 변호인 레드로서, 이 종목을 사면(또는 안 사면) 왜 망할 수 있는지 반대 입장에서 집요하게 공격하세요. 검증 데이터의 위험 신호 점검을 우선 근거로 쓰세요.' }
     };
 
     // 실제 데이터가 있는 항목만 문장으로 만든다 (없으면 빈칸)
     function templateAnswer(target, d) {
-      const lines = { david: '', victor: '', clara: '', marcus: '', sophia: '' };
+      const lines = { david: '', victor: '', clara: '', marcus: '', sophia: '', devil: '' };
       const tech = [];
       if (d.rsi !== null) tech.push(`RSI ${d.rsi}`);
       if (d.sma20Diff) tech.push(`20일선 ${d.sma20Diff}`);
@@ -7439,6 +7443,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
       if (d.roe !== null) lines.david = `ROE ${d.roe}%입니다. 사업 구조와 해자 평가는 Gemini 연결 시 제공됩니다.`;
       if (d.shortFloat !== null) lines.sophia = `Short Float ${d.shortFloat}%입니다.`;
+
+      const rf = computeRedFlags(analysisInputs).filter(x => x.rating !== 'good');
+      if (rf.length) lines.devil = rf.map(x => `${x.label}: ${x.text}`).join('\n');
 
       if (target === 'roundtable') return Object.values(lines).filter(Boolean).join('\n');
       return lines[target] || '';
