@@ -1244,6 +1244,9 @@
         </div>
       </section>
 
+      <!-- 리비전 랭크 (mod-revision) -->
+      <div id="revRoot"></div>
+
       <!-- Filters -->
       <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
         <!-- Universal Stock Search & Instant Add Tool -->
@@ -1585,7 +1588,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.11.0';
+    const APP_VERSION = '1.12.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -20351,6 +20354,140 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.watch = onOpen;
       if (HAS_DOM) setTimeout(() => { try { ensure(); updateBadges(); } catch (e) { console.error(e); } }, 600);
       window.WL_DEBUG = { get ST() { return ST; }, get CACHE() { return CACHE; }, RT, evaluate, refreshDaily, refreshQuotes, rowModel, riskData, computeAway, buildShell };
+    })();
+  </script>
+
+  <script id="mod-revision">
+    // 리비전 랭크 (Zacks 방식의 공개 아이디어): EPS 추정치 '변화'를 Agreement·Magnitude·Surprise 로 점수화해 1~5등급을 매긴다.
+    // Zacks Rank 의 실제 공식·가중치는 비공개이므로 이 모듈은 재현이 아니라 '같은 아이디어의 오픈 구현'이다 (Upside=Most Accurate Estimate 는 데이터가 없어 제외).
+    // 의존: 메인 스크립트의 getProxyUrl, fetchJsonWithTimeout, escapeHtml, showToast, appSetSymbol, switchAppTab, SCREENER_MASTER_DATA, TAB_HOOKS.
+    (function () {
+      const LS_KEY = 'pentanalyst_rev_v1', TTL = 6 * 3600 * 1000, MAX_N = 120;
+      const ST = { raw: {}, rows: [], inds: [], syms: new Set(), running: false, universe: 'watch', onlyTop: false, sortBy: 'score', done: 0, total: 0, fail: 0 };
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+      const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+      const RANK_STYLE = { 1: 'bg-emerald-900/70 text-emerald-200 border-emerald-600', 2: 'bg-lime-900/60 text-lime-200 border-lime-700', 3: 'bg-slate-800 text-slate-300 border-slate-600', 4: 'bg-orange-900/60 text-orange-200 border-orange-700', 5: 'bg-rose-900/70 text-rose-200 border-rose-600' };
+      const RANK_LABEL = { 1: '강한 상향', 2: '상향', 3: '중립', 4: '하향', 5: '강한 하향' };
+
+      function loadCache() { try { const c = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); const now = Date.now(); Object.keys(c).forEach(k => { if (c[k] && now - c[k].t < TTL) ST.raw[k] = c[k]; }); } catch (e) { /* 캐시 없음 */ } }
+      function saveCache() { try { localStorage.setItem(LS_KEY, JSON.stringify(ST.raw)); } catch (e) { /* 저장 불가 */ } }
+
+      // 한 종목의 세 요인. 값이 없으면 null.
+      function factors(r) {
+        const ests = [r.fy0, r.fy1].filter(Boolean);
+        const ag = [], mg = [];
+        ests.forEach(e => {
+          const n = (e.up30 || 0) + (e.down30 || 0);
+          if (n > 0) ag.push(((e.up30 || 0) - (e.down30 || 0)) / n);
+          const ch = base => (Number.isFinite(e.cur) && Number.isFinite(base) && base !== 0) ? clamp((e.cur - base) / Math.abs(base), -0.5, 0.5) : null;
+          const parts = [ch(e.d30), ch(e.d60)].filter(v => v !== null);
+          if (parts.length) mg.push(mean(parts));
+        });
+        const sp = (r.surprises || []).filter(Number.isFinite).map(v => clamp(v, -50, 50));
+        return { agree: mean(ag), mag: mean(mg), surp: mean(sp) };
+      }
+      // 절대 점수 0~100: 요인마다 0~1 로 환산한 뒤, 값이 있는 요인끼리 가중 평균 (가중치는 이 앱의 임의 설정 — 공개된 Zacks 가중치는 없음)
+      function composite(f) {
+        const parts = [];
+        if (f.agree !== null) parts.push([0.40, (f.agree + 1) / 2]);
+        if (f.mag !== null) parts.push([0.35, clamp(0.5 + f.mag / 0.12, 0, 1)]);
+        if (f.surp !== null) parts.push([0.25, clamp(0.5 + f.surp / 20, 0, 1)]);
+        if (parts.length < 2) return null;
+        const w = parts.reduce((s, p) => s + p[0], 0);
+        return 100 * parts.reduce((s, p) => s + p[0] * p[1], 0) / w;
+      }
+      function buildRows() {
+        const rows = Object.values(ST.raw).filter(x => x.d && ST.syms.has(x.d.symbol)).map(x => {
+          const f = factors(x.d);
+          return { sym: x.d.symbol, name: x.d.name || '', industry: x.d.industry || '', f, score: composite(f) };
+        }).filter(r => r.score !== null);
+        const n = rows.length, sorted = [...rows].sort((a, b) => a.score - b.score);
+        sorted.forEach((r, i) => {
+          if (n >= 20) { const p = i / (n - 1); r.rank = p >= 0.95 ? 1 : p >= 0.80 ? 2 : p >= 0.20 ? 3 : p >= 0.05 ? 4 : 5; }
+          else r.rank = r.score >= 75 ? 1 : r.score >= 62 ? 2 : r.score >= 38 ? 3 : r.score >= 25 ? 4 : 5;
+        });
+        // 업종 순위: 업종 평균 점수 (2종목 이상인 업종만)
+        const g = {};
+        rows.forEach(r => { if (r.industry) (g[r.industry] = g[r.industry] || []).push(r); });
+        const inds = Object.entries(g).filter(([, a]) => a.length >= 2).map(([k, a]) => ({ name: k, n: a.length, avg: mean(a.map(r => r.score)) })).sort((a, b) => b.avg - a.avg);
+        const half = Math.ceil(inds.length / 2), map = {};
+        inds.forEach((x, i) => { x.rank = i + 1; x.top = x.rank <= half; map[x.name] = x; });
+        rows.forEach(r => { r.ind = map[r.industry] || null; });
+        ST.rows = rows; ST.inds = inds;
+      }
+
+      function universeSyms() {
+        if (ST.universe === 'watch') { try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); return Object.keys((w && w.items) || {}).slice(0, MAX_N); } catch (e) { return []; } }
+        return (typeof SCREENER_MASTER_DATA !== 'undefined' ? SCREENER_MASTER_DATA : []).filter(x => x && !x.missing && /^[A-Z.\-]{1,6}$/.test(x.ticker)).map(x => x.ticker).slice(0, MAX_N);
+      }
+
+      async function run() {
+        if (ST.running) return;
+        const proxy = getProxyUrl();
+        if (!proxy) { showToast('프록시 필요', '추정치 데이터는 자체 프록시(Worker)로만 조회됩니다. 설정에서 프록시 주소를 확인하세요.', 'error'); return; }
+        const syms = universeSyms();
+        if (!syms.length) { showToast('종목 없음', ST.universe === 'watch' ? '관심종목이 비어 있습니다.' : '스크리너 종목이 없습니다.', 'error'); return; }
+        const todo = syms.filter(s => !ST.raw[s]);
+        ST.syms = new Set(syms); ST.running = true; ST.fail = 0; ST.total = syms.length; ST.done = syms.length - todo.length; render();
+        let idx = 0;
+        const worker = async () => {
+          while (idx < todo.length) {
+            const s = todo[idx++];
+            try { const d = await fetchJsonWithTimeout(`${proxy}/api/revisions?symbol=${encodeURIComponent(s)}`, 15000); ST.raw[s] = { t: Date.now(), d }; }
+            catch (e) { ST.fail++; }
+            ST.done++; if (ST.done % 5 === 0) render();
+          }
+        };
+        await Promise.all([worker(), worker(), worker(), worker()]);
+        saveCache(); ST.running = false; buildRows(); render();
+      }
+
+      const pctTxt = v => v === null || v === undefined ? '–' : `${v > 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
+      function render() {
+        const root = document.getElementById('revRoot'); if (!root) return;
+        let rows = ST.rows.slice();
+        if (ST.onlyTop) rows = rows.filter(r => r.rank <= 2);
+        const key = { score: r => r.score, agree: r => r.f.agree, mag: r => r.f.mag, surp: r => r.f.surp }[ST.sortBy] || (r => r.score);
+        rows.sort((a, b) => (key(b) ?? -9e9) - (key(a) ?? -9e9));
+        const btn = (id, label) => `<button type="button" onclick="revSetUniverse('${id}')" class="px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition ${ST.universe === id ? 'bg-amber-900/60 border-amber-600 text-amber-200' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}">${label}</button>`;
+        const th = (k, label) => `<th onclick="revSort('${k}')" class="py-2 px-2 text-right cursor-pointer hover:text-amber-300 ${ST.sortBy === k ? 'text-amber-300' : ''}">${label}${ST.sortBy === k ? ' ▼' : ''}</th>`;
+        const body = rows.map(r => `<tr class="border-t border-slate-800/70 hover:bg-slate-800/40">
+            <td class="py-1.5 px-2"><span class="inline-block text-center px-1.5 py-0.5 rounded border text-[11px] font-bold whitespace-nowrap ${RANK_STYLE[r.rank]}">${r.rank} · ${RANK_LABEL[r.rank]}</span></td>
+            <td class="py-1.5 px-2"><button type="button" onclick="revOpen('${escapeHtml(r.sym)}')" class="font-mono-numbers font-bold text-cyan-300 hover:underline">${escapeHtml(r.sym)}</button><span class="ml-2 text-slate-400 text-[11px] hidden sm:inline">${escapeHtml(r.name)}</span></td>
+            <td class="py-1.5 px-2 text-[11px] text-slate-400 hidden md:table-cell">${escapeHtml(r.industry)}${r.ind ? ` <span class="${r.ind.top ? 'text-emerald-400' : 'text-rose-400'}">#${r.ind.rank}/${ST.inds.length}</span>` : ''}</td>
+            <td class="py-1.5 px-2 text-right font-mono-numbers">${r.f.agree === null ? '–' : (r.f.agree > 0 ? '+' : '') + Math.round(r.f.agree * 100)}</td>
+            <td class="py-1.5 px-2 text-right font-mono-numbers">${pctTxt(r.f.mag)}</td>
+            <td class="py-1.5 px-2 text-right font-mono-numbers">${r.f.surp === null ? '–' : (r.f.surp > 0 ? '+' : '') + r.f.surp.toFixed(1) + '%'}</td>
+            <td class="py-1.5 px-2 text-right font-mono-numbers font-bold text-white">${r.score.toFixed(0)}</td></tr>`).join('');
+        const indTxt = ST.inds.length ? `<div class="mt-3 text-[11px] text-slate-400"><span class="font-bold text-slate-300">업종 순위(조회한 종목 기준)</span> · 상위: ${ST.inds.slice(0, 3).map(x => `<span class="text-emerald-400">${escapeHtml(x.name)}</span>`).join(', ')} · 하위: ${ST.inds.slice(-3).reverse().map(x => `<span class="text-rose-400">${escapeHtml(x.name)}</span>`).join(', ')}</div>` : '';
+        const note = `${ST.rows.length}종목${ST.fail ? ` · 조회 실패 ${ST.fail}` : ''}${ST.rows.length < 20 ? ' · 20종목 미만이라 등급은 절대 점수 기준' : ' · 등급은 조회 종목 내 백분위 기준(상위 5/15/60/15/5%)'}`;
+        const table = (ST.rows.length || ST.running)
+          ? `<div class="mt-3 text-[11px] text-slate-400 flex flex-wrap items-center gap-3"><label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" ${ST.onlyTop ? 'checked' : ''} onchange="revToggleTop(this.checked)"> 1~2등급만</label><span>${note}</span></div>
+          <div class="mt-2 overflow-x-auto"><table class="w-full text-xs text-slate-200"><thead class="text-slate-400 text-[11px]"><tr><th class="py-2 px-2 text-left">등급</th><th class="py-2 px-2 text-left">종목</th><th class="py-2 px-2 text-left hidden md:table-cell">업종</th>${th('agree', 'Agreement')}${th('mag', 'Magnitude')}${th('surp', 'Surprise')}${th('score', '점수')}</tr></thead><tbody>${body || '<tr><td colspan="7" class="py-6 text-center text-slate-500">계산 중…</td></tr>'}</tbody></table></div>${indTxt}`
+          : '<p class="mt-3 text-[11px] text-slate-500">대상을 고르고 「랭크 계산」을 누르세요. 종목당 프록시 호출 1회(6시간 캐시)라 최대 120종목까지 조회합니다.</p>';
+        root.innerHTML = `<section class="bg-[#131e32] border border-amber-900/50 rounded-2xl p-5 shadow-2xl">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 class="text-lg font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-arrow-trend-up text-amber-400"></i>리비전 랭크 <span class="text-[11px] font-normal text-slate-400">애널리스트 EPS 추정치 변화 · Zacks 방식 아이디어</span></h3>
+              <p class="text-[11px] text-slate-400 mt-1">추정치가 <b>얼마나 일관되게(Agreement), 얼마나 크게(Magnitude)</b> 바뀌는지와 최근 4분기 실적 서프라이즈(Surprise)로 점수를 매겨 1~5등급을 냅니다. 단기(약 1~3개월) 신호입니다.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">${btn('watch', '관심종목')}${btn('screener', '스크리너 종목')}
+              <button type="button" onclick="revRun()" ${ST.running ? 'disabled' : ''} class="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs transition">${ST.running ? `조회 중 ${ST.done}/${ST.total}` : '랭크 계산'}</button>
+            </div>
+          </div>
+          ${table}
+          <p class="mt-3 text-[10px] text-slate-500 leading-relaxed">Agreement = 최근 30일 상향−하향 / 전체(올해·내년 평균, −100~+100) · Magnitude = 올해·내년 EPS 컨센서스의 30·60일 변화율 · Surprise = 최근 4분기 평균 서프라이즈. 가중치(40/35/25)는 이 앱의 임의 설정이며 <b>Zacks Rank의 실제 공식·가중치는 비공개</b>라 재현이 아닙니다(Upside=Most Accurate Estimate는 제외). Zacks가 공개한 과거 수익률은 비용을 제외한 가상 포트폴리오 결과이며, 투자 권유가 아닙니다.</p>
+        </section>`;
+      }
+      window.revSetUniverse = id => { ST.universe = id; render(); };
+      window.revSort = k => { ST.sortBy = k; render(); };
+      window.revToggleTop = v => { ST.onlyTop = !!v; render(); };
+      window.revRun = run;
+      window.revOpen = sym => { const m = document.getElementById('tickerInput'); if (m) m.value = sym; appSetSymbol(sym, 'analysis'); switchAppTab('analysis'); if (typeof executeAnalysis === 'function') executeAnalysis(sym); };
+      window.revRankFor = sym => { const r = ST.rows.find(x => x.sym === sym); return r ? { rank: r.rank, score: r.score } : null; };
+      const prev = TAB_HOOKS.screener;
+      TAB_HOOKS.screener = () => { if (prev) prev(); if (!ST.rendered) { ST.rendered = true; loadCache(); render(); } };
+      window.REV_DEBUG = { factors, composite, ST };
     })();
   </script>
 

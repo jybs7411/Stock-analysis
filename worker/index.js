@@ -11,6 +11,7 @@
  *   GET /api/quotes?symbols=AAPL,MSFT            -> 여러 종목 현재 시세·시가총액·등락률 (최대 60종목)
  *   GET /api/search?q=basf                       -> 회사명/티커 검색 (전 세계 거래소) [{symbol,name,exchange,type}]
  *   GET /api/fundamentals?symbol=NVDA            -> 정리된 재무 지표 JSON
+ *   GET /api/revisions?symbol=NVDA               -> EPS 추정치 변화(7/30/60/90일 전)·상향/하향 건수·최근 서프라이즈·업종 (리비전 랭크용)
  *   GET /api/deep?symbol=NVDA                    -> 실적·재무·애널리스트·수급·배당·뉴스 (심층 분석용)
  *   GET /api/calendar?type=earnings|economic|ipo|splits&from=YYYY-MM-DD&to=YYYY-MM-DD -> 야후 금융 달력 {type,from,to,items[]} (기간 최대 70일)
  *
@@ -176,6 +177,32 @@ async function fetchQuoteSummary(symbol, modules = BASIC_MODULES, retry = true) 
   const result = body?.quoteSummary?.result?.[0];
   if (!result) return { notFound: true };
   return { result };
+}
+
+
+// ---- EPS 추정치 리비전 (리비전 랭크용) ----
+const REV_MODULES = 'earningsTrend,earningsHistory,assetProfile,price';
+export function mapRevisions(symbol, r) {
+  const trend = (r.earningsTrend && r.earningsTrend.trend) || [];
+  const pick = period => {
+    const x = trend.find(t => t.period === period);
+    if (!x || !x.epsTrend) return null;
+    const e = x.epsTrend, rv = x.epsRevisions || {};
+    return {
+      cur: num(e.current), d7: num(e['7daysAgo']), d30: num(e['30daysAgo']), d60: num(e['60daysAgo']), d90: num(e['90daysAgo']),
+      up7: num(rv.upLast7days), up30: num(rv.upLast30days), down7: num(rv.downLast7Days), down30: num(rv.downLast30days)
+    };
+  };
+  const hist = ((r.earningsHistory && r.earningsHistory.history) || []).map(h => pct(h.surprisePercent)).filter(v => v !== null);
+  const prof = r.assetProfile || {}, pr = r.price || {};
+  return {
+    symbol,
+    name: pr.shortName || pr.longName || null,
+    sector: prof.sector || null,
+    industry: prof.industry || null,
+    fy0: pick('0y'), fy1: pick('+1y'), q0: pick('0q'),
+    surprises: hist.slice(-4)
+  };
 }
 
 // ---- deep analysis mapping ----
@@ -587,7 +614,7 @@ export default {
     }
 
     const symbol = (url.searchParams.get('symbol') || '').trim().toUpperCase();
-    if (url.pathname === '/api/chart' || url.pathname === '/api/fundamentals' || url.pathname === '/api/deep') {
+    if (url.pathname === '/api/chart' || url.pathname === '/api/fundamentals' || url.pathname === '/api/deep' || url.pathname === '/api/revisions') {
       if (!SYMBOL_RE.test(symbol)) return json({ error: 'invalid symbol' }, 400, request, env);
     }
 
@@ -615,6 +642,14 @@ export default {
           const out = await fetchQuoteSummary(symbol);
           if (out.notFound) return json({ error: 'not found' }, 404, request, env);
           return json(mapFundamentals(symbol, out.result), 200, request, env, 6 * 3600);
+        });
+      }
+
+      if (url.pathname === '/api/revisions') {
+        return await cached(request, ctx, 6 * 3600, async () => {
+          const out = await fetchQuoteSummary(symbol, REV_MODULES);
+          if (out.notFound) return json({ error: 'not found' }, 404, request, env);
+          return json(mapRevisions(symbol, out.result), 200, request, env, 6 * 3600);
         });
       }
 
