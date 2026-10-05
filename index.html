@@ -209,7 +209,7 @@
     @media (max-width: 639px) {
       #tabStrip { display: none; }
       #tabNav #tabSearchInput:not(:focus) { width: 2.5rem; }
-      #tabSearchForm { margin-left: auto; } #langSwitchMobile { margin-left: auto; } #langSwitchMobile + #tabSearchForm { margin-left: 0; }
+      #tabSearchForm { margin-left: auto; }
       #mobileTabBar { display: block; }
       main { padding-bottom: 5.5rem; }
       #toTopBtn { bottom: 5rem; }
@@ -298,13 +298,11 @@
           <button
             onclick="openApiSettingsModal()"
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 transition shadow"
-            title="자체 프록시 및 Gemini API 설정"
+            title="설정 (API 키 · 구글 계정 · 언어)"
           >
-            <i class="fa-solid fa-key text-amber-400 text-xs"></i>
-            <span class="font-semibold text-xs">API 키 & 구글 검색 설정</span>
+            <i class="fa-solid fa-gear text-amber-400 text-xs"></i>
+            <span class="font-semibold text-xs">설정</span>
           </button>
-          <div id="authHeaderSlot" class="flex items-center shrink-0"></div>
-          <div id="langSwitch" role="group" aria-label="Language" translate="no" class="flex rounded-lg border border-slate-700 overflow-hidden bg-slate-800 shrink-0"><button type="button" data-lang="ko" onclick="setLang('ko')" aria-label="한국어" class="lang-btn px-2.5 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">KO</button><button type="button" data-lang="en" onclick="setLang('en')" aria-label="English" class="lang-btn px-2.5 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">EN</button><button type="button" data-lang="de" onclick="setLang('de')" aria-label="Deutsch" class="lang-btn px-2.5 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">DE</button></div>
         </div>
       </div>
 
@@ -326,8 +324,7 @@
     <!-- 스크롤하면 위쪽 헤더가 사라지고 이 미니 브랜드가 나타남 -->
     <div id="navMini" class="flex items-center gap-1.5 shrink-0 overflow-hidden transition-all duration-300 ease-out opacity-0 max-w-0 pointer-events-none">
       <button type="button" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="맨 위로 (PentAnalyst)" class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 grid place-items-center shadow shadow-cyan-500/20 shrink-0"><i class="fa-solid fa-chart-pie text-white text-sm"></i></button>
-      <button type="button" onclick="openApiSettingsModal()" title="API 키 · 프록시 설정" class="w-9 h-9 rounded-xl bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-600 text-amber-400 grid place-items-center transition shrink-0 mr-1"><i class="fa-solid fa-key text-xs"></i></button>
-      <div id="authMiniSlot" class="flex items-center shrink-0"></div>
+      <button type="button" onclick="openApiSettingsModal()" title="설정" class="w-9 h-9 rounded-xl bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-600 text-amber-400 grid place-items-center transition shrink-0 mr-1"><i class="fa-solid fa-gear text-xs"></i></button>
     </div>
     <div id="tabStrip" role="tablist" aria-label="화면 선택" class="flex items-center gap-2 sm:gap-3 overflow-x-auto whitespace-nowrap min-w-0 flex-1">
       <button type="button" role="tab" aria-selected="false" aria-controls="view-watch" onclick="switchAppTab('watch')" id="tabBtn-watch" title="관심종목" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
@@ -360,7 +357,6 @@
     </div>
 
     <!-- 탭 오른쪽 끝: 종목 바로 검색 -->
-    <div id="langSwitchMobile" role="group" aria-label="Language" translate="no" class="sm:hidden flex rounded-lg border border-slate-700 overflow-hidden bg-slate-800 shrink-0"><button type="button" data-lang="ko" onclick="setLang('ko')" aria-label="한국어" class="lang-btn px-2 min-h-9 text-[11px] font-bold text-slate-300">KO</button><button type="button" data-lang="en" onclick="setLang('en')" aria-label="English" class="lang-btn px-2 min-h-9 text-[11px] font-bold text-slate-300">EN</button><button type="button" data-lang="de" onclick="setLang('de')" aria-label="Deutsch" class="lang-btn px-2 min-h-9 text-[11px] font-bold text-slate-300">DE</button></div>
     <form id="tabSearchForm" onsubmit="tabSearchSubmit(event)" class="relative shrink-0" autocomplete="off">
       <div id="tabSearchBox" class="relative">
         <input id="tabSearchInput" type="text" placeholder="종목 검색 (티커·회사명)" autocomplete="off" spellcheck="false" class="w-36 sm:w-64 pl-3 pr-9 py-2 bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl text-xs text-white placeholder-slate-500 outline-none transition">
@@ -398,7 +394,7 @@
           <span class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400">
             <i class="fa-solid fa-satellite-dish"></i>
           </span>
-          <h3 class="text-base font-bold text-white">시장 데이터 프록시 & AI 연동 설정</h3>
+          <h3 class="text-base font-bold text-white">설정</h3>
         </div>
         <button onclick="closeApiSettingsModal()" class="text-slate-400 hover:text-white p-1"><i class="fa-solid fa-xmark text-base"></i></button>
       </div>
@@ -406,6 +402,12 @@
       <div class="space-y-4 text-xs text-slate-300 overflow-y-auto overscroll-contain pr-1 py-1 flex-1 min-h-0">
         <!-- Auth & Cloud Sync Card Slot -->
         <div id="authModalCard"></div>
+
+        <!-- 언어 -->
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
+          <span class="font-semibold text-white"><i class="fa-solid fa-language text-cyan-400 mr-1.5"></i>언어 / Language</span>
+          <div id="langSwitch" role="group" aria-label="Language" translate="no" class="flex rounded-lg border border-slate-700 overflow-hidden bg-slate-800 shrink-0"><button type="button" data-lang="ko" onclick="setLang('ko')" aria-label="한국어" class="lang-btn px-3 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">KO</button><button type="button" data-lang="en" onclick="setLang('en')" aria-label="English" class="lang-btn px-3 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">EN</button><button type="button" data-lang="de" onclick="setLang('de')" aria-label="Deutsch" class="lang-btn px-3 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">DE</button></div>
+        </div>
 
         <!-- Data feed status -->
         <div class="p-3 rounded-xl bg-slate-950 border border-emerald-900/60 flex items-start gap-2.5">
@@ -495,7 +497,7 @@
               autocomplete="off" spellcheck="false"
               class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers outline-none focus:border-cyan-400"
             />
-            <p class="text-[11px] text-slate-500 mt-1">Google Cloud Console에서 발급받은 웹 클라이언트 ID입니다. 입력해 두면 관심종목이 구글 드라이브에 안전하게 자동 백업됩니다.</p>
+            <p class="text-[11px] text-slate-500 mt-1">Google Cloud Console에서 발급받은 웹 클라이언트 ID입니다. 입력하고 로그인하면 설정과 관심종목이 구글 드라이브에 자동 동기화됩니다.</p>
           </div>
         </div>
 
@@ -1529,7 +1531,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.4.0';
+    const APP_VERSION = '1.5.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -2251,7 +2253,7 @@
       const CLIENT_ID_KEY = 'pentanalyst_gdrive_client_id'; // 관심종목 Drive 백업과 공용
       const USER_KEY = 'pentanalyst_gauth_user';
       const SCOPE = 'https://www.googleapis.com/auth/drive.appdata openid email profile';
-      const FILE_NAME = 'pentanalyst_settings.json';
+      const FILE_NAME = 'pentanalyst_settings.json';  // 관심종목은 같은 appDataFolder의 pentanalyst_watchlist_backup.json 에 저장
       let currentUser = null;
       let accessToken = null;
       let tokenExpiresAt = 0;
@@ -2404,7 +2406,7 @@
           const token = await getToken(true);
           currentUser = await fetchProfile(token);
           try { localStorage.setItem(USER_KEY, JSON.stringify(currentUser)); } catch (e) {}
-          renderAuthUI();
+          renderAuthUI(); notifyChange();
           showToast('로그인 성공', `${currentUser.name || currentUser.email}님 환영합니다!`, 'success');
           await loadFromCloud(true);
         } catch (err) {
@@ -2422,7 +2424,7 @@
         tokenExpiresAt = 0;
         currentUser = null;
         try { localStorage.removeItem(USER_KEY); } catch (e) {}
-        renderAuthUI();
+        renderAuthUI(); notifyChange();
         showToast('로그아웃', '계정에서 로그아웃되었습니다.', 'info');
       }
 
@@ -2433,8 +2435,9 @@
         } catch (e) {}
         renderAuthUI();
         // 이전에 로그인했다면 조용히 토큰을 갱신해 최신 설정을 불러온다(실패해도 무시, 버튼으로 수동 동기화 가능)
-        if (currentUser && isConfigured()) loadFromCloud(true);
+        if (currentUser && isConfigured()) { loadFromCloud(true); notifyChange(); }
       }
+      function notifyChange() { try { window.dispatchEvent(new CustomEvent('gauth-changed', { detail: { user: currentUser } })); } catch (e) {} }
 
       function renderAuthUI() {
         const headerSlot = document.getElementById('authHeaderSlot');
@@ -2522,7 +2525,7 @@
 
       function getUser() { return currentUser; }
 
-      return { init, login, logout, syncToCloud, loadFromCloud, renderAuthUI, getUser, isConfigured };
+      return { init, login, logout, syncToCloud, loadFromCloud, renderAuthUI, getUser, isConfigured, getToken };
     })();
 
     // ===== 모바일 1초 전송 (QR Code Instant Sync) =====
@@ -2590,7 +2593,7 @@
     }
 
     // 배포한 자체 프록시(Cloudflare Worker) 주소를 여기에 고정할 수도 있고,
-    // 비워 두면 'API 키 & 구글 검색 설정' 창에서 입력한 값(localStorage)을 사용합니다.
+    // 비워 두면 '설정' 창에서 입력한 값(localStorage)을 사용합니다.
     const DEFAULT_PROXY_URL = '';
     // 백테스트 왕복 비용(%, 수수료+슬리피지 합산). 설정 창에서 바꾸며 기본 0.2% (한쪽 0.1%). 0 이면 비용 없음.
     const BT_COST_DEFAULT = 0.2;
@@ -13912,7 +13915,7 @@ ${pdFactsText(d)}`;
     function fxStateBox(kind) {
         if (kind === 'noproxy') return `<div class="rounded-xl border border-amber-800/60 bg-amber-950/30 p-4 space-y-2">
             <p class="text-sm font-semibold text-amber-300"><i class="fa-solid fa-plug-circle-xmark mr-1.5"></i>자체 프록시 연결이 필요합니다</p>
-            <p class="text-xs text-slate-300 leading-relaxed">환율·금리·ETF 시세는 Yahoo Finance 에서 가져옵니다. 브라우저에서 직접 호출하면 CORS 로 막히므로 자체 프록시(이 저장소의 <code class="text-amber-200">worker/</code> Cloudflare Worker)가 필요합니다. 상단 ‘API 키 &amp; 구글 검색 설정’에 배포한 Worker 주소를 입력하면 이 탭이 채워집니다. 연결 전에는 값을 지어내지 않고 비워 둡니다.</p>
+            <p class="text-xs text-slate-300 leading-relaxed">환율·금리·ETF 시세는 Yahoo Finance 에서 가져옵니다. 브라우저에서 직접 호출하면 CORS 로 막히므로 자체 프록시(이 저장소의 <code class="text-amber-200">worker/</code> Cloudflare Worker)가 필요합니다. 상단 ‘설정’에 배포한 Worker 주소를 입력하면 이 탭이 채워집니다. 연결 전에는 값을 지어내지 않고 비워 둡니다.</p>
             <button data-act="settings" class="px-3 py-1.5 rounded-lg bg-amber-900/60 hover:bg-amber-800 border border-amber-700/60 text-xs text-amber-100 transition"><i class="fa-solid fa-gear mr-1"></i>프록시 설정 열기</button></div>`;
         return `<div class="rounded-xl border border-rose-900/60 bg-rose-950/20 p-4 flex flex-wrap items-center justify-between gap-3">
             <p class="text-xs text-rose-200 leading-relaxed"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${fxEsc(fxS.error)}</p>
@@ -18948,15 +18951,14 @@ ${digest}`;
               timeText = `${m}/${d} ${h}:${min}`;
             } catch (e) {}
           }
-          slot.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-medium text-[11px]"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Drive 자동백업 켜짐</span>` +
+          slot.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-medium text-[11px]"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Google 계정 자동 동기화 켜짐</span>` +
             (timeText ? `<span class="text-slate-400 text-[11px]" title="${esc(lastBackup)}">백업됨: ${timeText}</span>` : '') +
             `<button type="button" data-act="gdriveBackup" class="${BTN}" title="Google Drive에 즉시 백업"><i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i>지금 백업</button>` +
             `<button type="button" data-act="gdriveRestore" class="${BTN}" title="Google Drive에서 백업 가져오기"><i class="fa-solid fa-cloud-arrow-down text-emerald-400"></i>드라이브에서 복원</button>` +
-            `<button type="button" data-act="gdriveConfig" class="${BTN} text-slate-400 hover:text-white" title="Client ID 설정"><i class="fa-solid fa-gear"></i></button>` +
-            `<button type="button" data-act="gdriveDisconnect" class="${BTN} text-rose-400 hover:text-rose-300" title="Google Drive 연결 해제"><i class="fa-solid fa-link-slash"></i>연결 해제</button>`;
+            `<button type="button" data-act="gdriveSettings" class="${BTN} text-slate-400 hover:text-white" title="설정 (로그아웃·계정 관리)"><i class="fa-solid fa-gear"></i>설정</button>`;
         } else {
-          slot.innerHTML = `<button type="button" data-act="gdriveConnect" class="${BTN} text-cyan-300 border-cyan-800/60 hover:bg-cyan-950/40"><i class="fa-brands fa-google-drive"></i>Google Drive 연결</button>` +
-            `<span class="text-slate-300">Google Drive에 자동 백업하고 다른 기기와 동기화할 수 있어요.</span>`;
+          slot.innerHTML = `<button type="button" data-act="gdriveConnect" class="${BTN} text-cyan-300 border-cyan-800/60 hover:bg-cyan-950/40"><i class="fa-brands fa-google"></i>Google 로그인</button>` +
+            `<span class="text-slate-300">로그인하면 관심종목이 설정과 함께 Google Drive에 자동 동기화돼요.</span>`;
         }
       }
       function renderFoot() {
@@ -19156,87 +19158,23 @@ ${digest}`;
 
       // ---------- 구글 드라이브 자동 백업 연동 ----------
       const GDRIVE = (function () {
-        const CLIENT_ID_KEY = 'pentanalyst_gdrive_client_id';
-        const ENABLED_KEY = 'pentanalyst_gdrive_enabled';
+        // 설정 창의 Google 로그인(GAUTH)과 같은 계정·토큰을 쓰고, 앱 전용 숨김 폴더(appDataFolder)에 저장한다.
         const LAST_BACKUP_KEY = 'pentanalyst_gdrive_last_backup';
         const FILE_NAME = 'pentanalyst_watchlist_backup.json';
-        const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-
-        let tokenClient = null;
-        let accessToken = null;
-        let tokenExpiresAt = 0;
         let backupTimer = null;
         let busy = false;
+        let synced = false;
 
-        function getClientId() {
-          try { return (localStorage.getItem(CLIENT_ID_KEY) || '').trim(); } catch (e) { return ''; }
-        }
-        function isEnabled() {
-          try { return localStorage.getItem(ENABLED_KEY) === '1'; } catch (e) { return false; }
-        }
+        const auth = () => (typeof GAUTH !== 'undefined' ? GAUTH : null);
+        function isEnabled() { const a = auth(); return !!(a && a.getUser()); }
         function getLastBackup() {
           try { return localStorage.getItem(LAST_BACKUP_KEY) || null; } catch (e) { return null; }
         }
-
-        function loadGis() {
-          if (window.google && window.google.accounts && window.google.accounts.oauth2) {
-            return Promise.resolve(window.google);
-          }
-          return new Promise((resolve, reject) => {
-            const existing = document.getElementById('gsi-client-script');
-            if (existing) {
-              if (window.google?.accounts?.oauth2) return resolve(window.google);
-              existing.addEventListener('load', () => resolve(window.google));
-              existing.addEventListener('error', () => reject(new Error('Google Identity Services 스크립트 로드 실패')));
-              return;
-            }
-            const s = document.createElement('script');
-            s.id = 'gsi-client-script';
-            s.src = 'https://accounts.google.com/gsi/client';
-            s.async = true;
-            s.defer = true;
-            s.onload = () => resolve(window.google);
-            s.onerror = () => reject(new Error('Google Identity Services 로드 실패. 네트워크 연결을 확인하세요.'));
-            document.head.appendChild(s);
-          });
-        }
-
-        function getToken(interactive) {
-          if (accessToken && Date.now() < tokenExpiresAt - 60000) {
-            return Promise.resolve(accessToken);
-          }
-          const cid = getClientId();
-          if (!cid) {
-            return Promise.reject(new Error('no_client_id'));
-          }
-          return loadGis().then(google => {
-            return new Promise((resolve, reject) => {
-              try {
-                tokenClient = google.accounts.oauth2.initTokenClient({
-                  client_id: cid,
-                  scope: SCOPE,
-                  callback: (resp) => {
-                    if (resp.error) {
-                      reject(new Error(resp.error_description || resp.error));
-                      return;
-                    }
-                    accessToken = resp.access_token;
-                    const exp = Number(resp.expires_in) || 3500;
-                    tokenExpiresAt = Date.now() + exp * 1000;
-                    resolve(accessToken);
-                  }
-                });
-                tokenClient.requestAccessToken({ prompt: interactive ? '' : 'none' });
-              } catch (err) {
-                reject(err);
-              }
-            });
-          });
-        }
+        function getToken(interactive) { return auth().getToken(interactive); }
 
         async function findBackupFile(token) {
-          const q = encodeURIComponent(`name = '${FILE_NAME}' and trashed = false`);
-          const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&spaces=drive`, {
+          const q = encodeURIComponent(`name = '${FILE_NAME}'`);
+          const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&spaces=appDataFolder`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (!res.ok) {
@@ -19247,89 +19185,58 @@ ${digest}`;
           return (data.files && data.files.length) ? data.files[0] : null;
         }
 
-        async function backup(silent) {
-          if (busy) return;
-          ensure();
-          const cid = getClientId();
-          if (!cid) {
-            if (!silent) promptClientId();
-            return;
+        async function upload(token, existingFile) {
+          const backupData = Object.assign(
+            { app: 'PentAnalyst', kind: 'watchlist', exportedAt: new Date().toISOString() },
+            JSON.parse(JSON.stringify(ST))
+          );
+          const content = JSON.stringify(backupData, null, 1);
+          if (existingFile && existingFile.id) {
+            const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`, {
+              method: 'PATCH',
+              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' },
+              body: content
+            });
+            if (!r.ok) throw new Error(`백업 갱신 실패 (${r.status})`);
+          } else {
+            const boundary = '-------PentAnalystBoundary' + Math.random().toString(36).slice(2);
+            const metadata = JSON.stringify({ name: FILE_NAME, parents: ['appDataFolder'], mimeType: 'application/json' });
+            const body = [`--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', metadata,
+              `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`].join('\r\n');
+            const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+              body
+            });
+            if (!r.ok) throw new Error(`백업 생성 실패 (${r.status})`);
           }
+          try { localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString()); } catch (e) {}
+          renderGDriveSlot();
+        }
+
+        async function backup(silent) {
+          if (busy || !isEnabled()) { if (!silent && !isEnabled()) GAUTH.login(); return; }
+          ensure();
           busy = true;
           try {
             const token = await getToken(!silent);
-            const backupData = Object.assign(
-              { app: 'PentAnalyst', kind: 'watchlist', exportedAt: new Date().toISOString() },
-              JSON.parse(JSON.stringify(ST))
-            );
-            const content = JSON.stringify(backupData, null, 1);
-            const existingFile = await findBackupFile(token);
-
-            if (existingFile && existingFile.id) {
-              const patchRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`, {
-                method: 'PATCH',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json; charset=UTF-8'
-                },
-                body: content
-              });
-              if (!patchRes.ok) throw new Error(`백업 갱신 실패 (${patchRes.status})`);
-            } else {
-              const boundary = '-------PentAnalystBoundary' + Math.random().toString(36).slice(2);
-              const metadata = JSON.stringify({ name: FILE_NAME, mimeType: 'application/json' });
-              const body = [
-                `--${boundary}`,
-                'Content-Type: application/json; charset=UTF-8',
-                '',
-                metadata,
-                `--${boundary}`,
-                'Content-Type: application/json',
-                '',
-                content,
-                `--${boundary}--`
-              ].join('\r\n');
-
-              const createRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': `multipart/related; boundary=${boundary}`
-                },
-                body: body
-              });
-              if (!createRes.ok) throw new Error(`백업 생성 실패 (${createRes.status})`);
-            }
-
-            const nowIso = new Date().toISOString();
-            localStorage.setItem(LAST_BACKUP_KEY, nowIso);
-            renderGDriveSlot();
-            if (!silent) {
-              notify('드라이브 백업 완료', `Google Drive에 ${Object.keys(ST.items).length}개 종목을 백업했어요.`, 'success');
-            }
+            await upload(token, await findBackupFile(token));
+            if (!silent) notify('드라이브 백업 완료', `Google Drive에 ${Object.keys(ST.items).length}개 종목을 백업했어요.`, 'success');
           } catch (e) {
-            if (e.message === 'no_client_id') {
-              if (!silent) promptClientId();
-            } else if (!silent) {
-              notify('드라이브 백업 실패', e.message || '백업 중 오류가 발생했습니다.', 'error');
-            }
+            if (!silent) notify('드라이브 백업 실패', e.message || '백업 중 오류가 발생했습니다.', 'error');
           } finally {
             busy = false;
           }
         }
 
-        async function restore() {
+        async function restore(silent) {
+          if (!isEnabled()) { if (!silent) GAUTH.login(); return; }
           ensure();
-          const cid = getClientId();
-          if (!cid) {
-            promptClientId();
-            return;
-          }
           try {
-            const token = await getToken(true);
-            notify('드라이브 확인 중', '백업 파일을 검색하고 있어요…', 'info');
+            const token = await getToken(!silent);
             const file = await findBackupFile(token);
             if (!file || !file.id) {
+              if (silent) { await upload(token, null); return; }
               notify('백업 파일 없음', 'Google Drive에 저장된 관심종목 백업 파일이 없어요.', 'warning');
               return;
             }
@@ -19337,73 +19244,34 @@ ${digest}`;
               headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error(`파일 다운로드 실패 (${res.status})`);
-            const text = await res.text();
-            importText(text);
+            importText(await res.text());
+            if (silent) { clearTimeout(backupTimer); backupTimer = setTimeout(() => backup(true), 1500); }
           } catch (e) {
-            notify('복원 실패', e.message || '백업 복원 중 오류가 발생했습니다.', 'error');
+            if (!silent) notify('복원 실패', e.message || '백업 복원 중 오류가 발생했습니다.', 'error');
           }
         }
 
-        function promptClientId() {
-          const cur = getClientId();
-          const v = window.prompt(
-            'Google Cloud Console에서 발급받은 OAuth 2.0 Web Client ID를 입력해주세요.\\n(예: xxx.apps.googleusercontent.com)\\n\\n※ Google Cloud Console의 "승인된 자바스크립트 원본"에 현재 사이트 주소가 등록되어 있어야 합니다.',
-            cur
-          );
-          if (v !== null) {
-            const trimmed = v.trim();
-            if (trimmed) {
-              localStorage.setItem(CLIENT_ID_KEY, trimmed);
-              notify('Client ID 저장됨', 'Google Drive 연결을 진행합니다.', 'info');
-              connect();
-            } else {
-              localStorage.removeItem(CLIENT_ID_KEY);
-              renderGDriveSlot();
-            }
-          }
+        // 로그인되면(이전 로그인 포함) 클라우드의 관심종목을 합치고 다시 올린다.
+        function autoSync() {
+          if (synced || !isEnabled()) return;
+          synced = true;
+          restore(true);
         }
-
-        async function connect() {
-          const cid = getClientId();
-          if (!cid) {
-            promptClientId();
-            return;
-          }
-          try {
-            await getToken(true);
-            localStorage.setItem(ENABLED_KEY, '1');
-            notify('Google Drive 연결 완료', '관심종목 변경 시 클라우드에 자동 백업됩니다.', 'success');
-            renderGDriveSlot();
-            backup(false);
-          } catch (e) {
-            notify('연결 실패', e.message || 'Google Drive 연결에 실패했습니다.', 'error');
-          }
-        }
-
-        function disconnect() {
-          localStorage.removeItem(ENABLED_KEY);
-          if (accessToken && window.google?.accounts?.oauth2?.revoke) {
-            try { window.google.accounts.oauth2.revoke(accessToken, () => {}); } catch (e) {}
-          }
-          accessToken = null;
-          tokenExpiresAt = 0;
+        function onAuthChanged(e) {
+          if (e && e.detail && e.detail.user) autoSync(); else synced = false;
           renderGDriveSlot();
-          notify('연결 해제', 'Google Drive 자동 백업 연결을 해제했어요.', 'info');
         }
 
         function scheduleBackup() {
-          if (!isEnabled() || !getClientId()) return;
+          if (!isEnabled()) return;
           clearTimeout(backupTimer);
-          backupTimer = setTimeout(() => {
-            backup(true);
-          }, 5000);
+          backupTimer = setTimeout(() => { backup(true); }, 5000);
         }
 
-        return {
-          getClientId, isEnabled, getLastBackup, promptClientId, connect, disconnect, backup, restore, scheduleBackup
-        };
+        return { getLastBackup, isEnabled, backup, restore, scheduleBackup, autoSync, onAuthChanged };
       })();
-      try { window.addEventListener('gdrive-config-changed', () => renderGDriveSlot()); } catch (e) {}
+      try { window.addEventListener('gauth-changed', GDRIVE.onAuthChanged); } catch (e) {}
+      try { setTimeout(() => GDRIVE.autoSync(), 0); } catch (e) {}
 
       // ---------- 입력 처리 ----------
       function numField(v) { if (v === '' || v == null) return null; const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : NaN; }
@@ -19471,11 +19339,10 @@ ${digest}`;
           case 'pasteFocus': { const i = $('wlAddInput'); if (i) { i.focus(); i.scrollIntoView({ block: 'center', behavior: 'smooth' }); } break; }
           case 'exportJson': exportJson(); break;
           case 'importJson': $('wlImport').click(); break;
-          case 'gdriveConnect': GDRIVE.connect(); break;
+          case 'gdriveConnect': GAUTH.login(); break;
           case 'gdriveBackup': GDRIVE.backup(false); break;
-          case 'gdriveRestore': GDRIVE.restore(); break;
-          case 'gdriveConfig': GDRIVE.promptClientId(); break;
-          case 'gdriveDisconnect': GDRIVE.disconnect(); break;
+          case 'gdriveRestore': GDRIVE.restore(false); break;
+          case 'gdriveSettings': openApiSettingsModal(); break;
           default: break;
         }
       }
