@@ -1614,7 +1614,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.10.0';
+    const APP_VERSION = '1.10.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -17804,7 +17804,7 @@ ${digest}`;
       };
       try { window.addEventListener('gauth-changed', e => { SYNC.synced = false; if (e && e.detail && e.detail.user) SYNC.run(true); }); } catch (e) { /* 무시 */ }
 
-      const C = { y: 0, m: 0, sel: null, cats: new Set(Object.keys(CATS)), cc: new Set(['US', 'KR']), onlyHigh: false, detail: [], aiState: {}, monthBusy: false, monthMsg: '', inited: false };
+      const C = { y: 0, m: 0, sel: null, cats: new Set(Object.keys(CATS)), cc: new Set(['US', 'KR']), onlyHigh: false, agendaAll: false, detail: [], aiState: {}, monthBusy: false, monthMsg: '', inited: false };
       const lvOf = e => e.lvl || TYPES[e.type].level;
       const titleOf = e => {
         const T = TYPES[e.type];
@@ -17859,7 +17859,8 @@ ${digest}`;
       function agendaHtml() {
         const t = parseKey(todayKey()), end = new Date(t); end.setDate(end.getDate() + 14);
         const list = eventsBetween(t, end).filter(e => lvOf(e) !== 'low' || (e.date === todayKey() && !e.yf));
-        const rows = list.slice(0, 10).map(e => {
+        const AG_N = 3, shown = C.agendaAll ? list : list.slice(0, AG_N);
+        const rows = shown.map(e => {
           const T = TYPES[e.type], lv = LV[lvOf(e)];
           return `<button type="button" onclick="calPick('${e.date}', true)" class="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-800/70 transition">
             <span class="w-14 shrink-0 text-[11px] font-bold ${e.date === todayKey() ? 'text-rose-300' : 'text-slate-400'}">${dLabel(e.date)}</span>
@@ -17868,7 +17869,9 @@ ${digest}`;
             <span class="min-w-0 flex-1"><span class="block text-sm text-white font-semibold truncate">${esc(titleOf(e))}${e.approx ? ' <span class="text-[10px] text-slate-500 font-normal">(날짜 대략)</span>' : ''}</span><span class="block text-[11px] text-slate-400 truncate">${esc(e.type === 'other' ? (e.note || T.short) : T.short)}</span></span>
             <span class="w-2 h-2 rounded-full shrink-0 ${lv.dot}" title="${lv.label}"></span></button>`;
         }).join('');
-        return rows || '<div class="text-sm text-slate-500 px-3 py-4">앞으로 2주 안에 표시할 주요 일정이 없어요.</div>';
+        if (!rows) return '<div class="text-sm text-slate-500 px-3 py-4">앞으로 2주 안에 표시할 주요 일정이 없어요.</div>';
+        const more = list.length > AG_N ? `<button type="button" onclick="calAgendaToggle()" class="w-full mt-1 px-3 py-2 rounded-lg text-xs font-bold text-slate-300 bg-slate-800/60 hover:bg-slate-800 transition">${C.agendaAll ? '접기 ▲' : `전체 ${list.length}개 보기 ▼`}</button>` : '';
+        return rows + more;
       }
 
       function gridHtml() {
@@ -18050,6 +18053,7 @@ ${digest}`;
         if (scroll) { const el = document.getElementById('calDetail'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
       };
       window.calToggleCat = function (c) { if (C.cats.has(c)) { if (C.cats.size > 1) C.cats.delete(c); } else C.cats.add(c); render(); };
+      window.calAgendaToggle = function () { C.agendaAll = !C.agendaAll; render(); };
       window.calOnlyHigh = function (v) { C.onlyHigh = !!v; render(); };
 
       window.calAnalyze = async function (i) {
