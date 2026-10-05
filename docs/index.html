@@ -888,6 +888,7 @@
                 <span id="targetMax">최고: $0</span>
               </div>
             </div>
+            <div id="revCard" class="mt-3"></div>
           </div>
 
           <div class="mt-4 pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
@@ -1588,7 +1589,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.12.0';
+    const APP_VERSION = '1.13.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -20479,6 +20480,38 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           <p class="mt-3 text-[10px] text-slate-500 leading-relaxed">Agreement = 최근 30일 상향−하향 / 전체(올해·내년 평균, −100~+100) · Magnitude = 올해·내년 EPS 컨센서스의 30·60일 변화율 · Surprise = 최근 4분기 평균 서프라이즈. 가중치(40/35/25)는 이 앱의 임의 설정이며 <b>Zacks Rank의 실제 공식·가중치는 비공개</b>라 재현이 아닙니다(Upside=Most Accurate Estimate는 제외). Zacks가 공개한 과거 수익률은 비용을 제외한 가상 포트폴리오 결과이며, 투자 권유가 아닙니다.</p>
         </section>`;
       }
+
+      // ----- 5인 분석 탭의 단일 종목 카드 (절대 기준 등급) -----
+      let cardSeq = 0;
+      const absRank = sc => sc >= 75 ? 1 : sc >= 62 ? 2 : sc >= 38 ? 3 : sc >= 25 ? 4 : 5;
+      async function cardRender(sym) {
+        const el = document.getElementById('revCard'); if (!el || !sym) return;
+        const proxy = getProxyUrl(); if (!proxy) { el.innerHTML = ''; return; }
+        const seq = ++cardSeq;
+        let c = ST.raw[sym];
+        if (!c) {
+          el.innerHTML = '<div class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-[11px] text-slate-500">추정치 리비전 조회 중…</div>';
+          try { const d = await fetchJsonWithTimeout(`${proxy}/api/revisions?symbol=${encodeURIComponent(sym)}`, 15000); c = { t: Date.now(), d }; ST.raw[sym] = c; saveCache(); }
+          catch (e) { if (seq === cardSeq) el.innerHTML = ''; return; }
+        }
+        if (seq !== cardSeq) return;
+        const f = factors(c.d), score = composite(f);
+        if (score === null) { el.innerHTML = ''; return; }
+        const rk = absRank(score), e0 = c.d.fy0;
+        el.innerHTML = `<div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
+          <div class="flex items-center justify-between text-xs"><span class="text-slate-400"><i class="fa-solid fa-arrow-trend-up text-amber-400 mr-1"></i>EPS 추정치 리비전</span>
+            <span class="px-2 py-0.5 rounded border text-[11px] font-bold ${RANK_STYLE[rk]}">${rk} · ${RANK_LABEL[rk]}</span></div>
+          <div class="grid grid-cols-3 gap-2 text-center text-[11px]">
+            <div><div class="text-slate-500">Agreement</div><div class="font-mono-numbers text-slate-200">${f.agree === null ? '–' : (f.agree > 0 ? '+' : '') + Math.round(f.agree * 100)}</div></div>
+            <div><div class="text-slate-500">Magnitude</div><div class="font-mono-numbers text-slate-200">${pctTxt(f.mag)}</div></div>
+            <div><div class="text-slate-500">Surprise</div><div class="font-mono-numbers text-slate-200">${f.surp === null ? '–' : (f.surp > 0 ? '+' : '') + f.surp.toFixed(1) + '%'}</div></div>
+          </div>
+          <div class="text-[10px] text-slate-500">${e0 ? `올해 EPS 추정 30일 상향 ${e0.up30 ?? 0}건 / 하향 ${e0.down30 ?? 0}건 · ` : ''}점수 ${score.toFixed(0)}/100 (절대 기준, 단기 신호 · 투자 권유 아님)</div></div>`;
+      }
+      const origRender = window.renderAnalysisResult;
+      if (typeof origRender === 'function') {
+        window.renderAnalysisResult = function (data) { const r = origRender.apply(this, arguments); try { cardRender(String(data && data.ticker || '').toUpperCase()); } catch (e) { console.error(e); } return r; };
+      }
       window.revSetUniverse = id => { ST.universe = id; render(); };
       window.revSort = k => { ST.sortBy = k; render(); };
       window.revToggleTop = v => { ST.onlyTop = !!v; render(); };
@@ -20487,7 +20520,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       window.revRankFor = sym => { const r = ST.rows.find(x => x.sym === sym); return r ? { rank: r.rank, score: r.score } : null; };
       const prev = TAB_HOOKS.screener;
       TAB_HOOKS.screener = () => { if (prev) prev(); if (!ST.rendered) { ST.rendered = true; loadCache(); render(); } };
-      window.REV_DEBUG = { factors, composite, ST };
+      window.REV_DEBUG = { factors, composite, cardRender, ST };
     })();
   </script>
 
