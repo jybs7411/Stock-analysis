@@ -324,6 +324,7 @@
       <button type="button" role="tab" aria-selected="false" aria-controls="view-analysis" onclick="switchAppTab('analysis')" id="tabBtn-analysis" title="5인 전문가 심층 분석" class="subtab hidden"><i class="fa-solid fa-users-viewfinder text-cyan-400"></i><span>5인 분석</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-multi" onclick="switchAppTab('multi')" id="tabBtn-multi" title="멀티 차트 (4분할)" class="subtab hidden"><i class="fa-solid fa-table-cells-large text-fuchsia-400"></i><span>멀티 차트</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-screener" onclick="switchAppTab('screener')" id="tabBtn-screener" title="스마트 스크리너 (Finviz × Fool)" class="subtab hidden"><i class="fa-solid fa-filter text-amber-400"></i><span>스크리너</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-revision" onclick="switchAppTab('revision')" id="tabBtn-revision" title="리비전 랭크 (EPS 추정치 변화)" class="subtab hidden"><i class="fa-solid fa-arrow-trend-up text-lime-400"></i><span>리비전 랭크</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-market" onclick="switchAppTab('market')" id="tabBtn-market" title="시장 · 매크로" class="subtab hidden"><i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장·매크로</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-fx" onclick="switchAppTab('fx')" id="tabBtn-fx" title="환율" class="subtab hidden"><i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-calendar" onclick="switchAppTab('calendar')" id="tabBtn-calendar" title="금융 달력" class="subtab hidden"><i class="fa-solid fa-calendar-days text-rose-400"></i><span>금융 달력</span></button>
@@ -1219,6 +1220,8 @@
           <div class="flex flex-wrap items-center gap-2">
             <span class="text-xs text-slate-400 font-mono-numbers">발굴된 종목: <strong id="screenerMatchCount" class="text-cyan-400 font-bold text-sm">0</strong>개</span>
             <span id="screenerStatus" class="text-[11px] text-cyan-300"></span>
+            <span id="screenerRevStatus" class="text-[11px] text-lime-300"></span>
+            <button id="screenerRevBtn" onclick="screenerLoadRev(false)" class="hidden px-2.5 py-1.5 rounded-lg bg-lime-900/50 hover:bg-lime-800 border border-lime-700/60 text-[11px] text-lime-200 transition" title="애널리스트 EPS 추정치 변화(리비전 랭크)를 불러옵니다. 현재 필터 결과 대상, 종목당 프록시 호출 1회">리비전 불러오기</button>
             <button id="screenerLoadAllBtn" onclick="loadAllScreener()" class="hidden px-2.5 py-1.5 rounded-lg bg-cyan-900/60 hover:bg-cyan-800 border border-cyan-700/60 text-[11px] text-cyan-200 transition">전체 불러오기</button>
           </div>
         </div>
@@ -1244,9 +1247,6 @@
           </div>
         </div>
       </section>
-
-      <!-- 리비전 랭크 (mod-revision) -->
-      <div id="revRoot"></div>
 
       <!-- Filters -->
       <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
@@ -1297,6 +1297,7 @@
             <button type="button" data-tab="desc" onclick="setScreenerFilterTab('desc')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-cyan-300 border-cyan-400 flex items-center gap-1.5">기본정보 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Descriptive</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
             <button type="button" data-tab="fund" onclick="setScreenerFilterTab('fund')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-slate-400 border-transparent flex items-center gap-1.5">재무 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Fundamental</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
             <button type="button" data-tab="tech" onclick="setScreenerFilterTab('tech')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-slate-400 border-transparent flex items-center gap-1.5">기술 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Technical</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
+            <button type="button" data-tab="rev" onclick="setScreenerFilterTab('rev')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-slate-400 border-transparent flex items-center gap-1.5">리비전 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Revision</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
           </div>
           <div id="screenerFilterGrid"><!-- JS: 탭별 필터 select --></div>
         </div>
@@ -1374,6 +1375,9 @@
       </section>
     </div>
     <!-- END OF TAB 2 -->
+
+    <!-- TAB: 리비전 랭크 (module: mod-revision) -->
+    <div id="view-revision" class="hidden space-y-5"><div id="revRoot"></div></div>
 
     <!-- TAB: 불단왕 매매법 (modules: bdw-notes, bdw) -->
     <div id="view-bdw" class="hidden space-y-5">
@@ -1577,6 +1581,7 @@
     const APP_TABS = {
       watch: { on: 'bg-yellow-950 text-yellow-300 border-yellow-700/80 shadow-md shadow-yellow-950/50' },
       analysis: { on: 'bg-cyan-950 text-cyan-300 border-cyan-700/80 shadow-md shadow-cyan-950/50' },
+      revision: { on: 'bg-lime-950 text-lime-300 border-lime-700/80 shadow-md shadow-lime-950/50' },
       screener: { on: 'bg-amber-950 text-amber-300 border-amber-700/80 shadow-md shadow-amber-950/50' },
       bdw: { on: 'bg-orange-950 text-orange-300 border-orange-700/80 shadow-md shadow-orange-950/50' },
       prevday: { on: 'bg-violet-950 text-violet-300 border-violet-700/80 shadow-md shadow-violet-950/50' },
@@ -1589,7 +1594,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.13.0';
+    const APP_VERSION = '1.14.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -1614,7 +1619,7 @@
     const APP_HUBS = [
       { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch'] },
       { id: 'analyze', label: '분석', short: '분석', icon: 'fa-users-viewfinder text-cyan-400', on: APP_TABS.analysis.on, tabs: ['analysis', 'multi'] },
-      { id: 'discover', label: '발굴', short: '발굴', icon: 'fa-filter text-amber-400', on: APP_TABS.screener.on, tabs: ['screener'] },
+      { id: 'discover', label: '발굴', short: '발굴', icon: 'fa-filter text-amber-400', on: APP_TABS.screener.on, tabs: ['screener', 'revision'] },
       { id: 'market', label: '시장', short: '시장', icon: 'fa-earth-americas text-sky-400', on: APP_TABS.market.on, tabs: ['market', 'fx', 'calendar'] },
       { id: 'method', label: '매매법', short: '매매법', icon: 'fa-book-open text-orange-400', on: APP_TABS.bdw.on, tabs: ['bdw', 'prevday'] }
     ];
@@ -7662,8 +7667,8 @@ ${buildVerifiedDataText(analysisInputs)}`;
       sortBy: 'rank',
       sortDir: 'asc',
       searchKeyword: '',
-      tab: 'desc',      // 필터 탭: desc(기본정보) | fund(재무) | tech(기술)
-      view: 'overview', // 표 보기: overview | valuation | fundamental | technical
+      tab: 'desc',      // 필터 탭: desc(기본정보) | fund(재무) | tech(기술) | rev(리비전)
+      view: 'overview', // 표 보기: overview | valuation | fundamental | technical | revision
       filters: {},      // { 필터ID: 옵션키 } — FILTER_DEFS 참고
       preset: null      // 마지막으로 적용한 프리셋 { src, id, score, filters } (필터가 그대로일 때만 "활성")
     };
@@ -8365,6 +8370,7 @@ EPRT|Essential Properties Realty Trust|E
       el.textContent = text;
       if (hintEl) { const hs = hintEl.querySelector('span'); if (hs) hs.textContent = hint; hintEl.classList.toggle('hidden', !hint); }
       if (btn) btn.classList.toggle('hidden', !hasProxy || loaded >= valid.length || pending > 0);
+      updateScreenerRevUI();
     }
 
     function enqueueScreener(entries, priority = false) {
@@ -8410,6 +8416,44 @@ EPRT|Essential Properties Realty Trust|E
         })();
       }
       updateScreenerStatus();
+    }
+
+    // ---- 리비전 랭크 연동: 스크리너 결과(리비전 필터 제외)를 대상으로 EPS 추정치를 조회해 행에 채운다 ----
+    const screenerRevState = { running: false, done: 0, total: 0 };
+    function screenerRevTargets() {
+      const kw = screenerState.searchKeyword;
+      const active = activeScreenerFilters().filter(a => a.def.tab !== 'rev');
+      return SCREENER_MASTER_DATA.filter(item => {
+        if (item.missing) return false;
+        if (kw && !item.ticker.toUpperCase().includes(kw) && !String(item.name || '').toUpperCase().includes(kw)) return false;
+        return active.every(a => optMatches(a.def, a.opt, item));
+      });
+    }
+    function updateScreenerRevUI() {
+      const el = document.getElementById('screenerRevStatus'), btn = document.getElementById('screenerRevBtn');
+      if (!el || !btn) return;
+      const has = !!getProxyUrl() && typeof window.revFetchSyms === 'function';
+      if (!has) { el.textContent = ''; btn.classList.add('hidden'); return; }
+      const valid = SCREENER_MASTER_DATA.filter(e => !e.missing), got = valid.filter(e => e.revLoaded).length;
+      const lacking = screenerRevTargets().filter(e => !e.revLoaded).length;
+      let t = screenerRevState.running ? `리비전 조회 ${screenerRevState.done}/${screenerRevState.total}` : (got ? `리비전 ${got}/${valid.length}` : '');
+      if (!screenerRevState.running && lacking && activeScreenerFilters().some(a => a.def.tab === 'rev')) t += ` · 리비전 필터는 조회된 종목에만 적용 (미조회 ${lacking})`;
+      el.textContent = t;
+      btn.textContent = `리비전 불러오기 (${lacking})`;
+      btn.classList.toggle('hidden', screenerRevState.running || lacking === 0);
+    }
+    // auto = 리비전 필터가 켜졌을 때의 자동 조회 (후보가 150개를 넘으면 버튼으로 직접 시작, 실패 종목은 재시도하지 않음)
+    async function screenerLoadRev(auto) {
+      if (typeof window.revFetchSyms !== 'function' || !getProxyUrl() || screenerRevState.running) return;
+      if (typeof window.revApplyAll === 'function') window.revApplyAll();
+      const targets = screenerRevTargets().filter(e => !e.revLoaded && (!auto || !e.revFail));
+      if (!targets.length || (auto && targets.length > 150)) { updateScreenerRevUI(); return; }
+      screenerRevState.running = true; screenerRevState.done = 0; screenerRevState.total = targets.length; updateScreenerRevUI();
+      try {
+        await window.revFetchSyms(targets.map(e => e.ticker), (d, t) => { screenerRevState.done = d; screenerRevState.total = t; if (d % 8 === 0) { updateScreenerRevUI(); runScreenerFilter(); } });
+      } catch (e) { /* 실패한 종목은 빈칸 */ }
+      screenerRevState.running = false;
+      runScreenerFilter();
     }
 
     function loadAllScreener() {
@@ -8478,6 +8522,156 @@ EPRT|Essential Properties Realty Trust|E
       runScreenerFilter();
       showToast("종목 추가 완료", `${ticker}의 실시간 지표가 스크리너에 등록되었습니다.`, "success");
     }
+
+    // ======================================================================
+    // 리비전 랭크 공용 로직 (스크리너 열·필터와 mod-revision 이 함께 쓴다)
+    // EPS 추정치 '변화'(Agreement·Magnitude·Surprise)를 점수화하고, 변화의 모양(유형)과 진입 타이밍을 분류한다.
+    // Zacks Rank 의 공식은 비공개 — 가중치·기준값은 이 앱의 임의 설정이다.
+    // ======================================================================
+    // @@PURE-BEGIN
+    const rvClamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const rvMean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+    const RV_RANK_LABEL = { 1: '강한 상향', 2: '상향', 3: '중립', 4: '하향', 5: '강한 하향' };
+    const RV_TONE = {
+      emerald: 'bg-emerald-900/70 text-emerald-200 border-emerald-600', lime: 'bg-lime-900/60 text-lime-200 border-lime-700', amber: 'bg-amber-900/50 text-amber-200 border-amber-700',
+      slate: 'bg-slate-800 text-slate-300 border-slate-600', orange: 'bg-orange-900/60 text-orange-200 border-orange-700', rose: 'bg-rose-900/70 text-rose-200 border-rose-600', sky: 'bg-sky-900/60 text-sky-200 border-sky-700'
+    };
+    const RV_RANK_TONE = { 1: 'emerald', 2: 'lime', 3: 'slate', 4: 'orange', 5: 'rose' };
+    const RV_TYPES = {
+      accel: { label: '가속 상향', tone: 'emerald', good: true, short: '최근 1주에 상향이 몰림', act: '지금 막 힘이 붙는 구간. 1순위 관찰 대상이지만, 주가가 이미 급등했다면 눌림을 기다리세요.' },
+      steady: { label: '꾸준 상향', tone: 'emerald', good: true, short: '90·60·30일 내내 상향', act: '가장 신뢰도 높은 형태. 한 번의 이벤트가 아니라 전망이 계속 올라온 종목입니다. 추세 추종·분할 매수 후보.' },
+      rebound: { label: '바닥 반등', tone: 'lime', good: true, short: '하향 후 최근 상향 전환', act: '추정치가 꺾였다가 다시 올라오는 전환점. 저점 매수 후보지만 한두 분기 더 확인될 때까지 비중은 작게.' },
+      up: { label: '완만한 상향', tone: 'lime', good: true, short: '30일 상향, 모양은 평범', act: '방향은 맞지만 힘이 약합니다. 다른 신호(차트·밸류)와 겹칠 때만 의미를 둡니다.' },
+      fading: { label: '상향 둔화', tone: 'amber', short: '30일은 상향, 최근 1주 정체·하향', act: '상향이 끝나가는 모양. 신규 진입은 보류하고, 보유 중이면 다음 실적 전 추정치 변화를 지켜보세요.' },
+      flat: { label: '변화 없음', tone: 'slate', short: '추정치 거의 그대로', act: '리비전 신호가 없습니다. 이 도구로는 판단할 근거가 부족하니 다른 지표를 보세요.' },
+      mixed: { label: '의견 엇갈림', tone: 'slate', short: '상향·하향이 비슷하게 공존', act: '애널리스트 간 시각 차이가 큰 상태. 실적 발표 후 방향이 정해질 가능성이 큽니다.' },
+      stab: { label: '하향 진정', tone: 'amber', short: '30일은 하향, 최근 1주는 멈춤', act: '하향이 잦아드는 중. 바닥 확인 단계일 수 있으나 상향 전환 전까지는 관망.' },
+      rollover: { label: '고점 후 하향', tone: 'orange', short: '90일 전보다 높았다가 최근 하향', act: '기대가 정점을 찍고 내려오는 모양. 주가가 높은 위치라면 가장 먼저 경계할 유형입니다.' },
+      down: { label: '완만한 하향', tone: 'orange', short: '30일 하향', act: '전망이 조금씩 낮아지는 중. 신규 매수는 피하고 보유 근거를 다시 점검하세요.' },
+      steady_down: { label: '꾸준 하향', tone: 'rose', short: '90·60·30일 내내 하향', act: '구조적인 약화 신호. 회피 또는 비중 축소 검토 대상입니다.' },
+      decel_down: { label: '하향 가속', tone: 'rose', short: '최근 1주에 하향이 몰림', act: '악재가 막 반영되는 구간. 가장 위험한 형태 — 반등을 기대하며 물타기는 신중히.' }
+    };
+    const RV_TYPE_ORDER = ['accel', 'steady', 'rebound', 'up', 'fading', 'mixed', 'flat', 'stab', 'rollover', 'down', 'steady_down', 'decel_down'];
+
+    // 진입 타이밍 기준값 (임의 설정 — 리비전 탭에서 바꿀 수 있다)
+    const RV_CFG_DEFAULT = { ext3m: 40, extRsi: 75, extSma20: 12, pbSmaLo: -8, pbSmaHi: 5, pbRsiLo: 30, pbRsiHi: 62 };
+    const RV_CFG_LABEL = { ext3m: ['급등 판정: 3개월 상승률(%) 초과', 40], extRsi: ['급등 판정: RSI 초과', 75], extSma20: ['급등 판정: 20일선 위 이격(%) 초과', 12], pbSmaLo: ['눌림: 20일선 대비 하한(%)', -8], pbSmaHi: ['눌림: 20일선 대비 상한(%)', 5], pbRsiLo: ['눌림: RSI 하한', 30], pbRsiHi: ['눌림: RSI 상한', 62] };
+    let RV_CFG = { ...RV_CFG_DEFAULT };
+    const RV_TIMING = {
+      pullback: { label: '눌림 후보', tone: 'emerald', short: '20일선 근처까지 쉬었고 과열이 아님' },
+      wait: { label: '눌림 대기', tone: 'amber', short: '추세는 살아 있지만 가격이 20일선·RSI 기준으로 달려 있음' },
+      extended: { label: '이미 급등', tone: 'rose', short: '단기 급등·과열 — 상향이 가격에 반영됐을 수 있음' },
+      weak: { label: '추세 약함', tone: 'slate', short: '200일선 아래이거나 이평선 역배열' }
+    };
+    const RV_VERDICT = {
+      now: { label: '지금 검토', tone: 'emerald', short: '상향 신호 + 눌림 구간' },
+      wait: { label: '눌림 대기', tone: 'amber', short: '상향 신호는 좋지만 가격이 달려 있음 — 눌림을 기다림' },
+      extended: { label: '이미 급등', tone: 'rose', short: '상향 신호는 좋지만 이미 급등 — 추격 지양' },
+      drop: { label: '제외', tone: 'slate', short: '신호가 약하거나 추세가 약함' }
+    };
+    const rvChg = (cur, base) => (Number.isFinite(cur) && Number.isFinite(base) && base !== 0) ? rvClamp((cur - base) / Math.abs(base), -1, 1) : null;
+
+    // 한 종목의 세 요인. 값이 없으면 null.
+    function rvFactors(r) {
+      const ests = [r.fy0, r.fy1].filter(Boolean);
+      const ag = [], mg = [];
+      ests.forEach(e => {
+        const n = (e.up30 || 0) + (e.down30 || 0);
+        if (n > 0) ag.push(((e.up30 || 0) - (e.down30 || 0)) / n);
+        const parts = [rvChg(e.cur, e.d30), rvChg(e.cur, e.d60)].map(v => v === null ? null : rvClamp(v, -0.5, 0.5)).filter(v => v !== null);
+        if (parts.length) mg.push(rvMean(parts));
+      });
+      const sp = (r.surprises || []).filter(Number.isFinite).map(v => rvClamp(v, -50, 50));
+      return { agree: rvMean(ag), mag: rvMean(mg), surp: rvMean(sp) };
+    }
+    // 절대 점수 0~100: 요인마다 0~1 로 환산한 뒤, 값이 있는 요인끼리 가중 평균 (가중치는 이 앱의 임의 설정 — 공개된 Zacks 가중치는 없음)
+    function rvComposite(f) {
+      const parts = [];
+      if (f.agree !== null) parts.push([0.40, (f.agree + 1) / 2]);
+      if (f.mag !== null) parts.push([0.35, rvClamp(0.5 + f.mag / 0.12, 0, 1)]);
+      if (f.surp !== null) parts.push([0.25, rvClamp(0.5 + f.surp / 20, 0, 1)]);
+      if (parts.length < 2) return null;
+      const w = parts.reduce((s, p) => s + p[0], 0);
+      return 100 * parts.reduce((s, p) => s + p[0] * p[1], 0) / w;
+    }
+    const rvAbsRank = sc => sc >= 75 ? 1 : sc >= 62 ? 2 : sc >= 38 ? 3 : sc >= 25 ? 4 : 5;
+    function rvMomentum(e) {
+      if (!e) return null;
+      return { c7: rvChg(e.cur, e.d7), c30: rvChg(e.cur, e.d30), c60: rvChg(e.cur, e.d60), c90: rvChg(e.cur, e.d90), up30: e.up30 || 0, down30: e.down30 || 0, up7: e.up7 || 0, down7: e.down7 || 0, cur: e.cur, pts: [e.d90, e.d60, e.d30, e.d7, e.cur] };
+    }
+    // 올해(없으면 내년) 추정치를 대표로 쓴다
+    const rvPickMomentum = d => { const m0 = rvMomentum(d.fy0), m1 = rvMomentum(d.fy1); return { m0, m1, m: (m0 && m0.c30 !== null) ? m0 : (m1 || m0) }; };
+    function rvClassify(m, f) {
+      if (!m) return 'flat';
+      const T = 0.005, n30 = m.up30 + m.down30, { c7, c30, c60, c90 } = m, has = v => v !== null;
+      if (has(c30) && c30 > T) {
+        if ((has(c90) && c90 < -T) || (has(c60) && c60 < -T)) return 'rebound';
+        if (has(c7) && c7 <= 0) return 'fading';
+        if (has(c7) && c7 >= c30 * 0.5) return 'accel';
+        if (has(c60) && has(c90) && c60 > T && c90 > T) return 'steady';
+        return 'up';
+      }
+      if (has(c30) && c30 < -T) {
+        if (has(c90) && c90 > T) return 'rollover';
+        if (has(c7) && c7 < 0 && c7 <= c30 * 0.5) return 'decel_down';
+        if (has(c7) && c7 >= 0) return 'stab';
+        if (has(c60) && has(c90) && c60 < -T && c90 < -T) return 'steady_down';
+        return 'down';
+      }
+      if (n30 >= 4 && f.agree !== null && Math.abs(f.agree) < 0.25) return 'mixed';
+      return 'flat';
+    }
+    // 보조 태그: 유형과 별개로 겹쳐 붙는 사실들 { id, l, c }
+    function rvTags(r, m0, m1) {
+      const t = [], sp = (r.surprises || []).filter(Number.isFinite);
+      if (sp.length >= 3 && sp.every(v => v > 0)) t.push({ id: 'beat', l: `서프라이즈 ${sp.length}연속 상회`, c: 'emerald' });
+      else if (sp.filter(v => v < 0).length >= 2) t.push({ id: 'miss', l: '서프라이즈 부진', c: 'rose' });
+      if (m0 && m1 && m0.c30 !== null && m1.c30 !== null) {
+        if (m0.c30 > 0.005 && m1.c30 > 0.005) t.push({ id: 'bothUp', l: '올해·내년 동반 상향', c: 'emerald' });
+        else if (m0.c30 < -0.005 && m1.c30 < -0.005) t.push({ id: 'bothDown', l: '올해·내년 동반 하향', c: 'rose' });
+        else if (m0.c30 * m1.c30 < 0 && Math.abs(m0.c30) > 0.005 && Math.abs(m1.c30) > 0.005) t.push({ id: 'split', l: '올해/내년 방향 다름', c: 'amber' });
+      }
+      const m = m0 || m1, n = m ? m.up30 + m.down30 : 0;
+      if (m && n > 0 && n < 3) t.push({ id: 'thin', l: `표본 적음(${n}건)`, c: 'slate' });
+      if (m && n >= 6 && (m.up30 === 0 || m.down30 === 0)) t.push({ id: m.down30 === 0 ? 'unanUp' : 'unanDown', l: m.down30 === 0 ? '만장일치 상향' : '만장일치 하향', c: m.down30 === 0 ? 'emerald' : 'rose' });
+      return t;
+    }
+    // 리비전 원자료(/api/revisions 응답) → 스크리너 행에 붙일 값. 점수를 못 내면 null.
+    function rvAnalyze(d) {
+      if (!d) return null;
+      const f = rvFactors(d), score = rvComposite(f);
+      if (score === null) return null;
+      const { m0, m1, m } = rvPickMomentum(d), type = rvClassify(m, f), tags = rvTags(d, m0, m1);
+      return { f, score, rank: rvAbsRank(score), m, m0, m1, type, tags };
+    }
+    function rvApplyToEntry(e, d) {
+      const a = rvAnalyze(d);
+      if (!a) { e.revScore = e.revRank = e.revType = e.revC7 = e.revC30 = e.revUp = e.revDown = null; e.revTags = []; e.revThin = null; e.revBeat = null; e.revBoth = null; e.revLoaded = true; return; }
+      const m = a.m, ids = a.tags.map(t => t.id);
+      e.revLoaded = true; e.revScore = Math.round(a.score); e.revRank = a.rank; e.revType = a.type;
+      e.revC7 = m && m.c7 !== null ? m.c7 * 100 : null; e.revC30 = m && m.c30 !== null ? m.c30 * 100 : null;
+      e.revUp = m ? m.up30 : null; e.revDown = m ? m.down30 : null;
+      e.revTags = a.tags; e.revThin = ids.includes('thin'); e.revBeat = ids.includes('beat'); e.revBoth = ids.includes('bothUp');
+    }
+    // 진입 타이밍: 스크리너 행의 기술 지표로 판정. 값이 모자라면 null.
+    function rvTimingOf(e) {
+      const c = RV_CFG;
+      if (!Number.isFinite(e.sma20Pct) || !Number.isFinite(e.rsi)) return null;
+      const weak = e.maAlign === 'bear' || (Number.isFinite(e.sma200Pct) && e.sma200Pct < 0);
+      if (weak) return 'weak';
+      if ((Number.isFinite(e.perf3m) && e.perf3m > c.ext3m) || e.rsi > c.extRsi || e.sma20Pct > c.extSma20) return 'extended';
+      if (e.sma20Pct >= c.pbSmaLo && e.sma20Pct <= c.pbSmaHi && e.rsi >= c.pbRsiLo && e.rsi <= c.pbRsiHi) return 'pullback';
+      return 'wait';
+    }
+    // 종합 판정: 신호(1~2등급 + 상향 계열 + 표본 충분)가 좋은지 → 타이밍으로 4분류
+    const rvSignalGood = e => Number.isFinite(e.revRank) && e.revRank <= 2 && !!(RV_TYPES[e.revType] && RV_TYPES[e.revType].good) && !e.revThin;
+    function rvVerdictOf(e) {
+      if (!Number.isFinite(e.revRank)) return null;
+      if (!rvSignalGood(e)) return 'drop';
+      const t = rvTimingOf(e); if (t === null) return null;
+      return t === 'pullback' ? 'now' : t === 'wait' ? 'wait' : t === 'extended' ? 'extended' : 'drop';
+    }
+    // @@PURE-END
 
     // ======================================================================
     // 필터 정의 (데이터 기반). 옵션 형태:
@@ -8574,7 +8768,24 @@ EPRT|Essential Properties Realty Trust|E
           flag('down', '하락 (히스토그램 -)', e => e.macdState === 'bear' || e.macdState === 'bearCross', 'macdState'), flag('bearCross', '데드크로스 직후', e => e.macdState === 'bearCross', 'macdState')] },
         { id: 'setup', tab: 'tech', label: '스윙 셋업 (Setup)', tip: '자주 쓰이는 매매 패턴입니다. 돌파 = 20일 고점 돌파, 눌림목 = 정배열 상승 추세에서 20일선 근처까지 조정, 스퀴즈 = 변동폭이 한껏 좁아진 상태, 거래량 급증 = 평소 1.5배 이상 거래되며 2% 이상 상승.', opts: [
           flag('break20', '20일 고점 돌파', e => e.break20 === true, 'break20'), flag('pullback', '정배열 눌림목', e => e.pullback === true, 'pullback'),
-          flag('squeeze', '볼린저 스퀴즈', e => e.squeeze === true, 'squeeze'), flag('volSurge', '거래량 급증 상승', e => e.volSurge === true, 'volSurge')] }
+          flag('squeeze', '볼린저 스퀴즈', e => e.squeeze === true, 'squeeze'), flag('volSurge', '거래량 급증 상승', e => e.volSurge === true, 'volSurge')] },
+
+        // ---------------- 리비전 (EPS 추정치 변화 — 「리비전 불러오기」로 채움) ----------------
+        { id: 'revrank', tab: 'rev', label: '리비전 등급 (1=강한 상향)', field: 'revRank', tip: '애널리스트 EPS 추정치 변화로 매긴 1~5등급(절대 점수 기준)입니다. 값은 「리비전 불러오기」로 채웁니다.', opts: [
+          { k: 'r1', label: '1 · 강한 상향', min: 1, max: 1 }, { k: 'le2', label: '1~2등급 (상향)', max: 2 }, { k: 'r3', label: '3 · 중립', min: 3, max: 3 }, { k: 'ge4', label: '4~5등급 (하향)', min: 4 }] },
+        { id: 'revtype', tab: 'rev', label: '리비전 유형', field: 'revType', tip: '추정치가 어떤 모양으로 움직였는지입니다. 가속 상향·꾸준 상향 등 12가지로 나뉩니다.', opts: [
+          flag('good', '상향 계열 (가속·꾸준·바닥반등·완만)', e => !!(RV_TYPES[e.revType] && RV_TYPES[e.revType].good), 'revType'),
+          flag('core', '핵심 상향 (가속·꾸준·바닥반등)', e => e.revType === 'accel' || e.revType === 'steady' || e.revType === 'rebound', 'revType'),
+          ...RV_TYPE_ORDER.map(t => flag('t_' + t, RV_TYPES[t].label, e => e.revType === t, 'revType'))] },
+        { id: 'revverdict', tab: 'rev', label: '리비전 판정 (신호 × 타이밍)', field: 'revRank', tip: '1~2등급·상향 계열·표본 충분인 종목을 20일선·RSI·3개월 상승률로 나눈 판정입니다. 시세 지표가 불러와져 있어야 합니다.', opts: [
+          flag('now', '지금 검토 (신호 + 눌림)', e => rvVerdictOf(e) === 'now', 'revRank'), flag('wait', '눌림 대기 (신호 좋음, 가격 높음)', e => rvVerdictOf(e) === 'wait', 'revRank'),
+          flag('extended', '이미 급등 (추격 지양)', e => rvVerdictOf(e) === 'extended', 'revRank'), flag('drop', '제외 (신호·추세 약함)', e => rvVerdictOf(e) === 'drop', 'revRank')] },
+        { id: 'revtiming', tab: 'rev', label: '진입 타이밍 (기술 지표 기준)', field: 'sma20Pct', tip: '20일선 대비·RSI·3개월 상승률·이평선 배열로 본 가격 위치입니다. 기준값은 리비전 탭에서 바꿀 수 있습니다.', opts:
+          Object.keys(RV_TIMING).map(t => flag('t_' + t, RV_TIMING[t].label, e => rvTimingOf(e) === t, 'sma20Pct')) },
+        { id: 'rev30', tab: 'rev', label: 'EPS 추정치 30일 변화', field: 'revC30', tip: '올해(없으면 내년) EPS 컨센서스가 30일 전보다 몇 % 바뀌었는지입니다.', opts: [gt(0, '%', '상향 (0% 초과)'), gt(2, '%'), gt(5, '%'), lt(0, '%', '하향 (0% 미만)')] },
+        { id: 'revtag', tab: 'rev', label: '리비전 보조 조건', tip: '표본 충분 = 최근 30일 상향·하향 합계 3건 이상.', opts: [
+          flag('enough', '표본 충분 (30일 3건 이상)', e => Number.isFinite(e.revRank) && !e.revThin, 'revRank'), flag('beat', '서프라이즈 연속 상회', e => e.revBeat === true, 'revBeat'),
+          flag('both', '올해·내년 동반 상향', e => e.revBoth === true, 'revBoth')] }
       ];
     })();
     const FILTER_BY_ID = {};
@@ -8671,9 +8882,10 @@ EPRT|Essential Properties Realty Trust|E
       overview:    { label: '개요',       cols: ['sector', 'pe', 'peg', 'roe', 'shortFloat', 'rsi', 'sma20Pct', 'recMean'] },
       valuation:   { label: '밸류에이션', cols: ['marketCapVal', 'pe', 'fpe', 'peg', 'pS', 'pB', 'pFcf', 'divYield', 'targetUpside'] },
       fundamental: { label: '재무',       cols: ['roe', 'roa', 'revGrowth', 'epsGrowth', 'opMargin', 'profitMargin', 'de', 'currentRatio', 'fcfYield'] },
+      revision:    { label: '리비전',   cols: ['revRank', 'revType', 'revC7', 'revC30', 'revUD', 'revTiming', 'revVerdict', 'perf3m', 'sma20Pct', 'rsi'] },
       technical:   { label: '기술',       cols: ['perf1w', 'perf1m', 'perf3m', 'perf1y', 'sma20Pct', 'sma50Pct', 'sma200Pct', 'rsi', 'atrPct', 'fromHigh52', 'relVol', 'beta'] }
     };
-    const screenerViewCols = v => ['ticker', 'name', 'price', 'change', ...(SCREENER_VIEWS[v] || SCREENER_VIEWS.overview).cols, 'score', 'action'];
+    const screenerViewCols = v => ['ticker', 'name', 'price', 'change', ...(v === 'revision' ? [] : ['revRank']), ...(SCREENER_VIEWS[v] || SCREENER_VIEWS.overview).cols, 'score', 'action'];
 
     const scrFin = Number.isFinite;
     const scrFmt = (v, d = 1, suf = '') => scrFin(v) ? `${v.toFixed(d)}${suf}` : '';
@@ -8739,6 +8951,28 @@ EPRT|Essential Properties Realty Trust|E
         fromHigh52: col('52주 고점 대비', 'fromHigh52', { signed: true, tip: '1년 최고가 대비 현재가 (0%에 가까울수록 신고가 부근)' }),
         relVol: col('상대거래량', 'relVol', { d: 2, suf: '배', tip: '오늘 거래량 ÷ 최근 63일 평균 거래량 (장중에는 낮게 나옴)' }),
         beta: col('베타', 'beta', { rate: 'beta', d: 2 }),
+        revRank: { label: '리비전', al: 'c', val: e => e.revScore ?? null, tip: '애널리스트 EPS 추정치 변화로 매긴 1~5등급 (절대 점수 기준, 1=강한 상향). 값은 「리비전 불러오기」 또는 리비전 필터로 채웁니다. 정렬: 점수', html: e => {
+          if (!scrFin(e.revRank)) return `<td class="${SCR_TD} text-center text-slate-600">${e.revLoaded ? '–' : ''}</td>`;
+          const tp = RV_TYPES[e.revType];
+          return `<td class="${SCR_TD} text-center" title="${escapeHtml(tp ? tp.label : '')} · 점수 ${e.revScore}"><span class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${RV_TONE[RV_RANK_TONE[e.revRank]]}">${e.revRank} · ${RV_RANK_LABEL[e.revRank]}</span></td>`;
+        } },
+        revType: { label: '리비전 유형', al: 'l', val: e => e.revType ? RV_TYPE_ORDER.indexOf(e.revType) : null, tip: '추정치 변화의 모양 (가속 상향·꾸준 상향·상향 둔화 등). 정렬: 상향 계열이 앞', html: e => {
+          const tp = RV_TYPES[e.revType];
+          if (!tp) return `<td class="${SCR_TD}"></td>`;
+          const tags = (e.revTags || []).map(t => t.l).join(' · ');
+          return `<td class="${SCR_TD} whitespace-nowrap" title="${escapeHtml(tp.short + (tags ? ' / ' + tags : ''))}"><span class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold ${RV_TONE[tp.tone]}">${escapeHtml(tp.label)}</span></td>`;
+        } },
+        revC7: col('EPS 7일', 'revC7', { sign: true, signed: true, tip: '올해(없으면 내년) EPS 컨센서스의 7일 전 대비 변화율' }),
+        revC30: col('EPS 30일', 'revC30', { sign: true, signed: true, tip: '올해(없으면 내년) EPS 컨센서스의 30일 전 대비 변화율' }),
+        revUD: { label: '상/하향', al: 'c', val: e => scrFin(e.revUp) ? e.revUp - e.revDown : null, tip: '최근 30일 EPS 추정치 상향/하향 건수 (정렬: 상향−하향)', html: e => `<td class="${SCR_TD} text-center">${scrFin(e.revUp) ? `<span class="text-emerald-400">${e.revUp}</span><span class="text-slate-600">/</span><span class="text-rose-400">${e.revDown}</span>` : ''}</td>` },
+        revTiming: { label: '타이밍', al: 'c', val: e => { const t = rvTimingOf(e); return t ? Object.keys(RV_TIMING).indexOf(t) : null; }, tip: '20일선 대비·RSI·3개월 상승률·이평선 배열로 본 진입 타이밍 (눌림 후보 / 눌림 대기 / 이미 급등 / 추세 약함)', html: e => {
+          const t = rvTimingOf(e), tp = t && RV_TIMING[t];
+          return `<td class="${SCR_TD} text-center whitespace-nowrap">${tp ? `<span title="${escapeHtml(tp.short)}" class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold ${RV_TONE[tp.tone]}">${tp.label}</span>` : ''}</td>`;
+        } },
+        revVerdict: { label: '판정', al: 'c', val: e => { const v = rvVerdictOf(e); return v ? Object.keys(RV_VERDICT).indexOf(v) : null; }, tip: '신호(1~2등급·상향 계열·표본 충분) × 타이밍 판정: 지금 검토 / 눌림 대기 / 이미 급등 / 제외. 검토할 후보를 좁히는 용도이며 매수 신호가 아닙니다.', html: e => {
+          const v = rvVerdictOf(e), tp = v && RV_VERDICT[v];
+          return `<td class="${SCR_TD} text-center whitespace-nowrap">${tp ? `<span title="${escapeHtml(tp.short)}" class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold ${RV_TONE[tp.tone]}">${tp.label}</span>` : (scrFin(e.revRank) && rvSignalGood(e) ? '<span class="text-[10px] text-slate-500">시세 대기</span>' : '')}</td>`;
+        } },
         score: { label: '점수', al: 'c', val: e => e._score, tip: '0~100 참고용 점수. 프리셋을 쓰면 그 프리셋의 점수(퀄리티·가치·모멘텀), 아니면 계산 가능한 세 점수의 평균입니다. 값이 있는 지표만으로 계산하며 지표가 2개 미만이면 빈칸입니다.', html: e => {
           const s = e._score;
           const cls = !scrFin(s) ? 'text-slate-500' : s >= 70 ? 'text-emerald-400' : s >= 50 ? 'text-sky-300' : s >= 30 ? 'text-amber-400' : 'text-rose-400';
@@ -8754,7 +8988,8 @@ EPRT|Essential Properties Realty Trust|E
     const SCREENER_PRESET_GROUPS = [
       { tag: '장기 투자', icon: 'fa-seedling', color: 'text-emerald-300' },
       { tag: '스윙', icon: 'fa-chart-line', color: 'text-cyan-300' },
-      { tag: '이벤트', icon: 'fa-bolt', color: 'text-amber-300' }
+      { tag: '이벤트', icon: 'fa-bolt', color: 'text-amber-300' },
+      { tag: '리비전', icon: 'fa-arrow-trend-up', color: 'text-lime-300' }
     ];
     const SCREENER_PRESETS = [
       { id: 'quality-growth', tag: '장기 투자', name: '퀄리티 성장', desc: '돈 잘 벌고 빚 적은 성장 우량주', score: 'quality', view: 'fundamental',
@@ -8780,7 +9015,17 @@ EPRT|Essential Properties Realty Trust|E
       { id: 'short-squeeze', tag: '이벤트', name: '숏스퀴즈 후보', desc: '공매도가 많은데 주가가 오르며 거래량이 터짐', score: 'momentum', view: 'overview',
         filters: { short: 'gt10', relvol: 'gt1.5', sma20: 'gt0' } },
       { id: 'analyst-undervalued', tag: '이벤트', name: '애널리스트 저평가', desc: '목표가 대비 여력이 큰 대형 상승 추세주', score: 'value', view: 'valuation',
-        filters: { upside: 'ge20', rec: 'le2', pe: 'lt30', mcap: 'ge10', sma200: 'gt0' } }
+        filters: { upside: 'ge20', rec: 'le2', pe: 'lt30', mcap: 'ge10', sma200: 'gt0' } },
+      { id: 'rev-now', tag: '리비전', name: '지금 검토 (신호 + 눌림)', desc: '1~2등급·상향 계열이면서 20일선 근처로 쉬는 종목 — 자동 조회', score: 'momentum', view: 'revision',
+        filters: { revverdict: 'now' } },
+      { id: 'rev-wait', tag: '리비전', name: '눌림 대기', desc: '상향 신호는 좋은데 가격이 달린 종목 — 눌림 때까지 관심종목에', score: 'momentum', view: 'revision',
+        filters: { revverdict: 'wait' } },
+      { id: 'rev-core', tag: '리비전', name: '핵심 상향 (타이밍 무관)', desc: '가속·꾸준·바닥 반등 + 1~2등급 + 표본 충분', score: 'momentum', view: 'revision',
+        filters: { revrank: 'le2', revtype: 'core', revtag: 'enough' } },
+      { id: 'rev-quality', tag: '리비전', name: '퀄리티 + 상향', desc: '돈 잘 벌고 빚 적은 성장주 중 추정치도 오르는 종목', score: 'quality', view: 'revision',
+        filters: { roe: 'gt15', om: 'gt15', revg: 'gt10', de: 'lt100', mcap: 'ge2', revrank: 'le2', revtag: 'enough' } },
+      { id: 'rev-warn', tag: '리비전', name: '하향 경고', desc: '4~5등급이면서 아직 200일선 위 — 보유 중이면 점검', score: 'momentum', view: 'revision',
+        filters: { revrank: 'ge4', sma200: 'gt0' } }
     ];
     // 예전 프리셋 ID 호환
     const SCREENER_PRESET_ALIAS = { 'finviz-squeeze': 'short-squeeze', 'buffett-value': 'value-quality', 'rebound-chart': 'oversold-bounce' };
@@ -8845,7 +9090,7 @@ EPRT|Essential Properties Realty Trust|E
       const grid = document.getElementById('screenerFilterGrid');
       if (!grid) return;
       const sel = 'w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-cyan-400 transition';
-      grid.innerHTML = ['desc', 'fund', 'tech'].map(tab => `
+      grid.innerHTML = ['desc', 'fund', 'tech', 'rev'].map(tab => `
         <div data-panel="${tab}" class="${tab === screenerState.tab ? '' : 'hidden '}grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-3 gap-y-2.5">
           ${FILTER_DEFS.filter(d => d.tab === tab).map(d => `
             <label class="block min-w-0">
@@ -8925,7 +9170,7 @@ EPRT|Essential Properties Realty Trust|E
         s.classList.toggle('border-slate-700', !s.value);
       });
       const active = activeScreenerFilters();
-      ['desc', 'fund', 'tech'].forEach(tab => {
+      ['desc', 'fund', 'tech', 'rev'].forEach(tab => {
         const btn = document.querySelector(`#screenerFilterTabs button[data-tab="${tab}"]`);
         const panel = document.querySelector(`#screenerFilterGrid [data-panel="${tab}"]`);
         const cnt = active.filter(a => a.def.tab === tab).length;
@@ -9097,6 +9342,7 @@ EPRT|Essential Properties Realty Trust|E
         return active.every(a => optMatches(a.def, a.opt, item));
       });
       filtered.forEach(e => { e._score = scoreOf(e, kind); });
+      if (active.some(a => a.def.tab === 'rev') && !screenerRevState.running) setTimeout(() => screenerLoadRev(true), 0);
 
       const colDef = SCREENER_COLS[screenerState.sortBy] || SCREENER_COLS.rank;
       const dir = screenerState.sortDir === 'asc' ? 1 : -1;
@@ -9124,6 +9370,7 @@ EPRT|Essential Properties Realty Trust|E
       // 화면에 보이는 종목의 실시간 값을 우선 불러온다
       enqueueScreener(pageStocks, true);
       updateScreenerStatus();
+      if (typeof window.revRefresh === 'function') window.revRefresh();
     }
 
     // 헤더는 보기/정렬/점수 종류가 바뀔 때만 다시 그린다 (호버 툴팁이 깜빡이지 않도록)
@@ -20359,131 +20606,293 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
   </script>
 
   <script id="mod-revision">
-    // 리비전 랭크 (Zacks 방식의 공개 아이디어): EPS 추정치 '변화'를 Agreement·Magnitude·Surprise 로 점수화해 1~5등급을 매긴다.
-    // Zacks Rank 의 실제 공식·가중치는 비공개이므로 이 모듈은 재현이 아니라 '같은 아이디어의 오픈 구현'이다 (Upside=Most Accurate Estimate 는 데이터가 없어 제외).
-    // 의존: 메인 스크립트의 getProxyUrl, fetchJsonWithTimeout, escapeHtml, showToast, appSetSymbol, switchAppTab, SCREENER_MASTER_DATA, TAB_HOOKS.
+    // 리비전 랭크 탭 (Zacks 방식의 공개 아이디어): EPS 추정치 '변화'를 점수화해 1~5등급·12유형으로 나누고, 스크리너 결과와 묶어 '후보 판정 보드'를 만든다.
+    // 분석 로직(rvXxx)은 메인 스크립트의 공용 블록에 있다 — 스크리너 열·필터와 같은 값을 쓴다. Zacks Rank 의 실제 공식·가중치는 비공개라 이 모듈은 '같은 아이디어의 오픈 구현'이다.
+    // 의존: 메인 스크립트의 getProxyUrl, fetchJsonWithTimeout, escapeHtml, showToast, appSetSymbol, switchAppTab, starToggle, enqueueScreener,
+    //       screenerRevTargets, runScreenerFilter, SCREENER_MASTER_DATA, TAB_HOOKS, rv* 공용 로직.
     (function () {
-      const LS_KEY = 'pentanalyst_rev_v1', TTL = 6 * 3600 * 1000, MAX_N = 120;
-      const ST = { raw: {}, rows: [], inds: [], syms: new Set(), running: false, universe: 'watch', onlyTop: false, sortBy: 'score', done: 0, total: 0, fail: 0 };
-      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-      const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
-      const RANK_STYLE = { 1: 'bg-emerald-900/70 text-emerald-200 border-emerald-600', 2: 'bg-lime-900/60 text-lime-200 border-lime-700', 3: 'bg-slate-800 text-slate-300 border-slate-600', 4: 'bg-orange-900/60 text-orange-200 border-orange-700', 5: 'bg-rose-900/70 text-rose-200 border-rose-600' };
-      const RANK_LABEL = { 1: '강한 상향', 2: '상향', 3: '중립', 4: '하향', 5: '강한 하향' };
+      const LS_KEY = 'pentanalyst_rev_v1', SNAP_KEY = 'pentanalyst_rev_snap_v1', CFG_KEY = 'pentanalyst_rev_cfg_v1', TTL = 6 * 3600 * 1000, MAX_N = 400, SNAP_MAX = 30;
+      const ST = { raw: {}, rows: [], inds: [], syms: new Set(), running: false, universe: 'screener', rankF: 'all', typeF: 'all', verdictF: 'all', sortBy: 'score', done: 0, total: 0, fail: 0, snaps: null };
+      const TYPES = RV_TYPES, TONE = RV_TONE, TYPE_ORDER = RV_TYPE_ORDER, RANK_LABEL = RV_RANK_LABEL;
+      const RANK_STYLE = { 1: TONE.emerald, 2: TONE.lime, 3: TONE.slate, 4: TONE.orange, 5: TONE.rose };
+      const mean = rvMean;
+      const GOOD_ORDER = ['now', 'wait', 'extended'];
 
       function loadCache() { try { const c = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); const now = Date.now(); Object.keys(c).forEach(k => { if (c[k] && now - c[k].t < TTL) ST.raw[k] = c[k]; }); } catch (e) { /* 캐시 없음 */ } }
       function saveCache() { try { localStorage.setItem(LS_KEY, JSON.stringify(ST.raw)); } catch (e) { /* 저장 불가 */ } }
+      function loadCfg() { try { const c = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); Object.keys(RV_CFG_DEFAULT).forEach(k => { if (Number.isFinite(c[k])) RV_CFG[k] = c[k]; }); } catch (e) { /* 기본값 */ } }
+      function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(RV_CFG)); } catch (e) { /* 저장 불가 */ } }
 
-      // 한 종목의 세 요인. 값이 없으면 null.
-      function factors(r) {
-        const ests = [r.fy0, r.fy1].filter(Boolean);
-        const ag = [], mg = [];
-        ests.forEach(e => {
-          const n = (e.up30 || 0) + (e.down30 || 0);
-          if (n > 0) ag.push(((e.up30 || 0) - (e.down30 || 0)) / n);
-          const ch = base => (Number.isFinite(e.cur) && Number.isFinite(base) && base !== 0) ? clamp((e.cur - base) / Math.abs(base), -0.5, 0.5) : null;
-          const parts = [ch(e.d30), ch(e.d60)].filter(v => v !== null);
-          if (parts.length) mg.push(mean(parts));
+      const entryMap = () => new Map((typeof SCREENER_MASTER_DATA !== 'undefined' ? SCREENER_MASTER_DATA : []).map(e => [e.ticker, e]));
+      function applyEntry(sym, em) {
+        const c = ST.raw[sym]; if (!c) return;
+        const e = (em || entryMap()).get(sym); if (e) { rvApplyToEntry(e, c.d); e.revFail = false; }
+      }
+      function applyAllCached() { const em = entryMap(); Object.keys(ST.raw).forEach(s => applyEntry(s, em)); }
+
+      // 프록시 호출은 한 줄로 세운다 (스크리너 자동 조회와 이 탭의 「후보 찾기」가 겹쳐도 같은 종목을 두 번 받지 않도록)
+      let chain = Promise.resolve();
+      function fetchSyms(syms, prog) {
+        const job = async () => {
+          const proxy = getProxyUrl(); if (!proxy) return { done: 0, fail: 0, total: 0 };
+          const em = entryMap(), todo = [...new Set(syms)].filter(s => !ST.raw[s]);
+          let idx = 0, done = 0, fail = 0;
+          const worker = async () => {
+            while (idx < todo.length) {
+              const s = todo[idx++];
+              try { const d = await fetchJsonWithTimeout(`${proxy}/api/revisions?symbol=${encodeURIComponent(s)}`, 15000); ST.raw[s] = { t: Date.now(), d }; applyEntry(s, em); }
+              catch (e) { fail++; const en = em.get(s); if (en) en.revFail = true; }
+              done++; if (prog) prog(done, todo.length, fail);
+            }
+          };
+          await Promise.all([worker(), worker(), worker(), worker()]);
+          if (todo.length) saveCache();
+          return { done, fail, total: todo.length };
+        };
+        const p = chain.then(job, job); chain = p.catch(() => { /* 다음 작업은 계속 */ }); return p;
+      }
+
+      // ----- 스냅샷 (주간 비교·성과 검증용) -----
+      const dayKey = (t = Date.now()) => { const d = new Date(t), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+      function snaps() { if (ST.snaps) return ST.snaps; try { ST.snaps = JSON.parse(localStorage.getItem(SNAP_KEY) || '[]'); } catch (e) { ST.snaps = []; } if (!Array.isArray(ST.snaps)) ST.snaps = []; return ST.snaps; }
+      function persistSnaps() {
+        for (let i = 0; i < 4; i++) { try { localStorage.setItem(SNAP_KEY, JSON.stringify(ST.snaps)); return true; } catch (e) { if (ST.snaps.length > 2) ST.snaps.shift(); } }
+        return false;
+      }
+      // r: { sym: [등급, 유형 index, 점수, 가격|null] } — 같은 날은 덮어쓴다. 바뀐 게 있을 때만 저장.
+      function saveSnap(rows) {
+        if (!rows.length) return;
+        const list = snaps(), today = dayKey();
+        let s = list.find(x => x.d === today), changed = false;
+        if (!s) { s = { d: today, t: Date.now(), r: {} }; list.push(s); changed = true; }
+        rows.forEach(r => {
+          const p = r.en && r.en.loaded && Number.isFinite(r.en.price) ? Math.round(r.en.price * 100) / 100 : (s.r[r.sym] ? s.r[r.sym][3] : null);
+          const v = [r.rank, TYPE_ORDER.indexOf(r.type), Math.round(r.score), p], o = s.r[r.sym];
+          if (!o || o[0] !== v[0] || o[1] !== v[1] || o[2] !== v[2] || o[3] !== v[3]) { s.r[r.sym] = v; changed = true; }
         });
-        const sp = (r.surprises || []).filter(Number.isFinite).map(v => clamp(v, -50, 50));
-        return { agree: mean(ag), mag: mean(mg), surp: mean(sp) };
+        while (list.length > SNAP_MAX) list.shift();
+        if (changed) persistSnaps();
       }
-      // 절대 점수 0~100: 요인마다 0~1 로 환산한 뒤, 값이 있는 요인끼리 가중 평균 (가중치는 이 앱의 임의 설정 — 공개된 Zacks 가중치는 없음)
-      function composite(f) {
-        const parts = [];
-        if (f.agree !== null) parts.push([0.40, (f.agree + 1) / 2]);
-        if (f.mag !== null) parts.push([0.35, clamp(0.5 + f.mag / 0.12, 0, 1)]);
-        if (f.surp !== null) parts.push([0.25, clamp(0.5 + f.surp / 20, 0, 1)]);
-        if (parts.length < 2) return null;
-        const w = parts.reduce((s, p) => s + p[0], 0);
-        return 100 * parts.reduce((s, p) => s + p[0] * p[1], 0) / w;
+      const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+      function prevSnap() { const today = dayKey(); const c = snaps().filter(s => daysBetween(s.d, today) >= 5); return c.length ? c[c.length - 1] : null; }
+
+      function universeSyms() {
+        if (ST.universe === 'watch') { try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); return Object.keys((w && w.items) || {}).slice(0, MAX_N); } catch (e) { return []; } }
+        return (typeof screenerRevTargets === 'function' ? screenerRevTargets() : []).map(e => e.ticker).slice(0, MAX_N);
       }
+
       function buildRows() {
+        const em = entryMap(), prev = prevSnap();
         const rows = Object.values(ST.raw).filter(x => x.d && ST.syms.has(x.d.symbol)).map(x => {
-          const f = factors(x.d);
-          return { sym: x.d.symbol, name: x.d.name || '', industry: x.d.industry || '', f, score: composite(f) };
-        }).filter(r => r.score !== null);
-        const n = rows.length, sorted = [...rows].sort((a, b) => a.score - b.score);
-        sorted.forEach((r, i) => {
-          if (n >= 20) { const p = i / (n - 1); r.rank = p >= 0.95 ? 1 : p >= 0.80 ? 2 : p >= 0.20 ? 3 : p >= 0.05 ? 4 : 5; }
-          else r.rank = r.score >= 75 ? 1 : r.score >= 62 ? 2 : r.score >= 38 ? 3 : r.score >= 25 ? 4 : 5;
-        });
+          const d = x.d, a = rvAnalyze(d); if (!a) return null;
+          const en = em.get(d.symbol) || null, pv = prev && prev.r[d.symbol];
+          return { sym: d.symbol, name: d.name || '', industry: d.industry || '', f: a.f, score: a.score, rank: a.rank, m: a.m, type: a.type, tags: a.tags, en,
+            timing: en ? rvTimingOf(en) : null, verdict: en ? rvVerdictOf(en) : null, good: a.rank <= 2 && !!TYPES[a.type].good && !a.tags.some(t => t.id === 'thin'),
+            prev: pv ? { rank: pv[0], type: TYPE_ORDER[pv[1]], score: pv[2], day: prev.d } : null };
+        }).filter(Boolean);
         // 업종 순위: 업종 평균 점수 (2종목 이상인 업종만)
         const g = {};
         rows.forEach(r => { if (r.industry) (g[r.industry] = g[r.industry] || []).push(r); });
-        const inds = Object.entries(g).filter(([, a]) => a.length >= 2).map(([k, a]) => ({ name: k, n: a.length, avg: mean(a.map(r => r.score)) })).sort((a, b) => b.avg - a.avg);
+        const inds = Object.entries(g).filter(([, a]) => a.length >= 2).map(([k, a]) => ({ name: k, n: a.length, avg: mean(a.map(r => r.score)), up: a.filter(r => r.rank <= 2).length })).sort((a, b) => b.avg - a.avg);
         const half = Math.ceil(inds.length / 2), map = {};
         inds.forEach((x, i) => { x.rank = i + 1; x.top = x.rank <= half; map[x.name] = x; });
         rows.forEach(r => { r.ind = map[r.industry] || null; });
         ST.rows = rows; ST.inds = inds;
       }
 
-      function universeSyms() {
-        if (ST.universe === 'watch') { try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); return Object.keys((w && w.items) || {}).slice(0, MAX_N); } catch (e) { return []; } }
-        return (typeof SCREENER_MASTER_DATA !== 'undefined' ? SCREENER_MASTER_DATA : []).filter(x => x && !x.missing && /^[A-Z.\-]{1,6}$/.test(x.ticker)).map(x => x.ticker).slice(0, MAX_N);
-      }
-
       async function run() {
         if (ST.running) return;
-        const proxy = getProxyUrl();
-        if (!proxy) { showToast('프록시 필요', '추정치 데이터는 자체 프록시(Worker)로만 조회됩니다. 설정에서 프록시 주소를 확인하세요.', 'error'); return; }
+        if (!getProxyUrl()) { showToast('프록시 필요', '추정치 데이터는 자체 프록시(Worker)로만 조회됩니다. 설정에서 프록시 주소를 확인하세요.', 'error'); return; }
         const syms = universeSyms();
-        if (!syms.length) { showToast('종목 없음', ST.universe === 'watch' ? '관심종목이 비어 있습니다.' : '스크리너 종목이 없습니다.', 'error'); return; }
-        const todo = syms.filter(s => !ST.raw[s]);
-        ST.syms = new Set(syms); ST.running = true; ST.fail = 0; ST.total = syms.length; ST.done = syms.length - todo.length; render();
-        let idx = 0;
-        const worker = async () => {
-          while (idx < todo.length) {
-            const s = todo[idx++];
-            try { const d = await fetchJsonWithTimeout(`${proxy}/api/revisions?symbol=${encodeURIComponent(s)}`, 15000); ST.raw[s] = { t: Date.now(), d }; }
-            catch (e) { ST.fail++; }
-            ST.done++; if (ST.done % 5 === 0) render();
-          }
-        };
-        await Promise.all([worker(), worker(), worker(), worker()]);
-        saveCache(); ST.running = false; buildRows(); render();
+        if (!syms.length) { showToast('종목 없음', ST.universe === 'watch' ? '관심종목이 비어 있습니다.' : '스크리너 결과가 비어 있습니다. 스크리너에서 필터를 조정하세요.', 'error'); return; }
+        ST.syms = new Set(syms); ST.running = true; ST.fail = 0; ST.total = syms.filter(s => !ST.raw[s]).length; ST.done = 0; buildRows(); render();
+        const r = await fetchSyms(syms, (done, total, fail) => { ST.done = done; ST.total = total; ST.fail = fail; if (done % 5 === 0) render(); });
+        ST.fail = r.fail; ST.running = false; buildRows();
+        // 신호가 좋은 종목은 타이밍 판정에 필요한 시세·지표를 스크리너 쪽에서 채운다
+        const need = ST.rows.filter(x => x.good && x.en && !x.en.loaded).map(x => x.en);
+        if (need.length && typeof enqueueScreener === 'function') enqueueScreener(need, true);
+        saveSnap(ST.rows); buildRows(); render();
+        if (typeof runScreenerFilter === 'function') runScreenerFilter();
       }
 
       const pctTxt = v => v === null || v === undefined ? '–' : `${v > 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
+      const pctCls = v => v === null || v === undefined ? 'text-slate-500' : v > 0.005 ? 'text-emerald-300' : v < -0.005 ? 'text-rose-300' : 'text-slate-300';
+      const chip = (l, c, tip) => `<span ${tip ? `title="${escapeHtml(tip)}"` : ''} class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold whitespace-nowrap ${TONE[c]}">${escapeHtml(l)}</span>`;
+      const num = (v, d = 0, suf = '') => Number.isFinite(v) ? `${v.toFixed(d)}${suf}` : '–';
+      function spark(pts) {
+        const v = pts.filter(Number.isFinite); if (v.length < 2) return '<span class="text-slate-600">–</span>';
+        const lo = Math.min(...v), hi = Math.max(...v), W = 64, H = 18, flat = hi === lo;
+        const xy = pts.map((y, i) => Number.isFinite(y) ? `${(i / (pts.length - 1) * W).toFixed(1)},${(flat ? H / 2 : H - 2 - (y - lo) / (hi - lo) * (H - 4)).toFixed(1)}` : null).filter(Boolean);
+        const up = v[v.length - 1] > v[0], col = flat ? '#94a3b8' : up ? '#34d399' : '#fb7185', last = xy[xy.length - 1].split(',');
+        return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" class="inline-block align-middle"><polyline points="${xy.join(' ')}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${last[0]}" cy="${last[1]}" r="2" fill="${col}"/></svg>`;
+      }
+
+      const GUIDE = `
+        <div class="grid md:grid-cols-2 gap-3 text-[11px] leading-relaxed text-slate-300">
+          <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800"><div class="font-bold text-amber-300 mb-1">① 이 랭크가 말해주는 것</div>
+            월가 애널리스트들이 <b>"이 회사 이익 전망"을 최근에 올렸나, 내렸나</b>를 봅니다. 주가는 결국 이익 전망을 따라가는 경향이 있어서, 전망이 올라가는 종목은 1~3개월 안에 상대적으로 강한 경우가 많습니다(<b>단기 모멘텀 신호</b>). 싼지 비싼지(밸류에이션)나 기업의 질은 알려주지 않습니다.</div>
+          <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800"><div class="font-bold text-amber-300 mb-1">② 세 지표 읽는 법</div>
+            <b>Agreement</b>: 최근 30일 상향−하향 건수 비율(−100~+100). +100이면 전원 상향 → 의견이 한쪽으로 모였다는 뜻.<br><b>Magnitude</b>: 올해·내년 EPS 컨센서스가 30·60일 전보다 몇 % 바뀌었나. 클수록 '큰 뉴스'.<br><b>Surprise</b>: 최근 4분기 실적이 예상보다 얼마나 좋았나. 예상을 꾸준히 넘기는 회사는 추정치가 계속 따라 올라갑니다.</div>
+          <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800"><div class="font-bold text-amber-300 mb-1">③ 1~5등급은 이렇게 쓰세요</div>
+            <b class="text-emerald-300">1·2등급</b>: 매수 후보 '풀'을 줄이는 용도. 바로 사지 말고 아래 ④의 판정 보드로 걸러냅니다.<br><b class="text-slate-200">3등급</b>: 신호 없음. 대부분 종목이 여기에 속합니다(정상).<br><b class="text-rose-300">4·5등급</b>: 사지 않을 종목 목록. 보유 중이면 보유 이유를 다시 점검하는 경고등으로 씁니다. 등급은 절대 점수(75/62/38/25 기준)라 조회 종목이 달라도 같은 종목은 같은 등급입니다.</div>
+          <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800"><div class="font-bold text-amber-300 mb-1">④ 자동화된 활용 순서</div>
+            1) <b>스크리너</b>에서 품질·성장·가치 필터로 종목군을 만듭니다 (「리비전」 보기·필터 탭에서 등급·유형·판정도 걸 수 있습니다)<br>2) 이 탭에서 대상을 「스크리너 결과」로 두고 <b>「후보 찾기」</b> → 신호(1~2등급 + 상향 계열 + 표본 충분)를 걸러 <b>지금 검토 / 눌림 대기 / 이미 급등</b>으로 자동 분류<br>3) 「지금 검토」 종목을 클릭 → <b>5인 분석</b>에서 차트·밸류·리스크 확인 → 분할 매수<br>4) 「눌림 대기」는 가격이 20일선 근처로 내려올 때까지 관심종목에 담아 둠<br>5) 며칠 뒤 다시 열면 <b>지난 스냅샷 대비 변화</b>가 표시되고, 쌓인 스냅샷으로 <b>이 앱에서의 유형별 성과</b>를 확인할 수 있습니다</div>
+          <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800"><div class="font-bold text-amber-300 mb-1">⑤ 유형(세분화) 요약</div>
+            등급은 '얼마나'만 알려주고 '어떤 모양'은 모릅니다. 같은 1등급이라도 <b class="text-emerald-300">가속 상향</b>(지금 힘이 붙음)과 <b class="text-amber-300">상향 둔화</b>(끝물)는 전혀 다른 상황입니다. 유형 칩을 누르면 해석과 행동 요령이 나옵니다. 추세선은 90→60→30→7일 전→현재 올해 EPS 컨센서스입니다. 판정의 눌림·급등 기준값은 아래 「기준값 설정」에서 바꿀 수 있습니다.</div>
+          <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800"><div class="font-bold text-amber-300 mb-1">⑥ 이럴 땐 믿지 마세요</div>
+            • 상향·하향 합계가 3건 미만(<b>표본 적음</b>) — 애널리스트가 적어 우연일 수 있음 (판정에서 자동 제외)<br>• 실적 발표 직후 며칠 — 전망이 한꺼번에 바뀌어 과장됨<br>• 소형주·테마주 — 커버 애널리스트 자체가 적음<br>• 이미 급등한 종목 — 상향이 가격에 반영됨 (「이미 급등」으로 분류)<br>• 업종 전체가 오르는 중이면 개별 종목 신호가 아니라 업종 효과일 수 있음 → 업종 순위 확인<br>• 판정은 <b>검토할 후보를 좁히는 용도</b>이며 매수 신호·투자 권유가 아닙니다</div>
+        </div>`;
+
+      // 후보 판정 보드: 신호가 좋은 종목을 타이밍으로 나눈 4칸
+      function boardHtml() {
+        const em = ST.rows, good = em.filter(r => r.good);
+        const pending = good.filter(r => !r.en || r.verdict === null);
+        const by = k => good.filter(r => r.verdict === k).sort((a, b) => b.score - a.score);
+        const dropGood = good.filter(r => r.verdict === 'drop');
+        const weakSig = em.length - good.length;
+        const card = r => {
+          const e = r.en, m = r.m, tp = TYPES[r.type];
+          return `<div class="flex items-start justify-between gap-2 py-1.5 border-t border-slate-800/70 first:border-t-0">
+            <div class="min-w-0"><button type="button" onclick="revOpen('${escapeHtml(r.sym)}')" class="font-mono-numbers font-bold text-cyan-300 hover:underline">${escapeHtml(r.sym)}</button>
+              <span class="text-[10px] text-slate-500 ml-1 truncate">${escapeHtml(r.name)}</span>
+              <div class="mt-0.5 flex flex-wrap items-center gap-1">${chip(tp.label, tp.tone)}<span class="text-[10px] font-mono-numbers ${pctCls(m && m.c30)}">30일 ${pctTxt(m && m.c30)}</span>${r.tags.filter(t => t.c === 'emerald').slice(0, 2).map(t => chip(t.l, t.c)).join('')}</div>
+              ${e ? `<div class="text-[10px] text-slate-400 font-mono-numbers mt-0.5">20일선 ${num(e.sma20Pct, 1, '%')} · RSI ${num(e.rsi)} · 3개월 ${num(e.perf3m, 0, '%')}</div>` : ''}</div>
+            <button type="button" data-star="${escapeHtml(r.sym)}" onclick="event.stopPropagation(); starToggle(this.dataset.star)" aria-pressed="false" aria-label="관심종목에 추가" title="관심종목에 추가/제거" class="w-8 h-8 shrink-0 grid place-items-center rounded-lg border border-slate-700 bg-slate-900 hover:border-yellow-500/60"><i class="fa-regular fa-star text-sm text-slate-400"></i></button></div>`;
+        };
+        const col = k => { const v = RV_VERDICT[k], a = by(k); return `<div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800 min-w-0">
+          <div class="flex items-center justify-between mb-1"><span>${chip(v.label, v.tone)}</span><span class="text-[11px] font-mono-numbers text-slate-300">${a.length}</span></div>
+          <p class="text-[10px] text-slate-500 mb-1">${escapeHtml(v.short)}</p>
+          ${a.length ? a.slice(0, 12).map(card).join('') + (a.length > 12 ? `<div class="text-[10px] text-slate-500 pt-1">… 외 ${a.length - 12}종목 (아래 표에서 판정 필터)</div>` : '') : '<div class="text-[11px] text-slate-600 py-3 text-center">해당 종목 없음</div>'}</div>`; };
+        const noRows = !ST.rows.length;
+        return `<div class="mt-4"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h4 class="text-sm font-bold text-white"><i class="fa-solid fa-list-check text-lime-400 mr-1.5"></i>후보 판정 보드</h4>
+            <span class="text-[11px] text-slate-500">${noRows ? '「후보 찾기」를 누르면 만들어집니다' : `조회 ${em.length}종목 중 신호 좋음 ${good.length} (1~2등급·상향 계열·표본 충분) · 신호 약함 ${weakSig}`}</span></div>
+          ${noRows ? '' : `<div class="grid md:grid-cols-3 gap-3">${GOOD_ORDER.map(col).join('')}</div>
+          <div class="mt-2 text-[11px] text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-1">
+            ${dropGood.length ? `<span>신호는 좋지만 추세 약함(200일선 아래·역배열) <b class="text-slate-200">${dropGood.length}</b>: ${dropGood.slice(0, 8).map(r => `<button type="button" onclick="revOpen('${escapeHtml(r.sym)}')" class="font-mono-numbers text-slate-300 hover:underline">${escapeHtml(r.sym)}</button>`).join(' ')}</span>` : ''}
+            ${pending.length ? `<span class="text-amber-300">시세 지표 대기 ${pending.length}종목 — ${pending.some(r => !r.en) ? '스크리너에 없는 종목은 판정 불가' : '불러오는 중이거나 아직 안 불러온 종목입니다'} ${pending.some(r => r.en) ? '<button type="button" onclick="revLoadQuotes()" class="ml-1 px-2 py-0.5 rounded border border-amber-700 text-amber-200 hover:bg-amber-900/40">시세 불러오기</button>' : ''}</span>` : ''}</div>`}</div>`;
+      }
+
+      // 지난 스냅샷 대비 변화
+      function changeHtml() {
+        const prev = prevSnap(), n = snaps().length;
+        let inner;
+        if (!prev) inner = `<p class="text-[11px] text-slate-500">저장된 스냅샷 ${n}개 (매 계산 때 오늘 날짜로 자동 저장). 5일 이상 지난 스냅샷이 생기면 변화가 여기에 표시됩니다.</p>`;
+        else {
+          const withPrev = ST.rows.filter(r => r.prev), gt = r => !!TYPES[r.type].good && r.rank <= 2, gp = r => !!TYPES[r.prev.type].good && r.prev.rank <= 2;
+          const up = withPrev.filter(r => (gt(r) && !gp(r)) || r.rank < r.prev.rank).sort((a, b) => (b.prev.rank - b.rank) - (a.prev.rank - a.rank) || b.score - a.score);
+          const dn = withPrev.filter(r => (gp(r) && !gt(r)) || r.rank > r.prev.rank).sort((a, b) => (b.rank - b.prev.rank) - (a.rank - a.prev.rank) || a.score - b.score);
+          const line = r => `<div class="flex items-center justify-between gap-2 py-1 border-t border-slate-800/70 first:border-t-0"><button type="button" onclick="revOpen('${escapeHtml(r.sym)}')" class="font-mono-numbers font-bold text-cyan-300 hover:underline">${escapeHtml(r.sym)}</button>
+            <span class="text-[10px] text-slate-400 text-right">${r.prev.rank}등급 · ${escapeHtml(TYPES[r.prev.type].label)} <span class="text-slate-500">→</span> <b class="text-slate-200">${r.rank}등급 · ${escapeHtml(TYPES[r.type].label)}</b></span></div>`;
+          inner = `<p class="text-[11px] text-slate-400 mb-2">비교 기준: ${prev.d} (${daysBetween(prev.d, dayKey())}일 전) · 비교 가능 ${withPrev.length}종목</p>
+            <div class="grid md:grid-cols-2 gap-3"><div class="p-3 rounded-xl bg-slate-950/70 border border-emerald-900/50"><div class="text-xs font-bold text-emerald-300 mb-1">좋아짐 ${up.length}</div>${up.slice(0, 10).map(line).join('') || '<div class="text-[11px] text-slate-600">없음</div>'}</div>
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-rose-900/50"><div class="text-xs font-bold text-rose-300 mb-1">나빠짐 ${dn.length}</div>${dn.slice(0, 10).map(line).join('') || '<div class="text-[11px] text-slate-600">없음</div>'}</div></div>`;
+        }
+        return `<details class="mt-4" ${prev ? 'open' : ''}><summary class="cursor-pointer text-xs font-bold text-amber-300 select-none"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i>지난 스냅샷 대비 변화</summary><div class="mt-2">${inner}</div></details>`;
+      }
+
+      // 이 앱에서의 성과 검증: 과거 스냅샷 시점 가격 → 지금 가격
+      function validationHtml() {
+        const today = dayKey(), em = entryMap(), obs = [];
+        snaps().forEach(s => {
+          const age = daysBetween(s.d, today); if (age < 7) return;
+          Object.keys(s.r).forEach(sym => {
+            const v = s.r[sym], e = em.get(sym), p0 = v[3];
+            if (!e || !e.loaded || !Number.isFinite(e.price) || !Number.isFinite(p0) || p0 <= 0) return;
+            obs.push({ type: TYPE_ORDER[v[1]], rank: v[0], ret: e.price / p0 - 1, age });
+          });
+        });
+        let inner;
+        if (!obs.length) inner = '<p class="text-[11px] text-slate-500">아직 검증할 데이터가 없습니다. 스냅샷(가격 포함)이 7일 이상 쌓이고, 스크리너에서 현재 시세가 불러와져 있어야 합니다. 시간이 지나면 「유형별로 이후 수익률이 어땠는지」를 이 앱의 데이터로 직접 볼 수 있어 기준값(가중치·유형 조건)을 조정하는 근거가 됩니다.</p>';
+        else {
+          const base = mean(obs.map(o => o.ret)), row = (label, a) => {
+            if (!a.length) return '';
+            const avg = mean(a.map(o => o.ret)), win = a.filter(o => o.ret > 0).length / a.length, ex = avg - base, thin = a.length < 10;
+            return `<tr class="border-t border-slate-800/70 ${thin ? 'text-slate-500' : ''}"><td class="py-1 px-2">${label}</td><td class="py-1 px-2 text-right font-mono-numbers">${a.length}${thin ? ' *' : ''}</td><td class="py-1 px-2 text-right font-mono-numbers ${pctCls(avg)}">${pctTxt(avg)}</td><td class="py-1 px-2 text-right font-mono-numbers">${(win * 100).toFixed(0)}%</td><td class="py-1 px-2 text-right font-mono-numbers ${pctCls(ex)}">${pctTxt(ex)}</td><td class="py-1 px-2 text-right font-mono-numbers">${Math.round(mean(a.map(o => o.age)))}일</td></tr>`;
+          };
+          const goodObs = obs.filter(o => o.rank <= 2 && TYPES[o.type] && TYPES[o.type].good);
+          inner = `<div class="overflow-x-auto"><table class="w-full text-xs text-slate-200"><thead class="text-slate-400 text-[11px]"><tr><th class="py-1 px-2 text-left">구분 (스냅샷 시점 기준)</th><th class="py-1 px-2 text-right">관측</th><th class="py-1 px-2 text-right">평균 수익률</th><th class="py-1 px-2 text-right">승률</th><th class="py-1 px-2 text-right">전체 평균 대비</th><th class="py-1 px-2 text-right">평균 경과</th></tr></thead><tbody>
+            ${row('<b>전체 (기준선)</b>', obs)}${row('<b>1~2등급 + 상향 계열</b>', goodObs)}
+            ${[1, 2, 3, 4, 5].map(k => row(`${k}등급 · ${RANK_LABEL[k]}`, obs.filter(o => o.rank === k))).join('')}
+            ${TYPE_ORDER.map(k => row(chip(TYPES[k].label, TYPES[k].tone), obs.filter(o => o.type === k))).join('')}</tbody></table></div>
+            <p class="mt-2 text-[10px] text-slate-500 leading-relaxed">* 관측 10건 미만은 우연일 가능성이 커서 회색으로 표시합니다. 같은 종목이 여러 스냅샷에 나오면 중복 관측이라 서로 독립적이지 않습니다. 현재 시세는 이번 접속에서 스크리너가 불러온 값이며 배당·분할은 반영하지 않았습니다. 참고용 통계이지 수익을 보장하지 않습니다.</p>`;
+        }
+        return `<details class="mt-4"><summary class="cursor-pointer text-xs font-bold text-amber-300 select-none"><i class="fa-solid fa-flask mr-1.5"></i>이 앱에서의 성과 검증 (스냅샷 ${snaps().length}개)</summary><div class="mt-2">${inner}</div></details>`;
+      }
+
+      function settingsHtml() {
+        const rows = Object.keys(RV_CFG_LABEL).map(k => `<label class="flex items-center justify-between gap-2 text-[11px] text-slate-300"><span>${escapeHtml(RV_CFG_LABEL[k][0])}</span><input type="number" step="1" value="${RV_CFG[k]}" onchange="revCfg('${k}', this.value)" class="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-white text-right font-mono-numbers"></label>`).join('');
+        return `<details class="mt-4"><summary class="cursor-pointer text-xs font-bold text-amber-300 select-none"><i class="fa-solid fa-sliders mr-1.5"></i>기준값 설정 (눌림·급등 판정)</summary>
+          <div class="mt-2 p-3 rounded-xl bg-slate-950/70 border border-slate-800"><div class="grid sm:grid-cols-2 gap-x-6 gap-y-2">${rows}</div>
+          <p class="mt-2 text-[10px] text-slate-500">판정 순서: 200일선 아래·역배열 → 추세 약함 / 급등 기준 중 하나라도 초과 → 이미 급등 / 20일선 대비·RSI가 눌림 범위 → 눌림 후보 / 나머지 → 눌림 대기. 기본값은 임의 설정입니다.</p>
+          <button type="button" onclick="revCfgReset()" class="mt-2 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200">기본값으로</button></div></details>`;
+      }
+
       function render() {
         const root = document.getElementById('revRoot'); if (!root) return;
-        let rows = ST.rows.slice();
-        if (ST.onlyTop) rows = rows.filter(r => r.rank <= 2);
-        const key = { score: r => r.score, agree: r => r.f.agree, mag: r => r.f.mag, surp: r => r.f.surp }[ST.sortBy] || (r => r.score);
+        const all = ST.rows.slice();
+        const key = { score: r => r.score, agree: r => r.f.agree, mag: r => r.f.mag, surp: r => r.f.surp, c7: r => r.m && r.m.c7, c30: r => r.m && r.m.c30 }[ST.sortBy] || (r => r.score);
+        let rows = all.filter(r => (ST.rankF === 'up' ? r.rank <= 2 : ST.rankF === 'down' ? r.rank >= 4 : ST.rankF === 'all' ? true : r.rank === ST.rankF) && (ST.typeF === 'all' || r.type === ST.typeF) && (ST.verdictF === 'all' || r.verdict === ST.verdictF));
         rows.sort((a, b) => (key(b) ?? -9e9) - (key(a) ?? -9e9));
         const btn = (id, label) => `<button type="button" onclick="revSetUniverse('${id}')" class="px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition ${ST.universe === id ? 'bg-amber-900/60 border-amber-600 text-amber-200' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}">${label}</button>`;
-        const th = (k, label) => `<th onclick="revSort('${k}')" class="py-2 px-2 text-right cursor-pointer hover:text-amber-300 ${ST.sortBy === k ? 'text-amber-300' : ''}">${label}${ST.sortBy === k ? ' ▼' : ''}</th>`;
-        const body = rows.map(r => `<tr class="border-t border-slate-800/70 hover:bg-slate-800/40">
-            <td class="py-1.5 px-2"><span class="inline-block text-center px-1.5 py-0.5 rounded border text-[11px] font-bold whitespace-nowrap ${RANK_STYLE[r.rank]}">${r.rank} · ${RANK_LABEL[r.rank]}</span></td>
-            <td class="py-1.5 px-2"><button type="button" onclick="revOpen('${escapeHtml(r.sym)}')" class="font-mono-numbers font-bold text-cyan-300 hover:underline">${escapeHtml(r.sym)}</button><span class="ml-2 text-slate-400 text-[11px] hidden sm:inline">${escapeHtml(r.name)}</span></td>
-            <td class="py-1.5 px-2 text-[11px] text-slate-400 hidden md:table-cell">${escapeHtml(r.industry)}${r.ind ? ` <span class="${r.ind.top ? 'text-emerald-400' : 'text-rose-400'}">#${r.ind.rank}/${ST.inds.length}</span>` : ''}</td>
-            <td class="py-1.5 px-2 text-right font-mono-numbers">${r.f.agree === null ? '–' : (r.f.agree > 0 ? '+' : '') + Math.round(r.f.agree * 100)}</td>
-            <td class="py-1.5 px-2 text-right font-mono-numbers">${pctTxt(r.f.mag)}</td>
-            <td class="py-1.5 px-2 text-right font-mono-numbers">${r.f.surp === null ? '–' : (r.f.surp > 0 ? '+' : '') + r.f.surp.toFixed(1) + '%'}</td>
-            <td class="py-1.5 px-2 text-right font-mono-numbers font-bold text-white">${r.score.toFixed(0)}</td></tr>`).join('');
-        const indTxt = ST.inds.length ? `<div class="mt-3 text-[11px] text-slate-400"><span class="font-bold text-slate-300">업종 순위(조회한 종목 기준)</span> · 상위: ${ST.inds.slice(0, 3).map(x => `<span class="text-emerald-400">${escapeHtml(x.name)}</span>`).join(', ')} · 하위: ${ST.inds.slice(-3).reverse().map(x => `<span class="text-rose-400">${escapeHtml(x.name)}</span>`).join(', ')}</div>` : '';
-        const note = `${ST.rows.length}종목${ST.fail ? ` · 조회 실패 ${ST.fail}` : ''}${ST.rows.length < 20 ? ' · 20종목 미만이라 등급은 절대 점수 기준' : ' · 등급은 조회 종목 내 백분위 기준(상위 5/15/60/15/5%)'}`;
+        const th = (k, label, cls = '') => `<th onclick="revSort('${k}')" class="py-2 px-2 text-right cursor-pointer hover:text-amber-300 whitespace-nowrap ${cls} ${ST.sortBy === k ? 'text-amber-300' : ''}">${label}${ST.sortBy === k ? ' ▼' : ''}</th>`;
+        const body = rows.map(r => {
+          const m = r.m, tp = TYPES[r.type], tm = r.timing && RV_TIMING[r.timing], vd = r.verdict && RV_VERDICT[r.verdict];
+          const dlt = r.prev ? (r.rank < r.prev.rank ? `<span class="text-emerald-400" title="지난 ${r.prev.day}: ${r.prev.rank}등급 · ${escapeHtml(TYPES[r.prev.type].label)}">▲</span>` : r.rank > r.prev.rank ? `<span class="text-rose-400" title="지난 ${r.prev.day}: ${r.prev.rank}등급 · ${escapeHtml(TYPES[r.prev.type].label)}">▼</span>` : r.type !== r.prev.type ? `<span class="text-amber-300" title="지난 ${r.prev.day}: ${escapeHtml(TYPES[r.prev.type].label)}">●</span>` : '') : '';
+          return `<tr class="border-t border-slate-800/70 hover:bg-slate-800/40 align-middle">
+            <td class="py-1.5 px-2 whitespace-nowrap"><span class="inline-block text-center px-1.5 py-0.5 rounded border text-[11px] font-bold whitespace-nowrap ${RANK_STYLE[r.rank]}">${r.rank} · ${RANK_LABEL[r.rank]}</span> ${dlt}</td>
+            <td class="py-1.5 px-2"><button type="button" onclick="revOpen('${escapeHtml(r.sym)}')" class="font-mono-numbers font-bold text-cyan-300 hover:underline">${escapeHtml(r.sym)}</button><div class="text-slate-400 text-[10px] truncate max-w-[10rem]">${escapeHtml(r.name)}${r.ind ? ` · <span class="${r.ind.top ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(r.industry)} #${r.ind.rank}/${ST.inds.length}</span>` : ''}</div></td>
+            <td class="py-1.5 px-2"><div title="${escapeHtml(tp.short)}">${chip(tp.label, tp.tone)}</div>${r.tags.length ? `<div class="mt-1 flex flex-wrap gap-1">${r.tags.map(t => chip(t.l, t.c)).join('')}</div>` : ''}</td>
+            <td class="py-1.5 px-2 text-center hidden md:table-cell">${m ? spark(m.pts) : '–'}</td>
+            <td class="py-1.5 px-2 text-right font-mono-numbers ${pctCls(m && m.c7)}">${pctTxt(m && m.c7)}</td>
+            <td class="py-1.5 px-2 text-right font-mono-numbers ${pctCls(m && m.c30)}">${pctTxt(m && m.c30)}</td>
+            <td class="py-1.5 px-2 text-right font-mono-numbers hidden sm:table-cell"><span class="text-emerald-300">${m ? m.up30 : '–'}</span><span class="text-slate-600">/</span><span class="text-rose-300">${m ? m.down30 : '–'}</span></td>
+            <td class="py-1.5 px-2 text-center hidden lg:table-cell">${tm ? chip(tm.label, tm.tone, tm.short) : '<span class="text-slate-600">–</span>'}</td>
+            <td class="py-1.5 px-2 text-center hidden lg:table-cell">${vd ? chip(vd.label, vd.tone, vd.short) : '<span class="text-slate-600">–</span>'}</td>
+            <td class="py-1.5 px-2 text-right font-mono-numbers font-bold text-white">${r.score.toFixed(0)}</td></tr>`;
+        }).join('');
+        const rc = [1, 2, 3, 4, 5].map(k => all.filter(r => r.rank === k).length), rmax = Math.max(1, ...rc);
+        const dist = `<div class="flex items-end gap-2">${[1, 2, 3, 4, 5].map((k, i) => `<button type="button" onclick="revRankF(${k})" class="flex-1 min-w-0 text-center group"><div class="text-[10px] font-mono-numbers text-slate-300">${rc[i]}</div><div class="mx-auto w-full max-w-[44px] rounded-t ${['bg-emerald-500', 'bg-lime-500', 'bg-slate-500', 'bg-orange-500', 'bg-rose-500'][i]} ${ST.rankF === k ? 'ring-2 ring-white' : 'opacity-80 group-hover:opacity-100'}" style="height:${Math.max(3, rc[i] / rmax * 44)}px"></div><div class="text-[10px] text-slate-500 mt-0.5 truncate">${RANK_LABEL[k]}</div></button>`).join('')}</div>`;
+        const tc = {}; all.forEach(r => { tc[r.type] = (tc[r.type] || 0) + 1; });
+        const typeChips = `<button type="button" onclick="revTypeF('all')" class="px-2 py-1 rounded-lg border text-[11px] ${ST.typeF === 'all' ? 'bg-slate-700 border-slate-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}">전체 ${all.length}</button>` +
+          TYPE_ORDER.filter(k => tc[k]).map(k => `<button type="button" onclick="revTypeF('${k}')" title="${escapeHtml(TYPES[k].short)}" class="px-2 py-1 rounded-lg border text-[11px] font-semibold ${TONE[TYPES[k].tone]} ${ST.typeF === k ? 'ring-2 ring-white' : 'opacity-80 hover:opacity-100'}">${TYPES[k].label} ${tc[k]}</button>`).join('');
+        const indList = a => a.map(x => `<div class="flex justify-between gap-2"><span class="${x.top ? 'text-emerald-400' : 'text-rose-400'} truncate">${escapeHtml(x.name)}</span><span class="font-mono-numbers text-slate-300 shrink-0">${x.avg.toFixed(0)} · ${x.up}/${x.n}</span></div>`).join('');
+        const indBox = ST.inds.length ? `<div class="text-[11px] text-slate-400"><div class="font-bold text-slate-300 mb-1">업종 순위 <span class="font-normal text-slate-500">(조회 종목 기준 · 평균점수 · 1~2등급 수/종목 수)</span></div>
+          <div class="grid grid-cols-2 gap-x-3"><div>${indList(ST.inds.slice(0, 5))}</div><div>${indList(ST.inds.slice(-5).reverse())}</div></div></div>` : '';
+        const note = `${ST.rows.length}종목${ST.fail ? ` · 조회 실패 ${ST.fail}` : ''} · 등급은 절대 점수 기준(75/62/38/25)`;
+        const fbtn = (cur, setter, v, l) => `<button type="button" onclick="${setter}('${v}')" class="px-2 py-1 rounded-lg border text-[11px] ${cur === v ? 'bg-slate-700 border-slate-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}">${l}</button>`;
+        const active = ST.typeF !== 'all' ? TYPES[ST.typeF] : null;
         const table = (ST.rows.length || ST.running)
-          ? `<div class="mt-3 text-[11px] text-slate-400 flex flex-wrap items-center gap-3"><label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" ${ST.onlyTop ? 'checked' : ''} onchange="revToggleTop(this.checked)"> 1~2등급만</label><span>${note}</span></div>
-          <div class="mt-2 overflow-x-auto"><table class="w-full text-xs text-slate-200"><thead class="text-slate-400 text-[11px]"><tr><th class="py-2 px-2 text-left">등급</th><th class="py-2 px-2 text-left">종목</th><th class="py-2 px-2 text-left hidden md:table-cell">업종</th>${th('agree', 'Agreement')}${th('mag', 'Magnitude')}${th('surp', 'Surprise')}${th('score', '점수')}</tr></thead><tbody>${body || '<tr><td colspan="7" class="py-6 text-center text-slate-500">계산 중…</td></tr>'}</tbody></table></div>${indTxt}`
-          : '<p class="mt-3 text-[11px] text-slate-500">대상을 고르고 「랭크 계산」을 누르세요. 종목당 프록시 호출 1회(6시간 캐시)라 최대 120종목까지 조회합니다.</p>';
+          ? `<div class="mt-4 grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-4 p-3 rounded-xl bg-slate-950/60 border border-slate-800">${dist}${indBox}</div>
+          <h4 class="mt-5 text-sm font-bold text-white"><i class="fa-solid fa-table-list text-amber-400 mr-1.5"></i>전체 목록</h4>
+          <div class="mt-2 flex flex-wrap gap-1.5">${typeChips}</div>
+          ${active ? `<div class="mt-2 text-[11px] text-slate-300 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2"><b>${active.label}</b> — ${escapeHtml(active.short)}. ${escapeHtml(active.act)}</div>` : ''}
+          <div class="mt-3 text-[11px] text-slate-400 flex flex-wrap items-center gap-2">${fbtn(ST.rankF, 'revRankF', 'all', '전 등급')}${fbtn(ST.rankF, 'revRankF', 'up', '1~2등급')}${fbtn(ST.rankF, 'revRankF', 'down', '4~5등급')}<span class="mx-1 text-slate-600">|</span>${fbtn(ST.verdictF, 'revVerdictF', 'all', '판정 전체')}${GOOD_ORDER.map(k => fbtn(ST.verdictF, 'revVerdictF', k, RV_VERDICT[k].label)).join('')}<span class="ml-1">${rows.length}종목 표시 · ${note}</span></div>
+          <div class="mt-2 overflow-x-auto"><table class="w-full text-xs text-slate-200"><thead class="text-slate-400 text-[11px]"><tr><th class="py-2 px-2 text-left">등급</th><th class="py-2 px-2 text-left">종목 · 업종순위</th><th class="py-2 px-2 text-left">유형 · 태그</th><th class="py-2 px-2 text-center hidden md:table-cell" title="90→60→30→7일 전→현재 올해 EPS 추정치">추세</th>${th('c7', '7일')}${th('c30', '30일')}<th class="py-2 px-2 text-right hidden sm:table-cell" title="최근 30일 상향/하향 건수">상/하향</th><th class="py-2 px-2 text-center hidden lg:table-cell" title="스크리너 기술 지표 기준 진입 타이밍">타이밍</th><th class="py-2 px-2 text-center hidden lg:table-cell">판정</th>${th('score', '점수')}</tr></thead><tbody>${body || '<tr><td colspan="10" class="py-6 text-center text-slate-500">조건에 맞는 종목이 없습니다.</td></tr>'}</tbody></table></div>`
+          : '';
+        const guideOpen = ST.guideOpen === undefined ? !ST.rows.length : ST.guideOpen;
         root.innerHTML = `<section class="bg-[#131e32] border border-amber-900/50 rounded-2xl p-5 shadow-2xl">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 class="text-lg font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-arrow-trend-up text-amber-400"></i>리비전 랭크 <span class="text-[11px] font-normal text-slate-400">애널리스트 EPS 추정치 변화 · Zacks 방식 아이디어</span></h3>
-              <p class="text-[11px] text-slate-400 mt-1">추정치가 <b>얼마나 일관되게(Agreement), 얼마나 크게(Magnitude)</b> 바뀌는지와 최근 4분기 실적 서프라이즈(Surprise)로 점수를 매겨 1~5등급을 냅니다. 단기(약 1~3개월) 신호입니다.</p>
+              <p class="text-[11px] text-slate-400 mt-1">추정치가 <b>얼마나 일관되게(Agreement), 얼마나 크게(Magnitude)</b> 바뀌는지와 최근 4분기 실적 서프라이즈(Surprise)로 점수를 매겨 1~5등급·12유형으로 나누고, 스크리너의 기술 지표와 묶어 <b>검토할 후보</b>를 자동으로 가려냅니다. 단기(약 1~3개월) 신호입니다.</p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">${btn('watch', '관심종목')}${btn('screener', '스크리너 종목')}
-              <button type="button" onclick="revRun()" ${ST.running ? 'disabled' : ''} class="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs transition">${ST.running ? `조회 중 ${ST.done}/${ST.total}` : '랭크 계산'}</button>
+            <div class="flex flex-wrap items-center gap-2">${btn('screener', '스크리너 결과')}${btn('watch', '관심종목')}
+              <button type="button" onclick="revRun()" ${ST.running ? 'disabled' : ''} class="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs transition">${ST.running ? `조회 중 ${ST.done}/${ST.total}` : '후보 찾기'}</button>
             </div>
           </div>
+          <p class="mt-2 text-[11px] text-slate-500">${ST.universe === 'screener' ? `대상: 스크리너에 지금 걸려 있는 필터 결과 ${universeSyms().length}종목 (필터가 없으면 전체, 최대 ${MAX_N}). 스크리너에서 먼저 종목군을 좁히면 더 빠르고 정확합니다.` : '대상: 관심종목 (스크리너에 없는 종목은 타이밍 판정 불가)'} 종목당 프록시 호출 1회, 6시간 캐시.</p>
+          <details class="mt-4" ${guideOpen ? 'open' : ''} ontoggle="revGuide(this.open)"><summary class="cursor-pointer text-xs font-bold text-amber-300 select-none"><i class="fa-solid fa-book-open mr-1.5"></i>활용 가이드 (읽는 법 · 자동화된 순서 · 주의점)</summary><div class="mt-3">${GUIDE}</div></details>
+          ${boardHtml()}
+          ${changeHtml()}
           ${table}
-          <p class="mt-3 text-[10px] text-slate-500 leading-relaxed">Agreement = 최근 30일 상향−하향 / 전체(올해·내년 평균, −100~+100) · Magnitude = 올해·내년 EPS 컨센서스의 30·60일 변화율 · Surprise = 최근 4분기 평균 서프라이즈. 가중치(40/35/25)는 이 앱의 임의 설정이며 <b>Zacks Rank의 실제 공식·가중치는 비공개</b>라 재현이 아닙니다(Upside=Most Accurate Estimate는 제외). Zacks가 공개한 과거 수익률은 비용을 제외한 가상 포트폴리오 결과이며, 투자 권유가 아닙니다.</p>
+          ${validationHtml()}
+          ${settingsHtml()}
+          <p class="mt-4 text-[10px] text-slate-500 leading-relaxed">Agreement = 최근 30일 상향−하향 / 전체(올해·내년 평균, −100~+100) · Magnitude = 올해·내년 EPS 컨센서스의 30·60일 변화율 · Surprise = 최근 4분기 평균 서프라이즈. 7일·30일 열은 올해(없으면 내년) EPS 컨센서스의 변화율, 유형은 7·30·60·90일 변화의 모양으로 분류합니다. 가중치(40/35/25)·유형 조건·타이밍 기준은 이 앱의 임의 설정이며 공개된 Zacks 공식이 아닙니다. 투자 권유가 아닌 참고용입니다.</p>
         </section>`;
       }
 
       // ----- 5인 분석 탭의 단일 종목 카드 (절대 기준 등급) -----
       let cardSeq = 0;
-      const absRank = sc => sc >= 75 ? 1 : sc >= 62 ? 2 : sc >= 38 ? 3 : sc >= 25 ? 4 : 5;
       async function cardRender(sym) {
         const el = document.getElementById('revCard'); if (!el || !sym) return;
         const proxy = getProxyUrl(); if (!proxy) { el.innerHTML = ''; return; }
@@ -20491,36 +20900,55 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         let c = ST.raw[sym];
         if (!c) {
           el.innerHTML = '<div class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-[11px] text-slate-500">추정치 리비전 조회 중…</div>';
-          try { const d = await fetchJsonWithTimeout(`${proxy}/api/revisions?symbol=${encodeURIComponent(sym)}`, 15000); c = { t: Date.now(), d }; ST.raw[sym] = c; saveCache(); }
+          try { const d = await fetchJsonWithTimeout(`${proxy}/api/revisions?symbol=${encodeURIComponent(sym)}`, 15000); c = { t: Date.now(), d }; ST.raw[sym] = c; applyEntry(sym); saveCache(); }
           catch (e) { if (seq === cardSeq) el.innerHTML = ''; return; }
         }
         if (seq !== cardSeq) return;
-        const f = factors(c.d), score = composite(f);
-        if (score === null) { el.innerHTML = ''; return; }
-        const rk = absRank(score), e0 = c.d.fy0;
+        const a = rvAnalyze(c.d); if (!a) { el.innerHTML = ''; return; }
+        const f = a.f, rk = a.rank, e0 = c.d.fy0, tp = TYPES[a.type];
         el.innerHTML = `<div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
           <div class="flex items-center justify-between text-xs"><span class="text-slate-400"><i class="fa-solid fa-arrow-trend-up text-amber-400 mr-1"></i>EPS 추정치 리비전</span>
-            <span class="px-2 py-0.5 rounded border text-[11px] font-bold ${RANK_STYLE[rk]}">${rk} · ${RANK_LABEL[rk]}</span></div>
+            <span class="flex items-center gap-1.5">${chip(tp.label, tp.tone)}<span class="px-2 py-0.5 rounded border text-[11px] font-bold ${RANK_STYLE[rk]}">${rk} · ${RANK_LABEL[rk]}</span></span></div>
           <div class="grid grid-cols-3 gap-2 text-center text-[11px]">
             <div><div class="text-slate-500">Agreement</div><div class="font-mono-numbers text-slate-200">${f.agree === null ? '–' : (f.agree > 0 ? '+' : '') + Math.round(f.agree * 100)}</div></div>
             <div><div class="text-slate-500">Magnitude</div><div class="font-mono-numbers text-slate-200">${pctTxt(f.mag)}</div></div>
             <div><div class="text-slate-500">Surprise</div><div class="font-mono-numbers text-slate-200">${f.surp === null ? '–' : (f.surp > 0 ? '+' : '') + f.surp.toFixed(1) + '%'}</div></div>
           </div>
-          <div class="text-[10px] text-slate-500">${e0 ? `올해 EPS 추정 30일 상향 ${e0.up30 ?? 0}건 / 하향 ${e0.down30 ?? 0}건 · ` : ''}점수 ${score.toFixed(0)}/100 (절대 기준, 단기 신호 · 투자 권유 아님)</div></div>`;
+          <div class="text-[10px] text-slate-500">${e0 ? `올해 EPS 추정 30일 상향 ${e0.up30 ?? 0}건 / 하향 ${e0.down30 ?? 0}건 · ` : ''}점수 ${a.score.toFixed(0)}/100 (절대 기준, 단기 신호 · 투자 권유 아님)</div>
+          <div class="text-[10px] text-slate-400">${escapeHtml(tp.short)} — ${escapeHtml(tp.act)}</div></div>`;
       }
       const origRender = window.renderAnalysisResult;
       if (typeof origRender === 'function') {
         window.renderAnalysisResult = function (data) { const r = origRender.apply(this, arguments); try { cardRender(String(data && data.ticker || '').toUpperCase()); } catch (e) { console.error(e); } return r; };
       }
-      window.revSetUniverse = id => { ST.universe = id; render(); };
+
+      // ----- 외부(스크리너·HTML) 연결 -----
+      let refreshTimer = null;
+      function refresh() {
+        if (typeof activeAppTab === 'undefined' || activeAppTab !== 'revision') return;
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => { buildRows(); saveSnap(ST.rows); render(); }, 600);
+      }
+      window.revSetUniverse = id => { ST.universe = id; ST.syms = new Set(universeSyms()); buildRows(); render(); };
       window.revSort = k => { ST.sortBy = k; render(); };
-      window.revToggleTop = v => { ST.onlyTop = !!v; render(); };
+      window.revRankF = v => { const n = /^\d$/.test(String(v)) ? +v : v; ST.rankF = n === ST.rankF ? 'all' : n; render(); };
+      window.revTypeF = k => { ST.typeF = k === ST.typeF ? 'all' : k; render(); };
+      window.revVerdictF = k => { ST.verdictF = k === ST.verdictF ? 'all' : k; render(); };
+      window.revGuide = o => { ST.guideOpen = !!o; };
       window.revRun = run;
+      window.revCfg = (k, v) => { const n = Number(v); if (!(k in RV_CFG_DEFAULT) || !Number.isFinite(n)) return; RV_CFG[k] = n; saveCfg(); buildRows(); render(); if (typeof runScreenerFilter === 'function') runScreenerFilter(); };
+      window.revCfgReset = () => { Object.assign(RV_CFG, RV_CFG_DEFAULT); saveCfg(); buildRows(); render(); if (typeof runScreenerFilter === 'function') runScreenerFilter(); };
+      window.revLoadQuotes = () => { const need = ST.rows.filter(r => r.good && r.en && !r.en.loaded).map(r => r.en); if (need.length && typeof enqueueScreener === 'function') enqueueScreener(need, true); };
       window.revOpen = sym => { const m = document.getElementById('tickerInput'); if (m) m.value = sym; appSetSymbol(sym, 'analysis'); switchAppTab('analysis'); if (typeof executeAnalysis === 'function') executeAnalysis(sym); };
       window.revRankFor = sym => { const r = ST.rows.find(x => x.sym === sym); return r ? { rank: r.rank, score: r.score } : null; };
-      const prev = TAB_HOOKS.screener;
-      TAB_HOOKS.screener = () => { if (prev) prev(); if (!ST.rendered) { ST.rendered = true; loadCache(); render(); } };
-      window.REV_DEBUG = { factors, composite, cardRender, ST };
+      window.revFetchSyms = fetchSyms;
+      window.revRefresh = refresh;
+      window.revApplyAll = applyAllCached;
+      let inited = false;
+      function init() { if (inited) return; inited = true; loadCfg(); loadCache(); applyAllCached(); }
+      init();
+      TAB_HOOKS.revision = () => { init(); ST.syms = new Set(universeSyms()); buildRows(); render(); };
+      window.REV_DEBUG = { rvAnalyze, cardRender, buildRows, render, saveSnap, snaps, ST };
     })();
   </script>
 
