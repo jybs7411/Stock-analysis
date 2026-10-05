@@ -351,6 +351,9 @@
       <button type="button" role="tab" aria-selected="false" aria-controls="view-market" onclick="switchAppTab('market')" id="tabBtn-market" title="시장 · 매크로" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-extra">
         <i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장·매크로</span>
       </button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-calendar" onclick="switchAppTab('calendar')" id="tabBtn-calendar" title="금융 달력" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition tab-extra">
+        <i class="fa-solid fa-calendar-days text-rose-400"></i><span>금융 달력</span>
+      </button>
       <div class="relative tab-more-wrap">
         <button type="button" id="tabMoreBtn" aria-haspopup="true" aria-expanded="false" onclick="toggleMoreMenu(event)" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition"><i class="fa-solid fa-ellipsis text-slate-300"></i><span>더보기</span></button>
       </div>
@@ -1447,6 +1450,10 @@
     <div id="view-market" class="hidden space-y-6">
       <div id="marketRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
     </div>
+    <!-- TAB 6: 금융 달력 (module: calendar) -->
+    <div id="view-calendar" class="hidden space-y-6">
+      <div id="calRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
+    </div>
     <!-- TAB 6: 멀티 차트 2×2 (module: multi) -->
     <div id="view-multi" class="hidden space-y-4">
       <div id="multiRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
@@ -1617,13 +1624,14 @@
       prevday: { on: 'bg-violet-950 text-violet-300 border-violet-700/80 shadow-md shadow-violet-950/50' },
       fx: { on: 'bg-emerald-950 text-emerald-300 border-emerald-700/80 shadow-md shadow-emerald-950/50' },
       market: { on: 'bg-sky-950 text-sky-300 border-sky-700/80 shadow-md shadow-sky-950/50' },
+      calendar: { on: 'bg-rose-950 text-rose-300 border-rose-700/80 shadow-md shadow-rose-950/50' },
       multi: { on: 'bg-fuchsia-950 text-fuchsia-300 border-fuchsia-700/80 shadow-md shadow-fuchsia-950/50' }
     };
     const TAB_HOOKS = {};
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.8.0';
+    const APP_VERSION = '1.9.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -1658,9 +1666,9 @@
         if (mb) mb.classList.toggle('is-on', id === tab);
       });
       const mm = document.getElementById('mtabBtn-more');
-      if (mm) mm.classList.toggle('is-on', ['bdw', 'multi', 'fx', 'market'].includes(tab));
+      if (mm) mm.classList.toggle('is-on', ['bdw', 'multi', 'fx', 'market', 'calendar'].includes(tab));
       const moreB = document.getElementById('tabMoreBtn');
-      if (moreB) moreB.classList.toggle('text-white', ['fx', 'market'].includes(tab));
+      if (moreB) moreB.classList.toggle('text-white', ['fx', 'market', 'calendar'].includes(tab));
       closeMoreMenu();
       if (tab === 'analysis' && currentAnalysisData) {
         setTimeout(() => { chResize(true); renderMiniTrendPreview(); }, 50);
@@ -1678,7 +1686,8 @@
       { id: 'bdw', icon: 'fa-fire text-orange-400', label: '불단왕 매매법', phoneOnly: true },
       { id: 'multi', icon: 'fa-table-cells-large text-fuchsia-400', label: '멀티 차트', phoneOnly: true },
       { id: 'fx', icon: 'fa-money-bill-transfer text-emerald-400', label: '환율' },
-      { id: 'market', icon: 'fa-earth-americas text-sky-400', label: '시장 · 매크로' }
+      { id: 'market', icon: 'fa-earth-americas text-sky-400', label: '시장 · 매크로' },
+      { id: 'calendar', icon: 'fa-calendar-days text-rose-400', label: '금융 달력' }
     ];
     function closeMoreMenu() {
       const m = document.getElementById('tabMoreMenu'); if (m) m.classList.add('hidden');
@@ -17378,6 +17387,556 @@ ${digest}`;
       };
     })();
   </script>
+  <script id="mod-calendar">
+    // ===== 금융 달력 모듈 (탭 id: calendar, 루트 #calRoot, 전역 접두 cal) =====
+    // 시장에 영향을 주는 일정(연준·경제지표·실적·옵션 만기·휴장·선거)을 월간 달력 + 다가오는 일정 목록으로 보여주고,
+    // 이벤트마다 초보자용 '호재/악재 신호' 해설(내장)과 Gemini 검색 기반 AI 시나리오 분석을 제공한다.
+    // 일정 출처: FOMC = 연준 공식 일정 내장(CAL_FOMC) / 휴장·옵션만기 = 규칙 계산(정확) / 고용·CPI·PCE·GDP·실적 = 규칙 기반 '대략' 날짜(approx) → 'AI 일정 검색'(1회, 월별 저장)으로 정확한 날짜 확인.
+    // 의존: 메인 스크립트의 callGemini, extractJson, hasAnyGeminiKey, openApiSettingsModal, showToast, TAB_HOOKS.
+    (function () {
+      const LS_KEY = 'pentanalyst_cal_v1';
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const pad = n => String(n).padStart(2, '0');
+      const key = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;          // m: 0~11
+      const keyOf = dt => key(dt.getFullYear(), dt.getMonth(), dt.getDate());
+      const parseKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+      const WD = ['일', '월', '화', '수', '목', '금', '토'];
+      // 그 달의 n번째 wd요일(0=일) 날짜 / 마지막 wd요일 날짜
+      const nth = (y, m, wd, n) => 1 + ((wd - new Date(y, m, 1).getDay() + 7) % 7) + 7 * (n - 1);
+      const lastWd = (y, m, wd) => { const ld = new Date(y, m + 1, 0); return ld.getDate() - ((ld.getDay() - wd + 7) % 7); };
+
+      // FOMC 결정 발표일(회의 2일차). 공식 일정이며 변경될 수 있다. 목록에 없는 연도는 'AI 일정 검색'으로 확인.
+      const CAL_FOMC = {
+        2025: [[1, 29], [3, 19], [5, 7], [6, 18], [7, 30], [9, 17], [10, 29], [12, 10]],
+        2026: [[1, 28], [3, 18], [4, 29], [6, 17], [7, 29], [9, 16], [10, 28], [12, 9]]
+      };
+      const CATS = { rate: '금리·연준', data: '경제지표', earn: '기업 실적', mkt: '시장구조·휴장', pol: '정치·정책', ai: 'AI 검색 일정' };
+      const LV = { high: { n: 0, label: '중요도 높음', dot: 'bg-rose-500', chip: 'bg-rose-500/15 text-rose-200 border-rose-500/40', badge: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
+                   mid: { n: 1, label: '중요도 보통', dot: 'bg-amber-400', chip: 'bg-amber-500/10 text-amber-200 border-amber-500/30', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+                   low: { n: 2, label: '참고', dot: 'bg-slate-500', chip: 'bg-slate-700/40 text-slate-300 border-slate-600/50', badge: 'bg-slate-700/60 text-slate-300 border-slate-600' } };
+      const FOOT = '교육용 일반 설명이며 투자 권유가 아닙니다. 실제 시장 반응은 "예상과의 차이"와 당시 분위기에 따라 달라집니다.';
+
+      // 이벤트 유형 해설 (초보자용). short=목록 한 줄, chip=달력 칸 라벨
+      const TYPES = {
+        fomc: { icon: '🏦', label: '연준 금리 결정 (FOMC)', chip: 'FOMC', cat: 'rate', level: 'high', time: '미국 동부 14:00 발표 (한국 다음날 새벽 3~4시)',
+          short: '미국 기준금리 결정 — 시장 최대 이벤트',
+          what: '미국 중앙은행(연준)이 기준금리를 올릴지·내릴지·유지할지 정해 발표하는 날입니다. 30분 뒤 의장 기자회견도 열립니다.',
+          why: '금리는 "돈의 가격"입니다. 금리가 내려가면 기업이 돈을 빌려 투자하기 쉬워지고 주식(특히 성장주)에 유리하고, 올라가면 반대입니다.',
+          good: '시장 예상보다 금리를 더 내리거나, 기자회견에서 "앞으로 더 내릴 수 있다"는 뉘앙스(비둘기파적)를 보일 때',
+          bad: '금리를 올리거나 동결하면서 "높은 금리를 더 오래 유지", "물가가 걱정된다"는 뉘앙스(매파적)를 보일 때',
+          neutral: '예상과 똑같은 결정에 새로운 신호가 없으면 "불확실성 해소"로 오히려 오르는 경우도 많습니다.',
+          assets: '나스닥·성장주, 달러, 미국 국채금리, 금, 원/달러 환율',
+          tip: '결정 그 자체보다 "예상과 얼마나 달랐나"가 핵심입니다. 이미 가격에 반영된 내용은 잘 안 움직여요.' },
+        cpi: { icon: '🛒', label: '소비자물가지수 (CPI)', chip: 'CPI', cat: 'data', level: 'high', time: '미국 동부 08:30 발표 (한국 저녁 9:30~10:30)',
+          short: '물가가 얼마나 올랐나 — 금리 기대를 좌우',
+          what: '소비자가 사는 물건·서비스 가격이 1년 전보다 얼마나 올랐는지(물가상승률) 보여주는 지표입니다.',
+          why: '물가가 잘 안 잡히면 연준이 금리를 못 내리거나 올릴 수 있어 주식에 부담입니다. 반대로 물가가 안정되면 금리 인하 기대가 커집니다.',
+          good: '시장 예상보다 물가상승률이 낮게 나옴 (특히 식품·에너지를 뺀 "근원 CPI"가 낮을 때) → 금리 인하 기대 ↑',
+          bad: '예상보다 높게 나옴 → 금리 인하 기대 ↓, 국채금리·달러 ↑, 성장주 약세',
+          neutral: '예상과 비슷하면 큰 변동 없이 지나가는 경우가 많습니다.',
+          assets: '나스닥·성장주, 국채금리, 달러, 금, 부동산 관련주',
+          tip: '"전체 CPI"와 "근원 CPI" 두 숫자를 함께 봅니다. 시장은 보통 근원 CPI를 더 중시해요.' },
+        nfp: { icon: '👷', label: '고용보고서 (비농업 고용)', chip: '고용', cat: 'data', level: 'high', time: '미국 동부 08:30 발표 (한국 저녁 9:30~10:30)',
+          short: '일자리 몇 개 늘었나 — 경기 건강검진',
+          what: '지난달 미국에서 농업을 뺀 일자리가 몇 개 늘었는지, 실업률과 임금 상승률은 어땠는지 발표합니다. 보통 매월 첫째 금요일입니다.',
+          why: '경기의 건강검진표입니다. 고용이 너무 강하면 금리 인하가 늦어질 걱정이, 너무 약하면 경기침체 걱정이 생깁니다.',
+          good: '일자리가 "적당히" 늘고(예상 부근) 임금 상승도 과열이 아님 — 경기도 괜찮고 금리 인하도 가능한 이상적 상태',
+          bad: '일자리가 급감하고 실업률이 뛰는 경우(침체 공포), 또는 너무 강해서 금리 인하 기대가 사라지는 경우',
+          neutral: '호재·악재가 양쪽 극단에서 모두 나올 수 있어 초보자에게는 가장 헷갈리는 지표입니다.',
+          assets: '주식 전반, 국채금리, 달러, 금',
+          tip: '"좋은 소식이 오히려 악재(금리 인하 기대 감소)"가 되는 날도 있다는 것만 기억하세요.' },
+        pce: { icon: '💳', label: 'PCE 물가지수', chip: 'PCE', cat: 'data', level: 'mid', time: '미국 동부 08:30 발표 (한국 저녁 9:30~10:30)',
+          short: '연준이 가장 중시하는 물가 지표',
+          what: '미국 가계의 소비 지출 가격 변화를 재는 물가 지표로, 연준이 공식 목표(2%)를 판단할 때 쓰는 지표입니다.',
+          why: 'CPI와 비슷하지만 연준이 더 직접적으로 참고합니다. 보통 CPI 발표 때 이미 짐작되어 반응이 조금 작은 편입니다.',
+          good: '예상보다 낮거나 2% 목표에 가까워짐 → 금리 인하 기대 ↑',
+          bad: '예상보다 높고 물가가 다시 오르는 흐름 → 금리 인하 기대 ↓',
+          neutral: '예상 범위 안이면 영향이 작습니다.',
+          assets: '국채금리, 달러, 성장주',
+          tip: 'CPI에서 이미 힌트가 나와서 "확인 도장" 성격일 때가 많아요.' },
+        gdp: { icon: '📈', label: 'GDP 속보치', chip: 'GDP', cat: 'data', level: 'mid', time: '미국 동부 08:30 발표 (한국 저녁 9:30~10:30)',
+          short: '분기 경제 성장률 첫 발표',
+          what: '지난 분기 미국 경제가 연율로 몇 % 성장했는지 알려주는 첫 추정치(속보치)입니다.',
+          why: '경제 전체의 성적표입니다. 성장이 꺾이면 기업 이익 걱정이, 너무 뜨거우면 금리 인하가 늦어질 걱정이 생깁니다.',
+          good: '예상 부근 이상으로 안정적인 성장 (과열은 아닌 수준)',
+          bad: '마이너스 성장이나 급격한 둔화(침체 우려), 혹은 과열로 금리 인하 기대가 줄어드는 경우',
+          neutral: '속보치는 이후 수정되기 때문에 시장 반응이 생각보다 작을 수 있습니다.',
+          assets: '주식 전반, 달러, 국채금리',
+          tip: '2분기 연속 마이너스 성장을 흔히 "기술적 침체"라고 부릅니다.' },
+        opex: { icon: '🧩', label: '옵션 만기일', chip: '옵션만기', cat: 'mkt', level: 'low', time: '정규장 마감 시 만기',
+          short: '옵션 계약 만기 — 변동성 커질 수 있음',
+          what: '매월 셋째 금요일, 주식·지수 옵션 계약이 만료되는 날입니다.',
+          why: '만기 전후로 거래량이 늘고, 주가가 특정 가격대로 끌리는 현상(핀닝)이나 장 막판 출렁임이 생길 수 있습니다.',
+          good: '호재·악재라기보다 "변동성이 커질 수 있는 날"입니다.',
+          bad: '평소 같지 않은 급등락이 나와도 뉴스와 무관한 경우가 많습니다.',
+          neutral: '장기 투자자는 크게 신경 쓰지 않아도 됩니다.',
+          assets: '지수 ETF(SPY·QQQ), 옵션 거래량 많은 대형주',
+          tip: '단기 매매라면 이 날의 이유 모를 흔들림에 휘둘리지 않도록 주의하세요.' },
+        quad: { icon: '⚡', label: '네 마녀의 날 (동시 만기)', chip: '동시만기', cat: 'mkt', level: 'mid', time: '정규장 마감 시 만기',
+          short: '선물·옵션 동시 만기 — 장 막판 급등락 주의',
+          what: '3·6·9·12월 셋째 금요일. 지수 선물·지수 옵션·개별 주식 옵션이 한꺼번에 만기되는 날로, 주요 지수의 구성종목 조정(리밸런싱)도 겹칩니다.',
+          why: '거래량이 평소보다 크게 늘고 장 마감 직전 급등락이 나오기 쉽습니다.',
+          good: '호재·악재가 아니라 "변동성 이벤트"입니다.',
+          bad: '이유 없이 크게 흔들려도 뉴스 때문이 아닐 수 있습니다.',
+          neutral: '다음 거래일에는 흐름이 되돌려지는 경우도 많습니다.',
+          assets: '지수 ETF, 대형주 전반',
+          tip: '장 마지막 1시간의 큰 움직임을 보고 서둘러 판단하지 않는 것이 좋습니다.' },
+        holiday: { icon: '🏖️', label: '미국 증시 휴장', chip: '휴장', cat: 'mkt', level: 'mid', time: '하루 종일 휴장',
+          short: '미국 증시 쉬는 날 — 거래 불가',
+          what: '미국 주식시장이 열리지 않는 날입니다.',
+          why: '이 날은 미국 주식을 사고팔 수 없고, 거래대금 결제 일정도 하루씩 밀립니다. 휴장 전후로는 거래량이 줄어드는 경향이 있습니다.',
+          good: '해당 없음 (거래가 없는 날)',
+          bad: '해당 없음. 다만 휴장 중에 나온 뉴스는 다음 개장일에 한꺼번에 반영될 수 있습니다.',
+          neutral: '예약 주문·결제일·환전 일정을 미리 확인하세요.',
+          assets: '미국 주식·ETF 전체 (한국 증시는 별도 일정)',
+          tip: '긴 연휴 전에는 보유 비중을 점검해 두는 사람이 많습니다.' },
+        early: { icon: '⏰', label: '조기 폐장', chip: '조기폐장', cat: 'mkt', level: 'low', time: '미국 동부 13:00 폐장 (한국 새벽 2~3시)',
+          short: '오후 1시(미 동부) 조기 마감',
+          what: '정규장이 평소보다 일찍 오후 1시(미국 동부)에 끝나는 날입니다.',
+          why: '거래 시간이 짧아 거래량이 적고, 작은 주문에도 가격이 평소보다 흔들릴 수 있습니다.',
+          good: '해당 없음', bad: '해당 없음', neutral: '주문 시간을 놓치지 않도록 한국 시간 기준으로 확인하세요.',
+          assets: '미국 주식·ETF 전체', tip: '한국 시간으로는 새벽에 마감되니 일정에 주의하세요.' },
+        earn_bank: { icon: '💰', label: '대형 은행 실적 (어닝시즌 시작)', chip: '은행실적', cat: 'earn', level: 'mid', time: '장 시작 전 발표',
+          short: 'JP모건 등 은행 실적 — 실적 시즌의 시작',
+          what: 'JP모건·골드만삭스 등 대형 은행이 실적을 발표하며 분기 "어닝시즌"이 시작됩니다.',
+          why: '은행은 대출·카드·소비 상황을 가장 먼저 알 수 있어 경기 상태의 힌트가 됩니다. 이후 다른 기업 실적이 줄줄이 이어집니다.',
+          good: '대출 연체가 낮고 이익이 예상보다 좋으며, 경기에 대해 낙관적인 코멘트를 할 때',
+          bad: '부실 대비 비용(대손충당금)이 급증하거나 경기 둔화를 경고할 때',
+          neutral: '은행주와 금융 ETF(XLF)의 반응이 가장 직접적입니다.',
+          assets: '은행주, 금융 섹터(XLF), 국채금리',
+          tip: '실적 숫자뿐 아니라 "앞으로의 전망(가이던스) 코멘트"를 주목하세요.' },
+        earn_tech: { icon: '💻', label: '빅테크 실적 주간', chip: '빅테크실적', cat: 'earn', level: 'high', time: '보통 장 마감 후 발표 (한국 새벽)',
+          short: '마이크로소프트·알파벳·메타 등 — 지수를 좌우',
+          what: '마이크로소프트·알파벳·메타·애플·아마존 등 시가총액 최상위 기업들이 실적을 발표하는 주간입니다. 정확한 날짜는 회사마다 다릅니다.',
+          why: '이 기업들이 S&P500과 나스닥에서 차지하는 비중이 매우 커서, 실적 하나가 지수 전체를 흔들 수 있습니다.',
+          good: '매출·이익이 예상 이상이고, 향후 전망(가이던스)이 좋으며 AI 투자가 매출로 이어지는 모습이 확인될 때',
+          bad: '전망이 기대에 못 미치거나, 투자 비용은 급증하는데 성장이 둔화될 때',
+          neutral: '"숫자는 좋았는데 주가는 하락"하는 일도 흔합니다. 기대치가 이미 높았기 때문이에요.',
+          assets: '나스닥, 빅테크 개별주, 반도체·클라우드 관련주',
+          tip: '개별 기업의 정확한 날짜는 "AI 일정 검색" 버튼으로 확인할 수 있어요.' },
+        earn_nvda: { icon: '🟢', label: '엔비디아 실적', chip: '엔비디아', cat: 'earn', level: 'high', time: '보통 장 마감 후 발표 (한국 새벽)',
+          short: 'AI 반도체 대장주 실적',
+          what: 'AI 반도체의 대표 기업 엔비디아의 분기 실적 발표입니다. 대략 분기 종료 후 한 달 남짓 뒤에 열립니다.',
+          why: 'AI 투자 열기를 가늠하는 바로미터라서 반도체·AI 관련주 전반이 함께 움직입니다.',
+          good: '데이터센터 매출과 다음 분기 가이던스가 기대치를 웃돌 때',
+          bad: '가이던스가 기대에 못 미치거나 AI 투자 둔화 신호가 나올 때',
+          neutral: '숫자가 좋아도 이미 기대가 커서 "재료 소멸"로 하락할 수도 있습니다.',
+          assets: '엔비디아, 반도체 ETF(SOXX·SMH), AI 관련주, 나스닥',
+          tip: '정확한 날짜는 "AI 일정 검색"으로 확인하세요. 이 표시는 대략적인 시기입니다.' },
+        election: { icon: '🗳️', label: '미국 선거', chip: '선거', cat: 'pol', level: 'high', time: '현지 하루 종일 (결과는 다음날 한국 시간)',
+          short: '미국 선거일 — 정책 불확실성',
+          what: '미국 대통령 선거(4년마다) 또는 중간선거(의회 선거)가 열리는 날입니다.',
+          why: '세금·규제·무역·에너지 정책이 바뀔 수 있어 업종별로 희비가 갈립니다. 결과가 나오기 전까지는 불확실성 때문에 변동성이 커지는 경향이 있습니다.',
+          good: '결과가 명확하고 예측 가능한 정책 방향이 정해져 불확실성이 해소될 때',
+          bad: '결과가 접전이거나 불복 논란 등으로 불확실성이 길어질 때',
+          neutral: '수혜·피해 업종(에너지·방산·헬스케어·금융 등)이 갈릴 수 있습니다.',
+          assets: '주식 전반, 달러, 국채금리, 정책 민감 업종',
+          tip: '선거 결과보다 "불확실성이 얼마나 빨리 걷히나"가 단기 시장에는 더 중요합니다.' },
+        other: { icon: '📌', label: '기타 일정 (AI 검색)', chip: '', cat: 'ai', level: 'mid', time: '',
+          short: 'AI가 검색으로 찾은 일정',
+          what: 'AI가 구글 검색으로 찾은 일정입니다. 날짜와 내용은 공식 발표로 한 번 더 확인하세요.',
+          why: '발표 내용이 시장의 기존 예상과 얼마나 다른지가 핵심입니다.',
+          good: '예상을 웃도는 결과(실적·가이던스 상회 등) → 해당 종목·업종에 호재',
+          bad: '예상에 못 미치는 결과 → 해당 종목·업종에 악재',
+          neutral: '예상과 비슷하면 큰 변동 없이 지나가기도 합니다.',
+          assets: '해당 종목·업종', tip: '아래 "AI 분석"으로 이 이벤트의 시나리오를 더 자세히 볼 수 있어요.' }
+      };
+      const OVERRIDE = ['cpi', 'nfp', 'pce', 'gdp'];   // AI 가 정확한 날짜를 주면 '대략' 일정을 대체할 유형
+
+      // ---------- 일정 생성 (규칙 계산) ----------
+      function easter(y) {
+        const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3),
+          h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, mm = Math.floor((a + 11 * h + 22 * l) / 451),
+          month = Math.floor((h + l - 7 * mm + 114) / 31), day = ((h + l - 7 * mm + 114) % 31) + 1;
+        return new Date(y, month - 1, day);
+      }
+      function observed(y, m, d) {   // 토요일이면 금요일, 일요일이면 월요일에 쉰다 (1월 1일 토요일은 쉬지 않음)
+        const dow = new Date(y, m, d).getDay();
+        if (dow === 6) return (m === 0 && d === 1) ? null : new Date(y, m, d - 1);
+        if (dow === 0) return new Date(y, m, d + 1);
+        return new Date(y, m, d);
+      }
+      function holidays(y) {
+        const h = {}, put = (dt, name) => { if (dt) h[keyOf(dt)] = name; };
+        put(observed(y, 0, 1), '신정'); put(new Date(y, 0, nth(y, 0, 1, 3)), '마틴 루터 킹 데이'); put(new Date(y, 1, nth(y, 1, 1, 3)), '대통령의 날');
+        const e = easter(y); put(new Date(e.getFullYear(), e.getMonth(), e.getDate() - 2), '성금요일');
+        put(new Date(y, 4, lastWd(y, 4, 1)), '메모리얼 데이'); if (y >= 2022) put(observed(y, 5, 19), '준틴스데이'); put(observed(y, 6, 4), '독립기념일');
+        put(new Date(y, 8, nth(y, 8, 1, 1)), '노동절'); put(new Date(y, 10, nth(y, 10, 4, 4)), '추수감사절'); put(observed(y, 11, 25), '크리스마스');
+        return h;
+      }
+      const baseCache = {};
+      function baseYear(y) {
+        if (baseCache[y]) return baseCache[y];
+        const ev = [], hol = holidays(y);
+        const add = (dt, type, o) => ev.push(Object.assign({ date: typeof dt === 'string' ? dt : keyOf(dt), type }, o || {}));
+        const prevBiz = dt => { const d = new Date(dt); while (d.getDay() === 0 || d.getDay() === 6 || hol[keyOf(d)]) d.setDate(d.getDate() - 1); return d; };
+        (CAL_FOMC[y] || []).forEach(([m, d]) => add(key(y, m - 1, d), 'fomc', { sep: [3, 6, 9, 12].includes(m) }));
+        for (let m = 0; m < 12; m++) {
+          add(new Date(y, m, nth(y, m, 5, 1)), 'nfp', { approx: true });
+          add(new Date(y, m, nth(y, m, 3, 2)), 'cpi', { approx: true });
+          add(prevBiz(new Date(y, m, lastWd(y, m, 5))), 'pce', { approx: true });
+          add(prevBiz(new Date(y, m, nth(y, m, 5, 3))), [2, 5, 8, 11].includes(m) ? 'quad' : 'opex');
+          if ([0, 3, 6, 9].includes(m)) {
+            add(new Date(y, m, lastWd(y, m, 4)), 'gdp', { approx: true });
+            add(new Date(y, m, nth(y, m, 2, 2)), 'earn_bank', { approx: true });
+            add(new Date(y, m, lastWd(y, m, 3)), 'earn_tech', { approx: true });
+          }
+          if ([1, 4, 7, 10].includes(m)) add(new Date(y, m, lastWd(y, m, 3)), 'earn_nvda', { approx: true });
+        }
+        Object.keys(hol).forEach(k => add(k, 'holiday', { name: hol[k] }));
+        const bf = new Date(y, 10, nth(y, 10, 4, 4) + 1); add(bf, 'early', { name: '추수감사절 다음날' });
+        const ce = new Date(y, 11, 24); if (ce.getDay() !== 0 && ce.getDay() !== 6 && !hol[keyOf(ce)]) add(ce, 'early', { name: '크리스마스 이브' });
+        if (y % 2 === 0) add(new Date(y, 10, nth(y, 10, 1, 1) + 1), 'election', { name: y % 4 === 0 ? '미국 대통령 선거' : '미국 중간선거' });
+        return (baseCache[y] = ev);
+      }
+
+      // ---------- 저장소 (AI 결과 캐시) ----------
+      function store() {
+        try { const s = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (s && s.ai && s.month) return s; } catch (e) { /* 저장값 없음 */ }
+        return { ai: {}, month: {} };
+      }
+      function rawSave(s) { try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) { /* 용량 초과 등은 무시 */ } }
+      function saveStore(s) { rawSave(s); SYNC.schedule(); }
+
+      // ---------- 구글 드라이브 동기화 ----------
+      // 설정 창의 Google 로그인(GAUTH)과 같은 계정·토큰을 쓰고, 앱 전용 숨김 폴더(appDataFolder)의 pentanalyst_calendar_cache.json 에 저장한다.
+      // 월별 일정 검색 결과(month)와 이벤트별 AI 분석(ai)을 항목별로 '더 최근(ts) 것'을 채택해 합친다. 한 기기에서 검색하면 다른 기기는 열 때 자동으로 받는다.
+      const SYNC_FILE = 'pentanalyst_calendar_cache.json', SYNC_LAST = 'pentanalyst_cal_sync_last';
+      const SYNC = {
+        busy: false, synced: false, timer: null, msg: '',
+        auth: () => (typeof GAUTH !== 'undefined' ? GAUTH : null),
+        user() { const a = this.auth(); return a && a.getUser ? a.getUser() : null; },
+        last() { try { return localStorage.getItem(SYNC_LAST) || ''; } catch (e) { return ''; } },
+        merge(a, b) {   // a=로컬, b=클라우드 → { out, gotNew(로컬이 새로 받은 것 있음), hasExtra(클라우드에 없거나 더 새로운 로컬 항목 있음) }
+          const out = { ai: {}, month: {} }; let gotNew = false, hasExtra = false;
+          ['month', 'ai'].forEach(f => {
+            const A = a[f] || {}, B = (b && b[f]) || {};
+            new Set([...Object.keys(A), ...Object.keys(B)]).forEach(k => {
+              const x = A[k], y = B[k];
+              if (x && y) { if ((y.ts || 0) > (x.ts || 0)) { out[f][k] = y; gotNew = true; } else { out[f][k] = x; if ((x.ts || 0) > (y.ts || 0)) hasExtra = true; } }
+              else if (x) { out[f][k] = x; hasExtra = true; } else { out[f][k] = y; gotNew = true; }
+            });
+          });
+          return { out, gotNew, hasExtra };
+        },
+        async find(token) {
+          const q = encodeURIComponent(`name = '${SYNC_FILE}'`);
+          const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)&spaces=appDataFolder`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error((j.error && j.error.message) || `드라이브 조회 실패 (${res.status})`); }
+          const d = await res.json(); return (d.files && d.files[0]) || null;
+        },
+        async upload(token, file, data) {
+          const content = JSON.stringify({ app: 'PentAnalyst', kind: 'calendar', updatedAt: new Date().toISOString(), ai: data.ai, month: data.month });
+          let r;
+          if (file && file.id) {
+            r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=media`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' }, body: content });
+          } else {
+            const bd = 'PentAnalystCal' + Math.random().toString(36).slice(2);
+            const meta = JSON.stringify({ name: SYNC_FILE, parents: ['appDataFolder'], mimeType: 'application/json' });
+            r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${bd}` },
+              body: [`--${bd}`, 'Content-Type: application/json; charset=UTF-8', '', meta, `--${bd}`, 'Content-Type: application/json', '', content, `--${bd}--`].join('\r\n') });
+          }
+          if (!r.ok) throw new Error(`저장 실패 (${r.status})`);
+        },
+        async run(silent) {   // 클라우드 → 로컬 병합 후, 클라우드에 없는 것이 있으면 업로드
+          if (this.busy || !this.user()) return;
+          this.busy = true; this.msg = '';
+          try {
+            const token = await this.auth().getToken(!silent), file = await this.find(token), local = store();
+            let cloud = null;
+            if (file) { const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, { headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) throw new Error(`불러오기 실패 (${res.status})`); cloud = await res.json(); }
+            const m = this.merge(local, cloud);
+            if (m.gotNew) rawSave(m.out);
+            if (!file ? (Object.keys(m.out.month).length || Object.keys(m.out.ai).length) : m.hasExtra) await this.upload(token, file, m.out);
+            try { localStorage.setItem(SYNC_LAST, new Date().toISOString()); } catch (e) { /* 무시 */ }
+            this.synced = true;
+            if (m.gotNew) this.msg = '다른 기기에서 저장한 일정·분석을 불러왔어요.';
+          } catch (e) { this.msg = silent ? '자동 동기화에 실패했어요. "지금 동기화"를 눌러 다시 시도해 주세요.' : `동기화 실패: ${e.message || e}`; }
+          this.busy = false;
+          if (typeof activeAppTab !== 'undefined' && activeAppTab === 'calendar' && C.inited) render();
+        },
+        schedule() { if (!this.user()) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.run(true), 3000); }
+      };
+      try { window.addEventListener('gauth-changed', e => { SYNC.synced = false; if (e && e.detail && e.detail.user) SYNC.run(true); }); } catch (e) { /* 무시 */ }
+
+      const C = { y: 0, m: 0, sel: null, cats: new Set(Object.keys(CATS)), onlyHigh: false, detail: [], aiState: {}, monthBusy: false, monthMsg: '', inited: false };
+      const lvOf = e => e.lvl || TYPES[e.type].level;
+      const titleOf = e => {
+        const T = TYPES[e.type];
+        if (e.type === 'fomc') return `FOMC 금리 결정${e.sep ? ' + 점도표·경제전망' : ''}`;
+        if (e.type === 'holiday') return `미국 증시 휴장 · ${e.name}`;
+        if (e.type === 'early') return `조기 폐장 · ${e.name}`;
+        if (e.type === 'election') return e.name;
+        if (e.type === 'other') return e.title || T.label;
+        return T.label;
+      };
+      const chipOf = e => e.type === 'other' ? String(e.title || '일정').slice(0, 7) : TYPES[e.type].chip;
+      const evId = e => `${e.date}|${e.type}|${e.title || ''}`;
+
+      function monthEvents(y, m) {
+        const pre = `${y}-${pad(m + 1)}`;
+        const ev = baseYear(y).filter(e => e.date.startsWith(pre)).map(e => Object.assign({}, e));
+        const ai = store().month[pre];
+        if (ai && Array.isArray(ai.events)) {
+          ai.events.forEach(a => {
+            if (OVERRIDE.includes(a.type)) {
+              const hit = ev.find(e => e.type === a.type && e.approx);
+              if (hit) { hit.date = a.date; hit.approx = false; hit.src = 'ai'; return; }
+              if (ev.some(e => e.type === a.type)) return;
+            }
+            if (ev.some(e => e.date === a.date && e.type === 'other' && e.title === a.title)) return;
+            ev.push({ date: a.date, type: 'other', title: a.title, lvl: a.level, note: a.note, src: 'ai' });
+          });
+        }
+        return ev.filter(e => C.cats.has(TYPES[e.type].cat) && (!C.onlyHigh || lvOf(e) === 'high'))
+          .sort((a, b) => a.date.localeCompare(b.date) || LV[lvOf(a)].n - LV[lvOf(b)].n);
+      }
+      function eventsBetween(from, to) {   // from~to (Date, 포함)
+        const out = [], seen = new Set();
+        for (let d = new Date(from.getFullYear(), from.getMonth(), 1); d <= to; d.setMonth(d.getMonth() + 1)) {
+          monthEvents(d.getFullYear(), d.getMonth()).forEach(e => { const dt = parseKey(e.date); if (dt >= from && dt <= to && !seen.has(evId(e))) { seen.add(evId(e)); out.push(e); } });
+        }
+        return out.sort((a, b) => a.date.localeCompare(b.date) || LV[lvOf(a)].n - LV[lvOf(b)].n);
+      }
+
+      // ---------- 화면 ----------
+      const todayKey = () => keyOf(new Date());
+      const dLabel = k => { const t = parseKey(todayKey()), d = parseKey(k), n = Math.round((d - t) / 86400000); return n === 0 ? '오늘' : n === 1 ? '내일' : n > 0 ? `D-${n}` : `${-n}일 전`; };
+      const dateText = k => { const d = parseKey(k); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
+
+      function agendaHtml() {
+        const t = parseKey(todayKey()), end = new Date(t); end.setDate(end.getDate() + 14);
+        const list = eventsBetween(t, end).filter(e => lvOf(e) !== 'low' || e.date === todayKey());
+        const rows = list.slice(0, 10).map(e => {
+          const T = TYPES[e.type], lv = LV[lvOf(e)];
+          return `<button type="button" onclick="calPick('${e.date}', true)" class="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-800/70 transition">
+            <span class="w-14 shrink-0 text-[11px] font-bold ${e.date === todayKey() ? 'text-rose-300' : 'text-slate-400'}">${dLabel(e.date)}</span>
+            <span class="w-16 shrink-0 text-[11px] text-slate-500">${dateText(e.date)}</span>
+            <span class="text-base shrink-0">${T.icon}</span>
+            <span class="min-w-0 flex-1"><span class="block text-sm text-white font-semibold truncate">${esc(titleOf(e))}${e.approx ? ' <span class="text-[10px] text-slate-500 font-normal">(날짜 대략)</span>' : ''}</span><span class="block text-[11px] text-slate-400 truncate">${esc(e.type === 'other' ? (e.note || T.short) : T.short)}</span></span>
+            <span class="w-2 h-2 rounded-full shrink-0 ${lv.dot}" title="${lv.label}"></span></button>`;
+        }).join('');
+        return rows || '<div class="text-sm text-slate-500 px-3 py-4">앞으로 2주 안에 표시할 주요 일정이 없어요.</div>';
+      }
+
+      function gridHtml() {
+        const y = C.y, m = C.m, first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+        const byDate = {}; monthEvents(y, m).forEach(e => (byDate[e.date] = byDate[e.date] || []).push(e));
+        let cells = WD.map((w, i) => `<div class="text-center text-[11px] font-bold py-1 ${i === 0 ? 'text-rose-400' : i === 6 ? 'text-sky-400' : 'text-slate-400'}">${w}</div>`).join('');
+        for (let i = 0; i < first; i++) cells += '<div></div>';
+        for (let d = 1; d <= days; d++) {
+          const k = key(y, m, d), evs = byDate[k] || [], wd = new Date(y, m, d).getDay(), isToday = k === todayKey(), isSel = k === C.sel;
+          const chips = evs.slice(0, 3).map(e => `<span class="flex items-center gap-0.5 px-1 rounded border text-[10px] leading-4 ${LV[lvOf(e)].chip} ${e.approx ? 'border-dashed' : ''}" title="${esc(titleOf(e))}"><span>${TYPES[e.type].icon}</span><span class="hidden sm:inline truncate">${e.approx ? '~' : ''}${esc(chipOf(e))}</span></span>`).join('');
+          const more = evs.length > 3 ? `<span class="text-[10px] text-slate-400">+${evs.length - 3}</span>` : '';
+          cells += `<button type="button" onclick="calPick('${k}')" aria-label="${m + 1}월 ${d}일 일정 ${evs.length}개" class="text-left p-1 sm:p-1.5 rounded-lg border min-h-[58px] sm:min-h-[96px] flex flex-col gap-1 transition ${isSel ? 'border-rose-400 bg-rose-950/30' : 'border-slate-800 bg-slate-900/60 hover:border-slate-600'} ${(wd === 0 || wd === 6) && !evs.length ? 'opacity-60' : ''}">
+            <span class="text-[11px] sm:text-xs font-bold ${isToday ? 'bg-rose-500 text-white rounded-full w-5 h-5 grid place-items-center' : wd === 0 ? 'text-rose-300' : wd === 6 ? 'text-sky-300' : 'text-slate-300'}">${d}</span>
+            <span class="flex flex-wrap sm:flex-col gap-0.5">${chips}${more}</span></button>`;
+        }
+        return `<div class="grid grid-cols-7 gap-1">${cells}</div>`;
+      }
+
+      function evCard(e, i) {
+        const T = TYPES[e.type], lv = LV[lvOf(e)];
+        const note = e.type === 'other' && e.note ? `<p class="text-sm text-slate-200 leading-relaxed">${esc(e.note)}</p>` : '';
+        const approx = e.approx ? `<div class="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-800/50 rounded-lg px-2.5 py-1.5">⚠ 이 일정의 날짜는 <b>대략적인 예상</b>입니다(보통 이 무렵에 발표). 정확한 날짜는 상단의 "AI 일정 검색" 버튼(1회)이나 공식 발표 일정으로 확인하세요.</div>` : '';
+        const src = e.src === 'ai' ? '<span class="text-[10px] px-1.5 py-0.5 rounded border border-violet-500/40 text-violet-300 bg-violet-950/40">AI 검색 · 공식 일정 재확인 권장</span>' : '';
+        const sep = e.type === 'fomc' && e.sep ? '<p class="text-[11px] text-sky-300">📊 이 회의는 점도표(연준 위원들의 금리 전망)와 경제전망이 함께 나와 평소보다 변동성이 큽니다.</p>' : '';
+        return `<div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+          <div class="flex items-start gap-3"><div class="text-2xl">${T.icon}</div>
+            <div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-1.5"><h4 class="text-base font-black text-white">${esc(titleOf(e))}</h4><span class="text-[10px] px-1.5 py-0.5 rounded border ${lv.badge}">${lv.label}</span>${src}</div>
+              ${T.time ? `<div class="text-[11px] text-slate-400 mt-0.5">🕒 ${esc(T.time)}</div>` : ''}</div></div>
+          ${approx}${note}
+          <p class="text-sm text-slate-200 leading-relaxed"><b class="text-white">어떤 이벤트?</b> ${esc(T.what)}</p>
+          <p class="text-sm text-slate-300 leading-relaxed"><b class="text-white">왜 중요해요?</b> ${esc(T.why)}</p>
+          ${sep}
+          <div class="grid sm:grid-cols-2 gap-2">
+            <div class="rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-3"><div class="text-xs font-bold text-emerald-300 mb-1">🟢 이럴 때는 호재 신호</div><p class="text-[13px] text-slate-200 leading-relaxed">${esc(T.good)}</p></div>
+            <div class="rounded-xl border border-rose-700/40 bg-rose-950/20 p-3"><div class="text-xs font-bold text-rose-300 mb-1">🔴 이럴 때는 악재 신호</div><p class="text-[13px] text-slate-200 leading-relaxed">${esc(T.bad)}</p></div>
+          </div>
+          <p class="text-[13px] text-slate-300 leading-relaxed"><b class="text-white">⚪ 참고</b> ${esc(T.neutral)}</p>
+          <p class="text-[13px] text-slate-300"><b class="text-white">영향받는 자산</b> ${esc(T.assets)}</p>
+          <p class="text-[13px] text-cyan-200 bg-cyan-950/20 border border-cyan-800/40 rounded-lg px-3 py-2">💡 ${esc(T.tip)}</p>
+          <div id="calAi-${i}">${aiHtml(i)}</div>
+        </div>`;
+      }
+
+      const SCEN = { good: ['🟢 호재 시나리오', 'border-emerald-700/40 bg-emerald-950/20', 'text-emerald-300'], bad: ['🔴 악재 시나리오', 'border-rose-700/40 bg-rose-950/20', 'text-rose-300'], neutral: ['⚪ 중립 시나리오', 'border-slate-700 bg-slate-800/40', 'text-slate-300'] };
+      function aiHtml(i) {
+        const e = C.detail[i]; if (!e) return '';
+        const id = evId(e), st = C.aiState[id] || (store().ai[id] ? { data: store().ai[id].data, ts: store().ai[id].ts, grounded: store().ai[id].grounded } : null);
+        const btn = (label) => `<button type="button" onclick="calAnalyze(${i})" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition"><i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>${label}</button>`;
+        if (!st) return `<div class="border-t border-slate-800 pt-3 flex flex-wrap items-center gap-3">${btn('AI로 이 이벤트 분석하기')}<span class="text-[11px] text-slate-500">Gemini가 최신 정보를 검색해 호재·악재 시나리오를 정리해 줍니다.</span></div>`;
+        if (st.busy) return '<div class="border-t border-slate-800 pt-3 text-sm text-violet-300"><i class="fa-solid fa-spinner fa-spin mr-2"></i>AI가 최신 정보를 찾아 분석하는 중... (최대 1분)</div>';
+        if (st.err) return `<div class="border-t border-slate-800 pt-3 space-y-2"><div class="text-sm text-rose-300">${esc(st.err)}</div>${btn('다시 시도')}</div>`;
+        const d = st.data || {}, sc = Array.isArray(d.scenarios) ? d.scenarios : [];
+        const list = a => (Array.isArray(a) ? a : []).map(x => `<li>${esc(x)}</li>`).join('');
+        const when = st.ts ? new Date(st.ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        return `<div class="border-t border-slate-800 pt-3 space-y-3">
+          <div class="flex flex-wrap items-center gap-2"><span class="text-sm font-black text-violet-300">🤖 AI 분석</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded border ${st.grounded ? 'border-emerald-600/50 text-emerald-300' : 'border-amber-600/50 text-amber-300'}">${st.grounded ? '🔎 구글 검색 반영' : '⚠ 검색 없이 일반 지식 기반 (최신 수치 미반영)'}</span>
+            <span class="text-[10px] text-slate-500">${esc(when)}</span><span class="flex-1"></span>${btn('다시 분석')}</div>
+          ${d.headline ? `<p class="text-sm font-bold text-white leading-relaxed">${esc(d.headline)}</p>` : ''}
+          ${d.context ? `<p class="text-[13px] text-slate-300 leading-relaxed"><b class="text-white">지금 상황</b> ${esc(d.context)}</p>` : ''}
+          <div class="grid gap-2">${sc.map(s => { const S = SCEN[s.type] || SCEN.neutral; return `<div class="rounded-xl border ${S[1]} p-3 space-y-1"><div class="text-xs font-bold ${S[2]}">${S[0]}</div>
+            ${s.when ? `<p class="text-[13px] text-slate-200"><b>이런 결과가 나오면</b> ${esc(s.when)}</p>` : ''}${s.effect ? `<p class="text-[13px] text-slate-300"><b>시장 반응</b> ${esc(s.effect)}</p>` : ''}${s.assets ? `<p class="text-[12px] text-slate-400"><b>영향 자산·업종</b> ${esc(s.assets)}</p>` : ''}</div>`; }).join('')}</div>
+          ${Array.isArray(d.watch) && d.watch.length ? `<div><div class="text-xs font-bold text-white mb-1">👀 발표 때 이 숫자·발언을 보세요</div><ul class="list-disc pl-5 text-[13px] text-slate-300 space-y-0.5">${list(d.watch)}</ul></div>` : ''}
+          ${d.tip ? `<p class="text-[13px] text-cyan-200 bg-cyan-950/20 border border-cyan-800/40 rounded-lg px-3 py-2">💡 초보자 팁: ${esc(d.tip)}</p>` : ''}
+          <p class="text-[10px] text-slate-500">AI 분석은 틀릴 수 있습니다. 숫자는 공식 발표로 확인하세요. ${FOOT}</p></div>`;
+      }
+
+      function detailHtml() {
+        if (!C.sel) return '<div class="text-sm text-slate-500 text-center py-6">달력에서 날짜를 누르면 그날의 일정을 자세히 볼 수 있어요.</div>';
+        C.detail = monthEvents(parseKey(C.sel).getFullYear(), parseKey(C.sel).getMonth()).filter(e => e.date === C.sel);
+        const head = `<div class="flex items-center gap-2 mb-3"><h3 class="text-base font-black text-white">${dateText(C.sel)} 일정</h3><span class="text-xs text-slate-400">${dLabel(C.sel)} · 미국 현지 날짜 기준</span></div>`;
+        if (!C.detail.length) return head + '<div class="text-sm text-slate-500 py-4">이 날은 표시할 주요 일정이 없어요. (필터를 확인해 보세요)</div>';
+        return head + `<div class="space-y-3">${C.detail.map(evCard).join('')}</div>`;
+      }
+
+      function render() {
+        const root = document.getElementById('calRoot'); if (!root) return;
+        const cnt = Object.keys(CATS);
+        const sm = store().month[`${C.y}-${pad(C.m + 1)}`], searched = !!sm;
+        const su = SYNC.user(), lastSync = SYNC.last() ? new Date(SYNC.last()).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        const syncRow = `<div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] ${su ? 'text-emerald-300' : 'text-slate-400'}"><i class="fa-brands fa-google-drive"></i>${su
+          ? `<span>구글 드라이브 자동 동기화 켜짐${lastSync ? ` · 마지막 ${esc(lastSync)}` : ''}</span><button type="button" onclick="calSyncNow()" ${SYNC.busy ? 'disabled' : ''} class="px-2 py-0.5 rounded border border-emerald-700/60 hover:bg-emerald-950/50 disabled:opacity-60">${SYNC.busy ? '동기화 중...' : '지금 동기화'}</button>`
+          : `<span>Google 로그인하면 AI 검색·분석 결과가 모든 기기에 자동 동기화돼요.</span><button type="button" onclick="GAUTH.login()" class="px-2 py-0.5 rounded border border-slate-600 hover:bg-slate-800 text-slate-200">Google 로그인</button>`}${SYNC.msg ? `<span class="text-violet-300">${esc(SYNC.msg)}</span>` : ''}</div>`;
+        const savedNote = searched && !C.monthMsg ? `<div class="text-[11px] text-emerald-300">✓ ${C.m + 1}월 일정은 ${new Date(sm.ts).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}에 AI로 검색해 저장된 결과가 반영돼 있어요.</div>` : '';
+        const missingFomc = !CAL_FOMC[C.y] ? `<div class="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-800/50 rounded-lg px-3 py-2 mb-2">${C.y}년 FOMC 일정은 앱에 내장되어 있지 않아요. "AI 일정 검색"으로 확인할 수 있습니다.</div>` : '';
+        root.innerHTML = `<div class="space-y-4">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <div class="flex flex-wrap items-center gap-2 mb-1"><h2 class="text-lg font-black text-white"><i class="fa-solid fa-calendar-days text-rose-400 mr-2"></i>금융 달력</h2>
+              <span class="text-[11px] text-slate-400">시장을 움직일 수 있는 일정을 한눈에</span></div>
+            ${syncRow}
+            <details class="text-[13px] text-slate-300"><summary class="cursor-pointer text-rose-300 font-semibold">💡 처음이라면: 이 달력 보는 법</summary>
+              <ul class="list-disc pl-5 mt-2 space-y-1 leading-relaxed">
+                <li><b>호재</b> = 주가에 좋은 소식, <b>악재</b> = 나쁜 소식입니다. 같은 이벤트도 결과에 따라 호재가 되기도 악재가 되기도 해요.</li>
+                <li>가장 중요한 건 <b>"예상과의 차이"</b>입니다. 시장은 발표 전에 이미 예상을 가격에 반영해 둬서, 예상대로면 잘 안 움직여요.</li>
+                <li>점선 칸(~표시)은 <b>날짜가 대략적</b>인 일정입니다. "AI 일정 검색"을 한 번 누르면 올해 남은 일정의 정확한 날짜를 찾아 저장하고, 이후에는 다시 검색하지 않아도 됩니다.</li>
+                <li>날짜는 모두 <b>미국 현지 기준</b>입니다. 한국은 보통 그날 밤~다음날 새벽에 해당해요.</li>
+              </ul></details></div>
+
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-2 sm:p-3">
+            <div class="px-3 pt-2 pb-1 text-sm font-black text-white">📌 앞으로 2주, 다가오는 일정 <span class="text-[11px] font-normal text-slate-500">(누르면 상세)</span></div>
+            <div>${agendaHtml()}</div></div>
+
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:p-4 space-y-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" onclick="calGo(-1)" aria-label="이전 달" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"><i class="fa-solid fa-chevron-left"></i></button>
+              <div class="text-base font-black text-white min-w-[7.5rem] text-center">${C.y}년 ${C.m + 1}월</div>
+              <button type="button" onclick="calGo(1)" aria-label="다음 달" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"><i class="fa-solid fa-chevron-right"></i></button>
+              <button type="button" onclick="calToday()" class="px-3 h-9 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200">오늘</button>
+              <span class="flex-1"></span>
+              <button type="button" onclick="calAiMonth()" ${C.monthBusy ? 'disabled' : ''} title="한 번 검색하면 올해 남은 일정이 저장됩니다" class="px-3 h-9 rounded-lg text-xs font-bold bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white"><i class="fa-solid ${C.monthBusy ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'} mr-1.5"></i>${searched ? '다시 검색' : 'AI 일정 검색 (1회 저장)'}</button></div>
+            ${C.monthMsg ? `<div class="text-[11px] text-violet-300">${esc(C.monthMsg)}</div>` : savedNote}
+            ${missingFomc}
+            <div class="flex flex-wrap items-center gap-1.5">
+              ${cnt.map(c => `<button type="button" onclick="calToggleCat('${c}')" class="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition ${C.cats.has(c) ? 'bg-slate-700 text-white border-slate-500' : 'bg-slate-900 text-slate-500 border-slate-800'}">${CATS[c]}</button>`).join('')}
+              <label class="flex items-center gap-1.5 text-[11px] text-slate-300 ml-1 cursor-pointer"><input type="checkbox" ${C.onlyHigh ? 'checked' : ''} onchange="calOnlyHigh(this.checked)" class="accent-rose-500">중요한 것만</label></div>
+            <div class="flex flex-wrap gap-3 text-[11px] text-slate-400"><span><i class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1"></i>중요도 높음</span><span><i class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1"></i>보통</span><span><i class="inline-block w-2 h-2 rounded-full bg-slate-500 mr-1"></i>참고</span><span>점선 = 날짜 대략</span></div>
+            ${gridHtml()}</div>
+
+          <div id="calDetail" class="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 sm:p-4">${detailHtml()}</div>
+          <p class="text-[11px] text-slate-500 text-center px-2">${FOOT} 일정은 변경될 수 있으니 중요한 날짜는 공식 발표(연준·BLS·BEA·각 기업 IR)로 확인하세요.</p></div>`;
+      }
+
+      // ---------- 동작 ----------
+      function autoSelect() {
+        const evs = monthEvents(C.y, C.m), t = new Date();
+        if (t.getFullYear() === C.y && t.getMonth() === C.m) {   // 이번 달: 오늘 일정이 있으면 오늘, 없으면 가장 가까운 다음 일정(없으면 오늘)
+          const nx = evs.find(e => e.date >= todayKey() && lvOf(e) !== 'low') || evs.find(e => e.date >= todayKey());
+          C.sel = evs.some(e => e.date === todayKey()) || !nx ? todayKey() : nx.date; return;
+        }
+        C.sel = evs.length ? (evs.find(e => lvOf(e) === 'high') || evs[0]).date : null;
+      }
+      window.calGo = function (delta) { const d = new Date(C.y, C.m + delta, 1); C.y = d.getFullYear(); C.m = d.getMonth(); C.monthMsg = ''; autoSelect(); render(); };
+      window.calToday = function () { const t = new Date(); C.y = t.getFullYear(); C.m = t.getMonth(); C.monthMsg = ''; C.sel = todayKey(); render(); };
+      window.calPick = function (k, scroll) {
+        const d = parseKey(k); C.sel = k;
+        if (d.getFullYear() !== C.y || d.getMonth() !== C.m) { C.y = d.getFullYear(); C.m = d.getMonth(); }
+        render();
+        if (scroll) { const el = document.getElementById('calDetail'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      };
+      window.calToggleCat = function (c) { if (C.cats.has(c)) { if (C.cats.size > 1) C.cats.delete(c); } else C.cats.add(c); render(); };
+      window.calOnlyHigh = function (v) { C.onlyHigh = !!v; render(); };
+
+      window.calAnalyze = async function (i) {
+        const e = C.detail[i]; if (!e) return;
+        if (!hasAnyGeminiKey()) { showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 분석을 볼 수 있습니다.', 'info'); if (typeof openApiSettingsModal === 'function') openApiSettingsModal(); return; }
+        const id = evId(e), T = TYPES[e.type], past = e.date < todayKey();
+        C.aiState[id] = { busy: true }; const slot = () => document.getElementById(`calAi-${i}`); if (slot()) slot().innerHTML = aiHtml(i);
+        const body = `당신은 주식 초보자를 돕는 교육용 시장 해설자입니다.
+이벤트: ${titleOf(e)} (${e.date}, 미국 현지 기준)${e.note ? `\n이벤트 설명: ${e.note}` : ''}
+이벤트 유형 개요: ${T.what}
+오늘 날짜: ${todayKey()}
+${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반응을 요약하고, 시나리오는 "실제로 어땠는지"를 중심으로 쓰세요.' : '이 이벤트는 아직 발표 전입니다.'}`;
+        const rules = `규칙: 확인되지 않은 숫자는 지어내지 말고 "확인 불가"라고 쓰세요. 매수·매도 권유, 목표가, 단정적 전망은 금지합니다. 어려운 용어는 괄호로 쉽게 풀어 쓰세요. 초보자가 이해하도록 짧고 쉬운 문장으로 쓰세요.
+반드시 아래 형식의 JSON 객체 하나만 출력하세요 (코드블록·설명 없이):
+{"headline":"초보자용 한 줄 요약","context":"지금 상황 2문장 (직전 발표값·시장 예상·최근 분위기. 모르면 확인 불가)","scenarios":[{"type":"good","when":"이런 결과가 나오면(구체적 기준)","effect":"시장 반응","assets":"영향받는 자산·업종"},{"type":"bad","when":"","effect":"","assets":""},{"type":"neutral","when":"","effect":"","assets":""}],"watch":["발표 때 볼 숫자·발언 2~3개"],"tip":"초보자가 지켜야 할 태도 한 줄"}`;
+        const prompt = `${body}\n구글 검색으로 직전 발표값, 시장 예상치(컨센서스), 최근 시장 분위기를 확인한 뒤 분석하세요.\n${rules}`;
+        const fallback = `${body}\n지금은 검색을 쓸 수 없습니다. 최신 수치는 "확인 불가"로 쓰고, 일반적인 원리 중심으로 분석하세요.\n${rules}`;
+        try {
+          const r = await callGemini(prompt, { grounding: true, fallbackPrompt: fallback });
+          const data = r && r.text ? extractJson(r.text) : null;
+          if (!r || r.error || !data) C.aiState[id] = { err: `AI 분석을 받지 못했습니다${r && r.error ? ` (${r.error})` : ''}. 잠시 후 다시 시도해 주세요.` };
+          else {
+            const grounded = !!(r.grounded && !r.fallback), ts = Date.now();
+            C.aiState[id] = { data, grounded, ts };
+            const s = store(); s.ai[id] = { data, grounded, ts }; saveStore(s);
+          }
+        } catch (err) { C.aiState[id] = { err: 'AI 호출 중 오류가 발생했습니다.' }; }
+        if (slot()) slot().innerHTML = aiHtml(i);
+      };
+
+      // 한 번 검색으로 '올해 남은 달 전체'(미래 연도면 그 해 전체)를 가져와 월별로 저장한다. 저장분은 브라우저에 남아 다시 검색하지 않아도 된다.
+      function searchRange() {
+        const now = new Date(), startM = C.y === now.getFullYear() ? now.getMonth() : (C.y > now.getFullYear() ? 0 : -1);
+        return startM < 0 ? null : { from: startM, to: 11 };
+      }
+      window.calAiMonth = async function () {
+        if (C.monthBusy) return;
+        if (!hasAnyGeminiKey()) { showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 일정 검색을 쓸 수 있습니다.', 'info'); if (typeof openApiSettingsModal === 'function') openApiSettingsModal(); return; }
+        const y = C.y, rg = searchRange();
+        if (!rg) { C.monthMsg = '이미 지난 해는 검색하지 않아요.'; render(); return; }
+        const pre = mm => `${y}-${pad(mm + 1)}`;
+        C.monthBusy = true; C.monthMsg = `AI가 구글 검색으로 ${y}년 ${rg.from + 1}월~12월 일정을 찾는 중... (최대 1분, 결과는 저장됩니다)`; render();
+        const prompt = `오늘은 ${todayKey()}입니다. 구글 검색으로 ${y}년 ${rg.from + 1}월부터 12월까지 예정된, 미국 주식시장에 영향을 줄 만한 주요 일정의 "정확한 날짜"를 찾아 주세요.
+포함: FOMC 회의 결정일, CPI·고용보고서(비농업 고용)·PCE·GDP 발표일(BLS·BEA 공식 일정), 시가총액 상위 대형주(애플·마이크로소프트·엔비디아·알파벳·아마존·메타·테슬라 등)의 실적 발표일, 그 밖의 큰 이벤트(정책 시한, 주요 컨퍼런스 등).
+규칙: 공식적으로 확정·발표된 일정만 쓰고 날짜를 모르면 제외하세요(추측 금지). 최대 60개. 날짜는 미국 현지 기준 YYYY-MM-DD. 제목과 설명은 한국어로 쉽게.
+반드시 아래 형식의 JSON 객체 하나만 출력하세요 (코드블록 없이):
+{"events":[{"date":"YYYY-MM-DD","type":"fomc|cpi|nfp|pce|gdp|other","title":"제목","level":"high|mid|low","note":"한 줄 설명"}]}`;
+        let msg = '';
+        try {
+          const r = await callGemini(prompt, { grounding: true, fallbackPrompt: '검색을 쓸 수 없습니다. 이 요청에는 {"events":[]} 만 출력하세요.' });
+          const data = r && r.text ? extractJson(r.text) : null;
+          if (!r || r.error) msg = `AI 일정 검색에 실패했습니다${r && r.error ? ` (${r.error})` : ''}.`;
+          else if (!r.grounded || r.fallback) msg = '구글 검색을 쓸 수 없어 일정을 검색하지 못했습니다. 설정에서 검색 Grounding(유료 키)을 켠 뒤 한 번만 실행하면 결과가 저장됩니다.';
+          else if (!data || !Array.isArray(data.events)) msg = 'AI 응답을 해석하지 못했습니다. 다시 시도해 주세요.';
+          else {
+            const byMonth = {};
+            for (let mm = rg.from; mm <= 11; mm++) byMonth[pre(mm)] = [];   // 일정이 없는 달도 '검색 완료'로 기록
+            data.events.filter(a => a && /^\d{4}-\d{2}-\d{2}$/.test(String(a.date)) && byMonth[String(a.date).slice(0, 7)] && a.title)
+              .slice(0, 60).forEach(a => byMonth[String(a.date).slice(0, 7)].push({ date: a.date, type: ['fomc', 'cpi', 'nfp', 'pce', 'gdp'].includes(a.type) ? a.type : 'other', title: String(a.title).slice(0, 60), level: LV[a.level] ? a.level : 'mid', note: String(a.note || '').slice(0, 160) }));
+            const st = store(), ts = Date.now(); let n = 0;
+            Object.keys(byMonth).forEach(k => { st.month[k] = { ts, events: byMonth[k] }; n += byMonth[k].length; });
+            saveStore(st);
+            msg = n ? `✓ AI가 ${y}년 ${rg.from + 1}월~12월 일정 ${n}개를 찾아 저장했어요. 다시 검색하지 않아도 계속 남아 있습니다. (날짜는 공식 발표로 한 번 더 확인하세요)` : '추가로 확인된 일정이 없습니다. (검색 완료로 기록했어요)';
+          }
+        } catch (err) { msg = 'AI 일정 검색 중 오류가 발생했습니다.'; }
+        C.monthBusy = false; C.monthMsg = msg; autoKeepSel(); render();
+      };
+      function autoKeepSel() { if (!C.sel) autoSelect(); }
+
+      window.calSyncNow = function () { SYNC.run(false); render(); };
+
+      function onOpen() {
+        if (!C.inited) { const t = new Date(); C.y = t.getFullYear(); C.m = t.getMonth(); autoSelect(); C.inited = true; }
+        render();
+        if (!SYNC.synced && SYNC.user()) SYNC.run(true);   // 탭을 처음 열 때 한 번 자동 동기화
+      }
+      if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.calendar = onOpen;
+    })();
+  </script>
+
   <script id="mod-signals">
     // ===== 신호 엔진 모듈 — window.taSignalsLite(history, spyHistory, opts) =====
     // 관심종목·스크리너가 쓰는 가벼운 신호 엔진. 입력: 일봉 배열 [{t,date,open,high,low,close,volume}] (오래된 것 → 최신, 약 2년), spyHistory 는 선택(SPY 일봉).
