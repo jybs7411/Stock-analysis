@@ -1614,7 +1614,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.10.1';
+    const APP_VERSION = '1.10.2';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -2367,10 +2367,29 @@
         });
       }
 
+      // 조용한(silent) 갱신은 prompt:'none' 팝업이 모바일에서 로그인 창을 깜빡이게 하므로
+      // ① 동시 호출은 하나로 합치고(single-flight) ② 시도 간격을 두며 ③ 백그라운드 탭에선 시도하지 않는다.
+      const SILENT_COOLDOWN_MS = 30 * 60 * 1000;
+      let lastSilentTry = 0;
+      let inflight = null;
       function getToken(interactive) {
         if (accessToken && Date.now() < tokenExpiresAt - 60000) return Promise.resolve(accessToken);
         const cid = getClientId();
         if (!cid) return Promise.reject(new Error('no_client_id'));
+        if (inflight) return inflight;
+        if (!interactive) {
+          if (document.visibilityState === 'hidden' || Date.now() - lastSilentTry < SILENT_COOLDOWN_MS) {
+            return Promise.reject(new Error('silent_skipped'));
+          }
+          lastSilentTry = Date.now();
+        }
+        const p = requestToken(interactive, cid);
+        inflight = p;
+        const clear = () => { if (inflight === p) inflight = null; };
+        p.then(clear, clear);
+        return p;
+      }
+      function requestToken(interactive, cid) {
         return loadGis().then(google => new Promise((resolve, reject) => {
           try {
             google.accounts.oauth2.initTokenClient({
