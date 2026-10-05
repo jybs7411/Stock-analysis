@@ -252,6 +252,10 @@
       background: #475569;
     }
   </style>
+  <!-- Firebase SDK (Google 로그인 & 클라우드 설정 자동 동기화) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body class="bg-[#0a0f1d] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-white">
 
@@ -303,6 +307,7 @@
             <i class="fa-solid fa-key text-amber-400 text-xs"></i>
             <span class="font-semibold text-xs">API 키 & 구글 검색 설정</span>
           </button>
+          <div id="authHeaderSlot" class="flex items-center shrink-0"></div>
           <div id="langSwitch" role="group" aria-label="Language" translate="no" class="flex rounded-lg border border-slate-700 overflow-hidden bg-slate-800 shrink-0"><button type="button" data-lang="ko" onclick="setLang('ko')" aria-label="한국어" class="lang-btn px-2.5 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">KO</button><button type="button" data-lang="en" onclick="setLang('en')" aria-label="English" class="lang-btn px-2.5 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">EN</button><button type="button" data-lang="de" onclick="setLang('de')" aria-label="Deutsch" class="lang-btn px-2.5 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">DE</button></div>
         </div>
       </div>
@@ -326,6 +331,7 @@
     <div id="navMini" class="flex items-center gap-1.5 shrink-0 overflow-hidden transition-all duration-300 ease-out opacity-0 max-w-0 pointer-events-none">
       <button type="button" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="맨 위로 (PentAnalyst)" class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 grid place-items-center shadow shadow-cyan-500/20 shrink-0"><i class="fa-solid fa-chart-pie text-white text-sm"></i></button>
       <button type="button" onclick="openApiSettingsModal()" title="API 키 · 프록시 설정" class="w-9 h-9 rounded-xl bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-600 text-amber-400 grid place-items-center transition shrink-0 mr-1"><i class="fa-solid fa-key text-xs"></i></button>
+      <div id="authMiniSlot" class="flex items-center shrink-0"></div>
     </div>
     <div id="tabStrip" role="tablist" aria-label="화면 선택" class="flex items-center gap-2 sm:gap-3 overflow-x-auto whitespace-nowrap min-w-0 flex-1">
       <button type="button" role="tab" aria-selected="false" aria-controls="view-watch" onclick="switchAppTab('watch')" id="tabBtn-watch" title="관심종목" class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition">
@@ -389,19 +395,22 @@
   <button type="button" id="toTopBtn" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="맨 위로" aria-label="맨 위로" class="hidden fixed right-4 bottom-20 z-40 w-11 h-11 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/50 grid place-items-center transition active:scale-95"><i class="fa-solid fa-arrow-up"></i></button>
 
   <!-- Live API Configuration Modal -->
-  <div id="apiSettingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-    <div class="bg-[#131e32] border border-cyan-800/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+  <div id="apiSettingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-[#131e32] border border-cyan-800/80 rounded-2xl max-w-lg w-full max-h-[90vh] max-h-[90dvh] flex flex-col p-4 sm:p-6 shadow-2xl my-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
         <div class="flex items-center gap-2">
           <span class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400">
             <i class="fa-solid fa-satellite-dish"></i>
           </span>
           <h3 class="text-base font-bold text-white">시장 데이터 프록시 & AI 연동 설정</h3>
         </div>
-        <button onclick="closeApiSettingsModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        <button onclick="closeApiSettingsModal()" class="text-slate-400 hover:text-white p-1"><i class="fa-solid fa-xmark text-base"></i></button>
       </div>
 
-      <div class="space-y-4 text-xs text-slate-300">
+      <div class="space-y-4 text-xs text-slate-300 overflow-y-auto overscroll-contain pr-1 py-1 flex-1 min-h-0">
+        <!-- Auth & Cloud Sync Card Slot -->
+        <div id="authModalCard"></div>
+
         <!-- Data feed status -->
         <div class="p-3 rounded-xl bg-slate-950 border border-emerald-900/60 flex items-start gap-2.5">
           <i class="fa-solid fa-circle-check text-emerald-400 mt-0.5 text-sm"></i>
@@ -496,9 +505,40 @@
 
       </div>
 
-      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-        <button onclick="closeApiSettingsModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs">취소</button>
-        <button onclick="saveApiSettings()" class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md shadow-cyan-600/30">설정 저장</button>
+      <div class="flex items-center justify-between gap-2 pt-3 border-t border-slate-800 shrink-0">
+        <button type="button" onclick="openQrSyncModal()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-cyan-950 text-cyan-300 border border-cyan-800/60 font-semibold text-xs flex items-center gap-1.5 transition" title="스마트폰 카메라로 찍어 1초 만에 설정 전송">
+          <i class="fa-solid fa-qrcode text-cyan-400"></i><span>모바일 QR 전송</span>
+        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="closeApiSettingsModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs">취소</button>
+          <button onclick="saveApiSettings()" class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md shadow-cyan-600/30">설정 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Code Instant Sync Modal -->
+  <div id="qrSyncModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+    <div class="bg-[#131e32] border border-cyan-800/80 rounded-2xl max-w-sm w-full p-5 shadow-2xl text-center space-y-4 my-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-qrcode text-cyan-400"></i>모바일로 설정 즉시 전송
+        </h3>
+        <button onclick="closeQrSyncModal()" class="text-slate-400 hover:text-white p-1"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-xs text-slate-300 leading-relaxed text-left">
+        스마트폰 기본 카메라로 아래 QR 코드를 비추면, <strong>Gemini API 키·프록시 주소·설정</strong>이 모바일에 1초 만에 자동 등록됩니다.
+      </p>
+      <div class="bg-white p-3 rounded-xl inline-block shadow-inner mx-auto">
+        <img id="qrSyncImage" src="" alt="QR Sync Code" class="w-48 h-48 block mx-auto">
+      </div>
+      <div class="space-y-2">
+        <button type="button" onclick="copySyncUrl()" class="w-full py-2 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow">
+          <i class="fa-regular fa-copy"></i>동기화 링크 복사 (카톡/메모장 전송용)
+        </button>
+        <button type="button" onclick="closeQrSyncModal()" class="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs transition">
+          닫기
+        </button>
       </div>
     </div>
   </div>
@@ -1493,7 +1533,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.2.0';
+    const APP_VERSION = '1.3.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -1658,6 +1698,8 @@
     }
     document.addEventListener('DOMContentLoaded', () => {
       try { if (localStorage.getItem('pentanalyst_hide_gbanner') === '1') dismissGoogleBanner(); } catch (e) { /* ignore */ }
+      if (typeof checkUrlSyncHash === 'function') checkUrlSyncHash();
+      if (typeof FB_AUTH !== 'undefined') FB_AUTH.init();
       a11yLabelIcons();
       let t = null;
       new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => { a11yLabelIcons(); starRefresh(); }, 300); }).observe(document.body, { childList: true, subtree: true });
@@ -1680,7 +1722,7 @@
         const stuck = hdr.getBoundingClientRect().bottom <= 0;
         nav.classList.toggle('is-stuck', stuck); nav.classList.toggle('shadow-xl', stuck); nav.classList.toggle('shadow-black/40', stuck);
         mini.classList.toggle('opacity-0', !stuck); mini.classList.toggle('max-w-0', !stuck); mini.classList.toggle('pointer-events-none', !stuck);
-        mini.classList.toggle('opacity-100', stuck); mini.classList.toggle('max-w-[6rem]', stuck);
+        mini.classList.toggle('opacity-100', stuck); mini.classList.toggle('max-w-[8.5rem]', stuck);
       };
       window.addEventListener('scroll', syncNav, { passive: true }); syncNav();
       const top = document.getElementById('toTopBtn');
@@ -2203,6 +2245,438 @@
       else localStorage.removeItem(`pentanalyst_${name}`);
     }
 
+    // ===== Firebase Google 로그인 & 클라우드 API 설정 자동 동기화 =====
+    // 최초 1회 연동해두면 다른 PC/모바일에서 Google 로그인만으로 Gemini API 키, 프록시 주소 등이 자동 등록됩니다.
+    const DEFAULT_FIREBASE_CONFIG = {
+      apiKey: "",
+      authDomain: "",
+      projectId: "",
+      storageBucket: "",
+      messagingSenderId: "",
+      appId: ""
+    };
+
+    const FB_AUTH = (function () {
+      const CONFIG_KEY = 'pentanalyst_firebase_config';
+      let app = null;
+      let auth = null;
+      let db = null;
+      let currentUser = null;
+      let initialized = false;
+
+      function getStoredConfig() {
+        try {
+          const raw = localStorage.getItem(CONFIG_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.apiKey) return parsed;
+          }
+        } catch (e) {}
+        if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
+          return DEFAULT_FIREBASE_CONFIG;
+        }
+        return null;
+      }
+
+      function isConfigured() {
+        const c = getStoredConfig();
+        return !!(c && c.apiKey && c.projectId);
+      }
+
+      function init() {
+        if (initialized) return true;
+        if (typeof firebase === 'undefined') return false;
+        const cfg = getStoredConfig();
+        if (!cfg) {
+          renderAuthUI();
+          return false;
+        }
+        try {
+          if (!firebase.apps.length) {
+            app = firebase.initializeApp(cfg);
+          } else {
+            app = firebase.app();
+          }
+          auth = firebase.auth();
+          db = firebase.firestore();
+          initialized = true;
+
+          auth.onAuthStateChanged(async (user) => {
+            currentUser = user;
+            renderAuthUI();
+            if (user) {
+              await loadFromCloud(true);
+            }
+          });
+
+          // 모바일 리디렉트 로그인 결과 처리
+          if (auth.getRedirectResult) {
+            auth.getRedirectResult().then(result => {
+              if (result && result.user) {
+                showToast('로그인 성공', `${result.user.displayName || result.user.email}님 환영합니다!`, 'success');
+              }
+            }).catch(e => {
+              if (e && e.code && e.code !== 'auth/null-user') {
+                console.warn('Redirect sign-in error:', e);
+              }
+            });
+          }
+
+          renderAuthUI();
+          return true;
+        } catch (e) {
+          console.error('Firebase initialize error:', e);
+          renderAuthUI();
+          return false;
+        }
+      }
+
+      async function login() {
+        if (!init()) {
+          if (!isConfigured()) {
+            openApiSettingsModal();
+            toggleFirebaseConfigSection(true);
+            showToast('Firebase 설정 필요', 'Google 로그인을 활성화하려면 Firebase 프로젝트 정보를 먼저 등록해주세요.', 'info');
+            return;
+          }
+          showToast('초기화 대기 중', 'Firebase 모듈을 준비 중입니다. 잠시 후 다시 시도해주세요.', 'info');
+          return;
+        }
+        try {
+          const provider = new firebase.auth.GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: 'select_account' });
+          try {
+            await auth.signInWithPopup(provider);
+          } catch (popupErr) {
+            if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user' || popupErr.code === 'auth/cancelled-popup-request') {
+              await auth.signInWithRedirect(provider);
+              return;
+            }
+            throw popupErr;
+          }
+        } catch (err) {
+          console.error('Login error:', err);
+          showToast('로그인 실패', err.message || 'Google 로그인 중 오류가 발생했습니다.', 'error');
+        }
+      }
+
+      async function logout() {
+        if (!auth) return;
+        try {
+          await auth.signOut();
+          currentUser = null;
+          renderAuthUI();
+          showToast('로그아웃', '계정에서 로그아웃되었습니다.', 'info');
+        } catch (err) {
+          showToast('로그아웃 실패', err.message, 'error');
+        }
+      }
+
+      async function syncToCloud(silent) {
+        if (!currentUser || !db) return;
+        try {
+          const payload = {
+            gemini_key: getStoredApiKey('gemini_key'),
+            gemini_key_paid: getStoredApiKey('gemini_key_paid'),
+            gemini_model: getStoredApiKey('gemini_model'),
+            bt_cost: getStoredApiKey('bt_cost'),
+            proxy_url: getStoredApiKey('proxy_url'),
+            auto_ai: localStorage.getItem('pentanalyst_auto_ai') || '1',
+            gemini_grounding: getStoredApiKey('gemini_grounding'),
+            gdrive_client_id: localStorage.getItem('pentanalyst_gdrive_client_id') || '',
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          };
+          await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
+          if (!silent) {
+            showToast('클라우드 저장 완료', 'API 설정이 Google 계정(Firestore)에 안전하게 저장되었습니다.', 'success');
+          }
+          renderAuthUI();
+        } catch (e) {
+          console.error('Cloud sync error:', e);
+          if (!silent) showToast('클라우드 저장 실패', e.message || '동기화 중 오류가 발생했습니다.', 'error');
+        }
+      }
+
+      async function loadFromCloud(silent) {
+        if (!currentUser || !db) return;
+        try {
+          const doc = await db.collection('users').doc(currentUser.uid).get();
+          if (doc.exists) {
+            const d = doc.data();
+            let changed = false;
+            if (d.gemini_key !== undefined && d.gemini_key !== getStoredApiKey('gemini_key')) { setStoredApiKey('gemini_key', d.gemini_key); changed = true; }
+            if (d.gemini_key_paid !== undefined && d.gemini_key_paid !== getStoredApiKey('gemini_key_paid')) { setStoredApiKey('gemini_key_paid', d.gemini_key_paid); changed = true; }
+            if (d.gemini_model !== undefined && d.gemini_model !== getStoredApiKey('gemini_model')) { setStoredApiKey('gemini_model', d.gemini_model); changed = true; }
+            if (d.bt_cost !== undefined && d.bt_cost !== getStoredApiKey('bt_cost')) { setStoredApiKey('bt_cost', d.bt_cost); changed = true; }
+            if (d.proxy_url !== undefined && d.proxy_url !== getStoredApiKey('proxy_url')) { setStoredApiKey('proxy_url', d.proxy_url); changed = true; }
+            if (d.auto_ai !== undefined) { localStorage.setItem('pentanalyst_auto_ai', d.auto_ai); changed = true; }
+            if (d.gemini_grounding !== undefined) { setStoredApiKey('gemini_grounding', d.gemini_grounding); changed = true; }
+            if (d.gdrive_client_id !== undefined) { localStorage.setItem('pentanalyst_gdrive_client_id', d.gdrive_client_id); changed = true; }
+
+            const modal = document.getElementById('apiSettingsModal');
+            if (modal && !modal.classList.contains('hidden')) {
+              openApiSettingsModal();
+            }
+
+            if (!silent) {
+              showToast('동기화 완료', 'Google 계정에서 설정을 성공적으로 불러왔습니다.', 'success');
+            } else if (changed) {
+              showToast('자동 등록 완료', `${currentUser.displayName || currentUser.email} 계정의 API 설정을 불러와 등록했습니다!`, 'success');
+            }
+          } else {
+            // 원격에 저장된 값이 없는데 로컬에 키가 있다면 최초 업로드
+            if (getStoredApiKey('gemini_key') || getStoredApiKey('proxy_url')) {
+              await syncToCloud(true);
+            }
+          }
+          renderAuthUI();
+        } catch (e) {
+          console.error('Load from cloud error:', e);
+          if (!silent) showToast('불러오기 실패', e.message || '클라우드 데이터를 가져오지 못했습니다.', 'error');
+        }
+      }
+
+      function renderAuthUI() {
+        const headerSlot = document.getElementById('authHeaderSlot');
+        const miniSlot = document.getElementById('authMiniSlot');
+        const modalCard = document.getElementById('authModalCard');
+
+        const user = currentUser;
+
+        // 1. 헤더 슬롯
+        if (headerSlot) {
+          if (user) {
+            headerSlot.innerHTML = `
+              <div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/90 border border-emerald-500/50 text-xs shadow" title="${user.email}">
+                <img src="${user.photoURL || 'icons/icon-192.png'}" class="w-5 h-5 rounded-full object-cover border border-emerald-400" alt="avatar" onerror="this.src='icons/icon-192.png'">
+                <span class="text-slate-200 font-medium max-w-[80px] sm:max-w-[110px] truncate hidden md:inline">${user.displayName || 'Google 사용자'}</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-0.5" title="클라우드 동기화 활성"></span>
+                <button type="button" onclick="FB_AUTH.logout()" class="text-slate-400 hover:text-rose-400 ml-1 p-0.5 transition" title="로그아웃"><i class="fa-solid fa-right-from-bracket text-xs"></i></button>
+              </div>`;
+          } else {
+            headerSlot.innerHTML = `
+              <button type="button" onclick="FB_AUTH.login()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition shadow text-xs font-semibold" title="Google 로그인으로 모든 기기 설정 동기화">
+                <i class="fa-brands fa-google text-red-400"></i><span class="hidden md:inline">Google 로그인</span>
+              </button>`;
+          }
+        }
+
+        // 2. 미니 슬롯 (스크롤 시 축소 네비게이션)
+        if (miniSlot) {
+          if (user) {
+            miniSlot.innerHTML = `
+              <button type="button" onclick="openApiSettingsModal()" title="로그인됨: ${user.email}" class="w-9 h-9 rounded-xl bg-slate-900 border border-emerald-500/60 p-1 grid place-items-center transition shrink-0">
+                <img src="${user.photoURL || 'icons/icon-192.png'}" class="w-6 h-6 rounded-full object-cover" onerror="this.src='icons/icon-192.png'">
+              </button>`;
+          } else {
+            miniSlot.innerHTML = `
+              <button type="button" onclick="FB_AUTH.login()" title="Google 로그인" class="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-red-400 grid place-items-center transition shrink-0">
+                <i class="fa-brands fa-google text-xs"></i>
+              </button>`;
+          }
+        }
+
+        // 3. 모달 내부 카드
+        if (modalCard) {
+          if (user) {
+            modalCard.innerHTML = `
+              <div class="p-3.5 rounded-xl bg-slate-950 border border-emerald-800/60 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <img src="${user.photoURL || 'icons/icon-192.png'}" class="w-8 h-8 rounded-full border border-emerald-400 object-cover shrink-0" alt="avatar" onerror="this.src='icons/icon-192.png'">
+                    <div>
+                      <div class="flex items-center gap-1.5">
+                        <strong class="text-white text-xs">${user.displayName || 'Google 사용자'}</strong>
+                        <span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-600/50 font-semibold flex items-center gap-1">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>동기화 활성
+                        </span>
+                      </div>
+                      <p class="text-[11px] text-slate-400">${user.email}</p>
+                    </div>
+                  </div>
+                  <button type="button" onclick="FB_AUTH.logout()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-300 border border-slate-700 text-[11px] transition">로그아웃</button>
+                </div>
+                <div class="flex items-center gap-2 pt-1 border-t border-slate-800/80">
+                  <button type="button" onclick="FB_AUTH.syncToCloud(false)" class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i>클라우드에 저장
+                  </button>
+                  <button type="button" onclick="FB_AUTH.loadFromCloud(false)" class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium flex items-center justify-center gap-1.5 transition">
+                    <i class="fa-solid fa-cloud-arrow-down text-emerald-400"></i>클라우드에서 불러오기
+                  </button>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                  설정 저장 시 Google 계정(Firestore)에 자동 백업되며, 스마트폰이나 다른 기기에서 로그인만 하면 모든 키가 자동으로 등록됩니다.
+                </p>
+              </div>`;
+          } else {
+            modalCard.innerHTML = `
+              <div class="p-3.5 rounded-xl bg-gradient-to-r from-slate-950 via-[#111e35] to-slate-950 border border-cyan-800/60 space-y-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400 shrink-0">
+                      <i class="fa-brands fa-google"></i>
+                    </span>
+                    <div>
+                      <strong class="text-white text-xs block">Google 계정으로 모든 기기 자동 동기화</strong>
+                      <p class="text-[11px] text-slate-400 mt-0.5">로그인하면 다른 기기나 모바일에서도 API 키를 다시 넣을 필요 없이 자동 등록됩니다.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button type="button" onclick="FB_AUTH.login()" class="flex-1 min-w-[150px] py-2 px-3 rounded-lg bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 shadow transition active:scale-95">
+                    <i class="fa-brands fa-google text-red-500"></i>Google 계정으로 로그인
+                  </button>
+                  <button type="button" onclick="toggleFirebaseConfigSection()" class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-gear text-slate-400"></i>Firebase 설정
+                  </button>
+                  <button type="button" onclick="openQrSyncModal()" class="py-2 px-3 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/60 text-xs font-medium flex items-center gap-1.5 transition" title="스마트폰 기본 카메라로 비추면 1초 만에 전송">
+                    <i class="fa-solid fa-qrcode text-cyan-400"></i>QR 전송
+                  </button>
+                </div>
+                <div id="firebaseConfigSection" class="hidden pt-2 border-t border-slate-800 space-y-2">
+                  <label class="block font-semibold text-white">Firebase 설정 JSON 또는 객체 붙여넣기:</label>
+                  <textarea id="firebaseConfigInput" rows="3" placeholder='{ "apiKey": "...", "authDomain": "...", "projectId": "..." }' class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-[11px] outline-none focus:border-cyan-400"></textarea>
+                  <div class="flex items-center justify-between gap-2">
+                    <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline flex items-center gap-1 text-[11px]">
+                      <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>Firebase 콘솔 열기
+                    </a>
+                    <button type="button" onclick="saveFirebaseConfigFromInput()" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs">설정 저장</button>
+                  </div>
+                  <p class="text-[10px] text-slate-400 leading-relaxed bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    💡 <strong>간편 연동 팁</strong>: Firebase 콘솔(무료)에서 프로젝트를 만들고 <strong>Authentication(Google 활성화)</strong> 및 <strong>Firestore</strong>를 생성한 뒤, 웹 앱의 <code>firebaseConfig</code>를 위 칸에 붙여넣으세요. PC에서 한 번만 연동하면 [QR 전송]을 통해 폰으로도 자동 전달됩니다!
+                  </p>
+                </div>
+              </div>`;
+          }
+        }
+      }
+
+      function getUser() { return currentUser; }
+      function getConfig() { return getStoredConfig(); }
+
+      return {
+        init, login, logout, syncToCloud, loadFromCloud, renderAuthUI, getUser, getConfig, isConfigured
+      };
+    })();
+
+    function toggleFirebaseConfigSection(forceOpen) {
+      const sec = document.getElementById('firebaseConfigSection');
+      if (!sec) return;
+      if (forceOpen === true) sec.classList.remove('hidden');
+      else sec.classList.toggle('hidden');
+      if (!sec.classList.contains('hidden')) {
+        const inp = document.getElementById('firebaseConfigInput');
+        if (inp && !inp.value.trim()) {
+          const cur = FB_AUTH.getConfig();
+          if (cur) inp.value = JSON.stringify(cur, null, 2);
+        }
+      }
+    }
+
+    function saveFirebaseConfigFromInput() {
+      const inp = document.getElementById('firebaseConfigInput');
+      if (!inp) return;
+      const text = inp.value.trim();
+      if (!text) {
+        localStorage.removeItem('pentanalyst_firebase_config');
+        showToast('설정 해제', 'Firebase 설정이 삭제되었습니다.', 'info');
+        FB_AUTH.renderAuthUI();
+        return;
+      }
+      try {
+        let obj = null;
+        const braceMatch = text.match(/\{[\s\S]*\}/);
+        if (braceMatch) {
+          try {
+            obj = JSON.parse(braceMatch[0]);
+          } catch (e1) {
+            const loose = braceMatch[0]
+              .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":')
+              .replace(/'([^']*)'/g, '"$1"')
+              .replace(/,\s*([}\]])/g, '$1');
+            obj = JSON.parse(loose);
+          }
+        }
+        if (!obj || !obj.apiKey || !obj.projectId) {
+          showToast('설정 형식 오류', 'apiKey와 projectId가 포함된 Firebase 설정이어야 합니다.', 'error');
+          return;
+        }
+        localStorage.setItem('pentanalyst_firebase_config', JSON.stringify(obj));
+        showToast('Firebase 설정 저장됨', 'Google 로그인을 진행할 수 있습니다.', 'success');
+        toggleFirebaseConfigSection(false);
+        FB_AUTH.init();
+        FB_AUTH.renderAuthUI();
+      } catch (err) {
+        showToast('파싱 실패', '올바른 JSON 또는 자바스크립트 객체 형식으로 입력해주세요.', 'error');
+      }
+    }
+
+    // ===== 모바일 1초 전송 (QR Code Instant Sync) =====
+    function openQrSyncModal() {
+      const cfg = {
+        gemini_key: getStoredApiKey('gemini_key'),
+        gemini_key_paid: getStoredApiKey('gemini_key_paid'),
+        gemini_model: getStoredApiKey('gemini_model'),
+        bt_cost: getStoredApiKey('bt_cost'),
+        proxy_url: getStoredApiKey('proxy_url'),
+        auto_ai: localStorage.getItem('pentanalyst_auto_ai') || '1',
+        gemini_grounding: getStoredApiKey('gemini_grounding'),
+        gdrive_client_id: localStorage.getItem('pentanalyst_gdrive_client_id') || '',
+        fb_cfg: localStorage.getItem('pentanalyst_firebase_config') || ''
+      };
+      const jsonStr = JSON.stringify(cfg);
+      const b64 = btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+      const syncUrl = `${location.origin}${location.pathname}#sync_cfg=${b64}`;
+      window._lastSyncUrl = syncUrl;
+
+      const img = document.getElementById('qrSyncImage');
+      if (img) {
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(syncUrl)}`;
+      }
+      document.getElementById('qrSyncModal').classList.remove('hidden');
+    }
+
+    function closeQrSyncModal() {
+      document.getElementById('qrSyncModal').classList.add('hidden');
+    }
+
+    function copySyncUrl() {
+      if (!window._lastSyncUrl) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(window._lastSyncUrl).then(() => {
+          showToast('동기화 링크 복사됨', '카카오톡이나 메모장으로 보내 모바일에서 열어보세요.', 'success');
+        }).catch(() => {
+          prompt('아래 링크를 복사하여 모바일 브라우저에서 여세요:', window._lastSyncUrl);
+        });
+      } else {
+        prompt('아래 링크를 복사하여 모바일 브라우저에서 여세요:', window._lastSyncUrl);
+      }
+    }
+
+    function checkUrlSyncHash() {
+      if (!location.hash || !location.hash.startsWith('#sync_cfg=')) return;
+      try {
+        const rawB64 = location.hash.replace('#sync_cfg=', '');
+        const decoded = decodeURIComponent(Array.prototype.map.call(atob(rawB64), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+        const cfg = JSON.parse(decoded);
+        if (cfg.gemini_key) setStoredApiKey('gemini_key', cfg.gemini_key);
+        if (cfg.gemini_key_paid) setStoredApiKey('gemini_key_paid', cfg.gemini_key_paid);
+        if (cfg.gemini_model) setStoredApiKey('gemini_model', cfg.gemini_model);
+        if (cfg.bt_cost != null) setStoredApiKey('bt_cost', String(cfg.bt_cost));
+        if (cfg.proxy_url) setStoredApiKey('proxy_url', cfg.proxy_url);
+        if (cfg.auto_ai != null) localStorage.setItem('pentanalyst_auto_ai', cfg.auto_ai);
+        if (cfg.gemini_grounding != null) setStoredApiKey('gemini_grounding', cfg.gemini_grounding);
+        if (cfg.gdrive_client_id) localStorage.setItem('pentanalyst_gdrive_client_id', cfg.gdrive_client_id);
+        if (cfg.fb_cfg) localStorage.setItem('pentanalyst_firebase_config', cfg.fb_cfg);
+
+        history.replaceState(null, '', location.pathname + location.search);
+        showToast('설정 동기화 완료', '모든 API 키와 설정이 이 기기에 자동으로 등록되었습니다!', 'success');
+        if (typeof FB_AUTH !== 'undefined') FB_AUTH.init();
+      } catch (e) {
+        console.warn('Sync hash parse failed:', e);
+      }
+    }
+
     // 배포한 자체 프록시(Cloudflare Worker) 주소를 여기에 고정할 수도 있고,
     // 비워 두면 'API 키 & 구글 검색 설정' 창에서 입력한 값(localStorage)을 사용합니다.
     const DEFAULT_PROXY_URL = '';
@@ -2240,6 +2714,7 @@
       document.getElementById('proxyUrlInput').value = getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL;
       const gCidEl = document.getElementById('gdriveClientIdInput');
       if (gCidEl) gCidEl.value = localStorage.getItem('pentanalyst_gdrive_client_id') || '';
+      if (typeof FB_AUTH !== 'undefined') FB_AUTH.renderAuthUI();
       document.getElementById('apiSettingsModal').classList.remove('hidden');
     }
 
@@ -2270,6 +2745,9 @@
         else localStorage.removeItem('pentanalyst_gdrive_client_id');
       }
       try { window.dispatchEvent(new CustomEvent('gdrive-config-changed')); } catch (e) {}
+      if (typeof FB_AUTH !== 'undefined' && FB_AUTH.getUser()) {
+        FB_AUTH.syncToCloud(true);
+      }
       updateGoogleSearchBannerState();
       closeApiSettingsModal();
 
