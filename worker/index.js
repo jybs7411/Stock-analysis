@@ -12,6 +12,7 @@
  *   GET /api/search?q=basf                       -> 회사명/티커 검색 (전 세계 거래소) [{symbol,name,exchange,type}]
  *   GET /api/fundamentals?symbol=NVDA            -> 정리된 재무 지표 JSON
  *   GET /api/deep?symbol=NVDA                    -> 실적·재무·애널리스트·수급·배당·뉴스 (심층 분석용)
+ *   GET /api/calendar?type=earnings|economic|ipo|splits&from=YYYY-MM-DD&to=YYYY-MM-DD -> 야후 금융 달력 {type,from,to,items[]} (기간 최대 70일)
  *
  * 환경 변수 (wrangler.toml [vars] 또는 대시보드)
  *   ALLOWED_ORIGIN  허용할 Origin (예: https://jybs7411.github.io). 비우면 "*" 허용.
@@ -450,6 +451,89 @@ async function cached(request, ctx, ttl, producer) {
   return res;
 }
 
+// ---- 야후 금융 달력 (실적·경제지표·IPO·액면분할) ----
+// Yahoo 달력 화면이 쓰는 v1/finance/visualization (POST + crumb) 를 대신 호출해 정리된 JSON 으로 돌려준다.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ECON_COUNTRIES = ['US', 'KR', 'JP', 'CN', 'DE', 'GB', 'EU'];
+const US_TICKER_RE = /^[A-Z]{1,5}([.-][A-Z])?$/;
+const IPO_NOISE_RE = /\bwarrants?\b|\brights?\b|\bunits?\b|\bnotes?\b|\bpreferred\b|\bdepositary shares\b|\bfunds?\b|\betf\b|\btrust\b|\bdimensions\b|%/i; // 워런트·권리·유닛·채권·펀드류
+const NON_COMMON_RE = /-(P[A-Z]?|W[A-Z]?|U|R)$/; // 우선주·워런트·유닛·권리
+
+async function yahooVisual(body, retry = true) {
+  const { crumb, cookie } = await getCrumb(!retry);
+  const resp = await fetch(`${YAHOO}/v1/finance/visualization?crumb=${encodeURIComponent(crumb)}&lang=en-US&region=US`, {
+    method: 'POST',
+    headers: { 'User-Agent': UA, Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if ((resp.status === 401 || resp.status === 403) && retry) { crumbCache = null; return yahooVisual(body, false); }
+  if (!resp.ok) throw new Error(`yahoo calendar ${resp.status}`);
+  const data = await resp.json();
+  const res = data && data.finance && data.finance.result && data.finance.result[0];
+  const doc = res && res.documents && res.documents[0];
+  if (!doc) throw new Error('yahoo calendar empty');
+  const ids = (doc.columns || []).map(c => c.id);
+  return { total: res.total || 0, rows: (doc.rows || []).map(r => Object.fromEntries(ids.map((id, i) => [id, r[i]]))) };
+}
+
+async function fetchCalendar(type, from, to) {
+  const query = extra => ({
+    operator: 'and',
+    operands: [
+      { operator: 'gte', operands: ['startdatetime', from] },
+      { operator: 'lt', operands: ['startdatetime', to] },
+      ...extra
+    ]
+  });
+  const n = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+  if (type === 'earnings') {
+    const { rows } = await yahooVisual({
+      sortType: 'DESC', entityIdType: 'earnings', sortField: 'intradaymarketcap',
+      includeFields: ['ticker', 'companyshortname', 'eventname', 'startdatetime', 'startdatetimetype', 'epsestimate', 'epsactual', 'epssurprisepct', 'intradaymarketcap'],
+      query: query([{ operator: 'eq', operands: ['region', 'us'] }]), offset: 0, size: 250
+    });
+    return rows.filter(r => r.ticker && !NON_COMMON_RE.test(r.ticker)).slice(0, 200).map(r => ({
+      sym: r.ticker, name: r.companyshortname || r.ticker, event: r.eventname || '', ts: r.startdatetime, tt: r.startdatetimetype || '',
+      epsEst: n(r.epsestimate), epsAct: n(r.epsactual), surp: n(r.epssurprisepct), mcap: n(r.intradaymarketcap)
+    }));
+  }
+
+  if (type === 'economic') {
+    const country = { operator: 'or', operands: ECON_COUNTRIES.map(c => ({ operator: 'eq', operands: ['country_code', c] })) };
+    const out = [];
+    for (let offset = 0; offset < 750; offset += 250) { // 한 번에 최대 250건 → 페이지 반복
+      const { total, rows } = await yahooVisual({
+        sortType: 'ASC', entityIdType: 'economic_event', sortField: 'startdatetime',
+        includeFields: ['econ_release', 'country_code', 'period', 'after_release_actual', 'consensus_estimate', 'prior_release_actual', 'startdatetime'],
+        query: query([country]), offset, size: 250
+      });
+      rows.forEach(r => out.push({ name: r.econ_release || '', cc: r.country_code, period: r.period || '', act: r.after_release_actual, est: r.consensus_estimate, prior: r.prior_release_actual, ts: r.startdatetime }));
+      if (offset + 250 >= total) break;
+    }
+    return out;
+  }
+
+  if (type === 'ipo') {
+    const { rows } = await yahooVisual({
+      sortType: 'ASC', entityIdType: 'ipo_info', sortField: 'startdatetime',
+      includeFields: ['ticker', 'companyshortname', 'exchange_short_name', 'startdatetime', 'pricefrom', 'priceto', 'offerprice', 'currencyname', 'shares', 'dealtype'],
+      query: query([]), offset: 0, size: 100
+    });
+    return rows.filter(r => !IPO_NOISE_RE.test(`${r.companyshortname || ''}`) && !/^[A-Z]{3,4}[WRU]$/.test(r.ticker || '')).map(r => ({ sym: r.ticker || '', name: r.companyshortname || r.ticker || '', exch: r.exchange_short_name || '', ts: r.startdatetime, from: n(r.pricefrom), to: n(r.priceto), offer: n(r.offerprice), cur: r.currencyname || '', shares: n(r.shares), deal: r.dealtype || '' }));
+  }
+
+  if (type === 'splits') {
+    const { rows } = await yahooVisual({
+      sortType: 'ASC', entityIdType: 'splits', sortField: 'startdatetime',
+      includeFields: ['ticker', 'companyshortname', 'startdatetime', 'optionable', 'old_share_worth', 'share_worth'],
+      query: query([]), offset: 0, size: 250
+    });
+    return rows.filter(r => r.ticker && US_TICKER_RE.test(r.ticker)).map(r => ({ sym: r.ticker, name: r.companyshortname || r.ticker, ts: r.startdatetime, old: n(r.old_share_worth), new: n(r.share_worth), opt: !!r.optionable }));
+  }
+  return [];
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
@@ -484,6 +568,19 @@ export default {
           return await cached(request, ctx, 60, async () => json(await fetchSparkAll(symbols, range, interval), 200, request, env, 60));
         }
         return await cached(request, ctx, 30, async () => json({ quotes: await fetchQuotes(symbols) }, 200, request, env, 30));
+      } catch (err) {
+        return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
+      }
+    }
+
+    if (url.pathname === '/api/calendar') {
+      const type = url.searchParams.get('type') || '';
+      const from = url.searchParams.get('from') || '', to = url.searchParams.get('to') || '';
+      if (!['earnings', 'economic', 'ipo', 'splits'].includes(type) || !DATE_RE.test(from) || !DATE_RE.test(to) || to <= from || (Date.parse(to) - Date.parse(from)) / 86400000 > 70) {
+        return json({ error: 'invalid params' }, 400, request, env);
+      }
+      try {
+        return await cached(request, ctx, 1800, async () => json({ type, from, to, items: await fetchCalendar(type, from, to) }, 200, request, env, 1800));
       } catch (err) {
         return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
       }

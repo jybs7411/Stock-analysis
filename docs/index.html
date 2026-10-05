@@ -1614,7 +1614,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.9.0';
+    const APP_VERSION = '1.10.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -17526,6 +17526,168 @@ ${digest}`;
       };
       const OVERRIDE = ['cpi', 'nfp', 'pce', 'gdp'];   // AI 가 정확한 날짜를 주면 '대략' 일정을 대체할 유형
 
+      // Yahoo Finance 에서 가져오는 일정 유형 (프록시 /api/calendar). 개별 카드는 yfCard 가 데이터 표로 그린다.
+      CATS.corp = '상장·분할';
+      Object.assign(TYPES, {
+        yf_earn: { icon: '📊', label: '기업 실적 발표', chip: '', cat: 'earn', level: 'mid', time: '',
+          short: 'Yahoo Finance 실적 일정',
+          what: '기업이 지난 분기 매출·이익(EPS)을 공개하는 날입니다. 시장 예상(컨센서스)과 비교해 주가가 크게 움직이기도 합니다.',
+          why: '실적 숫자뿐 아니라 다음 분기 전망(가이던스)과 경영진 발언이 주가를 좌우합니다.' },
+        yf_earn_more: { icon: '📋', label: '그 외 실적 발표', chip: '', cat: 'earn', level: 'low', time: '',
+          short: '시가총액 순 그 외 기업들', what: '같은 날 실적을 발표하는 나머지 기업 목록입니다.', why: '관심 종목이 있다면 발표 시점(장 시작 전/마감 후)을 확인해 두세요.' },
+        yf_econ: { icon: '🌐', label: '경제지표', chip: '', cat: 'data', level: 'low', time: '',
+          short: 'Yahoo Finance 경제지표 일정',
+          what: '정부·기관이 발표하는 경제 통계입니다. 시장 예상치와의 차이가 핵심입니다.',
+          why: '결과가 예상보다 좋은지 나쁜지에 따라 금리 기대와 주가·환율이 움직입니다.' },
+        yf_ipo: { icon: '🚀', label: '신규 상장 (IPO)', chip: '', cat: 'corp', level: 'mid', time: '',
+          short: 'Yahoo Finance IPO 일정',
+          what: '기업이 처음으로 주식시장에 상장해 일반 투자자가 거래할 수 있게 되는 날입니다.',
+          why: '상장 첫날은 변동성이 매우 크고, 공모가 대비 큰 폭으로 오르내리는 일이 흔합니다. 예정일은 시장 상황에 따라 미뤄질 수 있어요.' },
+        yf_split: { icon: '✂️', label: '액면분할·병합', chip: '', cat: 'corp', level: 'low', time: '',
+          short: 'Yahoo Finance 분할 일정',
+          what: '주식 1주를 여러 주로 쪼개거나(액면분할), 여러 주를 1주로 합치는(병합·역분할) 날입니다. 회사 가치는 그대로입니다.',
+          why: '분할은 주가를 낮춰 거래하기 쉽게 만들고, 병합은 상장 유지 요건을 맞추려는 목적이 많습니다(후자는 악재로 받아들여지기도 해요).' }
+      });
+
+      // ---------- Yahoo Finance 일정 (실적·경제지표·IPO·분할) ----------
+      // 프록시 Worker 의 /api/calendar 를 월 단위로 불러와 브라우저에 잠시 저장한다(구글 드라이브 동기화 대상 아님 — 다시 받으면 되는 공개 데이터).
+      const YF_LS = 'pentanalyst_cal_yf_v1';
+      const TZ = { US: 'America/New_York', KR: 'Asia/Seoul', JP: 'Asia/Tokyo', CN: 'Asia/Shanghai', DE: 'Europe/Berlin', EU: 'Europe/Berlin', GB: 'Europe/London' };
+      const CCN = { US: ['🇺🇸', '미국'], KR: ['🇰🇷', '한국'], JP: ['🇯🇵', '일본'], CN: ['🇨🇳', '중국'], EU: ['🇪🇺', '유로존'], DE: ['🇩🇪', '독일'], GB: ['🇬🇧', '영국'] };
+      const fmtCache = {};
+      const dayFmt = tz => fmtCache['d' + tz] || (fmtCache['d' + tz] = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }));
+      const timeFmt = tz => fmtCache['t' + tz] || (fmtCache['t' + tz] = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }));
+      const dayIn = (ts, tz) => dayFmt(tz).format(new Date(ts));
+      const timeIn = (ts, tz) => timeFmt(tz).format(new Date(ts));
+      const money = v => v == null ? '' : v >= 1e12 ? `$${(v / 1e12).toFixed(2)}T` : v >= 1e9 ? `$${(v / 1e9).toFixed(v >= 1e11 ? 0 : 1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+      const eps = v => v == null ? '' : `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
+      const TT = { BMO: '장 시작 전', AMC: '장 마감 후', TNS: '시간 미정', TAS: '시간 지정' };
+      const BIG_EARN = 5e10;   // 이 시가총액 이상은 개별 일정, 나머지는 날짜별로 묶는다
+      const ECON_KO = [   // 대표 지표 한글명 (나머지는 원문 표기)
+        [/^Non-Farm Payrolls/, '비농업 고용(NFP)'], [/^Unemployment Rate/, '실업률'], [/^Private Payrolls/, '민간 고용'], [/^Average Earnings MM/, '평균 시간당 임금 전월비'],
+        [/^Core CPI MM/, '근원 CPI 전월비'], [/^Core CPI YY/, '근원 CPI 전년비'], [/^CPI MM/, '소비자물가(CPI) 전월비'], [/^CPI YY/, '소비자물가(CPI) 전년비'],
+        [/^Core PCE.*MM|^PCE.*Core.*MM/i, '근원 PCE 전월비'], [/PCE/i, 'PCE 물가'], [/^PPI Final Demand MM/, '생산자물가(PPI) 전월비'], [/^PPI Final Demand YY/, '생산자물가(PPI) 전년비'],
+        [/^Retail Sales MM/, '소매판매 전월비'], [/^Retail Sales Ex-Autos/, '소매판매(자동차 제외) 전월비'], [/^ISM Manufacturing PMI/, 'ISM 제조업 PMI'], [/^ISM N-Mfg PMI/, 'ISM 서비스업 PMI'],
+        [/^Initial Jobless/, '신규 실업수당 청구'], [/^Cont Jobless/, '연속 실업수당 청구'], [/^U Mich Sentiment/, '미시간대 소비자심리'], [/GDP/i, 'GDP'],
+        [/^Industrial Production MM/, '산업생산 전월비'], [/^Housing Starts|^House Starts/, '주택착공'], [/^Existing Home Sales$/, '기존주택 판매'], [/^Durable Goods, R MM/, '내구재 주문 전월비'],
+        [/^Consumer Credit/, '소비자 신용'], [/^Challenger Layoffs/, '챌린저 감원'], [/^Bank of Korea Base Rate/, '한국은행 기준금리'], [/^CPI Growth YY/, '소비자물가 전년비'], [/^CPI Growth MM/, '소비자물가 전월비']
+      ];
+      const econKo = n => { const s = String(n || '').replace(/\*+$/, '').trim(); for (const [re, ko] of ECON_KO) if (re.test(s)) return ko; return s; };
+      function econLevel(cc, name) {
+        const n = String(name || '');
+        if (/Base Rate|Interest Rate|Rate Decision|Non-Farm Payrolls|^Unemployment Rate|^CPI (MM|YY)|^Core CPI (MM|YY)|PCE|GDP/i.test(n) && !/Weekly|Index/i.test(n)) return cc === 'US' || /Rate/.test(n) ? 'high' : 'mid';
+        if (cc === 'US' && /^(ISM Manufacturing PMI|ISM N-Mfg PMI|Retail Sales MM|PPI Final Demand|U Mich Sentiment|Initial Jobless|Private Payrolls|Housing Starts|Durable Goods, R MM|Industrial Production MM|Existing Home Sales$|Average Earnings MM)/.test(n)) return 'mid';
+        if (cc !== 'US' && /Unemployment|Trade Balance|Industrial|PMI|Retail|CPI/i.test(n)) return 'mid';
+        return 'low';
+      }
+      const YF_APPROX = [   // Yahoo 가 정확한 날짜를 주면 '대략 날짜' 일정을 대체할 유형: [유형, 지표 이름 패턴]
+        ['cpi', /^CPI (MM|YY)/], ['nfp', /^Non-Farm Payrolls/], ['pce', /PCE/i], ['gdp', /GDP/i]
+      ];
+      const YF_EARN_APPROX = [['earn_bank', ['JPM']], ['earn_tech', ['AAPL', 'MSFT', 'GOOGL', 'GOOG', 'META', 'AMZN']], ['earn_nvda', ['NVDA']]];
+
+      const YF = {
+        mem: {}, busy: {}, err: {},
+        pre: (y, m) => `${y}-${pad(m + 1)}`,
+        loadLs() { try { const s = JSON.parse(localStorage.getItem(YF_LS) || 'null'); if (s && typeof s === 'object') Object.keys(s).forEach(k => { if (!this.mem[k]) this.mem[k] = s[k]; }); } catch (e) { /* 저장값 없음 */ } },
+        saveLs() {
+          try {
+            const ks = Object.keys(this.mem).sort((a, b) => (this.mem[b].ts || 0) - (this.mem[a].ts || 0)).slice(0, 4), out = {};
+            ks.forEach(k => { out[k] = { ts: this.mem[k].ts, d: this.mem[k].d }; });
+            localStorage.setItem(YF_LS, JSON.stringify(out));
+          } catch (e) { /* 용량 초과 등은 무시 */ }
+        },
+        fresh(pre) {   // 지난 달은 일주일, 이번 달 이후는 3시간 동안 저장분 사용
+          const c = this.mem[pre]; if (!c || !c.ts) return false;
+          const nowPre = this.pre(new Date().getFullYear(), new Date().getMonth());
+          return Date.now() - c.ts < (pre < nowPre ? 7 * 86400000 : 3 * 3600000);
+        },
+        built(pre) {   // 월 데이터 → 달력 이벤트 (월별 1회 계산해 보관)
+          const c = this.mem[pre]; if (!c || !c.d) return null;
+          if (!c.ev) c.ev = yfBuild(pre, c.d);
+          return c.ev;
+        },
+        async ensure(y, m, force) {
+          const pre = this.pre(y, m);
+          if (this.busy[pre] || (!force && this.fresh(pre))) return;
+          const proxy = typeof getProxyUrl === 'function' ? getProxyUrl() : '';
+          if (!proxy) { this.err[pre] = { kind: 'noproxy' }; return; }
+          this.busy[pre] = true; delete this.err[pre];
+          if (typeof activeAppTab !== 'undefined' && activeAppTab === 'calendar' && C.inited) render();
+          const day = d => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+          const from = day(new Date(Date.UTC(y, m, 0))), to = day(new Date(Date.UTC(y, m + 1, 2)));   // 시간대 경계를 위해 앞뒤 하루 여유
+          const types = ['earnings', 'economic', 'ipo', 'splits'];
+          const res = await Promise.allSettled(types.map(t => fetchJsonWithTimeout(`${proxy}/api/calendar?type=${t}&from=${from}&to=${to}`, 30000)));
+          const prev = this.mem[pre] && this.mem[pre].d || {}, d = {}; let bad = null;
+          res.forEach((r, i) => {
+            if (r.status === 'fulfilled' && r.value && Array.isArray(r.value.items)) d[types[i]] = r.value.items;
+            else { bad = bad || r.reason || new Error('empty'); if (prev[types[i]]) d[types[i]] = prev[types[i]]; }
+          });
+          if (bad && !Object.keys(d).length) this.err[pre] = { kind: 'fail', status: bad.status, msg: String(bad.message || bad) };
+          else {
+            this.mem[pre] = { ts: bad ? 0 : Date.now(), d, partial: !!bad };   // 일부 실패면 ts=0 → 다음에 다시 시도
+            if (bad) this.err[pre] = { kind: 'partial', msg: String(bad.message || bad) };
+            else this.saveLs();
+          }
+          delete this.busy[pre];
+          if (typeof activeAppTab !== 'undefined' && activeAppTab === 'calendar' && C.inited) render();
+        },
+        counts(pre) { const c = this.mem[pre]; if (!c || !c.d) return null; const n = k => (c.d[k] || []).length; return { earn: n('earnings'), econ: n('economic'), ipo: n('ipo'), split: n('splits') }; }
+      };
+
+      function yfBuild(pre, d) {
+        const ev = [], link = (date, kind) => `https://finance.yahoo.com/calendar/${kind}?day=${date}`;
+        const short = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+        // 실적: 대형주는 개별, 나머지는 날짜별 묶음
+        const rest = {};
+        (d.earnings || []).forEach(r => {
+          const date = dayIn(r.ts, TZ.US); if (!date.startsWith(pre)) return;
+          const when = r.tt === 'TAS' ? `미국 동부 ${timeIn(r.ts, TZ.US)}` : (TT[r.tt] || '');
+          if ((r.mcap || 0) >= BIG_EARN) {
+            const facts = [['발표 시점', when || '미정'], ['시가총액', money(r.mcap)], ['EPS 예상', eps(r.epsEst) || '—'], ['EPS 실제', eps(r.epsAct) || '발표 전']];
+            if (r.surp != null) facts.push(['예상 대비', `${r.surp > 0 ? '+' : ''}${r.surp.toFixed(1)}%`]);
+            ev.push({ date, type: 'yf_earn', yf: true, title: `${short(r.name, 26)} (${r.sym}) 실적`, chip: r.sym, lvl: r.mcap >= 5e11 ? 'high' : r.mcap >= 1e11 ? 'mid' : 'low', facts,
+              note: `${r.event || '분기 실적 발표'}${when ? ` · ${when}` : ''}${r.epsEst != null ? ` · EPS 시장예상 ${eps(r.epsEst)}` : ''}${r.epsAct != null ? ` · EPS 실제 ${eps(r.epsAct)}` : ''}`.trim(),
+              link: link(date, 'earnings'), sym: r.sym });
+          } else (rest[date] = rest[date] || []).push(Object.assign({ when }, r));
+        });
+        Object.keys(rest).forEach(date => {
+          const list = rest[date].sort((a, b) => (b.mcap || 0) - (a.mcap || 0));
+          ev.push({ date, type: 'yf_earn_more', yf: true, title: `그 외 실적 발표 ${list.length}곳`, chip: `+${list.length}사`, lvl: 'low', link: link(date, 'earnings'),
+            list: list.slice(0, 60).map(r => `${r.sym} · ${short(r.name, 28)}${r.when ? ` · ${r.when}` : ''}${r.epsEst != null ? ` · EPS 예상 ${eps(r.epsEst)}` : ''}${r.epsAct != null ? ` → 실제 ${eps(r.epsAct)}` : ''}`) });
+        });
+        // 경제지표 (국가 필터는 monthEvents 에서)
+        (d.economic || []).forEach(r => {
+          const tz = TZ[r.cc] || TZ.US, date = dayIn(r.ts, tz); if (!date.startsWith(pre)) return;
+          const ko = econKo(r.name), flag = (CCN[r.cc] || ['🌐'])[0], kdate = dayIn(r.ts, TZ.KR);
+          const facts = [['기간', r.period || '—'], ['실제', r.act == null ? '발표 전' : r.act], ['시장 예상', r.est == null ? '—' : r.est], ['이전', r.prior == null ? '—' : r.prior]];
+          ev.push({ date, type: 'yf_econ', yf: true, cc: r.cc, title: `${flag} ${ko}`, chip: short(ko, 8), lvl: econLevel(r.cc, r.name), facts, raw: String(r.name || ''),
+            when: `현지 ${timeIn(r.ts, tz)} · 한국 ${kdate === date ? '' : kdate.slice(5).replace('-', '/') + ' '}${timeIn(r.ts, TZ.KR)}`,
+            note: `${(CCN[r.cc] || ['', r.cc])[1]} 경제지표 "${r.name}"${r.period ? ` (${r.period} 기준)` : ''} · 시장예상 ${r.est == null ? '없음' : r.est} · 이전 ${r.prior == null ? '없음' : r.prior}${r.act != null ? ` · 실제 ${r.act}` : ''}`,
+            link: link(date, 'economic') });
+        });
+        // IPO·분할 (날짜는 거래소 기준 날짜 = UTC 날짜 부분)
+        (d.ipo || []).forEach(r => {
+          const date = String(r.ts || '').slice(0, 10); if (!date.startsWith(pre)) return;
+          const rng = r.from != null && r.to != null ? `$${r.from}~$${r.to}` : r.offer != null ? `$${r.offer}` : '미정';
+          ev.push({ date, type: 'yf_ipo', yf: true, title: `${short(r.name, 30)}${r.sym ? ` (${r.sym})` : ''} 상장`, chip: r.sym || 'IPO', lvl: r.from != null || r.offer != null ? 'mid' : 'low',
+            facts: [['거래소', r.exch || '—'], ['공모가(범위)', rng], ['공모 주식수', r.shares != null ? r.shares.toLocaleString('en-US') : '—'], ['상태', r.deal || '—']],
+            note: `신규 상장(IPO) 예정 · ${r.exch || ''} · 공모가 ${rng}`, link: link(date, 'ipo') });
+        });
+        (d.splits || []).forEach(r => {
+          const date = String(r.ts || '').slice(0, 10); if (!date.startsWith(pre) || !r.old || !r.new) return;
+          const ratio = r.new / r.old, f = x => (Math.abs(x - Math.round(x)) < 0.001 ? String(Math.round(x)) : x.toFixed(2));
+          const label = ratio >= 1 ? `1주 → ${f(ratio)}주 액면분할` : `${f(1 / ratio)}주 → 1주 병합(역분할)`;
+          ev.push({ date, type: 'yf_split', yf: true, title: `${r.sym} ${label}`, chip: r.sym, lvl: 'low',
+            facts: [['종목', short(r.name, 30)], ['비율', label], ['옵션 거래', r.opt ? '가능' : '불가']], note: `${r.name} ${label}`, link: link(date, 'splits') });
+        });
+        return ev;
+      }
+      function yfCovered(ev) {   // Yahoo 가 이미 정확한 날짜를 준 '대략 날짜' 유형들
+        const cov = new Set();
+        ev.forEach(e => { if (e.type === 'yf_econ' && e.cc === 'US') YF_APPROX.forEach(([t, re]) => { if (re.test(e.raw)) cov.add(t); }); if (e.type === 'yf_earn') YF_EARN_APPROX.forEach(([t, syms]) => { if (syms.includes(e.sym)) cov.add(t); }); });
+        return cov;
+      }
+
       // ---------- 일정 생성 (규칙 계산) ----------
       function easter(y) {
         const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3),
@@ -17642,10 +17804,11 @@ ${digest}`;
       };
       try { window.addEventListener('gauth-changed', e => { SYNC.synced = false; if (e && e.detail && e.detail.user) SYNC.run(true); }); } catch (e) { /* 무시 */ }
 
-      const C = { y: 0, m: 0, sel: null, cats: new Set(Object.keys(CATS)), onlyHigh: false, detail: [], aiState: {}, monthBusy: false, monthMsg: '', inited: false };
+      const C = { y: 0, m: 0, sel: null, cats: new Set(Object.keys(CATS)), cc: new Set(['US', 'KR']), onlyHigh: false, detail: [], aiState: {}, monthBusy: false, monthMsg: '', inited: false };
       const lvOf = e => e.lvl || TYPES[e.type].level;
       const titleOf = e => {
         const T = TYPES[e.type];
+        if (e.yf) return e.title;
         if (e.type === 'fomc') return `FOMC 금리 결정${e.sep ? ' + 점도표·경제전망' : ''}`;
         if (e.type === 'holiday') return `미국 증시 휴장 · ${e.name}`;
         if (e.type === 'early') return `조기 폐장 · ${e.name}`;
@@ -17653,16 +17816,22 @@ ${digest}`;
         if (e.type === 'other') return e.title || T.label;
         return T.label;
       };
-      const chipOf = e => e.type === 'other' ? String(e.title || '일정').slice(0, 7) : TYPES[e.type].chip;
+      const chipOf = e => e.yf ? e.chip : e.type === 'other' ? String(e.title || '일정').slice(0, 7) : TYPES[e.type].chip;
       const evId = e => `${e.date}|${e.type}|${e.title || ''}`;
 
       function monthEvents(y, m) {
         const pre = `${y}-${pad(m + 1)}`;
-        const ev = baseYear(y).filter(e => e.date.startsWith(pre)).map(e => Object.assign({}, e));
+        let ev = baseYear(y).filter(e => e.date.startsWith(pre)).map(e => Object.assign({}, e));
+        const yfAll = YF.built(pre), covered = yfAll ? yfCovered(yfAll) : new Set();
+        if (yfAll) {   // Yahoo 가 정확한 날짜를 준 유형은 '대략 날짜' 일정을 빼고, Yahoo 일정을 합친다 (경제지표는 선택한 국가만)
+          ev = ev.filter(e => !(e.approx && covered.has(e.type)));
+          yfAll.forEach(e => { if (!e.cc || C.cc.has(e.cc)) ev.push(Object.assign({}, e)); });
+        }
         const ai = store().month[pre];
         if (ai && Array.isArray(ai.events)) {
           ai.events.forEach(a => {
             if (OVERRIDE.includes(a.type)) {
+              if (covered.has(a.type)) return;
               const hit = ev.find(e => e.type === a.type && e.approx);
               if (hit) { hit.date = a.date; hit.approx = false; hit.src = 'ai'; return; }
               if (ev.some(e => e.type === a.type)) return;
@@ -17689,7 +17858,7 @@ ${digest}`;
 
       function agendaHtml() {
         const t = parseKey(todayKey()), end = new Date(t); end.setDate(end.getDate() + 14);
-        const list = eventsBetween(t, end).filter(e => lvOf(e) !== 'low' || e.date === todayKey());
+        const list = eventsBetween(t, end).filter(e => lvOf(e) !== 'low' || (e.date === todayKey() && !e.yf));
         const rows = list.slice(0, 10).map(e => {
           const T = TYPES[e.type], lv = LV[lvOf(e)];
           return `<button type="button" onclick="calPick('${e.date}', true)" class="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-800/70 transition">
@@ -17718,7 +17887,24 @@ ${digest}`;
         return `<div class="grid grid-cols-7 gap-1">${cells}</div>`;
       }
 
+      function yfCard(e, i) {
+        const T = TYPES[e.type], lv = LV[lvOf(e)];
+        const facts = (e.facts || []).map(f => `<div class="rounded-lg bg-slate-800/60 border border-slate-700/60 px-2.5 py-1.5"><div class="text-[10px] text-slate-400">${esc(f[0])}</div><div class="text-sm font-bold text-white break-words">${esc(f[1])}</div></div>`).join('');
+        const list = e.list ? `<ul class="text-[13px] text-slate-300 space-y-0.5 max-h-72 overflow-y-auto pr-1">${e.list.map(x => `<li class="border-b border-slate-800/70 py-0.5">${esc(x)}</li>`).join('')}</ul>` : '';
+        const raw = e.raw ? `<div class="text-[10px] text-slate-500">원문 지표명: ${esc(e.raw)}</div>` : '';
+        const kind = e.type === 'yf_earn_more' || lvOf(e) === 'low' ? '' : `<p class="text-[13px] text-slate-300 leading-relaxed"><b class="text-white">어떤 이벤트?</b> ${esc(T.what)} ${esc(T.why)}</p>`;
+        return `<div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-3">
+          <div class="flex items-start gap-3"><div class="text-2xl">${T.icon}</div>
+            <div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-1.5"><h4 class="text-base font-black text-white">${esc(titleOf(e))}</h4><span class="text-[10px] px-1.5 py-0.5 rounded border ${lv.badge}">${lv.label}</span><span class="text-[10px] px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-300 bg-sky-950/40">Yahoo Finance</span></div>
+              ${e.when ? `<div class="text-[11px] text-slate-400 mt-0.5">🕒 ${esc(e.when)}</div>` : ''}</div></div>
+          ${facts ? `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">${facts}</div>` : ''}${list}${raw}${kind}
+          ${e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener" class="inline-block text-[11px] text-sky-300 hover:underline"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Yahoo Finance에서 이 날짜 보기</a>` : ''}
+          ${e.type === 'yf_earn_more' ? '' : `<div id="calAi-${i}">${aiHtml(i)}</div>`}
+        </div>`;
+      }
+
       function evCard(e, i) {
+        if (e.yf) return yfCard(e, i);
         const T = TYPES[e.type], lv = LV[lvOf(e)];
         const note = e.type === 'other' && e.note ? `<p class="text-sm text-slate-200 leading-relaxed">${esc(e.note)}</p>` : '';
         const approx = e.approx ? `<div class="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-800/50 rounded-lg px-2.5 py-1.5">⚠ 이 일정의 날짜는 <b>대략적인 예상</b>입니다(보통 이 무렵에 발표). 정확한 날짜는 상단의 "AI 일정 검색" 버튼(1회)이나 공식 발표 일정으로 확인하세요.</div>` : '';
@@ -17775,6 +17961,20 @@ ${digest}`;
         return head + `<div class="space-y-3">${C.detail.map(evCard).join('')}</div>`;
       }
 
+      function yfBarHtml() {
+        const pre = YF.pre(C.y, C.m), cnt = YF.counts(pre), er = YF.err[pre];
+        const btn = (t) => `<button type="button" onclick="calYfReload()" class="px-2 py-0.5 rounded border border-sky-700/60 hover:bg-sky-950/50 text-sky-200">${t}</button>`;
+        let msg;
+        if (YF.busy[pre]) msg = '<span class="text-sky-300"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Yahoo Finance 일정(실적·경제지표·IPO·분할)을 불러오는 중...</span>';
+        else if (er && er.kind === 'noproxy') msg = '<span class="text-amber-300">Yahoo Finance 일정을 가져오려면 설정에서 프록시(Worker) 주소가 필요해요. (워커 주소로 접속하면 자동 적용)</span>';
+        else if (er && !cnt) msg = `<span class="text-rose-300">Yahoo 일정을 불러오지 못했어요${er.status === 404 ? ' — 프록시 Worker에 /api/calendar 가 없어요. worker/index.js 를 다시 배포해 주세요.' : ` (${esc(er.msg || '')})`}</span>${btn('다시 시도')}`;
+        else if (cnt) msg = `<span class="text-emerald-300">✓ Yahoo Finance 반영 · 실적 ${cnt.earn} · 경제지표 ${cnt.econ} · IPO ${cnt.ipo} · 분할 ${cnt.split}</span>${er ? `<span class="text-amber-300">(일부 항목 실패)</span>` : ''}${btn('새로고침')}`;
+        else msg = '';
+        const ccs = Object.keys(CCN).map(c => `<button type="button" onclick="calToggleCc('${c}')" class="px-2 py-0.5 rounded-full text-[11px] font-semibold border transition ${C.cc.has(c) ? 'bg-sky-900/60 text-white border-sky-600' : 'bg-slate-900 text-slate-500 border-slate-800'}">${CCN[c][0]} ${CCN[c][1]}</button>`).join('');
+        return `<div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-400"><i class="fa-solid fa-chart-line text-sky-400"></i>${msg}</div>
+          <div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] text-slate-400 mr-1">경제지표 국가</span>${ccs}</div>`;
+      }
+
       function render() {
         const root = document.getElementById('calRoot'); if (!root) return;
         const cnt = Object.keys(CATS);
@@ -17788,14 +17988,15 @@ ${digest}`;
         root.innerHTML = `<div class="space-y-4">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
             <div class="flex flex-wrap items-center gap-2 mb-1"><h2 class="text-lg font-black text-white"><i class="fa-solid fa-calendar-days text-rose-400 mr-2"></i>금융 달력</h2>
-              <span class="text-[11px] text-slate-400">시장을 움직일 수 있는 일정을 한눈에</span></div>
+              <span class="text-[11px] text-slate-400">시장을 움직일 수 있는 일정을 한눈에 · Yahoo Finance 연동</span></div>
             ${syncRow}
             <details class="text-[13px] text-slate-300"><summary class="cursor-pointer text-rose-300 font-semibold">💡 처음이라면: 이 달력 보는 법</summary>
               <ul class="list-disc pl-5 mt-2 space-y-1 leading-relaxed">
                 <li><b>호재</b> = 주가에 좋은 소식, <b>악재</b> = 나쁜 소식입니다. 같은 이벤트도 결과에 따라 호재가 되기도 악재가 되기도 해요.</li>
                 <li>가장 중요한 건 <b>"예상과의 차이"</b>입니다. 시장은 발표 전에 이미 예상을 가격에 반영해 둬서, 예상대로면 잘 안 움직여요.</li>
                 <li>점선 칸(~표시)은 <b>날짜가 대략적</b>인 일정입니다. "AI 일정 검색"을 한 번 누르면 올해 남은 일정의 정확한 날짜를 찾아 저장하고, 이후에는 다시 검색하지 않아도 됩니다.</li>
-                <li>날짜는 모두 <b>미국 현지 기준</b>입니다. 한국은 보통 그날 밤~다음날 새벽에 해당해요.</li>
+                <li><b>Yahoo Finance</b>에서 기업 실적·경제지표(미국·한국 등)·IPO·액면분할 일정을 자동으로 불러옵니다. 시가총액이 큰 기업 실적은 개별 일정으로, 나머지는 날짜별로 묶어 보여줘요. 경제지표 국가는 아래 버튼으로 바꿀 수 있습니다.</li>
+                <li>날짜는 모두 <b>미국 현지 기준</b>입니다(경제지표는 해당 국가 현지 날짜). 한국은 보통 그날 밤~다음날 새벽에 해당해요.</li>
               </ul></details></div>
 
           <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-2 sm:p-3">
@@ -17812,6 +18013,7 @@ ${digest}`;
               <button type="button" onclick="calAiMonth()" ${C.monthBusy ? 'disabled' : ''} title="한 번 검색하면 올해 남은 일정이 저장됩니다" class="px-3 h-9 rounded-lg text-xs font-bold bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white"><i class="fa-solid ${C.monthBusy ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'} mr-1.5"></i>${searched ? '다시 검색' : 'AI 일정 검색 (1회 저장)'}</button></div>
             ${C.monthMsg ? `<div class="text-[11px] text-violet-300">${esc(C.monthMsg)}</div>` : savedNote}
             ${missingFomc}
+            ${yfBarHtml()}
             <div class="flex flex-wrap items-center gap-1.5">
               ${cnt.map(c => `<button type="button" onclick="calToggleCat('${c}')" class="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition ${C.cats.has(c) ? 'bg-slate-700 text-white border-slate-500' : 'bg-slate-900 text-slate-500 border-slate-800'}">${CATS[c]}</button>`).join('')}
               <label class="flex items-center gap-1.5 text-[11px] text-slate-300 ml-1 cursor-pointer"><input type="checkbox" ${C.onlyHigh ? 'checked' : ''} onchange="calOnlyHigh(this.checked)" class="accent-rose-500">중요한 것만</label></div>
@@ -17831,12 +18033,20 @@ ${digest}`;
         }
         C.sel = evs.length ? (evs.find(e => lvOf(e) === 'high') || evs[0]).date : null;
       }
-      window.calGo = function (delta) { const d = new Date(C.y, C.m + delta, 1); C.y = d.getFullYear(); C.m = d.getMonth(); C.monthMsg = ''; autoSelect(); render(); };
-      window.calToday = function () { const t = new Date(); C.y = t.getFullYear(); C.m = t.getMonth(); C.monthMsg = ''; C.sel = todayKey(); render(); };
+      // 보고 있는 달 + 오늘이 속한 달 + 2주 뒤가 속한 달(다가오는 일정용)의 Yahoo 일정을 준비한다
+      function yfWarm() {
+        const t = new Date(), t2 = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 14), seen = new Set();
+        [[C.y, C.m], [t.getFullYear(), t.getMonth()], [t2.getFullYear(), t2.getMonth()]].forEach(([y, m]) => { const k = YF.pre(y, m); if (!seen.has(k)) { seen.add(k); YF.ensure(y, m); } });
+      }
+      window.calGo = function (delta) { const d = new Date(C.y, C.m + delta, 1); C.y = d.getFullYear(); C.m = d.getMonth(); C.monthMsg = ''; autoSelect(); render(); yfWarm(); };
+      window.calToday = function () { const t = new Date(); C.y = t.getFullYear(); C.m = t.getMonth(); C.monthMsg = ''; C.sel = todayKey(); render(); yfWarm(); };
+      window.calYfReload = function () { YF.ensure(C.y, C.m, true); };
+      window.calToggleCc = function (c) { if (C.cc.has(c)) { if (C.cc.size > 1) C.cc.delete(c); } else C.cc.add(c); render(); };
       window.calPick = function (k, scroll) {
         const d = parseKey(k); C.sel = k;
-        if (d.getFullYear() !== C.y || d.getMonth() !== C.m) { C.y = d.getFullYear(); C.m = d.getMonth(); }
-        render();
+        const moved = d.getFullYear() !== C.y || d.getMonth() !== C.m;
+        if (moved) { C.y = d.getFullYear(); C.m = d.getMonth(); }
+        render(); if (moved) yfWarm();
         if (scroll) { const el = document.getElementById('calDetail'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
       };
       window.calToggleCat = function (c) { if (C.cats.has(c)) { if (C.cats.size > 1) C.cats.delete(c); } else C.cats.add(c); render(); };
@@ -17913,7 +18123,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
 
       function onOpen() {
         if (!C.inited) { const t = new Date(); C.y = t.getFullYear(); C.m = t.getMonth(); autoSelect(); C.inited = true; }
-        render();
+        YF.loadLs(); render(); yfWarm();
         if (!SYNC.synced && SYNC.user()) SYNC.run(true);   // 탭을 처음 열 때 한 번 자동 동기화
       }
       if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.calendar = onOpen;
