@@ -1531,7 +1531,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.6.0';
+    const APP_VERSION = '1.7.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -16762,12 +16762,14 @@ ${digest}`;
   </script>
 
   <script id="mod-valcalc">
-    // ===== 밸류에이션 계산기 모듈 — window.valCalcRender(el, { data, inputs }) → false 면 카드 숨김 =====
-    // 원칙: 기본은 빈칸. '추천값 채우기'(valSmartDefaults)는 사용자가 누를 때만 휴리스틱 값을 넣고 근거를 보여 준다. 모든 가정은 입력칸에서 편집한다.
+    // ===== 쉬운 밸류에이션 모듈 — window.valCalcRender(el, { data, inputs }) → false 면 카드 숨김 =====
+    // 원칙: 초보자가 아무것도 입력하지 않아도 결과를 보도록, 처음 열 때 추천값(valSmartDefaults)을 자동으로 채우고 근거를 보여 준다.
+    // 모든 가정은 입력칸에서 고칠 수 있다. 할인율·FCF·순부채가 필요한 DCF 같은 어려운 모형은 뺐다(v1.7.0).
     (function () {
       const VAL_KEY = 'pentanalyst_valcalc_v1';
+      const VAL_YEARS = 5; // 시나리오 기간 고정(입력 항목을 줄이기 위해)
 
-      // ---------- 순수 함수 (DOM 없음, Node 단위 테스트 대상) ----------
+      // ---------- 순수 함수 (DOM 없음) ----------
       function valNum(s) {
         if (s === null || s === undefined) return null;
         const t = String(s).replace(/[,\s%$]/g, '');
@@ -16777,30 +16779,6 @@ ${digest}`;
       }
       const valFin = v => typeof v === 'number' && Number.isFinite(v);
 
-      // FCF₀ 가 g 로 n 년 성장 → 이후 영구성장 gT. 현재가치 합계 (모두 소수: 0.1 = 10%)
-      function valDcfValue(fcf0, g, r, gT, n) {
-        let pv = 0, f = fcf0;
-        for (let t = 1; t <= n; t++) { f *= (1 + g); pv += f / Math.pow(1 + r, t); }
-        const tv = f * (1 + gT) / (r - gT);
-        return pv + tv / Math.pow(1 + r, n);
-      }
-      // 시장 가치(target)를 만드는 연 성장률 g 를 이분법으로 역산. 실패 사유를 reason 으로 돌려준다.
-      function valSolveImpliedG(o) {
-        const { fcf0, target, r, gT } = o; const n = Math.round(o.n);
-        if (!valFin(fcf0) || fcf0 <= 0) return { ok: false, reason: 'fcf' };
-        if (!valFin(target) || target <= 0) return { ok: false, reason: 'target' };
-        if (!valFin(r) || !valFin(gT) || r <= gT) return { ok: false, reason: 'rate' };
-        if (!valFin(n) || n < 1 || n > 50) return { ok: false, reason: 'years' };
-        let lo = -0.5, hi = 1.0;
-        if (valDcfValue(fcf0, lo, r, gT, n) > target) return { ok: false, reason: 'low' };
-        if (valDcfValue(fcf0, hi, r, gT, n) < target) return { ok: false, reason: 'high' };
-        for (let i = 0; i < 200; i++) {
-          const mid = (lo + hi) / 2;
-          if (valDcfValue(fcf0, mid, r, gT, n) < target) lo = mid; else hi = mid;
-          if (hi - lo < 1e-12) break;
-        }
-        return { ok: true, g: (lo + hi) / 2 };
-      }
       // EPS × 목표 P/E → 적정가, 현재가 대비 괴리, 안전마진(적정가 대비 현재가 할인율)
       function valEpsFair(eps, pe, price) {
         if (!valFin(eps)) return { ok: false, reason: 'eps' };
@@ -16820,38 +16798,40 @@ ${digest}`;
         const target = eps0 * Math.pow(1 + g / 100, n) * pe;
         return { ok: true, target, totalPct: (target / price - 1) * 100, annPct: (Math.pow(target / price, 1 / n) - 1) * 100 };
       }
+      // PEG = P/E ÷ 이익 성장률(%). 1 미만이면 성장 대비 싼 편, 2 초과면 비싼 편(대략적 기준)
+      function valPeg(pe, g) {
+        if (!valFin(pe) || pe <= 0) return { ok: false, reason: 'pe' };
+        if (!valFin(g) || g <= 0) return { ok: false, reason: 'growth' };
+        const peg = pe / g;
+        return { ok: true, peg, level: peg < 1 ? 'cheap' : (peg <= 2 ? 'fair' : 'rich') };
+      }
       // ---- 스마트 추천값(휴리스틱) ----
-      // 아래 상수는 시장 상황에 따라 낡는다. 기준: 2026-10 근사치(미국 10년물·다모다란 ERP) — 주기적으로 직접 갱신할 것.
-      const VAL_RF = 4.2, VAL_ERP = 4.5;          // 무위험수익률·주식위험프리미엄 (%)
-      const VAL_R_MIN = 7.5, VAL_R_MAX = 13.5;     // 할인율 클램프 (%)
       const VAL_G_LONG = 3.5, VAL_G_CAP = 30;      // 장기 성장률(명목 GDP 근사)·시작 성장률 상한 (%)
       const VAL_PE_MIN = 8, VAL_PE_MAX = 40;       // 목표 P/E 클램프
-      const VAL_MOS_STD = 15;                      // 표준 안전마진 (%) — 보수 25 / 표준 15 / 공격 10 프리셋
+      const VAL_MOS_STD = 15;                      // 표준 여유폭(안전마진) (%) — 넉넉 25 / 보통 15 / 가볍게 10
+      const VAL_MKT_PE = 20;                       // 미국 대형주 평균 P/E 대략치(2026-10 근사, 낡으면 직접 갱신)
       const valMedian = a => { const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
       const valClamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-      // 입력 c: { beta, forwardPe, pe, tAvg, epsF, epsG1, revG, earnG } (성장률·마진은 % 단위). 반환: 칸에 넣을 문자열 + 근거 notes
+      // 성장률 후보: 내년 EPS 컨센서스 > 매출 성장(YoY) > 이익 성장(YoY, 변동 큼). 입력은 % 단위
+      function valGrowth(c) {
+        if (valFin(c.epsG1)) return { g: c.epsG1, src: '내년 EPS 컨센서스 성장률' };
+        if (valFin(c.revG)) return { g: c.revG, src: '최근 분기 매출 성장률(YoY)' };
+        if (valFin(c.earnG)) return { g: c.earnG, src: '최근 분기 이익 성장률(YoY, 변동 큼)' };
+        return null;
+      }
+      // 입력 c: { forwardPe, pe, tAvg, epsF, epsG1, revG, earnG }. 반환: 칸에 넣을 문자열 + 근거 notes
       function valSmartDefaults(c) {
-        const out = { r: null, pe: null, mosReq: String(VAL_MOS_STD), sc: null, notes: [] };
+        const out = { pe: null, mosReq: String(VAL_MOS_STD), sc: null, notes: [] };
         const N = out.notes;
-        if (valFin(c.beta)) {
-          const adj = 0.67 * c.beta + 0.33; // Blume 조정 β
-          const raw = VAL_RF + adj * VAL_ERP;
-          out.r = String(valClamp(Math.round(raw * 2) / 2, VAL_R_MIN, VAL_R_MAX));
-          N.push(`할인율 ${out.r}% — CAPM: 무위험 ${VAL_RF}% + 조정β ${adj.toFixed(2)}(Yahoo β ${c.beta}→Blume) × ERP ${VAL_ERP}% = ${raw.toFixed(1)}% → 0.5%단위·${VAL_R_MIN}~${VAL_R_MAX}% 제한`);
-        } else N.push('할인율: 베타 데이터가 없어 추천하지 않습니다(현재 값 유지).');
-        // 성장률: 연도별 EPS 성장 전망 > 매출 성장(YoY) > 이익 성장(YoY, 변동 큼)
-        let g0 = null, gSrc = '';
-        if (valFin(c.epsG1)) { g0 = c.epsG1; gSrc = '내년 EPS 컨센서스 성장률'; }
-        else if (valFin(c.revG)) { g0 = c.revG; gSrc = '최근 분기 매출 성장률(YoY)'; }
-        else if (valFin(c.earnG)) { g0 = c.earnG; gSrc = '최근 분기 이익 성장률(YoY, 변동 큼)'; }
+        const gr = valGrowth(c), g0 = gr ? gr.g : null, gSrc = gr ? gr.src : '';
         let gBase = null;
-        if (g0 === null) N.push('성장률: 성장 데이터가 없어 시나리오를 채우지 않습니다.');
-        else if (g0 <= 0) N.push(`성장률: ${gSrc} ${g0.toFixed(1)}% (역성장·정체) — 임의 성장률을 넣지 않고 시나리오를 채우지 않습니다.`);
+        if (g0 === null) N.push('성장률: 성장 데이터가 없어 시나리오를 채우지 않았습니다. 직접 입력해 보세요.');
+        else if (g0 <= 0) N.push(`성장률: ${gSrc} ${g0.toFixed(1)}% (역성장·정체) — 임의 성장률을 넣지 않고 시나리오를 채우지 않았습니다.`);
         else {
           const g1 = Math.min(g0, VAL_G_CAP);
           let prod = 1; for (let t = 0; t < 5; t++) prod *= 1 + (g1 + (VAL_G_LONG - g1) * t / 4) / 100;
           gBase = Math.round((Math.pow(prod, 1 / 5) - 1) * 1000) / 10;
-          N.push(`기준 성장률 ${gBase}% — ${gSrc} ${g0.toFixed(1)}%${g0 > VAL_G_CAP ? `(상한 ${VAL_G_CAP}% 적용)` : ''}에서 5년에 걸쳐 장기 ${VAL_G_LONG}%로 서서히 수렴하는 경로의 연평균`);
+          N.push(`이익 성장률 ${gBase}% — ${gSrc} ${g0.toFixed(1)}%${g0 > VAL_G_CAP ? `(상한 ${VAL_G_CAP}% 적용)` : ''}에서 5년에 걸쳐 장기 ${VAL_G_LONG}%로 서서히 둔화하는 경로의 연평균`);
         }
         // 목표(종료 시점) P/E: 가용한 후보의 중앙값 — 선행(없으면 현재) P/E, 애널리스트 목표가÷선행 EPS, PEG=1 환산
         const cand = [], why = [];
@@ -16863,15 +16843,15 @@ ${digest}`;
         if (cand.length) {
           const pe = Math.round(valClamp(valMedian(cand), VAL_PE_MIN, VAL_PE_MAX));
           out.pe = String(pe);
-          N.push(`목표 P/E ${pe}배 — ${why.join(' · ')}의 ${cand.length > 2 ? '중앙값' : cand.length === 2 ? '평균' : '값'}${cand.length === 1 ? '(단일 후보라 시장 가격을 거의 그대로 반영 — 신뢰도 낮음)' : ''}`);
-        } else N.push('목표 P/E: P/E 데이터가 없어 추천하지 않습니다.');
-        N.push(`요구 안전마진 ${VAL_MOS_STD}% — 표준 프리셋(보수 25 / 표준 15 / 공격 10). 변동성·부채에 따라 직접 조정하세요.`);
+          N.push(`적정 P/E ${pe}배 — ${why.join(' · ')}의 ${cand.length > 2 ? '중앙값' : cand.length === 2 ? '평균' : '값'}${cand.length === 1 ? '(단일 후보라 시장 가격을 거의 그대로 따라감 — 신뢰도 낮음)' : ''}`);
+        } else N.push('적정 P/E: P/E 데이터가 없어 채우지 않았습니다. 직접 입력해 보세요.');
+        N.push(`여유폭 ${VAL_MOS_STD}% — 보통 수준(넉넉 25 / 보통 15 / 가볍게 10). 변동성이 큰 종목이면 더 넉넉히 두세요.`);
         if (gBase !== null && out.pe !== null) {
           const pe = Number(out.pe), r1 = x => String(Math.round(x * 10) / 10);
           out.sc = {
-            bear: { g: r1(gBase * 0.5), pe: String(Math.max(VAL_PE_MIN, Math.round(pe * 0.75))), n: '5' },
-            base: { g: r1(gBase), pe: String(pe), n: '5' },
-            bull: { g: r1(Math.min(35, gBase * 1.3)), pe: String(pe), n: '5' }
+            bear: { g: r1(gBase * 0.5), pe: String(Math.max(VAL_PE_MIN, Math.round(pe * 0.75))) },
+            base: { g: r1(gBase), pe: String(pe) },
+            bull: { g: r1(Math.min(35, gBase * 1.3)), pe: String(pe) }
           };
           N.push('시나리오(5년): 약세=성장 ×0.5·P/E ×0.75, 기준=위 값 그대로, 강세=성장 ×1.3(P/E는 유지 — 낙관 이중 적용 방지). 계수는 근거가 약한 휴리스틱입니다.');
         }
@@ -16882,27 +16862,13 @@ ${digest}`;
         if (!valFin(v) || !valFin(dlo) || !valFin(dhi) || dhi <= dlo) return null;
         return Math.min(100, Math.max(0, (v - dlo) / (dhi - dlo) * 100));
       }
-      // 보조 통화 단위(GBp, ZAc, ILA …): 시총·EPS·FCF 와 단위가 어긋나기 쉬움
+      // 보조 통화 단위(GBp, ZAc, ILA …): EPS 와 가격 단위가 어긋나기 쉬움
       function valSubunit(cur) { return !!cur && (/^[A-Z]{2}[a-z]$/.test(cur) || /^(GBX|ILA|ZAC)$/i.test(cur)); }
-      // FCF 통화 판정: financialCurrency 를 알면 비교, 모르면 'unknown'
-      function valFcfCurrency(priceCur, finCur) {
-        if (valSubunit(priceCur)) return 'subunit';
-        if (!finCur) return 'unknown';
-        return String(finCur).toUpperCase() === String(priceCur || '').toUpperCase() ? 'same' : 'diff';
-      }
-      window.valCalcPure = { valNum, valDcfValue, valSolveImpliedG, valEpsFair, valScenario, valBarPos, valSubunit, valFcfCurrency, valSmartDefaults };
+      window.valCalcPure = { valNum, valEpsFair, valScenario, valPeg, valGrowth, valBarPos, valSubunit, valSmartDefaults };
 
       // ---------- 표시 보조 ----------
       const esc = s => (typeof escapeHtml === 'function' ? escapeHtml(s) : String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
       const px = (v, cur) => (typeof fmtPx === 'function' ? fmtPx(v, cur) : Number(v).toFixed(2));
-      function big(v, cur) {
-        const n = Number(v); if (!Number.isFinite(n)) return '';
-        const a = Math.abs(n), sg = n < 0 ? '-' : '', c = (typeof curSym === 'function' ? curSym(cur) : '');
-        if (a >= 1e12) return `${sg}${c}${(a / 1e12).toFixed(2)}T`;
-        if (a >= 1e9) return `${sg}${c}${(a / 1e9).toFixed(2)}B`;
-        if (a >= 1e6) return `${sg}${c}${(a / 1e6).toFixed(1)}M`;
-        return `${sg}${c}${a.toFixed(0)}`;
-      }
       const pct = (v, d = 1, sign = true) => `${sign && v > 0 ? '+' : ''}${v.toFixed(d)}%`;
       const tone = v => (v >= 0 ? 'text-emerald-400' : 'text-rose-400');
 
@@ -16910,21 +16876,19 @@ ${digest}`;
       function loadAll() { try { const o = JSON.parse(localStorage.getItem(VAL_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
       function saveAll(o) { try { localStorage.setItem(VAL_KEY, JSON.stringify(o)); } catch (e) { /* 저장 불가 환경: 무시 */ } }
       function defaults() {
-        return { eps: '', epsManual: '', pe: '', mosReq: '', r: '10', gT: '2.5', n: '10', fcf: '', netDebt: '', sbc: '', fcfOk: false,
-          sc: { bear: { g: '', pe: '', n: '' }, base: { g: '', pe: '', n: '' }, bull: { g: '', pe: '', n: '' } } };
+        return { eps: '', epsManual: '', pe: '', mosReq: '', sc: { bear: { g: '', pe: '' }, base: { g: '', pe: '' }, bull: { g: '', pe: '' } } };
       }
       function mergeState(base, saved) {
         const out = JSON.parse(JSON.stringify(base));
         if (!saved || typeof saved !== 'object') return out;
-        ['eps', 'epsManual', 'pe', 'mosReq', 'r', 'gT', 'n', 'fcf', 'netDebt', 'sbc'].forEach(k => { if (typeof saved[k] === 'string') out[k] = saved[k]; });
-        if (typeof saved.fcfOk === 'boolean') out.fcfOk = saved.fcfOk;
-        ['bear', 'base', 'bull'].forEach(s => ['g', 'pe', 'n'].forEach(k => { const v = saved.sc && saved.sc[s] && saved.sc[s][k]; if (typeof v === 'string') out.sc[s][k] = v; }));
+        ['eps', 'epsManual', 'pe', 'mosReq'].forEach(k => { if (typeof saved[k] === 'string') out[k] = saved[k]; });
+        ['bear', 'base', 'bull'].forEach(s => ['g', 'pe'].forEach(k => { const v = saved.sc && saved.sc[s] && saved.sc[s][k]; if (typeof v === 'string') out.sc[s][k] = v; }));
         return out;
       }
+      const isBlank = st => st.pe === '' && ['bear', 'base', 'bull'].every(s => st.sc[s].g === '' && st.sc[s].pe === '');
 
       // ---------- 화면 조각 ----------
-      const BADGE = '<span class="px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 text-[11px] font-bold leading-none">가정</span>';
-      function na(text, raw) { return `<p class="text-xs text-amber-300 bg-amber-950/40 border border-amber-800/60 rounded-lg px-3 py-2"><i class="fa-solid fa-circle-info mr-1.5"></i>${raw ? '' : '계산 불가 — '}${esc(text)}</p>`; }
+      function na(text, raw) { return `<p class="text-xs text-amber-300 bg-amber-950/40 border border-amber-800/60 rounded-lg px-3 py-2"><i class="fa-solid fa-circle-info mr-1.5"></i>${raw ? '' : '계산할 수 없어요 — '}${esc(text)}</p>`; }
       function hint(text) { return `<p class="text-xs text-slate-300 bg-slate-900/70 border border-slate-800 rounded-lg px-3 py-2">${esc(text)}</p>`; }
       function warn(text) { return `<p class="text-xs text-amber-300 mt-2"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${esc(text)}</p>`; }
       function row(label, valueHtml) {
@@ -16932,11 +16896,10 @@ ${digest}`;
       }
       function field(label, key, o) {
         o = o || {};
-        const ph = o.ph || '';
         return `<label class="block min-w-0">
-          <span class="flex items-center gap-1.5 text-xs text-slate-300 mb-1 flex-wrap">${esc(label)}${o.noBadge ? '' : BADGE}</span>
+          <span class="flex items-center gap-1.5 text-xs text-slate-300 mb-1 flex-wrap">${esc(label)}</span>
           <span class="flex items-center gap-1.5">
-            <input type="text" inputmode="decimal" autocomplete="off" data-k="${key}" placeholder="${esc(ph)}" class="w-full min-w-0 min-h-11 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white font-mono-numbers outline-none focus:border-cyan-400 placeholder:text-slate-400">
+            <input type="text" inputmode="decimal" autocomplete="off" data-k="${key}" placeholder="${esc(o.ph || '')}" class="w-full min-w-0 min-h-11 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white font-mono-numbers outline-none focus:border-cyan-400 placeholder:text-slate-400">
             ${o.unit ? `<span class="text-xs text-slate-300 shrink-0 min-w-6">${esc(o.unit)}</span>` : ''}
           </span>
         </label>`;
@@ -16947,6 +16910,12 @@ ${digest}`;
             <span class="w-6 h-6 shrink-0 rounded-md bg-cyan-950 text-cyan-300 border border-cyan-800 flex items-center justify-center text-xs font-bold">${num}</span>
             <div class="min-w-0"><h4 class="text-sm font-bold text-white">${esc(title)}</h4><p class="text-xs text-slate-300 mt-0.5">${esc(sub)}</p></div>
           </div>${body}</div>`;
+      }
+      function tile(title, main, sub, cls) {
+        return `<div class="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3 min-w-0">
+          <div class="text-xs text-slate-300">${esc(title)}</div>
+          <div class="text-base font-extrabold font-mono-numbers mt-1 ${cls || 'text-slate-400'}">${main}</div>
+          <div class="text-xs text-slate-300 mt-1">${esc(sub)}</div></div>`;
       }
 
       // 가로 범위 바. items: 값이 있는 마커만 그린다.
@@ -16979,65 +16948,70 @@ ${digest}`;
           price: price > 0 ? price : null,
           pe: num(d.pe), forwardPe: num(f.forwardPe),
           epsT: num(f.epsTrailing), epsF: num(f.epsForward),
-          fcfAuto: num(fin.freeCashflow) !== null ? fin.freeCashflow : num(f.freeCashflow),
-          totalDebt: num(fin.totalDebt), totalCash: num(fin.totalCash),
-          mcapY: num(f.marketCap), shares: num(f.sharesOutstanding),
-          finCur: f.financialCurrency || fin.financialCurrency || null,
           high52: valFin(Number(inp.market && inp.market.high52)) ? Number(inp.market.high52) : null,
           low52: valFin(Number(inp.market && inp.market.low52)) ? Number(inp.market.low52) : null,
           tMin: num(d.targetMin), tAvg: num(d.targetAvg), tMax: num(d.targetMax),
-          beta: num(f.beta) !== null ? f.beta : num(fin.beta), de: num(fin.debtToEquity),
           revG: num(fin.revenueGrowth), earnG: num(fin.earningsGrowth), epsG1: null
         };
         const trend = (inp.deep && inp.deep.earnings && inp.deep.earnings.trend) || [];
         const t1 = trend.find(x => x && x.period === '+1y');
         if (t1) c.epsG1 = num(t1.epsGrowth);
-        c.mcap = c.mcapY !== null ? c.mcapY : (c.price !== null && c.shares !== null ? c.price * c.shares : null);
-        c.mcapSrc = c.mcapY !== null ? 'Yahoo 시가총액' : (c.mcap !== null ? '현재가 × 발행주식수' : '');
         // 애널리스트 수: 목표가가 Yahoo 값과 같을 때만 같은 출처로 본다(AI 값이면 인원 미상)
         const sameSrc = valFin(f.targetAvg) && c.tAvg === f.targetAvg;
         const nA = valFin(d.numAnalysts) ? d.numAnalysts : (valFin(f.numAnalysts) ? f.numAnalysts : (inp.deep && inp.deep.analysts && valFin(inp.deep.analysts.count) ? inp.deep.analysts.count : null));
         c.numAnalysts = (sameSrc || valFin(d.numAnalysts)) ? nA : null;
         c.hasRange = c.high52 !== null && c.low52 !== null && c.high52 > c.low52;
         c.hasTarget = c.tAvg !== null;
-        c.any = c.price !== null && (c.epsT !== null || c.epsF !== null || c.fcfAuto !== null || c.mcap !== null || c.hasTarget || c.hasRange);
+        c.any = c.price !== null && (c.epsT !== null || c.epsF !== null || c.hasTarget || c.hasRange);
         return c;
       }
 
       // ---------- 렌더러 ----------
-      const VS = { c: null, st: null, el: null, all: null };
+      const VS = { c: null, st: null, el: null, all: null, notes: null };
 
       function epsInfo() {
         const { c, st } = VS;
-        if (st.eps === 'trailing' && c.epsT !== null) return { v: c.epsT, label: '최근 12개월 EPS(Yahoo)' };
-        if (st.eps === 'forward' && c.epsF !== null) return { v: c.epsF, label: '예상(Forward) EPS(Yahoo)' };
-        return { v: valNum(st.epsManual), label: '직접 입력 EPS(가정)' };
+        if (st.eps === 'trailing' && c.epsT !== null) return { v: c.epsT, label: '최근 12개월 EPS' };
+        if (st.eps === 'forward' && c.epsF !== null) return { v: c.epsF, label: '예상 EPS' };
+        return { v: valNum(st.epsManual), label: '직접 입력한 EPS' };
+      }
+      function calcEps() {
+        const e = epsInfo(), pe = valNum(VS.st.pe);
+        if (e.v === null || e.v <= 0 || !(pe > 0)) return null;
+        return valEpsFair(e.v, pe, VS.c.price);
+      }
+      function calcScenario(key) {
+        const s = VS.st.sc[key], e = epsInfo();
+        return valScenario({ eps0: e.v, price: VS.c.price, g: valNum(s.g), pe: valNum(s.pe), n: VAL_YEARS });
+      }
+      function pegInfo() {
+        const { c } = VS, gr = valGrowth(c);
+        const pe = c.forwardPe !== null && c.forwardPe > 0 ? c.forwardPe : c.pe;
+        return { r: valPeg(pe, gr ? gr.g : null), pe, gr };
       }
 
       function outEps() {
         const { c, st } = VS, cur = c.cur, e = epsInfo();
-        if (e.v === null) return na('EPS 값이 없습니다. 위 "기준 EPS"에서 직접 입력하세요.');
-        if (e.v <= 0) return na('적자(EPS ≤ 0) — P/E 기반 계산 불가', true);
+        if (e.v === null) return na('EPS 값이 없습니다. 위 "기준 이익(EPS)"에서 직접 입력하세요.');
+        if (e.v <= 0) return na('이 회사는 지금 적자(EPS가 0 이하)라 이 방법을 쓸 수 없어요.', true);
         const pe = valNum(st.pe);
-        let h = '';
-        if (!(pe > 0)) return hint('목표 P/E 를 입력하면 적정가와 안전마진을 계산합니다. (앱은 목표 P/E 를 정해 주지 않습니다)');
+        if (!(pe > 0)) return hint('적정 P/E를 입력하면 적정가를 계산해요. 모르겠다면 아래 "참고 P/E" 버튼을 눌러 보세요.');
         const r = valEpsFair(e.v, pe, c.price);
-        h += row('적정가 (EPS × 목표 P/E)', `<span class="text-white">${esc(px(r.fair, cur))}</span>`);
+        let h = row('적정가 (EPS × 적정 P/E)', `<span class="text-white">${esc(px(r.fair, cur))}</span>`);
         h += row('현재가', `<span class="text-white">${esc(px(c.price, cur))}</span>`);
-        h += row('현재가 대비 적정가 괴리', `<span class="${tone(r.gapPct)}">${esc(pct(r.gapPct))}</span>`);
-        h += row('안전마진 (적정가 대비 현재가 할인)', `<span class="${tone(r.mosPct)}">${esc(pct(r.mosPct))}</span>`);
+        h += row('현재가는 적정가보다', `<span class="${tone(r.mosPct)}">${esc(pct(Math.abs(r.mosPct), 1, false))} ${r.mosPct >= 0 ? '싸요' : '비싸요'}</span>`);
         const req = valNum(st.mosReq);
         if (req !== null && req >= 0 && req < 100) {
           const lim = r.fair * (1 - req / 100);
-          h += row(`요구 안전마진 ${esc(req)}% 매수 상한가`, `<span class="text-white">${esc(px(lim, cur))}</span><span class="block text-xs font-normal ${c.price <= lim ? 'text-emerald-400' : 'text-rose-400'}">현재가는 상한가${c.price <= lim ? ' 이하' : ' 초과'}</span>`);
+          h += row(`여유폭 ${esc(req)}%를 두고 사려면 (이 가격 이하)`, `<span class="text-white">${esc(px(lim, cur))}</span><span class="block text-xs font-normal ${c.price <= lim ? 'text-emerald-400' : 'text-rose-400'}">현재가는 이 가격 ${c.price <= lim ? '이하' : '초과'}</span>`);
         }
-        h += `<p class="text-xs text-slate-300 mt-2">${esc(e.label)} ${esc(px(e.v, cur))} 기준 · 안전마진이 +면 내 가정상 현재가가 적정가보다 낮다는 뜻일 뿐, 매수 신호가 아닙니다.</p>`;
+        h += `<p class="text-xs text-slate-300 mt-2">${esc(e.label)} ${esc(px(e.v, cur))} 기준이에요. "싸요"는 내가 정한 적정 P/E로 계산했을 때일 뿐, 사라는 신호가 아닙니다.</p>`;
         return h;
       }
       function epsWarn() {
         const { c, st } = VS;
         let w = '';
-        if (valSubunit(c.cur)) w += warn(`가격 통화가 보조 단위(${c.cur})입니다. EPS·시총 단위가 어긋날 수 있어 결과를 그대로 믿지 마세요.`);
+        if (valSubunit(c.cur)) w += warn(`가격 통화가 보조 단위(${c.cur})입니다. EPS와 단위가 어긋날 수 있어 결과를 그대로 믿지 마세요.`);
         if (st.eps === 'trailing' && c.epsT > 0 && c.pe > 0 && c.price > 0) {
           const implied = c.price / c.epsT;
           if (Math.abs(implied / c.pe - 1) > 0.3) w += warn(`Yahoo P/E(${c.pe.toFixed(1)})와 현재가÷EPS(${implied.toFixed(1)})가 크게 달라 EPS 통화·기준이 가격과 다를 수 있습니다.`);
@@ -17045,83 +17019,29 @@ ${digest}`;
         return w;
       }
 
-      // 기준 FCF 에서 주식보상비용(SBC)을 빼 실질 현금 부담으로 본다(입력했을 때만). 희석률은 따로 반영하지 않는다 — 이중 계산 방지.
-      function fcfPlan() {
-        const p = fcfPlanBase();
-        if (!p.ok) return p;
-        const sbc = valNum(VS.st.sbc);
-        if (sbc !== null && sbc > 0) return { ...p, fcf0: p.fcf0 - sbc * 1e9, src: `${p.src} − SBC ${sbc}(10억)`, sbcApplied: true };
-        return p;
-      }
-      function fcfPlanBase() {
-        const { c, st } = VS;
-        const typed = valNum(st.fcf);
-        if (typed !== null) return { ok: true, fcf0: typed * 1e9, src: '직접 입력(가정)' };
-        if (c.fcfAuto === null) return { ok: false, msg: 'Yahoo 에 FCF(잉여현금흐름) 값이 없습니다. 위 칸에 직접 입력하세요.' };
-        const k = valFcfCurrency(c.cur, c.finCur);
-        if (k === 'subunit') return { ok: false, msg: `가격이 보조 통화 단위(${c.cur})라 시총·FCF 단위가 어긋날 수 있어 자동 FCF 계산을 막았습니다.` };
-        if (k === 'diff') return { ok: false, msg: `재무 통화(${c.finCur})가 가격 통화(${c.cur})와 달라 자동 FCF 계산을 막았습니다. 가격 통화 기준 FCF 를 직접 입력하면 계산합니다.` };
-        if (k === 'unknown' && !st.fcfOk) return { ok: false, msg: '재무제표 통화를 알 수 없어(ADR 등은 가격 통화와 다를 수 있음) 자동 FCF 계산을 막았습니다. 위 확인란을 체크하거나 FCF 를 직접 입력하세요.', needsConfirm: true };
-        return { ok: true, fcf0: c.fcfAuto, src: k === 'same' ? `Yahoo 최근 FCF(재무 통화 ${c.finCur} 확인)` : 'Yahoo 최근 FCF(통화 동일하다고 사용자가 확인)' };
-      }
-
-      function outDcf() {
-        const { c, st } = VS, cur = c.cur;
-        if (valSubunit(cur)) return na(`가격이 보조 통화 단위(${cur})라 시가총액과 FCF 단위를 맞출 수 없습니다.`);
-        if (c.mcap === null) return na('시가총액 정보가 없습니다(시총·발행주식수 모두 없음).');
-        const plan = fcfPlan();
-        if (!plan.ok) return na(plan.msg);
-        if (plan.fcf0 <= 0) return na(`${plan.sbcApplied ? 'SBC 차감 후 ' : ''}FCF 가 0 이하(${big(plan.fcf0, cur)})라 성장률로 현재가를 설명할 수 없습니다.`);
-        const r = valNum(st.r), gT = valNum(st.gT), n = valNum(st.n), nd = valNum(st.netDebt);
-        if (r === null || gT === null || n === null) return hint('할인율·영구성장률·예측 기간을 모두 입력하세요.');
-        if (r <= gT) return na('할인율은 영구성장률보다 커야 합니다.');
-        if (!(n >= 1 && n <= 50)) return na('예측 기간은 1~50년 사이로 입력하세요.');
-        const target = c.mcap + (nd !== null ? nd * 1e9 : 0);
-        const sol = valSolveImpliedG({ fcf0: plan.fcf0, target, r: r / 100, gT: gT / 100, n });
-        let h = '';
-        if (!sol.ok) {
-          const m = { low: '내재 성장률이 -50% 보다도 낮아 범위 밖입니다(시총이 FCF 대비 매우 작음 — 데이터·통화 확인 필요).', high: '내재 성장률이 연 100% 를 넘어 범위 밖입니다(시총이 FCF 대비 매우 큼).', target: '시가총액+순부채가 0 이하라 계산할 수 없습니다.', years: '예측 기간은 1~50년 사이로 입력하세요.' }[sol.reason] || '해를 찾지 못했습니다.';
-          h += na(m);
-        } else {
-          h += `<div class="rounded-lg bg-slate-950 border border-slate-800 px-3 py-3 mb-2">
-            <div class="text-xs text-slate-300">현재 가격이 내포한 FCF 연 성장률 (향후 ${esc(Math.round(n))}년)</div>
-            <div class="text-2xl font-extrabold font-mono-numbers ${tone(sol.g)}">약 ${esc(pct(sol.g * 100, 1, false))}</div>
-            <div class="text-xs text-slate-300 mt-1">= 이 성장률이 ${esc(Math.round(n))}년간 이어진 뒤 영구성장 ${esc(gT)}%, 할인율 ${esc(r)}% 일 때 지금 시가를 정당화한다는 뜻 (예측 아님)</div>
-          </div>`;
-        }
-        h += row('기준 FCF', `<span class="text-white">${esc(big(plan.fcf0, cur))}</span><span class="block text-xs font-normal text-slate-300">${esc(plan.src)}</span>`);
-        h += row('시가총액 (+ 입력한 순부채)', `<span class="text-white">${esc(big(target, cur))}</span><span class="block text-xs font-normal text-slate-300">${esc(c.mcapSrc)}${nd !== null ? ` + 순부채 ${esc(big(nd * 1e9, cur))}` : ''}</span>`);
-        h += row('FCF 수익률 (FCF ÷ 대상 가치)', `<span class="text-white">${esc(pct(plan.fcf0 / target * 100, 2, false))}</span>`);
-        if (nd !== null && nd !== 0) h += warn('순부채를 입력하면 기업가치(시총+순부채)를 이자 지급 후 FCF 와 비교하게 되어 값이 어긋납니다. 순부채를 비우거나, 이자 지급 전 FCF 를 직접 입력하세요.');
-        if (sol.ok || sol.reason === 'low' || sol.reason === 'high') {
-          const cells = [-1, 0, 1].map(dr => {
-            const rr = r + dr;
-            const s = valSolveImpliedG({ fcf0: plan.fcf0, target, r: rr / 100, gT: gT / 100, n });
-            const t = s.ok ? pct(s.g * 100, 1, false) : (s.reason === 'rate' ? '불가' : '범위 밖');
-            return `<div class="rounded-lg border ${dr === 0 ? 'border-cyan-700 bg-cyan-950/30' : 'border-slate-800 bg-slate-950'} px-2 py-2 text-center"><div class="text-xs text-slate-300">할인율 ${esc(rr)}%</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(t)}</div></div>`;
-          }).join('');
-          h += `<div class="grid grid-cols-3 gap-2 mt-3">${cells}</div>`;
-        }
-        if (c.mcapY !== null && c.shares !== null && c.price !== null) {
-          const alt = c.price * c.shares;
-          if (Math.abs(alt / c.mcapY - 1) > 0.15) h += warn(`Yahoo 시가총액(${big(c.mcapY, cur)})과 현재가×발행주식수(${big(alt, cur)})가 15% 이상 달라 복수 주식 클래스·ADR 비율 등이 섞였을 수 있습니다.`);
-        }
-        return h;
-      }
-
       function outScenario(key) {
-        const { c, st } = VS, cur = c.cur, s = st.sc[key], e = epsInfo();
-        const g = valNum(s.g), pe = valNum(s.pe), n = valNum(s.n);
-        const filled = [g, pe, n].filter(v => v !== null).length;
-        if (e.v === null) return na('시작 EPS 가 없습니다.');
-        if (e.v <= 0) return na('시작 EPS 가 0 이하(적자) — 계산 불가');
-        if (filled === 0) return hint('세 칸을 채우면 계산합니다.');
-        if (filled < 3) return hint('성장률·P/E·기간을 모두 입력하세요.');
-        const r = valScenario({ eps0: e.v, price: c.price, g, pe, n });
-        if (!r.ok) return na('입력 범위를 확인하세요 (성장률 > -100%, P/E > 0, 기간 0~50년).');
-        return row('목표 주가', `<span class="text-white">${esc(px(r.target, cur))}</span>`)
-          + row('연환산 기대수익률', `<span class="${tone(r.annPct)}">${esc(pct(r.annPct))}</span>`)
-          + row('누적 수익률', `<span class="${tone(r.totalPct)}">${esc(pct(r.totalPct))}</span>`);
+        const { c } = VS, cur = c.cur, s = VS.st.sc[key], e = epsInfo();
+        const g = valNum(s.g), pe = valNum(s.pe);
+        if (e.v === null) return na('시작 EPS가 없습니다.');
+        if (e.v <= 0) return na('적자 기업이라 계산할 수 없어요.', true);
+        if (g === null || pe === null) return hint('두 칸을 모두 채우면 계산해요.');
+        const r = calcScenario(key);
+        if (!r.ok) return na('입력을 확인하세요 (성장률 > -100%, P/E > 0).');
+        return row(`${VAL_YEARS}년 뒤 예상 주가`, `<span class="text-white">${esc(px(r.target, cur))}</span>`)
+          + row('1년 평균 수익률', `<span class="${tone(r.annPct)}">${esc(pct(r.annPct))}</span>`)
+          + row('5년 합계 수익률', `<span class="${tone(r.totalPct)}">${esc(pct(r.totalPct))}</span>`);
+      }
+
+      function outPeg() {
+        const { r, pe, gr } = pegInfo();
+        if (!r.ok) return r.reason === 'growth'
+          ? hint(gr ? `이익이 줄거나 제자리인 회사(${gr.src} ${gr.g.toFixed(1)}%)라 PEG를 쓰기 어려워요.` : '성장률 데이터가 없어 PEG를 계산할 수 없어요.')
+          : hint('P/E 데이터가 없어 PEG를 계산할 수 없어요.');
+        const lv = { cheap: ['성장 속도에 비해 싼 편', 'text-emerald-400'], fair: ['성장 속도에 비해 보통', 'text-amber-300'], rich: ['성장 속도에 비해 비싼 편', 'text-rose-400'] }[r.level];
+        return `<div class="rounded-lg bg-slate-950 border border-slate-800 px-3 py-3">
+          <div class="text-2xl font-extrabold font-mono-numbers ${lv[1]}">PEG ${esc(r.peg.toFixed(2))}</div>
+          <div class="text-sm font-bold ${lv[1]} mt-0.5">${esc(lv[0])}</div>
+          <div class="text-xs text-slate-300 mt-1">= P/E ${esc(pe.toFixed(1))} ÷ 이익 성장률 ${esc(gr.g.toFixed(1))}% (${esc(gr.src)}). 1 미만 싼 편 · 1~2 보통 · 2 초과 비싼 편은 대략적인 기준이에요.</div></div>`;
       }
 
       function outAnalyst() {
@@ -17132,19 +17052,19 @@ ${digest}`;
         if (hasBar) {
           h += rangeBar({ lo: c.tMin, hi: c.tMax, avg: c.tAvg, price: c.price, aria: `애널리스트 목표가 범위 ${px(c.tMin, cur)}에서 ${px(c.tMax, cur)}, 평균 ${px(c.tAvg, cur)}, 현재가 ${px(c.price, cur)}` });
           h += `<div class="grid grid-cols-3 gap-2 text-center mt-1">
-            <div><div class="text-xs text-slate-300">최저</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.tMin, cur))}</div></div>
-            <div><div class="text-xs text-amber-300">평균 (▮)</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.tAvg, cur))}</div></div>
-            <div><div class="text-xs text-slate-300">최고</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.tMax, cur))}</div></div></div>`;
+            <div><div class="text-xs text-slate-300">가장 낮은 의견</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.tMin, cur))}</div></div>
+            <div><div class="text-xs text-amber-300">평균 (노란 막대)</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.tAvg, cur))}</div></div>
+            <div><div class="text-xs text-slate-300">가장 높은 의견</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.tMax, cur))}</div></div></div>`;
         } else {
           h += hint(`최저·최고 목표가가 없어 바는 생략합니다. 평균 목표가 ${px(c.tAvg, cur)}`);
         }
-        const dev = (c.price / c.tAvg - 1) * 100, up = (c.tAvg / c.price - 1) * 100;
-        h += `<div class="mt-2">${row('현재가의 평균 목표가 대비 괴리', `<span class="${tone(dev)}">${esc(pct(dev))}</span>`)}${row('평균 목표가까지', `<span class="${tone(up)}">${esc(pct(up))}</span>`)}</div>`;
-        if (c.price > (c.tMax ?? Infinity)) h += warn('현재가가 최고 목표가보다 높습니다.');
-        else if (c.price < (c.tMin ?? -Infinity)) h += warn('현재가가 최저 목표가보다 낮습니다.');
-        if (c.numAnalysts === null) h += warn('애널리스트 인원 미상 — 표본 크기를 알 수 없어 신뢰도를 판단할 수 없습니다.');
-        else if (c.numAnalysts < 5) h += warn(`표본 적음 — 애널리스트 ${c.numAnalysts}명. 목표가 평균이 한두 명 의견에 좌우될 수 있습니다.`);
-        else h += `<p class="text-xs text-slate-300 mt-2">애널리스트 ${esc(c.numAnalysts)}명 기준</p>`;
+        const up = (c.tAvg / c.price - 1) * 100;
+        h += `<div class="mt-2">${row('평균 목표가까지 (상승 여력)', `<span class="${tone(up)}">${esc(pct(up))}</span>`)}</div>`;
+        if (c.price > (c.tMax ?? Infinity)) h += warn('현재가가 가장 높은 목표가보다 높습니다.');
+        else if (c.price < (c.tMin ?? -Infinity)) h += warn('현재가가 가장 낮은 목표가보다 낮습니다.');
+        if (c.numAnalysts === null) h += warn('애널리스트 인원을 알 수 없어 얼마나 믿을 만한지 판단하기 어려워요.');
+        else if (c.numAnalysts < 5) h += warn(`애널리스트가 ${c.numAnalysts}명뿐이라 한두 명 의견에 좌우될 수 있어요.`);
+        else h += `<p class="text-xs text-slate-300 mt-2">애널리스트 ${esc(c.numAnalysts)}명 의견 평균이에요.</p>`;
         return h;
       }
       function out52() {
@@ -17153,39 +17073,51 @@ ${digest}`;
         const posNow = valBarPos(c.price, c.low52, c.high52);
         let h = rangeBar({ lo: c.low52, hi: c.high52, avg: null, price: c.price, aria: `52주 범위 ${px(c.low52, cur)}에서 ${px(c.high52, cur)}, 현재가 ${px(c.price, cur)}` });
         h += `<div class="grid grid-cols-2 gap-2 text-center mt-1">
-          <div><div class="text-xs text-slate-300">52주 저가</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.low52, cur))}</div></div>
-          <div><div class="text-xs text-slate-300">52주 고가</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.high52, cur))}</div></div></div>`;
-        h += `<div class="mt-2">${row('저가 대비', `<span class="${tone(c.price / c.low52 - 1)}">${esc(pct((c.price / c.low52 - 1) * 100))}</span>`)}${row('고가 대비', `<span class="${tone(c.price / c.high52 - 1)}">${esc(pct((c.price / c.high52 - 1) * 100))}</span>`)}${row('52주 범위 내 위치', `<span class="text-white">${posNow === null ? '' : esc(posNow.toFixed(0)) + '%'}</span>`)}</div>`;
+          <div><div class="text-xs text-slate-300">1년 중 최저가</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.low52, cur))}</div></div>
+          <div><div class="text-xs text-slate-300">1년 중 최고가</div><div class="text-sm font-bold font-mono-numbers text-white">${esc(px(c.high52, cur))}</div></div></div>`;
+        h += `<div class="mt-2">${row('최저가보다', `<span class="${tone(c.price / c.low52 - 1)}">${esc(pct((c.price / c.low52 - 1) * 100))}</span>`)}${row('최고가보다', `<span class="${tone(c.price / c.high52 - 1)}">${esc(pct((c.price / c.high52 - 1) * 100))}</span>`)}${row('1년 범위 안 위치 (0%=바닥, 100%=꼭대기)', `<span class="text-white">${posNow === null ? '' : esc(posNow.toFixed(0)) + '%'}</span>`)}</div>`;
         return h;
+      }
+
+      // 한눈에 보기: 네 가지 관점을 쉬운 한 줄로
+      function outSummary() {
+        const { c } = VS, nodata = '<span class="text-slate-400">데이터 부족</span>';
+        const t = [];
+        const r = calcEps();
+        t.push(r ? tile('① 이익×배수 적정가', `<span class="${tone(r.mosPct)}">${esc(pct(Math.abs(r.mosPct), 1, false))} ${r.mosPct >= 0 ? '싼 편' : '비싼 편'}</span>`, `적정가 ${px(r.fair, c.cur)}`, '')
+          : tile('① 이익×배수 적정가', nodata, '적자이거나 P/E가 비어 있어요', ''));
+        const s = VS.st.sc.base.g !== '' && VS.st.sc.base.pe !== '' ? calcScenario('base') : null;
+        t.push(s && s.ok ? tile('② 5년 뒤 기준 시나리오', `<span class="${tone(s.annPct)}">연 ${esc(pct(s.annPct))}</span>`, `예상 주가 ${px(s.target, c.cur)}`, '')
+          : tile('② 5년 뒤 기준 시나리오', nodata, '성장률·P/E를 채우면 보여줘요', ''));
+        const pg = pegInfo().r;
+        const lvTxt = { cheap: ['싼 편', 'text-emerald-400'], fair: ['보통', 'text-amber-300'], rich: ['비싼 편', 'text-rose-400'] };
+        t.push(pg.ok ? tile('③ 성장 대비 가격(PEG)', `<span class="${lvTxt[pg.level][1]}">${esc(pg.peg.toFixed(2))} · ${lvTxt[pg.level][0]}</span>`, '1 미만 싼 편, 2 초과 비싼 편', '')
+          : tile('③ 성장 대비 가격(PEG)', nodata, '성장·P/E 데이터가 필요해요', ''));
+        if (c.hasTarget) { const up = (c.tAvg / c.price - 1) * 100; t.push(tile('④ 애널리스트 평균 목표가', `<span class="${tone(up)}">${esc(pct(up))}</span>`, `평균 ${px(c.tAvg, c.cur)}`, '')); }
+        else t.push(tile('④ 애널리스트 평균 목표가', nodata, '목표가 데이터가 없어요', ''));
+        return `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">${t.join('')}</div>
+          <p class="text-xs text-slate-300 mt-2">네 방법이 같은 방향이면 신뢰가 조금 올라가고, 서로 엇갈리면 "답이 없는 종목"이라는 뜻이에요. 어느 것도 정답이나 매수·매도 신호가 아닙니다.</p>`;
       }
 
       function updateOutputs() {
         const el = VS.el; if (!el) return;
         const set = (k, html) => { const o = el.querySelector(`[data-out="${k}"]`); if (o) o.innerHTML = html; };
+        set('summary', outSummary());
         set('epsWarn', epsWarn());
         set('eps', outEps());
-        set('dcf', outDcf());
         set('sc-bear', outScenario('bear')); set('sc-base', outScenario('base')); set('sc-bull', outScenario('bull'));
+        set('peg', outPeg());
         set('analyst', outAnalyst());
         set('r52', out52());
-        const nb = el.querySelector('[data-out="fcfNote"]');
-        if (nb) nb.innerHTML = fcfNote();
-      }
-
-      function fcfNote() {
-        const { c, st } = VS, cur = c.cur;
-        let h = '';
-        if (c.fcfAuto !== null) h += `<p class="text-xs text-slate-300">Yahoo 최근 FCF: <span class="font-mono-numbers text-white">${esc(big(c.fcfAuto, cur))}</span> · 재무 통화 ${c.finCur ? esc(c.finCur) : '<span class="text-amber-300">알 수 없음</span>'} (가격 통화 ${esc(cur)})${valNum(st.fcf) !== null ? ' — 직접 입력값이 우선 적용됩니다' : ''}</p>`;
-        else h += '<p class="text-xs text-slate-300">Yahoo FCF 값이 없습니다. 직접 입력하세요.</p>';
-        if (c.totalDebt !== null || c.totalCash !== null) h += `<p class="text-xs text-slate-300 mt-1">참고: 총부채 <span class="font-mono-numbers text-white">${c.totalDebt !== null ? esc(big(c.totalDebt, cur)) : '-'}</span> · 현금 <span class="font-mono-numbers text-white">${c.totalCash !== null ? esc(big(c.totalCash, cur)) : '-'}</span> (순부채 = 부채 - 현금, 필요하면 아래 칸에 직접 입력)</p>`;
-        return h;
+        const box = el.querySelector('[data-out="smartNote"]');
+        if (box) box.innerHTML = VS.notes ? `<details class="bg-cyan-950/30 border border-cyan-900/60 rounded-xl p-3"><summary class="text-xs font-bold text-cyan-200 cursor-pointer min-h-11 flex items-center">자동으로 채운 숫자는 이렇게 정했어요 (추정일 뿐, 예측 아님)</summary><ul class="text-xs text-slate-300 space-y-1 list-disc pl-4 mt-1">${VS.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></details>` : '';
       }
 
       function epsOptions() {
         const { c } = VS, cur = c.cur; const o = [];
-        if (c.epsT !== null) o.push(['trailing', `최근 12개월 EPS ${px(c.epsT, cur)} (Yahoo)`]);
-        if (c.epsF !== null) o.push(['forward', `예상(Forward) EPS ${px(c.epsF, cur)} (Yahoo 컨센서스)`]);
-        o.push(['manual', '직접 입력 (가정)']);
+        if (c.epsT !== null) o.push(['trailing', `최근 12개월 EPS ${px(c.epsT, cur)} (이미 번 돈)`]);
+        if (c.epsF !== null) o.push(['forward', `예상 EPS ${px(c.epsF, cur)} (애널리스트 예측)`]);
+        o.push(['manual', '직접 입력']);
         return o;
       }
 
@@ -17195,72 +17127,78 @@ ${digest}`;
         const subtitle = `${c.name ? c.name + ' · ' : ''}${c.ticker} · 현재가 ${px(c.price, cur)} (${cur})`;
         const sc = (key, title, cls, ring) => `<div class="rounded-xl border ${ring} bg-slate-950/60 p-3 space-y-3">
             <div class="text-sm font-bold ${cls}">${title}</div>
-            <div class="grid grid-cols-1 gap-3">
-              ${field('EPS 연 성장률', `sc.${key}.g`, { unit: '%', ph: '예: 8' })}
-              ${field('종료 시점 P/E', `sc.${key}.pe`, { unit: '배', ph: '예: 20' })}
-              ${field('기간', `sc.${key}.n`, { unit: '년', ph: '예: 5' })}
-            </div>
+            ${field('이익이 매년 몇 % 늘까?', `sc.${key}.g`, { unit: '%', ph: '예: 8' })}
+            ${field('5년 뒤 적정 P/E', `sc.${key}.pe`, { unit: '배', ph: '예: 20' })}
             <div data-out="sc-${key}"></div></div>`;
-        const peChips = [['현재 P/E', c.pe], ['선행 P/E', c.forwardPe]].filter(x => x[1] !== null && x[1] > 0)
-          .map(x => `<button type="button" data-act="pe-fill" data-v="${x[1].toFixed(1)}" class="min-h-11 px-3 rounded-lg border border-slate-700 bg-slate-900 hover:border-cyan-500 text-xs text-slate-200 font-mono-numbers">${esc(x[0])} ${x[1].toFixed(1)} 채우기</button>`).join('');
+        const chipCls = 'min-h-11 px-3 rounded-lg border border-slate-700 bg-slate-900 hover:border-cyan-500 text-xs text-slate-200 font-mono-numbers';
+        const peOpts = [['현재 P/E', c.pe], ['선행 P/E', c.forwardPe], ['시장 평균(대략)', VAL_MKT_PE]].filter(x => x[1] !== null && x[1] > 0);
+        const peChips = peOpts.map(x => `<button type="button" data-act="pe-fill" data-v="${Math.round(x[1])}" class="${chipCls}">${esc(x[0])} ${Number(x[1]).toFixed(x[1] === VAL_MKT_PE ? 0 : 1)}</button>`).join('');
+        const gl = (t, d) => `<div><dt class="font-bold text-slate-100">${esc(t)}</dt><dd class="text-slate-300 mt-0.5">${esc(d)}</dd></div>`;
         return `
         <div class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-xl">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-2 min-w-0">
               <span class="w-7 h-7 shrink-0 rounded-lg bg-cyan-950 text-cyan-400 flex items-center justify-center text-xs"><i class="fa-solid fa-calculator"></i></span>
-              <div class="min-w-0"><h3 class="text-base font-bold text-white">밸류에이션 계산기(내 가정)</h3><p class="text-xs text-slate-300 truncate">${esc(subtitle)}</p></div>
+              <div class="min-w-0"><h3 class="text-base font-bold text-white">쉬운 밸류에이션 — 지금 주가, 비싼 걸까?</h3><p class="text-xs text-slate-300 truncate">${esc(subtitle)}</p></div>
             </div>
             <div class="flex items-center gap-2">
-              <button type="button" data-act="smart" class="min-h-11 px-3 rounded-lg border border-cyan-700 bg-cyan-950 hover:border-cyan-400 text-xs text-cyan-200"><i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>추천값 채우기</button>
-              <button type="button" data-act="reset" class="min-h-11 px-3 rounded-lg border border-slate-700 bg-slate-900 hover:border-rose-500 text-xs text-slate-200"><i class="fa-solid fa-rotate-left mr-1.5"></i>초기화</button>
+              <button type="button" data-act="smart" class="min-h-11 px-3 rounded-lg border border-cyan-700 bg-cyan-950 hover:border-cyan-400 text-xs text-cyan-200"><i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>자동값으로 되돌리기</button>
               <button type="button" data-act="toggle" aria-label="계산기 접기/펼치기" aria-expanded="true" class="min-h-11 min-w-11 px-3 rounded-lg border border-slate-700 bg-slate-900 hover:border-cyan-500 text-slate-200"><i class="fa-solid fa-chevron-up" data-role="chev"></i></button>
             </div>
           </div>
           <div data-role="body" class="mt-4 space-y-5">
-            <p class="text-xs text-slate-300">내가 입력한 가정으로만 계산합니다. 칸을 비워 두면 계산하지 않습니다. '추천값 채우기'는 Yahoo 데이터로 만든 휴리스틱 출발점일 뿐 예측이 아니며, 채워진 값은 모두 직접 고칠 수 있습니다. 입력값은 종목별로 이 브라우저에 저장됩니다.</p>
+            <p class="text-xs text-slate-300">숫자는 처음부터 자동으로 채워 둬서 입력 없이도 결과를 볼 수 있어요. 마음에 안 드는 숫자는 칸에서 바로 고치면 결과가 바뀝니다. 입력값은 종목별로 이 브라우저에 저장돼요.</p>
+
+            <div>
+              <h4 class="text-sm font-bold text-white mb-2">한눈에 보기</h4>
+              <div data-out="summary"></div>
+            </div>
             <div data-out="smartNote"></div>
 
-            <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-              <label class="block">
-                <span class="flex items-center gap-1.5 text-xs text-slate-300 mb-1">기준 EPS (① 적정가·③ 시나리오 공통)</span>
-                <select data-k="eps" class="w-full min-h-11 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white outline-none focus:border-cyan-400">
-                  ${opts.map(o => `<option value="${o[0]}">${esc(o[1])}</option>`).join('')}
-                </select>
-              </label>
-              <div data-role="epsManualWrap" class="mt-3 max-w-xs">${field('EPS 직접 입력', 'epsManual', { unit: cur, ph: '예: 6.50' })}</div>
-              <div data-out="epsWarn"></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              ${section('①', '이익 × 배수로 적정가 구하기', '주식 1주가 1년에 버는 돈(EPS)에, 시장이 쳐주는 배수(P/E)를 곱해요', `
+                <label class="block">
+                  <span class="flex items-center gap-1.5 text-xs text-slate-300 mb-1">기준 이익 (EPS) — 1주당 1년 순이익</span>
+                  <select data-k="eps" class="w-full min-h-11 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white outline-none focus:border-cyan-400">
+                    ${opts.map(o => `<option value="${o[0]}">${esc(o[1])}</option>`).join('')}
+                  </select>
+                </label>
+                <div data-role="epsManualWrap" class="mt-3 max-w-xs">${field('EPS 직접 입력', 'epsManual', { unit: cur, ph: '예: 6.50' })}</div>
+                <div data-out="epsWarn"></div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end mt-3">${field('적정 P/E (이익의 몇 배?)', 'pe', { unit: '배', ph: '예: 20' })}${field('여유폭 (싸게 사려는 정도)', 'mosReq', { unit: '%', ph: '예: 15' })}</div>
+                ${peChips ? `<div class="flex flex-wrap gap-2 mt-3"><span class="self-center text-xs text-slate-300">참고 P/E:</span>${peChips}</div>` : ''}
+                <div class="flex flex-wrap gap-2 mt-3"><span class="self-center text-xs text-slate-300">여유폭:</span>${[['넉넉히', 25], ['보통', 15], ['가볍게', 10]].map(x => `<button type="button" data-act="mos-fill" data-v="${x[1]}" class="${chipCls}">${x[0]} ${x[1]}%</button>`).join('')}</div>
+                <div data-out="eps" class="mt-3"></div>`)}
+              ${section('②', '성장 속도에 비해 비싼가? (PEG)', 'P/E를 이익 성장률로 나눈 값 — 빨리 크는 회사는 높은 P/E도 이해돼요', `<div data-out="peg"></div>`)}
+              ${section('③', '5년 뒤 내 수익은? (3가지 경우)', '이익이 얼마나 늘고 그때 시장이 몇 배를 쳐주느냐에 따라 달라져요 (배당 제외)', `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  ${sc('bear', '약세 (기대 이하)', 'text-rose-300', 'border-rose-900/60')}${sc('base', '기준 (보통)', 'text-cyan-300', 'border-cyan-900/60')}${sc('bull', '강세 (기대 이상)', 'text-emerald-300', 'border-emerald-900/60')}
+                </div>`, 'md:col-span-2')}
+              ${section('④', '다른 사람들 의견 · 1년 가격 범위', '전문가 목표가와 최근 1년 가격 움직임 — 참고용이에요', `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div><div class="text-xs font-bold text-slate-200 mb-1">애널리스트 목표가</div><div data-out="analyst"></div></div>
+                  <div><div class="text-xs font-bold text-slate-200 mb-1">최근 52주(1년) 최저 – 최고</div><div data-out="r52"></div></div>
+                </div>`, 'md:col-span-2')}
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-              ${section('①', 'EPS 기반 안전마진', '적정가 = EPS × 내가 정한 목표 P/E', `
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">${field('목표 P/E', 'pe', { unit: '배', ph: '예: 20' })}${field('요구 안전마진 (선택)', 'mosReq', { unit: '%', ph: '예: 20' })}</div>
-                ${peChips ? `<div class="flex flex-wrap gap-2 mt-3"><span class="self-center text-xs text-slate-300">참고(Yahoo):</span>${peChips}</div>` : ''}
-                <div class="flex flex-wrap gap-2 mt-3"><span class="self-center text-xs text-slate-300">안전마진 프리셋:</span>${[['보수', 25], ['표준', 15], ['공격', 10]].map(x => `<button type="button" data-act="mos-fill" data-v="${x[1]}" class="min-h-11 px-3 rounded-lg border border-slate-700 bg-slate-900 hover:border-cyan-500 text-xs text-slate-200 font-mono-numbers">${x[0]} ${x[1]}%</button>`).join('')}</div>
-                <div data-out="eps" class="mt-3"></div>`)}
-              ${section('②', '역방향 DCF (현 주가가 내포한 성장률)', '시가총액 기준 단순 모형 · 가격이 요구하는 FCF 성장률 역산', `
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">${field('할인율', 'r', { unit: '%' })}${field('영구성장률', 'gT', { unit: '%' })}${field('예측 기간', 'n', { unit: '년' })}</div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 items-end">${field('기준 FCF 직접 입력 (선택, 10억 단위)', 'fcf', { unit: '10억', ph: c.fcfAuto !== null ? 'Yahoo 값 사용' : '예: 12.5' })}${field('순부채 (선택, 10억 단위)', 'netDebt', { unit: '10억', ph: '비움 = 0' })}</div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 items-end">${field('SBC 차감 (선택, 10억 단위)', 'sbc', { unit: '10억', ph: '예: 6.4 (연간 주식보상비용)' })}</div>
-                <div data-out="fcfNote" class="mt-2"></div>
-                <label data-role="fcfOkWrap" class="flex items-start gap-2 mt-2 min-h-11 text-xs text-slate-300 cursor-pointer"><input type="checkbox" data-k="fcfOk" class="mt-0.5 w-5 h-5 shrink-0 accent-cyan-500"><span>Yahoo FCF 가 가격과 같은 통화(${esc(cur)})라고 확인했습니다 (재무 통화를 알 수 없어 필요)</span></label>
-                <div data-out="dcf" class="mt-3"></div>`)}
-              ${section('③', '3 시나리오 (약세 / 기준 / 강세)', '내가 정한 성장률·종료 P/E·기간으로 목표가와 연환산 수익률 계산 (배당 제외)', `
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  ${sc('bear', '약세', 'text-rose-300', 'border-rose-900/60')}${sc('base', '기준', 'text-cyan-300', 'border-cyan-900/60')}${sc('bull', '강세', 'text-emerald-300', 'border-emerald-900/60')}
-                </div>`, 'md:col-span-2')}
-              ${section('④', '애널리스트 목표가 · 52주 범위', '컨센서스는 참고 정보일 뿐 예측이 아닙니다', `
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div><div class="text-xs font-bold text-slate-200 mb-1">애널리스트 목표가 (최저 – 평균 – 최고)</div><div data-out="analyst"></div></div>
-                  <div><div class="text-xs font-bold text-slate-200 mb-1">52주 저가 – 고가</div><div data-out="r52"></div></div>
-                </div>`, 'md:col-span-2')}
-            </div>
+            <details class="border-t border-slate-800 pt-3">
+              <summary class="text-xs font-bold text-slate-200 cursor-pointer min-h-11 flex items-center">어려운 용어 쉽게 보기</summary>
+              <dl class="text-xs space-y-2 mt-1">
+                ${gl('EPS (주당순이익)', '회사가 1년 동안 번 순이익을 주식 수로 나눈 값. "주식 1주가 1년에 벌어 오는 돈"이에요.')}
+                ${gl('P/E (주가수익비율, PER)', '주가 ÷ EPS. P/E 20배면 "지금 가격이 1년 이익의 20배"라는 뜻이고, 숫자가 클수록 시장이 기대를 많이 걸고 있어요.')}
+                ${gl('적정가', 'EPS × 내가 생각하는 적당한 P/E. 정답이 아니라 내 가정으로 만든 기준선이에요.')}
+                ${gl('여유폭 (안전마진)', '틀릴 때를 대비해 적정가보다 일부러 싸게 사려는 할인율. 25%면 적정가의 75% 이하에서 사겠다는 뜻이에요.')}
+                ${gl('PEG', 'P/E ÷ 이익 성장률. 같은 P/E라도 빨리 크는 회사가 더 싸게 볼 수 있다는 점을 반영해요.')}
+                ${gl('52주 범위', '최근 1년 동안의 가장 낮은 가격과 가장 높은 가격이에요.')}
+              </dl>
+            </details>
 
             <div class="border-t border-slate-800 pt-3">
-              <p class="text-xs font-bold text-slate-200 mb-1">한계 안내</p>
+              <p class="text-xs font-bold text-slate-200 mb-1">꼭 알아 두세요</p>
               <ul class="text-xs text-slate-300 space-y-1 list-disc pl-4">
-                <li>모형은 단순화이며 결과는 입력한 가정에 전적으로 좌우됩니다.</li>
-                <li>가치평가는 예측이 아닙니다. 교육용 도구이며 투자 권유가 아닙니다.</li>
-                <li>재무 통화·주식 수·순부채 차이로 오차가 있을 수 있습니다 (ADR·복수 주식 클래스 주의).</li>
+                <li>결과는 입력한 숫자에 전적으로 좌우돼요. 자동값은 데이터로 만든 추정일 뿐 예측이 아닙니다.</li>
+                <li>교육용 도구이며 투자 권유가 아닙니다.</li>
+                <li>적자 기업, 이익이 들쭉날쭉한 기업(은행·바이오·초기 성장주)은 이 방법이 잘 맞지 않아요.</li>
               </ul>
             </div>
           </div>
@@ -17276,16 +17214,13 @@ ${digest}`;
         saveAll(all);
       }
       function syncUi() {
-        const el = VS.el, { c, st } = VS;
+        const el = VS.el, { st } = VS;
         el.querySelectorAll('[data-k]').forEach(i => {
           const v = getPath(st, i.dataset.k);
-          if (i.type === 'checkbox') i.checked = !!v; else if (i.value !== String(v)) i.value = v == null ? '' : String(v);
+          if (i.value !== String(v)) i.value = v == null ? '' : String(v);
         });
         const mw = el.querySelector('[data-role="epsManualWrap"]'); if (mw) mw.classList.toggle('hidden', st.eps !== 'manual');
-        const k = valFcfCurrency(c.cur, c.finCur);
-        const cw = el.querySelector('[data-role="fcfOkWrap"]'); if (cw) cw.classList.toggle('hidden', !(k === 'unknown' && c.fcfAuto !== null && valNum(st.fcf) === null));
-        const open = VS.all._ui ? VS.all._ui.open !== false : true;
-        setOpen(open);
+        setOpen(VS.all._ui ? VS.all._ui.open !== false : true);
       }
       function setOpen(open) {
         const el = VS.el;
@@ -17296,9 +17231,8 @@ ${digest}`;
       }
       function onInput(e) {
         const t = e.target; if (!t || !t.dataset || !t.dataset.k || !VS.st) return;
-        const v = t.type === 'checkbox' ? t.checked : t.value;
-        setPath(VS.st, t.dataset.k, v);
-        if (t.dataset.k === 'eps' || t.dataset.k === 'fcf') syncUi();
+        setPath(VS.st, t.dataset.k, t.value);
+        if (t.dataset.k === 'eps') syncUi();
         persist(); updateOutputs();
       }
       function onClick(e) {
@@ -17307,30 +17241,23 @@ ${digest}`;
         if (a === 'toggle') {
           const open = b.getAttribute('aria-expanded') !== 'true';
           VS.all._ui = { open }; saveAll(VS.all); setOpen(open);
-        } else if (a === 'reset') {
-          delete VS.all[VS.c.ticker]; saveAll(VS.all);
-          VS.st = initState(VS.c, null); syncUi(); updateOutputs();
         } else if (a === 'pe-fill') {
           VS.st.pe = b.dataset.v; persist(); syncUi(); updateOutputs();
         } else if (a === 'mos-fill') {
           VS.st.mosReq = b.dataset.v; persist(); syncUi(); updateOutputs();
         } else if (a === 'smart') {
-          smartFill();
+          const eps = VS.st.eps, man = VS.st.epsManual;
+          VS.st = initState(VS.c, null); VS.st.eps = eps; VS.st.epsManual = man; // 기준 EPS 선택은 유지
+          applySmart(); persist(); syncUi(); updateOutputs();
         }
       }
-      // 추천값 채우기: 이미 입력한 값이 있으면 덮어쓰기 전에 확인한다
-      function smartFill() {
-        const { c, st } = VS;
-        const s = valSmartDefaults(c);
-        const sets = [['r', s.r], ['pe', s.pe], ['mosReq', s.mosReq]];
-        if (s.sc) ['bear', 'base', 'bull'].forEach(k => ['g', 'pe', 'n'].forEach(f => sets.push([`sc.${k}.${f}`, s.sc[k][f]])));
-        const todo = sets.filter(x => x[1] !== null);
-        const dirty = todo.some(([p, v]) => { const cur = String(getPath(st, p) ?? ''); return cur !== '' && cur !== v && !(p === 'r' && cur === '10') && !(p === 'n' && cur === '10'); });
-        if (dirty && !window.confirm('이미 입력한 값이 있습니다. 추천값으로 덮어쓸까요?')) return;
-        todo.forEach(([p, v]) => setPath(st, p, v));
-        persist(); syncUi(); updateOutputs();
-        const box = VS.el.querySelector('[data-out="smartNote"]');
-        if (box) box.innerHTML = `<div class="bg-cyan-950/30 border border-cyan-900/60 rounded-xl p-3"><p class="text-xs font-bold text-cyan-200 mb-1">추천값 근거 (휴리스틱 · 예측 아님)</p><ul class="text-xs text-slate-300 space-y-1 list-disc pl-4">${s.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>`;
+      // 추천값을 상태에 채우고 근거를 보관한다
+      function applySmart() {
+        const s = valSmartDefaults(VS.c), st = VS.st;
+        if (s.pe !== null) st.pe = s.pe;
+        st.mosReq = s.mosReq;
+        if (s.sc) ['bear', 'base', 'bull'].forEach(k => ['g', 'pe'].forEach(f => { st.sc[k][f] = s.sc[k][f]; }));
+        VS.notes = s.notes;
       }
       function initState(c, saved) {
         const st = mergeState(defaults(), saved);
@@ -17344,7 +17271,8 @@ ${digest}`;
         const c = readCtx(ctx);
         if (!c.any || !c.ticker) return false;
         const all = loadAll();
-        VS.c = c; VS.all = all; VS.el = el; VS.st = initState(c, all[c.ticker]);
+        VS.c = c; VS.all = all; VS.el = el; VS.st = initState(c, all[c.ticker]); VS.notes = valSmartDefaults(c).notes;
+        if (isBlank(VS.st)) { applySmart(); persist(); } // 처음 보는 종목: 입력 없이도 결과가 보이게 자동값을 채운다
         el.innerHTML = build();
         el.oninput = onInput; el.onchange = onInput; el.onclick = onClick;
         syncUi(); updateOutputs();
