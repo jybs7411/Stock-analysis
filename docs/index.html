@@ -1192,6 +1192,15 @@
             class="flex-1 bg-slate-950 border border-slate-700 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition"
           />
           <button
+            type="button"
+            id="expertQuestionMicBtn"
+            onclick="toggleSpeechInput('expertQuestionInput', this)"
+            class="px-3.5 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 rounded-xl text-xs sm:text-sm flex items-center justify-center transition"
+            title="음성으로 질문 입력"
+          >
+            <i class="fa-solid fa-microphone"></i>
+          </button>
+          <button
             type="submit"
             id="sendQuestionBtn"
             class="px-5 py-3 bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center gap-1.5 transition shadow-lg shadow-cyan-600/30"
@@ -1499,6 +1508,89 @@
       }
     }
 
+    // ===== 공용 음성 입력 (Web Speech API STT) =====
+    let activeSpeechRec = null;
+    let activeSpeechBtn = null;
+    function toggleSpeechInput(target, btn) {
+      const el = typeof target === 'string' ? document.getElementById(target) : target;
+      if (!el) return;
+
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        if (typeof showToast === 'function') {
+          showToast('음성 인식 미지원', '이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 또는 Edge를 사용해 주세요.', 'warn');
+        }
+        return;
+      }
+
+      if (activeSpeechRec) {
+        const prevBtn = activeSpeechBtn;
+        try { activeSpeechRec.stop(); } catch (_) {}
+        activeSpeechRec = null;
+        activeSpeechBtn = null;
+        if (prevBtn === btn) return;
+      }
+
+      try {
+        const rec = new SR();
+        rec.lang = (window.LOCALE === 'en') ? 'en-US' : ((window.LOCALE === 'de') ? 'de-DE' : 'ko-KR');
+        rec.continuous = true;
+        rec.interimResults = true;
+
+        const baseVal = el.value || '';
+        const prefix = baseVal ? (baseVal.endsWith('\n') || baseVal.endsWith(' ') ? '' : ' ') : '';
+
+        function setListeningUI(listening) {
+          if (!btn) return;
+          if (listening) {
+            btn.dataset.speechActive = '1';
+            btn.classList.add('text-rose-400', 'border-rose-500', 'animate-pulse');
+          } else {
+            delete btn.dataset.speechActive;
+            btn.classList.remove('text-rose-400', 'border-rose-500', 'animate-pulse');
+            if (activeSpeechBtn === btn) {
+              activeSpeechRec = null;
+              activeSpeechBtn = null;
+            }
+          }
+        }
+
+        rec.onstart = () => {
+          activeSpeechRec = rec;
+          activeSpeechBtn = btn;
+          setListeningUI(true);
+          if (typeof showToast === 'function') {
+            showToast('음성 입력 시작', '말씀하시면 자동으로 입력됩니다. 마이크를 다시 누르면 종료됩니다.', 'info');
+          }
+        };
+
+        rec.onresult = (e) => {
+          let phrase = '';
+          for (let i = 0; i < e.results.length; ++i) {
+            phrase += e.results[i][0].transcript;
+          }
+          el.value = (baseVal + prefix + phrase).slice(0, 3000);
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+
+        rec.onerror = (e) => {
+          if (e.error !== 'no-speech' && e.error !== 'aborted') {
+            if (typeof showToast === 'function') showToast('음성 인식 오류', `오류: ${e.error}`, 'error');
+          }
+        };
+
+        rec.onend = () => {
+          setListeningUI(false);
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+
+        rec.start();
+      } catch (err) {
+        if (typeof showToast === 'function') showToast('음성 인식 시작 실패', err.message || '마이크 접근 권한을 확인해 주세요.', 'error');
+      }
+    }
+    window.toggleSpeechInput = toggleSpeechInput;
+
     // 탭 정의: 각 탭은 view-<id> 영역과 tabBtn-<id> 버튼을 가진다. 모듈은 TAB_HOOKS[id] 에 '탭이 열릴 때' 실행할 함수를 등록한다.
     const APP_TABS = {
       watch: { on: 'bg-yellow-950 text-yellow-300 border-yellow-700/80 shadow-md shadow-yellow-950/50' },
@@ -1514,7 +1606,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.7.0';
+    const APP_VERSION = '1.8.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 탭 간 종목 동기화 =====
@@ -9517,7 +9609,13 @@ EPRT|Essential Properties Realty Trust|E
               <label>손절가<input id="bdwJStop" type="number" step="any" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers text-xs outline-none focus:border-orange-400"></label>
               <label>시장 상황<select id="bdwJMarket" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs outline-none"><option>정배열 상승장</option><option>역배열 하락장</option><option>박스권 횡보</option><option>급등락 변동성</option></select></label>
               <div class="col-span-2 md:col-span-4"><div class="mb-1">당시 감정 상태 (해당되는 것 모두)</div><div class="flex flex-wrap gap-1.5" id="bdwJEmos">${BDW_EMOTIONS.map(e => `<label class="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-950 text-slate-300 cursor-pointer has-[:checked]:bg-orange-950 has-[:checked]:border-orange-600 has-[:checked]:text-orange-200"><input type="checkbox" value="${e}" class="hidden">${e}</label>`).join('')}</div></div>
-              <label class="col-span-2 md:col-span-4">진입·청산 이유 / 메모<textarea id="bdwJNote" rows="2" placeholder="근거가 몇 개 겹쳤는지, 어떤 매물대·이평선이었는지, 손절 원칙을 지켰는지…" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs outline-none focus:border-orange-400"></textarea></label>
+              <div class="col-span-2 md:col-span-4 space-y-1">
+                <div class="flex items-center justify-between">
+                  <span>진입·청산 이유 / 메모</span>
+                  <button type="button" onclick="toggleSpeechInput('bdwJNote', this)" class="px-2 py-0.5 rounded text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-orange-400 flex items-center gap-1 transition" title="음성으로 메모 입력"><i class="fa-solid fa-microphone text-xs"></i><span>음성</span></button>
+                </div>
+                <textarea id="bdwJNote" rows="2" placeholder="근거가 몇 개 겹쳤는지, 어떤 매물대·이평선이었는지, 손절 원칙을 지켰는지…" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs outline-none focus:border-orange-400"></textarea>
+              </div>
               <div class="col-span-2 md:col-span-4 flex justify-end"><button type="submit" class="px-5 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs shadow">일지에 기록</button></div>
             </form>
             <div id="bdwJStats"></div>
@@ -18770,9 +18868,27 @@ ${digest}`;
           ${secHtml('다음 실적일', 'wlDEarn')}
           <section class="space-y-2"><h3 class="text-xs font-bold text-slate-300 tracking-wide">그룹</h3><div id="wlDGroups" class="flex flex-wrap gap-1.5"></div></section>
           <section class="space-y-2"><h3 class="text-xs font-bold text-slate-300 tracking-wide flex items-center gap-2">메모 <span id="wlMemoSaved" class="text-emerald-300 font-normal"></span></h3>
-            <label class="block text-xs text-slate-300 space-y-1">근거 — 왜 담았나요?<textarea data-memo="thesis" rows="2" maxlength="3000" class="${INPUT} min-h-[4.5rem] py-2" placeholder="예: 데이터센터 매출 성장 지속 여부 확인">${esc(it.thesis)}</textarea></label>
-            <label class="block text-xs text-slate-300 space-y-1">반증 조건 — 어떤 일이 생기면 생각을 접나요?<textarea data-memo="invalidate" rows="2" maxlength="3000" class="${INPUT} min-h-[4.5rem] py-2" placeholder="예: 두 분기 연속 가이던스 하향">${esc(it.invalidate)}</textarea></label>
-            <label class="block text-xs text-slate-300 space-y-1">메모<textarea data-memo="note" rows="2" maxlength="3000" class="${INPUT} min-h-[4.5rem] py-2" placeholder="자유롭게 적어 두세요">${esc(it.note)}</textarea></label>
+            <div class="block text-xs text-slate-300 space-y-1">
+              <div class="flex items-center justify-between">
+                <span>근거 — 왜 담았나요?</span>
+                <button type="button" data-act="speechMemo" data-memo-field="thesis" class="px-2 py-0.5 rounded text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-cyan-300 flex items-center gap-1 transition" title="음성으로 근거 입력"><i class="fa-solid fa-microphone text-xs"></i><span>음성</span></button>
+              </div>
+              <textarea data-memo="thesis" rows="2" maxlength="3000" class="${INPUT} min-h-[4.5rem] py-2" placeholder="예: 데이터센터 매출 성장 지속 여부 확인">${esc(it.thesis)}</textarea>
+            </div>
+            <div class="block text-xs text-slate-300 space-y-1">
+              <div class="flex items-center justify-between">
+                <span>반증 조건 — 어떤 일이 생기면 생각을 접나요?</span>
+                <button type="button" data-act="speechMemo" data-memo-field="invalidate" class="px-2 py-0.5 rounded text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-cyan-300 flex items-center gap-1 transition" title="음성으로 반증 조건 입력"><i class="fa-solid fa-microphone text-xs"></i><span>음성</span></button>
+              </div>
+              <textarea data-memo="invalidate" rows="2" maxlength="3000" class="${INPUT} min-h-[4.5rem] py-2" placeholder="예: 두 분기 연속 가이던스 하향">${esc(it.invalidate)}</textarea>
+            </div>
+            <div class="block text-xs text-slate-300 space-y-1">
+              <div class="flex items-center justify-between">
+                <span>메모</span>
+                <button type="button" data-act="speechMemo" data-memo-field="note" class="px-2 py-0.5 rounded text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-cyan-300 flex items-center gap-1 transition" title="음성으로 메모 입력"><i class="fa-solid fa-microphone text-xs"></i><span>음성</span></button>
+              </div>
+              <textarea data-memo="note" rows="2" maxlength="3000" class="${INPUT} min-h-[4.5rem] py-2" placeholder="자유롭게 적어 두세요">${esc(it.note)}</textarea>
+            </div>
           </section>
           <section class="space-y-2"><h3 class="text-xs font-bold text-slate-300 tracking-wide flex items-center gap-2">가격 목표 · 포지션 <span id="wlTargetSaved" class="text-emerald-300 font-normal"></span></h3>
             <form id="wlTargetForm" class="grid grid-cols-2 gap-2">
@@ -19295,6 +19411,13 @@ ${digest}`;
         const sym = rowSym || menuSym || RT.sel;
         if (a !== 'menu') closeMenu();
         switch (a) {
+          case 'speechMemo': {
+            const f = t.dataset.memoField;
+            const container = t.closest('.space-y-1');
+            const area = container ? container.querySelector(`textarea[data-memo="${f}"]`) : null;
+            if (area && window.toggleSpeechInput) window.toggleSpeechInput(area, t);
+            break;
+          }
           case 'star': removeSymbols([sym]); break;
           case 'open': openDetail(sym); break;
           case 'close': closeDetail(); break;
