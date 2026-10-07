@@ -307,8 +307,8 @@
         </div>
       </div>
 
-      <!-- 미국장 개장/폐장 시계 (KST 기준, 카운트다운) -->
-      <div id="usMarketClock" translate="no" class="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs" title="미국 정규장 09:30–16:00 ET (한국시간으로 환산, 서머타임 자동 반영)">
+      <!-- 미국장 개장/폐장 시계 (내 시간대 기준, 카운트다운) -->
+      <div id="usMarketClock" translate="no" class="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs" title="미국 정규장 09:30–16:00 ET (브라우저 시간대로 환산, 서머타임 자동 반영)">
         <span id="umcPill" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold bg-slate-800 text-slate-300"><span id="umcDot" class="w-2 h-2 rounded-full bg-slate-500"></span><span id="umcState">--</span></span>
         <div class="leading-tight">
           <div class="text-slate-200 font-semibold"><span id="umcLabel">--</span> <span id="umcCount" class="font-mono-numbers text-cyan-300">--</span></div>
@@ -1627,7 +1627,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.18.0';
+    const APP_VERSION = '1.18.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -1636,8 +1636,8 @@
         '2027-01-01','2027-01-18','2027-02-15','2027-03-26','2027-05-31','2027-06-18','2027-07-05','2027-09-06','2027-11-25','2027-12-24']);
       const EARLY = new Set(['2026-11-27','2026-12-24','2027-11-26']);
       const fmtET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const fmtKST = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-      const fmtKSTDay = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', weekday: 'short', month: 'numeric', day: 'numeric' });
+      const fmtKST = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      const fmtKSTDay = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
       const wall = ts => { const o = {}; fmtET.formatToParts(ts).forEach(p => { o[p.type] = +p.value; }); return o; };
       const etOff = ts => { const w = wall(ts); return Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute, w.second) - Math.floor(ts / 1000) * 1000; };
       const etToUtc = (y, m, d, h, mi) => { let g = Date.UTC(y, m - 1, d, h, mi); g -= etOff(g); g = Date.UTC(y, m - 1, d, h, mi) - etOff(g); return g; };
@@ -1653,6 +1653,7 @@
         return (d ? d + '일 ' : '') + `${p(h)}:${p(m)}:${p(s)}`;
       }
       const hm = ts => fmtKST.format(ts);
+      const tzName = () => { try { const p = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(Date.now()).find(x => x.type === 'timeZoneName'); return p ? p.value : ''; } catch (e) { return ''; } };
       function tick() {
         const root = document.getElementById('usMarketClock'); if (!root) return;
         const now = Date.now(), w = wall(now);
@@ -1676,7 +1677,7 @@
         root.querySelector('#umcState').textContent = state;
         root.querySelector('#umcLabel').textContent = label;
         root.querySelector('#umcCount').textContent = dur(target);
-        root.querySelector('#umcSub').textContent = `${fmtKSTDay.format(st.open).replace(',', '')} · 개장 ${hm(st.open)} → 폐장 ${hm(st.close)} KST`;
+        root.querySelector('#umcSub').textContent = `${fmtKSTDay.format(st.open).replace(',', '')} · 개장 ${hm(st.open)} → 폐장 ${hm(st.close)} ${tzName()}`;
       }
       tick(); setInterval(tick, 1000);
     })();
