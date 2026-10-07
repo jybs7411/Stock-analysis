@@ -307,6 +307,15 @@
         </div>
       </div>
 
+      <!-- 미국장 개장/폐장 시계 (KST 기준, 카운트다운) -->
+      <div id="usMarketClock" translate="no" class="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs" title="미국 정규장 09:30–16:00 ET (한국시간으로 환산, 서머타임 자동 반영)">
+        <span id="umcPill" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold bg-slate-800 text-slate-300"><span id="umcDot" class="w-2 h-2 rounded-full bg-slate-500"></span><span id="umcState">--</span></span>
+        <div class="leading-tight">
+          <div class="text-slate-200 font-semibold"><span id="umcLabel">--</span> <span id="umcCount" class="font-mono-numbers text-cyan-300">--</span></div>
+          <div id="umcSub" class="text-[10px] text-slate-500 font-mono-numbers">--</div>
+        </div>
+      </div>
+
       <!-- Quick Ticker Suggestions -->
       <div class="flex items-center gap-1.5 overflow-x-auto text-xs py-1">
         <span class="text-slate-400 mr-1 hidden sm:inline"><i class="fa-solid fa-bolt text-amber-400 mr-1"></i>추천:</span>
@@ -1618,8 +1627,59 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.17.0';
+    const APP_VERSION = '1.18.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
+
+    // ===== 미국장 개장/폐장 시계 (헤더) =====
+    (function () {
+      const HOL = new Set(['2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25','2026-06-19','2026-07-03','2026-09-07','2026-11-26','2026-12-25',
+        '2027-01-01','2027-01-18','2027-02-15','2027-03-26','2027-05-31','2027-06-18','2027-07-05','2027-09-06','2027-11-25','2027-12-24']);
+      const EARLY = new Set(['2026-11-27','2026-12-24','2027-11-26']);
+      const fmtET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const fmtKST = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      const fmtKSTDay = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', weekday: 'short', month: 'numeric', day: 'numeric' });
+      const wall = ts => { const o = {}; fmtET.formatToParts(ts).forEach(p => { o[p.type] = +p.value; }); return o; };
+      const etOff = ts => { const w = wall(ts); return Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute, w.second) - Math.floor(ts / 1000) * 1000; };
+      const etToUtc = (y, m, d, h, mi) => { let g = Date.UTC(y, m - 1, d, h, mi); g -= etOff(g); g = Date.UTC(y, m - 1, d, h, mi) - etOff(g); return g; };
+      const key = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      function session(y, m, d) { // 해당 ET 날짜의 정규장 [open, close] (거래일 아니면 null)
+        const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay(), k = key(y, m, d);
+        if (wd === 0 || wd === 6 || HOL.has(k)) return null;
+        return { open: etToUtc(y, m, d, 9, 30), close: etToUtc(y, m, d, EARLY.has(k) ? 13 : 16, 0), pre: etToUtc(y, m, d, 4, 0), post: etToUtc(y, m, d, 20, 0) };
+      }
+      function dur(ms) {
+        const t = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(t / 86400), h = Math.floor(t % 86400 / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+        const p = n => String(n).padStart(2, '0');
+        return (d ? d + '일 ' : '') + `${p(h)}:${p(m)}:${p(s)}`;
+      }
+      const hm = ts => fmtKST.format(ts);
+      function tick() {
+        const root = document.getElementById('usMarketClock'); if (!root) return;
+        const now = Date.now(), w = wall(now);
+        let st = null, nextOpen = null, cur = null;
+        for (let i = 0; i < 10 && !nextOpen; i++) {
+          const dt = new Date(Date.UTC(w.year, w.month - 1, w.day + i));
+          const ss = session(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+          if (!ss || ss.close <= now) continue;
+          if (ss.open <= now) cur = ss; else nextOpen = ss;
+        }
+        let state, label, target, color;
+        if (cur) { state = '정규장'; label = '폐장까지'; target = cur.close - now; color = 'emerald'; st = cur; }
+        else {
+          st = nextOpen; target = st.open - now;
+          if (now >= st.pre) { state = '프리마켓'; color = 'amber'; } else { state = '휴장'; color = 'slate'; }
+          label = '개장까지';
+        }
+        const map = { emerald: ['bg-emerald-500/15 text-emerald-300 border border-emerald-500/40', 'bg-emerald-400 animate-pulse'], amber: ['bg-amber-500/15 text-amber-300 border border-amber-500/40', 'bg-amber-400 animate-pulse'], slate: ['bg-slate-800 text-slate-300 border border-slate-700', 'bg-slate-500'] }[color];
+        root.querySelector('#umcPill').className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold ' + map[0];
+        root.querySelector('#umcDot').className = 'w-2 h-2 rounded-full ' + map[1];
+        root.querySelector('#umcState').textContent = state;
+        root.querySelector('#umcLabel').textContent = label;
+        root.querySelector('#umcCount').textContent = dur(target);
+        root.querySelector('#umcSub').textContent = `${fmtKSTDay.format(st.open).replace(',', '')} · 개장 ${hm(st.open)} → 폐장 ${hm(st.close)} KST`;
+      }
+      tick(); setInterval(tick, 1000);
+    })();
 
     // ===== 탭 간 종목 동기화 =====
     // 어느 탭에서든 종목을 고르면 appSetSymbol 로 공용 '현재 종목'을 갱신한다.
