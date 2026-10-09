@@ -1630,7 +1630,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.20.0';
+    const APP_VERSION = '1.21.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -4981,6 +4981,11 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         params: [P('period', '기간', 20, 2, 400)], label: p => `EMA ${p.period}`,
         compute: (h, p, st) => ({ lines: [{ v: TA.ema(closesOf(h), p.period), color: st.color, width: st.width || 1.6, name: `EMA ${p.period}` }] })
       },
+      vwma: {
+        cat: '추세 · 이동평균', pane: 'main', name: '거래량 가중 이동평균 (VWMA)', desc: 'Σ(종가×거래량)/Σ(거래량). 거래량이 큰 가격대로 끌려가 일반 이평선보다 먼저 반응합니다 (불단왕 4강: VWMA 100).',
+        params: [P('period', '기간', 100, 2, 400)], label: p => `VWMA ${p.period}`,
+        compute: (h, p, st) => ({ lines: [{ v: TA.vwma(h, p.period), color: st.color, width: st.width || 1.8, name: `VWMA ${p.period}` }] })
+      },
       svwap: {
         cat: '추세 · 이동평균', pane: 'main', name: '세션 VWAP (분봉 전용)', desc: '거래일마다 새로 계산하는 거래량 가중 평균가. 분봉 차트에서 기관 평균 단가의 기준선처럼 쓰이며, 일·주·월봉에서는 표시되지 않습니다.',
         params: [], label: () => '세션 VWAP',
@@ -5538,98 +5543,95 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       };
     }
 
-    // ---------- 2) Minervini 트렌드 템플릿 ----------
-    // 한 시점(i)의 템플릿 조건 평가. 52주 구간과 200일선 상승 확인 간격은 '가용한 봉' 안에서 계산하고 부족하면 note 에 "N봉 기준"을 적는다.
-    // 8번째 조건(RS Rating ≥ 70)은 순위를 알 수 없어 'SPY 대비 가중 수익률 우위'로 근사 — IBD RS Rating 과 다르다. SPY 없으면 ok=null(미확인).
-    function minerviniEval(h, i, ma, spyAl) {
-      const { s50, s150, s200, closes } = ma;
-      if (s50[i] === null || s150[i] === null || s200[i] === null) return null;
-      const c = closes[i], win = Math.min(252, i + 1);
-      let hi = -Infinity, lo = Infinity;
-      for (let j = i - win + 1; j <= i; j++) { if (h[j].high > hi) hi = h[j].high; if (h[j].low < lo) lo = h[j].low; }
-      const L = Math.min(22, i - 199); // 200일선의 첫 값은 199번 봉
-      const wn = win < 252 ? `${win}봉 기준` : '';
-      const items = [
-        { k: '현재가 > 150일선, 200일선', ok: c > s150[i] && c > s200[i] },
-        { k: '150일선 > 200일선', ok: s150[i] > s200[i] },
-        { k: '200일선이 1개월 이상 상승 중', ok: L >= 5 ? s200[i] > s200[i - L] : null, note: L < 22 ? (L >= 5 ? `${L}봉 전 대비` : '봉 부족') : '' },
-        { k: '50일선 > 150일선, 200일선', ok: s50[i] > s150[i] && s50[i] > s200[i] },
-        { k: '현재가 > 50일선', ok: c > s50[i] },
-        { k: '52주 저점보다 30% 이상 위', ok: c >= lo * 1.3, note: wn },
-        { k: '52주 고점의 25% 이내', ok: c >= hi * 0.75, note: wn }
-      ];
-      let rs = null;
-      if (spyAl) { const w = TA.weightedReturn(closes, i, spyAl); if (w) rs = { stock: w.score * 100, spy: w.score2 * 100, horizon: w.horizon }; }
-      items.push({
-        k: 'RS: SPY 대비 가중 수익률 우위 (근사 · IBD RS Rating 아님)', ok: rs ? rs.stock > rs.spy : null,
-        note: rs ? `종목 ${pctS(rs.stock)} vs SPY ${pctS(rs.spy)}${rs.horizon < 252 ? ` · ${rs.horizon}봉 기준` : ''}` : 'SPY 데이터 없음 — 미확인', rs: true
-      });
-      const base = items.slice(0, 7), passed7 = base.filter(x => x.ok === true).length;
-      const rsKnown = items[7].ok !== null;
-      return { items, passed7, all7: passed7 === 7, passed: passed7 + (items[7].ok === true ? 1 : 0), total: 7 + (rsKnown ? 1 : 0), rs, win, rsKnown };
+    // ---------- 2) 불단왕 4강 지표 (이평선 + VWMA + VPVR 매물대) ----------
+    // 강의 4강: 이평선 7·25·50·100·200(보라·주황·초록·하늘·빨강) + VWMA100(흰색) + VPVR(POC·밸류 에어리어). 강의에 숫자 기준이 없는 값(근접 거리 등)은 이 앱의 가정이다.
+    const BDW4_MA = [[7, '#a78bfa', 'MA7'], [25, '#fb923c', 'MA25'], [50, '#4ade80', 'MA50'], [100, '#38bdf8', 'MA100'], [200, '#f87171', 'MA200']];
+    const BDW4_VWMA_P = 100, BDW4_STRETCH_ATR = 6, BDW4_NEAR_ATR = 1, BDW4_VP_BARS = 250, BDW4_VP_BINS = 48, BDW4_VA = 0.7;
+    // VWMA = Σ(종가×거래량) / Σ(거래량) — 거래량이 큰 가격대로 끌려가 일반 이평선보다 먼저 반응한다
+    TA.vwma = (h, p) => {
+      const out = nullArr(h.length);
+      let sv = 0, sx = 0;
+      for (let i = 0; i < h.length; i++) {
+        const v = h[i].volume || 0; sv += v; sx += h[i].close * v;
+        if (i >= p) { const w = h[i - p].volume || 0; sv -= w; sx -= h[i - p].close * w; }
+        if (i >= p - 1 && sv > 0) out[i] = sx / sv;
+      }
+      return out;
+    };
+    // 거래량 프로파일: 각 봉의 거래량을 고저가 걸친 가격대에 균등 배분 → POC(최대 거래 가격대)·밸류 에어리어(거래량 70%)
+    function bdw4Profile(h, from, to, bins) {
+      let lo = Infinity, hi = -Infinity;
+      for (let i = from; i <= to; i++) { if (h[i].low < lo) lo = h[i].low; if (h[i].high > hi) hi = h[i].high; }
+      if (!(hi > lo)) return null;
+      const bw = (hi - lo) / bins, vol = new Array(bins).fill(0);
+      for (let i = from; i <= to; i++) {
+        const c = h[i], v = c.volume || 0; if (!v) continue;
+        const b0 = Math.max(0, Math.min(bins - 1, Math.floor((c.low - lo) / bw))), b1 = Math.max(0, Math.min(bins - 1, Math.floor((c.high - lo) / bw)));
+        for (let b = b0; b <= b1; b++) vol[b] += v / (b1 - b0 + 1);
+      }
+      const tot = vol.reduce((x, y) => x + y, 0);
+      if (!(tot > 0)) return null;
+      let poc = 0; vol.forEach((v, b) => { if (v > vol[poc]) poc = b; });
+      let l = poc, r = poc, acc = vol[poc];
+      while (acc < tot * BDW4_VA && (l > 0 || r < bins - 1)) {
+        const dn = l > 0 ? vol[l - 1] : -1, up = r < bins - 1 ? vol[r + 1] : -1;
+        if (up >= dn) { r++; acc += vol[r]; } else { l--; acc += vol[l]; }
+      }
+      return { poc: lo + (poc + 0.5) * bw, val: lo + l * bw, vah: lo + (r + 1) * bw };
     }
-
-    function analyzeMinervini(h, opts = {}) {
-      const o = Object.assign({ rsFilter: false, spy: null }, opts);
+    function analyzeBdw4(h, opts = {}) {
       if (!h || h.length < 2) return presetEmpty('분석에 필요한 봉이 부족합니다.');
-      const n = h.length, closes = closesOf(h);
-      const ma = { s50: TA.sma(closes, 50), s150: TA.sma(closes, 150), s200: TA.sma(closes, 200), closes };
-      const spyAl = (o.spy && o.spy.length) ? TA.alignClose(h, o.spy) : null;
-      const ev = h.map((_, i) => minerviniEval(h, i, ma, spyAl));
-      const okArr = ev.map(e => e ? (e.all7 && (!o.rsFilter || e.items[7].ok === true)) : null);
-      const vol50 = TA.sma(h.map(c => c.volume || 0), 50);
+      const n = h.length, i = n - 1, closes = closesOf(h), last = h[i], c = last.close;
+      const mas = BDW4_MA.map(([p, color, name]) => ({ p, color, name, s: TA.sma(closes, p) }));
+      const vw = TA.vwma(h, BDW4_VWMA_P), atr = TA.atr(h, 14), A = atr[i];
+      const aligned = k => mas.every((m, j) => j === 0 || (m.s[k] !== null && mas[j - 1].s[k] !== null && mas[j - 1].s[k] > m.s[k]));
+      const reversed = k => mas.every((m, j) => j === 0 || (m.s[k] !== null && mas[j - 1].s[k] !== null && mas[j - 1].s[k] < m.s[k]));
       const shade = [];
-      okArr.forEach((ok, i) => { if (ok) shade.push({ i, color: 'rgba(16,185,129,0.07)' }); });
-
-      // 피벗 돌파: 템플릿 충족 + 직전 20봉 고점 돌파 + 거래량 50일 평균의 1.4배 이상
-      const sigs = [], markers = [];
-      for (let i = 21; i < n; i++) {
-        if (!okArr[i] || !vol50[i - 1]) continue;
-        let pv = -Infinity; for (let j = i - 20; j < i; j++) pv = Math.max(pv, h[j].high);
-        if (h[i].close > pv && h[i].volume >= vol50[i - 1] * 1.4) {
-          sigs.push({ i, pivot: pv }); markers.push({ i, dir: 'up', text: '돌파', color: '#34d399', strong: true });
-        }
-      }
-      // 거래: 신호 다음 봉 시가 매수, 손절 8%, 종가가 50일선 아래로 마감하면 청산
-      const trades = simulate(h, sigs, s => {
-        if (s.i + 1 >= n) return null;
-        const i0 = s.i + 1, entry = h[i0].open;
-        const ex = walkTrade(h, i0, entry, 1, entry * 0.92, (c, j) => ma.s50[j] !== null && c.close < ma.s50[j] ? { price: c.close, reason: '50일선 이탈' } : null, 150);
-        return mkTrade(h, i0, entry, 1, ex, 'BO');
-      });
-
-      const e = ev[n - 1];
-      const last = h[n - 1];
-      const perf6 = n > 126 ? (last.close / closes[n - 127] - 1) * 100 : null;
+      for (let k = 0; k < n; k++) { if (aligned(k)) shade.push({ i: k, color: 'rgba(16,185,129,0.07)' }); else if (reversed(k)) shade.push({ i: k, color: 'rgba(244,63,94,0.07)' }); }
+      const from = Math.max(0, n - BDW4_VP_BARS), vp = n >= 20 ? bdw4Profile(h, from, i, BDW4_VP_BINS) : null;
       const levels = [];
-      let pv = -Infinity; for (let j = Math.max(0, n - 20); j < n; j++) pv = Math.max(pv, h[j].high);
-      if (Number.isFinite(pv)) levels.push({ price: pv, color: '#fbbf24', label: `피벗(20일 고점) ${fmtN(pv)}`, dash: [5, 4] });
-      levels.push({ price: last.close * 0.92, color: '#fb7185', label: `손절 -8% ${fmtN(last.close * 0.92)}`, dash: [2, 3] });
-
-      const rows = e ? e.items.map(x => ({ k: x.k, v: (x.ok === true ? '충족 ✓' : x.ok === false ? '미충족 ✗' : '미확인 ?') + (x.note ? ` (${x.note})` : ''), tone: x.ok === true ? 'good' : x.ok === false ? 'bad' : 'warn' }))
-        : [{ k: '트렌드 템플릿', v: `200일선 계산에 최소 200봉이 필요합니다 (현재 ${n}봉)`, tone: 'warn' }];
-      const vcp = TA.vcp(h);
-      if (e) rows.push({ k: 'VCP (정보용)', v: vcp.text, tone: vcp.found && vcp.dryUp ? 'good' : vcp.found ? 'warn' : 'info' });
-      rows.push({ k: '최근 6개월 수익률 (참고)', v: perf6 === null ? '' : pctS(perf6), tone: 'info' });
-      let verdict = '데이터가 부족해 판단할 수 없습니다.', tone = 'warn', score = null;
-      if (e) {
-        score = e.rsKnown ? `${e.passed}/8` : `${e.passed}/7 (RS 미확인)`;
-        const T = e.total, P0 = e.passed;
-        const rsTxt = e.rsKnown ? '' : ' RS 조건은 SPY 데이터가 없어 확인하지 못했습니다.';
-        const wnTxt = e.win < 252 ? ` (52주 구간은 가용한 ${e.win}봉 기준)` : '';
-        if (P0 === T) { verdict = `트렌드 템플릿 ${P0}/${T} 충족${wnTxt} — 상승 추세 조건을 모두 갖춘 후보 상태입니다(조건 충족 여부일 뿐 '스테이지 2' 단정이나 상승 보장이 아닙니다).${rsTxt} 거래량이 실린 피벗(20일 고점) 돌파 때 진입을 고려하고, 손절은 −7~8%가 기본입니다.`; tone = 'good'; }
-        else if (P0 >= T - 2) { verdict = `트렌드 템플릿 ${P0}/${T} 충족${wnTxt} — 상승 추세에 근접했지만 아직 미완성입니다. 미충족 조건이 해소되는지 지켜보세요.${rsTxt}`; tone = 'warn'; }
-        else { verdict = `트렌드 템플릿 ${P0}/${T} 충족${wnTxt} — 이 기법의 매수 후보 조건에 미달입니다.${rsTxt}`; tone = 'bad'; }
+      if (vp) {
+        levels.push({ price: vp.poc, color: '#fbbf24', label: `POC ${fmtN(vp.poc)}`, dash: [5, 4] });
+        levels.push({ price: vp.vah, color: '#94a3b8', label: `VAH ${fmtN(vp.vah)}`, dash: [2, 4] });
+        levels.push({ price: vp.val, color: '#94a3b8', label: `VAL ${fmtN(vp.val)}`, dash: [2, 4] });
       }
-      const lastBarSig = sigs.length && sigs[sigs.length - 1].i === n - 1;
+      const rows = [];
+      const have = mas.filter(m => m.s[i] !== null);
+      const al = aligned(i), rv = reversed(i);
+      rows.push({ k: '이평선 배열 (7>25>50>100>200)', v: have.length < mas.length ? `200일선까지 계산하려면 ${mas[4].p}봉 필요 (현재 ${n}봉)` : al ? '정배열' : rv ? '역배열' : '혼조(엇갈림)', tone: have.length < mas.length ? 'warn' : al ? 'good' : rv ? 'bad' : 'info' });
+      const above = have.filter(m => c > m.s[i]).map(m => m.name), below = have.filter(m => c <= m.s[i]).map(m => m.name);
+      rows.push({ k: '종가 위 / 아래 이평선', v: `위 ${above.join('·') || '없음'} / 아래 ${below.join('·') || '없음'}`, tone: below.length === 0 ? 'good' : above.length === 0 ? 'bad' : 'info' });
+      let vwTone = 'info';
+      if (vw[i] !== null) {
+        const gap = A ? (c - vw[i]) / A : null, stretched = gap !== null && Math.abs(gap) >= BDW4_STRETCH_ATR;
+        rows.push({ k: `VWMA${BDW4_VWMA_P}`, v: `${fmtN(vw[i])} · 종가는 ${c >= vw[i] ? '위' : '아래'}${gap !== null ? ` (${gap >= 0 ? '+' : ''}${gap.toFixed(1)} ATR)` : ''}${stretched ? ' — 많이 벌어져 되돌림(자석 효과) 주의' : ''}`, tone: stretched ? 'warn' : c >= vw[i] ? 'good' : 'bad' });
+        vwTone = c >= vw[i] ? 'good' : 'bad';
+      } else rows.push({ k: `VWMA${BDW4_VWMA_P}`, v: `${BDW4_VWMA_P}봉 이상 필요 (현재 ${n}봉)`, tone: 'warn' });
+      if (vp) {
+        const pos = c > vp.vah ? '밸류 에어리어 위' : c < vp.val ? '밸류 에어리어 아래' : '밸류 에어리어 안';
+        rows.push({ k: `VPVR (최근 ${Math.min(n, BDW4_VP_BARS)}봉)`, v: `POC ${fmtN(vp.poc)} · VA ${fmtN(vp.val)}~${fmtN(vp.vah)} · 종가는 ${pos}, POC ${c >= vp.poc ? '위' : '아래'}`, tone: 'info' });
+      } else rows.push({ k: 'VPVR', v: '거래량 데이터가 없거나 봉이 부족합니다', tone: 'warn' });
+      // 근거 중첩: 가격 아래(지지)·위(저항)에서 ±1 ATR 이내에 겹쳐 있는 선·매물대
+      const cand = [];
+      have.filter(m => m.p >= 25).forEach(m => cand.push([m.name, m.s[i]]));
+      if (vw[i] !== null) cand.push([`VWMA${BDW4_VWMA_P}`, vw[i]]);
+      if (vp) { cand.push(['POC', vp.poc]); cand.push(['VAL', vp.val]); cand.push(['VAH', vp.vah]); }
+      let sup = [], res = [];
+      if (A) cand.forEach(([nm, v]) => { const d = (c - v) / A; if (d >= 0 && d <= BDW4_NEAR_ATR) sup.push(nm); else if (d < 0 && d >= -BDW4_NEAR_ATR) res.push(nm); });
+      rows.push({ k: `겹치는 근거 (±${BDW4_NEAR_ATR} ATR 이내)`, v: `아래 지지 ${sup.length}개${sup.length ? ' (' + sup.join('·') + ')' : ''} / 위 저항 ${res.length}개${res.length ? ' (' + res.join('·') + ')' : ''}`, tone: sup.length >= 2 ? 'good' : res.length >= 2 ? 'warn' : 'info' });
+      let verdict, tone;
+      if (have.length < mas.length) { verdict = `이평선 ${mas[4].p}봉이 아직 계산되지 않아 일부 항목만 보여줍니다 (현재 ${n}봉).`; tone = 'warn'; }
+      else if (al && vwTone === 'good') { verdict = `이평선 정배열이고 종가가 VWMA${BDW4_VWMA_P} 위입니다.${sup.length >= 2 ? ` 가까운 아래에 지지 근거가 ${sup.length}개 겹쳐 있어(${sup.join('·')}) 눌림 시 분할 진입을 검토할 자리입니다.` : ' 눌림이 와도 겹치는 지지가 많지 않으면 서두르지 않는 쪽이 규칙입니다.'} 규칙 점검일 뿐 매수 권유가 아닙니다.`; tone = 'good'; }
+      else if (rv && vwTone === 'bad') { verdict = `이평선 역배열이고 종가가 VWMA${BDW4_VWMA_P} 아래입니다. 반등은 위의 이평선·매물대${res.length ? `(${res.join('·')})` : ''}에서 저항을 받기 쉽습니다.`; tone = 'bad'; }
+      else { verdict = `이평선이 엇갈려 방향이 분명하지 않습니다. 4강의 원칙은 "근거가 겹칠 때까지 기다린다" 입니다.${sup.length >= 2 ? ` 다만 아래에 지지 근거가 ${sup.length}개 겹쳐 있습니다(${sup.join('·')}).` : ''}`; tone = 'warn'; }
       return {
-        annot: { markers, levels, shade, trades }, rows, verdict: { text: verdict, tone }, stats: TA.tradeStats(settledTrades(trades, n), h), score,
-        pending: lastBarSig ? '마지막 봉에서 돌파 신호가 나왔습니다. 진입은 다음 봉 시가라 아직 거래가 없어 성과 통계에 반영되지 않았습니다.' : '',
+        annot: { markers: [], levels, shade, trades: [] }, rows, verdict: { text: verdict, tone }, stats: { n: 0 }, statsShort: null, noStats: true, score: al ? '정배열' : rv ? '역배열' : '혼조', pending: '',
         rules: [
-          '트렌드 템플릿 8조건(Mark Minervini, "Trade Like a Stock Market Wizard"): 가격>150·200일선, 150>200일선, 200일선 1개월+ 상승(가급적 4~5개월), 50>150·200일선, 가격>50일선, 52주 저점 +30%(해설에 따라 +25%), 52주 고점 −25% 이내, RS Rating ≥ 70.',
-          'RS Rating(≥70)은 전 종목 대비 순위라 이 앱에서 계산할 수 없습니다. 대신 SPY 대비 가중 수익률(0.4×3개월+0.2×6개월+0.2×9개월+0.2×12개월)이 SPY보다 높은지로 근사하며 IBD RS Rating 과 다릅니다. SPY 데이터를 불러오지 못하면 "미확인"으로 두고 7개 조건으로 판정합니다.',
-          '데이터가 252봉(52주)·222봉(200일선+1개월)보다 짧으면 가용한 봉 안에서 계산하고 "N봉 기준"으로 표기합니다 (200일선 자체는 최소 200봉 필요). 진입: 템플릿(가격·이평 7조건) 충족 + 직전 20봉 고점 돌파 + 거래량 50일 평균의 1.4배 이상 (차트의 ▲돌파). 초록 배경 = 템플릿 충족 구간.',
-          '청산: 손절 −8% 또는 종가가 50일선 아래로 마감. VCP(수축이 점점 작아지고 마지막 수축에서 거래량이 마르는 패턴)는 지그재그로 근사한 정보용 표시이며 진입 조건이 아닙니다.'
+          '불단왕 4강 · 무기②: 이동평균선 7(보라)·25(주황)·50(초록)·100(하늘)·200(빨강) + VWMA100(흰색). 바이낸스 기본값 25·99(100)에 그 배수 50·200을 조합한 세팅입니다.',
+          'VWMA = Σ(종가×거래량)/Σ(거래량). 거래량이 크게 터진 구간일수록 캔들 쪽으로 끌려와 일반 이평선보다 먼저 반응합니다. 종가가 VWMA100에서 6 ATR 이상 벌어지면 되돌림 경고를 냅니다(6 ATR은 이 앱의 가정).',
+          '불단왕 4강 · 무기①: VPVR(볼륨 프로파일). 거래가 쌓인 가격대는 강한 지지/저항이고 가장 집중된 자리가 POC입니다. 이 화면은 최근 250봉의 봉별 거래량을 고저가 걸친 가격대에 균등 배분해 POC와 밸류 에어리어(거래량 70%)를 계산합니다.',
+          '근거 중첩: 4강의 핵심은 지표 하나가 아니라 여러 근거가 겹치는 자리입니다. 종가 기준 ±1 ATR(가정) 이내의 MA25·50·100·200, VWMA100, POC, VAL/VAH 개수를 센 값입니다.',
+          '강의에 진입·청산의 숫자 규칙이 없어 신호·승률 통계는 만들지 않습니다. 청산맵·박스권/상승·하락 채널(무기③~⑤)은 불단왕 탭의 차트에서 봅니다. 규칙 점검용이며 매수·매도 권유가 아닙니다.'
         ]
       };
     }
@@ -5957,13 +5959,12 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         ],
         analyze: analyzeBrooks
       },
-      minervini: {
-        name: 'Minervini 트렌드 템플릿', short: 'Minervini', icon: 'fa-stairs', color: 'emerald',
-        tag: '성장주 · 스테이지 2', desc: '50/150/200일선 정배열 + 52주 고점 근접 + RS(SPY 대비) + 거래량 동반 돌파, VCP 정보', source: 'Mark Minervini, 「Trade Like a Stock Market Wizard」',
-        interval: 'D', chartType: 'candles', range: '1Y', needsSpy: true,
-        studies: [{ id: 'sma', params: { period: 50 }, color: '#38bdf8' }, { id: 'sma', params: { period: 150 }, color: '#f59e0b' }, { id: 'sma', params: { period: 200 }, color: '#ef4444' }, { id: 'volume', params: { ma: 50 } }, { id: 'rsline', params: {}, color: '#38bdf8' }],
-        options: [{ k: 'rsFilter', label: '돌파 신호에 RS(SPY 우위) 조건 포함', type: 'check', def: false }],
-        analyze: analyzeMinervini
+      bdw4: {
+        name: '불단왕 4강 지표', short: '불단왕 4강', icon: 'fa-toolbox', color: 'emerald',
+        tag: '이평선 · VWMA · 매물대', desc: '이평선 7·25·50·100·200 + VWMA100 + VPVR(POC·밸류 에어리어), 근거가 겹치는 자리 점검', source: '불단왕 강의 4강 · 실전 무기 지급 1편',
+        interval: 'D', chartType: 'candles', range: '1Y',
+        studies: [{ id: 'sma', params: { period: 7 }, color: '#a78bfa' }, { id: 'sma', params: { period: 25 }, color: '#fb923c' }, { id: 'sma', params: { period: 50 }, color: '#4ade80' }, { id: 'sma', params: { period: 100 }, color: '#38bdf8' }, { id: 'sma', params: { period: 200 }, color: '#f87171' }, { id: 'vwma', params: { period: 100 }, color: '#f8fafc', width: 2.2 }, { id: 'volume', params: { ma: 50 } }],
+        analyze: analyzeBdw4
       },
       turtle: {
         name: '터틀 돈치안 돌파', short: 'Turtle', icon: 'fa-water', color: 'sky',
@@ -7127,7 +7128,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       CH.studies = chDefaultStudies(); CH.type = 'candles'; CH.ha = null;
       chRenderPresetPanel(); chResize(true); chBuildLegend(); chSyncToolbar(); chDraw();
     }
-    // ----- 비교 지수(SPY) 지연 로드·캐시: RS 라인·Minervini RS 조건용. 주기별로 1회만 불러오고 실패하면 다시 시도하지 않는다(없으면 '데이터 없음/미확인').
+    // ----- 비교 지수(SPY) 지연 로드·캐시: RS 라인용. 주기별로 1회만 불러오고 실패하면 다시 시도하지 않는다(없으면 '데이터 없음/미확인').
     const CH_SPY = { cache: {}, loading: {}, failed: {} };
     const chSpyKey = iv => `${CH_IV[iv].range}|${CH_IV[iv].iv}`;
     const chSpyGet = iv => CH_SPY.cache[chSpyKey(iv)] || null;
@@ -7200,7 +7201,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         ${small ? `<p class="text-[11px] text-amber-300 leading-snug mt-1.5"><i class="fa-solid fa-triangle-exclamation mr-1"></i>표본이 ${st.n}회로 20회 미만입니다 — 승률·수익률이 우연일 가능성이 커서 통계로서 의미가 약합니다.</p>` : ''}
         <p class="text-[10px] text-slate-500 leading-snug mt-1.5">※ 이 종목에 불러온 구간(${CH.hist.length}봉)에서 규칙을 그대로 적용한 단순 시뮬레이션입니다. 평균 보유 ${st.avgBars.toFixed(0)}봉, 최대 낙폭 ${st.mdd.toFixed(1)}%${st.nOpen ? `, 보유 중(미청산) ${st.nOpen}건은 현재가 기준 평가 포함` : ''}. 거래마다 왕복 비용 ${btCostPct()}%(수수료·슬리피지, 설정에서 변경)를 뺐고 세금은 미반영이며 표본이 적을 수 있습니다. 과거 성과는 미래 수익을 보장하지 않습니다.</p>`;
       };
-      const statHtml = statBlock(r.stats, r.statsLabel || '') + (r.statsShort ? `<div class="mt-3">${statBlock(r.statsShort, '숏(L2) 거래 — 롱과 분리 집계')}</div>` : '');
+      const statHtml = r.noStats ? '<p class="text-[11px] text-slate-500">이 프리셋은 강의에 진입·청산의 숫자 규칙이 없어 신호 성과 통계를 만들지 않습니다.</p>' : statBlock(r.stats, r.statsLabel || '') + (r.statsShort ? `<div class="mt-3">${statBlock(r.statsShort, '숏(L2) 거래 — 롱과 분리 집계')}</div>` : '');
       const optHtml = (P.options && P.options.length) ? `<div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-300 border-t border-b border-slate-800/80 py-2"><span class="text-slate-500">설정</span>${P.options.map(op => {
         const cur = (CH.presetOpts[CH.presetId] || {})[op.k];
         const val = cur === undefined ? op.def : cur;
@@ -18691,7 +18692,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
     // 반환: { chips:[{id,label,tone:'bull'|'bear'|'warn'|'info',barsAgo:number|null,detail}], stats:{rsi14,adx14,sma20Diff,sma50Diff,sma200Diff,hi252,pctFromHigh,atrPct,rsScore,volRatio50,bbwPctile} }
     //  - 퍼센트 값은 숫자(%), 계산 불가는 null. 가용 봉이 부족하면 해당 칩은 만들지 않는다. barsAgo: 이벤트형 칩 0 = 마지막(완성)봉, 상태형 칩 null.
     //  - rsScore = (종목 가중 수익률 − SPY 가중 수익률) %p. 가중 = 0.4×R63+0.2×R126+0.2×R189+0.2×R252 (가용 구간 재정규화). 순위가 아니다. SPY 없으면 null.
-    // RSI 70/30 단독·골든크로스·캔들 패턴 단독 칩은 오탐이 많아 만들지 않는다. 의존: TA(메인 스크립트), rsiSeries, minerviniEval.
+    // RSI 70/30 단독·골든크로스·캔들 패턴 단독 칩은 오탐이 많아 만들지 않는다. 의존: TA(메인 스크립트), rsiSeries.
     (function () {
       window.TA_LIMIT_NOTES = [
         '지표는 과거 가격을 가공한 값이며 미래를 예측하지 않습니다.',
@@ -18749,16 +18750,11 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           let rsW = null;
           if (spyAl) { rsW = TA.weightedReturn(closes, i, spyAl); if (rsW) st.rsScore = (rsW.score - rsW.score2) * 100; }
 
-          // ----- ① 스테이지2 · ② 피벗 돌파 (Minervini, 가용 구간) -----
-          let ev = null;
-          if (typeof minerviniEval === 'function') ev = minerviniEval(h, i, { s50: sma50, s150: TA.sma(closes, 150), s200: sma200, closes }, spyAl);
-          if (ev && ev.all7) {
-            const rsTxt = ev.rsKnown ? `RS(SPY 대비 가중 수익률) ${ev.items[7].ok ? '우위' : '열위'}` : 'RS 조건은 SPY 데이터가 없어 미확인';
-            add('stage2', ev.rsKnown ? `스테이지2 (템플릿 ${ev.passed}/8)` : '스테이지2 (템플릿 7/7)', 'bull', null,
-              `Minervini 트렌드 템플릿 가격·이평 7조건 충족: 종가>150·200일선, 150>200일선, 200일선 상승(1개월 이상), 50일선>150·200일선, 종가>50일선, 52주 저점 +30% 이상, 52주 고점 −25% 이내. ${rsTxt}.${ev.win < 252 ? ` 52주 구간은 가용한 ${ev.win}봉 기준.` : ''} 조건 충족 여부일 뿐 상승 보장이 아닙니다.`);
-            if (i >= 50 && vAvg50 > 0) {
-              let pv = -Infinity; for (let j = i - 20; j < i; j++) pv = Math.max(pv, h[j].high);
-              if (last.close > pv && last.volume >= vAvg50 * 1.4) add('pivotBO', '피벗 돌파', 'bull', 0, `종가 ${f2(last.close)} > 직전 20봉 고가 ${f2(pv)}, 거래량 ${f1(last.volume / vAvg50)}배(직전 50봉 평균 대비, 기준 1.4배 이상), 스테이지2 조건 충족.`);
+          // ----- ① 불단왕 4강: 이평선 정배열 + VWMA100 위 -----
+          if (n >= 200 && typeof TA.vwma === 'function') {
+            const m7 = TA.sma(closes, 7)[i], m25 = TA.sma(closes, 25)[i], m100 = TA.sma(closes, 100)[i], vw = TA.vwma(h, 100)[i];
+            if (sma50[i] !== null && sma200[i] !== null && vw !== null && m7 > m25 && m25 > sma50[i] && sma50[i] > m100 && m100 > sma200[i] && last.close > vw) {
+              add('bdw4', '4강 정배열', 'bull', null, `이평선 7>25>50>100>200 정배열이고 종가 ${f2(last.close)} > VWMA100 ${f2(vw)} (불단왕 4강 세팅). 조건 충족일 뿐 매수 신호가 아니며, 진입은 매물대·이평선 지지가 겹치는 눌림에서 봅니다.`);
             }
           }
 
