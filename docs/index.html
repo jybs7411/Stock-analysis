@@ -300,15 +300,6 @@
         </div>
       </div>
 
-      <!-- Quick Ticker Suggestions -->
-      <div class="flex items-center gap-1.5 overflow-x-auto text-xs py-1">
-        <span class="text-slate-400 mr-1 hidden sm:inline"><i class="fa-solid fa-bolt text-amber-400 mr-1"></i>추천:</span>
-        <button onclick="quickSearch('NVDA')" class="px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-300 transition">NVDA</button>
-        <button onclick="quickSearch('AAPL')" class="px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-300 transition">AAPL</button>
-        <button onclick="quickSearch('TSLA')" class="px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-300 transition">TSLA</button>
-        <button onclick="quickSearch('PLTR')" class="px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-300 transition">PLTR</button>
-        <button onclick="quickSearch('AMZN')" class="px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-300 transition">AMZN</button>
-      </div>
     </div>
   </header>
 
@@ -937,7 +928,7 @@
               <span>트레이딩 프리셋 — 스윙 5종 + 데이트레이딩 1종 <span class="font-normal text-slate-500">— 클릭하면 지표·신호·성과 요약이 차트에 그대로 적용됩니다 (다시 클릭하면 해제)</span></span>
             </div>
           </div>
-          <div id="presetCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2"></div>
+          <div id="presetCards" class="flex gap-2 overflow-x-auto pb-1.5"></div>
         </div>
 
         <div id="chartFsRoot" class="space-y-2 bg-[#131e32]">
@@ -1316,6 +1307,7 @@
             <button type="button" data-tab="desc" onclick="setScreenerFilterTab('desc')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-cyan-300 border-cyan-400 flex items-center gap-1.5">기본정보 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Descriptive</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
             <button type="button" data-tab="fund" onclick="setScreenerFilterTab('fund')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-slate-400 border-transparent flex items-center gap-1.5">재무 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Fundamental</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
             <button type="button" data-tab="tech" onclick="setScreenerFilterTab('tech')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-slate-400 border-transparent flex items-center gap-1.5">기술 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Technical</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
+            <button type="button" data-tab="sqz" onclick="setScreenerFilterTab('sqz')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-slate-400 border-transparent flex items-center gap-1.5">스퀴즈 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Squeeze</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
             <button type="button" data-tab="rev" onclick="setScreenerFilterTab('rev')" class="px-4 py-2 text-xs font-bold border-b-2 -mb-px text-slate-400 border-transparent flex items-center gap-1.5">리비전 <span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Revision</span><span data-badge class="hidden min-w-[18px] text-center px-1 rounded-full bg-cyan-600 text-white text-[10px] font-mono-numbers"></span></button>
           </div>
           <div id="screenerFilterGrid"><!-- JS: 탭별 필터 select --></div>
@@ -1613,7 +1605,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.22.1';
+    const APP_VERSION = '1.23.3';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -4468,6 +4460,42 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       };
     };
 
+    // 스퀴즈(횡보 압축) 지표 묶음. 스크리너·'스퀴즈 · 돌파 임박' 프리셋이 같이 쓴다. 막대가 모자라면 해당 값은 null.
+    //  bbwNow=볼린저폭(%) · bbwPct=최근 win봉 중 지금보다 좁았던 날의 비율(0=역대 최저) · sqzDays=폭이 하위 20% 안에 머문 연속 일수
+    //  boxPct=최근 40봉 고저 범위(%) · volDry=최근 10봉 평균 거래량÷63봉 평균 · maSpread=20·50·100·200일선이 벌어진 정도(%)
+    //  higherLows=최근 20봉 저점이 직전 20봉 저점보다 높음 · score=위 값들을 0~100(높을수록 압축)으로 평균
+    TA.sqzMetrics = (h, win = 126) => {
+      const out = { bbwNow: null, bbwPct: null, sqzDays: null, boxPct: null, volDry: null, maSpread: null, higherLows: null, score: null };
+      const n = h.length;
+      if (n < 40) return out;
+      const ok = Number.isFinite, closes = h.map(b => b.close), px = closes[n - 1];
+      if (!(px > 0)) return out;
+      const lin = (v, lo, hi) => Math.max(0, Math.min(1, (v - lo) / (hi - lo))) * 100;
+      const w = TA.bbExtra(closes, 20, 2).width, ws = [];
+      for (let i = Math.max(0, n - win); i < n; i++) if (w[i] !== null) ws.push(w[i]);
+      if (w[n - 1] !== null && ws.length >= 60) {
+        out.bbwNow = w[n - 1];
+        out.bbwPct = ws.filter(v => v < w[n - 1]).length / ws.length * 100;
+        const thr = [...ws].sort((a, b) => a - b)[Math.floor(ws.length * 0.2)];
+        let d = 0;
+        for (let i = n - 1; i >= 0 && w[i] !== null && w[i] <= thr; i--) d++;
+        out.sqzDays = d;
+      }
+      const hi = Math.max(...h.slice(-40).map(b => b.high)), lo = Math.min(...h.slice(-40).map(b => b.low));
+      if (ok(hi) && ok(lo)) out.boxPct = (hi - lo) / px * 100;
+      if (n >= 63) {
+        const av = h.slice(-63).reduce((a, b) => a + (b.volume || 0), 0) / 63;
+        const rv = h.slice(-10).reduce((a, b) => a + (b.volume || 0), 0) / 10;
+        if (av > 0) out.volDry = rv / av;
+      }
+      const mv = [20, 50, 100, 200].map(k => n >= k ? TA.sma(closes, k)[n - 1] : null);
+      if (mv.every(v => v !== null && ok(v))) out.maSpread = (Math.max(...mv) - Math.min(...mv)) / px * 100;
+      out.higherLows = Math.min(...h.slice(-20).map(b => b.low)) > Math.min(...h.slice(-40, -20).map(b => b.low));
+      const parts = [out.bbwPct !== null ? 100 - out.bbwPct : null, out.volDry !== null ? lin(out.volDry, 1.2, 0.5) : null, out.maSpread !== null ? lin(out.maSpread, 15, 2) : null, out.boxPct !== null ? lin(out.boxPct, 30, 8) : null].filter(v => v !== null);
+      if (parts.length >= 3) out.score = Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
+      return out;
+    };
+
     // 켈트너 채널
     TA.keltner = (h, p = 20, mult = 2, atrP = 10) => {
       const mid = TA.ema(h.map(c => c.close), p);
@@ -5142,6 +5170,22 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           return { lines: [{ v: w, color: '#c084fc', name: '폭%' }, { v: mn, color: 'rgba(251,191,36,0.75)', width: 1, dash: [4, 3], name: `${p.low}봉 최저` }], dotRow: { v: flag, onColor: '#f59e0b', offColor: null, at: 'bottom' }, fmt: 'pct', min0: true };
         }
       },
+      bbwp: {
+        cat: '변동성 · 채널', pane: 'sub', name: '밴드폭 백분위', desc: '볼린저 밴드폭이 최근 N봉(기본 125≈6개월) 중 어느 위치인지(0=가장 좁음, 100=가장 넓음). 20 이하(주황 점)가 길게 이어지면 변동성이 눌려 있는 상태 — 방향은 알려주지 않으니 돌파 방향은 가격·거래량으로 확인하세요.',
+        params: [P('period', '기간', 20, 2, 200), P('mult', '배수', 2, 0.5, 5, 0.5), P('win', '비교 구간(봉)', 125, 20, 500)], label: p => `밴드폭 백분위 ${p.win}`,
+        compute: (h, p) => {
+          const w = TA.bbExtra(closesOf(h), p.period, p.mult).width, n = w.length;
+          const pc = nullArr(n), on = nullArr(n);
+          for (let i = p.win - 1; i < n; i++) {
+            if (w[i] === null) continue;
+            let c = 0, tot = 0;
+            for (let j = i - p.win + 1; j <= i; j++) { if (w[j] === null) continue; tot++; if (w[j] < w[i]) c++; }
+            if (tot < 20) continue;
+            pc[i] = c / tot * 100; on[i] = pc[i] <= 20;
+          }
+          return { lines: [{ v: pc, color: '#c084fc', name: '백분위' }], levels: [20, 50, 80], dotRow: { v: on, onColor: '#f59e0b', offColor: null, at: 'bottom' }, min0: true }
+        }
+      },
       ttm: {
         cat: '변동성 · 채널', pane: 'sub', name: 'TTM 스퀴즈', desc: '볼린저(기간, 2σ)가 켈트너(SMA ± 1.5×TR평균) 안에 완전히 들어가면 스퀴즈 ON(빨간 점=변동성 압축), 벗어나면 OFF(초록 점=해제). 막대는 모멘텀(선형회귀): 밝은색=힘이 커지는 중. 방향 예측이 아니라 변동성 상태 표시입니다.',
         params: [P('period', '기간', 20, 5, 100), P('bb', 'BB 배수', 2, 0.5, 4, 0.5), P('kc', 'KC 배수', 1.5, 0.5, 4, 0.5)], label: p => `Squeeze ${p.period}`,
@@ -5626,6 +5670,39 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       };
     }
 
+    // ---------- 2-b) 스퀴즈 · 돌파 임박 ----------
+    function analyzeSqueeze(h) {
+      if (!h || h.length < 60) return presetEmpty('스퀴즈 판정에는 최소 60봉이 필요합니다.');
+      const n = h.length, i = n - 1, c = h[i].close, m = TA.sqzMetrics(h);
+      const hi40 = Math.max(...h.slice(-41, -1).map(b => b.high)), lo40 = Math.min(...h.slice(-41, -1).map(b => b.low));
+      const f1 = v => v === null || !Number.isFinite(v) ? '—' : v.toFixed(1);
+      const rows = [];
+      rows.push({ k: '볼린저 밴드폭', v: m.bbwNow === null ? '계산 불가(봉 부족)' : `${f1(m.bbwNow)}% — 최근 6개월 중 하위 ${f1(m.bbwPct)}% 지점${m.sqzDays ? ` · 압축 ${m.sqzDays}일째` : ''}`, tone: m.bbwPct === null ? 'warn' : m.bbwPct <= 20 ? 'good' : 'info' });
+      rows.push({ k: '박스 폭 (최근 40봉)', v: m.boxPct === null ? '—' : `${f1(m.boxPct)}% (고 ${fmtN(Math.max(...h.slice(-40).map(b => b.high)))} / 저 ${fmtN(Math.min(...h.slice(-40).map(b => b.low)))})`, tone: m.boxPct !== null && m.boxPct < 12 ? 'good' : 'info' });
+      rows.push({ k: '거래량 고갈', v: m.volDry === null ? '—' : `최근 10일 평균이 63일 평균의 ${(m.volDry * 100).toFixed(0)}%`, tone: m.volDry !== null && m.volDry < 0.8 ? 'good' : 'info' });
+      rows.push({ k: '이평선 수렴', v: m.maSpread === null ? '200일선까지 계산하려면 200봉 필요' : `20·50·100·200일선이 종가 대비 ${f1(m.maSpread)}% 안에 모여 있음`, tone: m.maSpread !== null && m.maSpread < 6 ? 'good' : 'info' });
+      rows.push({ k: '저점 높아짐', v: m.higherLows ? '최근 20봉 저점 > 직전 20봉 저점 (수축 삼각형 모양)' : '아님', tone: m.higherLows ? 'good' : 'info' });
+      const rel = h[i].volume && n >= 21 ? h[i].volume / (h.slice(-21, -1).reduce((a, b) => a + (b.volume || 0), 0) / 20) : null;
+      const up = c > hi40, dn = c < lo40;
+      rows.push({ k: '오늘의 돌파 여부', v: up ? `박스 상단 ${fmtN(hi40)} 위에서 마감${rel ? ` · 거래량 ${rel.toFixed(1)}배` : ''}` : dn ? `박스 하단 ${fmtN(lo40)} 아래에서 마감` : '박스 안 (돌파 전)', tone: up ? (rel && rel >= 1.5 ? 'good' : 'warn') : dn ? 'bad' : 'info' });
+      let verdict, tone;
+      if (m.score === null) { verdict = '점수를 낼 만큼 데이터가 모이지 않았습니다.'; tone = 'warn'; }
+      else if (up) { verdict = `압축 점수 ${m.score}점 상태에서 박스 상단을 넘었습니다.${rel && rel >= 1.5 ? ' 거래량이 붙어 돌파 신뢰도가 높은 편입니다.' : ' 다만 거래량이 평균 수준이라 가짜 돌파 여부를 더 지켜볼 필요가 있습니다.'}`; tone = rel && rel >= 1.5 ? 'good' : 'warn'; }
+      else if (dn) { verdict = `압축 점수 ${m.score}점 상태에서 박스 하단을 이탈했습니다. 스퀴즈의 방향은 위·아래 어느 쪽도 가능합니다.`; tone = 'bad'; }
+      else if (m.score >= 60) { verdict = `압축 점수 ${m.score}점 — 변동성·거래량이 꽤 눌려 있습니다. 박스 상단 ${fmtN(hi40)} 돌파(거래량 동반) 또는 하단 ${fmtN(lo40)} 이탈을 기다리는 구간입니다.`; tone = 'good'; }
+      else { verdict = `압축 점수 ${m.score}점 — 아직 뚜렷한 스퀴즈는 아닙니다.`; tone = 'info'; }
+      return {
+        annot: { markers: [], levels: [{ price: hi40, color: '#34d399', label: `박스 상단 ${fmtN(hi40)}`, dash: [5, 4] }, { price: lo40, color: '#fb7185', label: `박스 하단 ${fmtN(lo40)}`, dash: [5, 4] }], trades: [] },
+        rows, verdict: { text: verdict, tone }, stats: { n: 0 }, statsShort: null, noStats: true, score: m.score === null ? '' : `${m.score}점`, pending: '',
+        rules: [
+          '스퀴즈 = 변동성이 한동안 눌려 있는 상태입니다. 방향은 알려주지 않으며, 돌파 방향은 위·아래 반반에 가깝고 가짜 돌파도 흔합니다.',
+          '압축 점수(0~100) = 밴드폭 백분위(100−값) · 거래량 고갈(10일/63일 평균, 1.2→0.5배) · 이평선 수렴(20·50·100·200일선 간격 15%→2%) · 박스 폭(40봉 범위 30%→8%)의 평균입니다. 구간 값은 이 앱의 가정입니다.',
+          '화면 구성: 볼린저 밴드 + 이평선 20·50·100·200 + 거래량(50일 평균) + 밴드폭 백분위(20 이하=주황 점) + TTM 스퀴즈(켈트너 안으로 들어가면 빨간 점, 해제되면 초록 점).',
+          '박스 상단·하단은 오늘을 뺀 직전 40봉의 최고·최저가입니다. 종가가 상단 위로 마감하고 거래량이 20일 평균의 1.5배 이상이면 신뢰도를 높게 봅니다(가정).'
+        ]
+      };
+    }
+
     // ---------- 3) 터틀 / 돈치안 채널 돌파 ----------
     // 한 포지션 시뮬레이션: 돌파 가격(level)에 진입(시가가 더 높으면 시가), 손절 = 마지막 진입가 − 2N, 청산 = exitN 일 저점 이탈.
     // pyramid=true 면 ½N 오를 때마다 1유닛 추가(최대 4유닛) 하고 손절을 마지막 진입가 − 2N 으로 올린다. 수익률은 유닛 평균 단가 기준.
@@ -5955,6 +6032,13 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         interval: 'D', chartType: 'candles', range: '1Y',
         studies: [{ id: 'sma', params: { period: 7 }, color: '#a78bfa', width: 1.2 }, { id: 'sma', params: { period: 25 }, color: '#fb923c', width: 1.2 }, { id: 'sma', params: { period: 50 }, color: '#4ade80', width: 2.4 }, { id: 'sma', params: { period: 100 }, color: '#38bdf8', width: 1.2 }, { id: 'sma', params: { period: 200 }, color: '#f87171', width: 2.4 }, { id: 'vwma', params: { period: 100 }, color: '#f8fafc', width: 2.6 }, { id: 'volume', params: { ma: 50 } }, { id: 'rsi', params: {} }, { id: 'stoch', params: {}, hidden: true }, { id: 'bb', params: {}, hidden: true }],
         analyze: analyzeBdw4
+      },
+      sqz: {
+        name: '스퀴즈 · 돌파 임박', short: '스퀴즈', icon: 'fa-compress', color: 'amber',
+        tag: '변동성 수축 · 거래량 고갈', desc: '볼린저 밴드폭 백분위·TTM 스퀴즈·거래량·이평선 수렴을 한 화면에서 보고, 40봉 박스 상·하단을 표시', source: 'John Bollinger 스퀴즈 · TTM Squeeze(John Carter) 개념',
+        interval: 'D', chartType: 'candles', range: '1Y',
+        studies: [{ id: 'bb', params: {} }, { id: 'sma', params: { period: 20 }, color: '#fb923c', width: 1.2 }, { id: 'sma', params: { period: 50 }, color: '#4ade80', width: 1.6 }, { id: 'sma', params: { period: 100 }, color: '#38bdf8', width: 1.2 }, { id: 'sma', params: { period: 200 }, color: '#f87171', width: 2 }, { id: 'volume', params: { ma: 50 } }, { id: 'bbwp', params: {} }, { id: 'ttm', params: {} }],
+        analyze: analyzeSqueeze
       },
       turtle: {
         name: '터틀 돈치안 돌파', short: 'Turtle', icon: 'fa-water', color: 'sky',
@@ -7091,7 +7175,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (!box) return;
       box.innerHTML = Object.keys(CHART_PRESETS).map(id => {
         const p = CHART_PRESETS[id], on = CH.presetId === id, c = CH_PRESET_COLORS[p.color];
-        return `<button type="button" onclick="chApplyPreset('${id}')" title="${escapeHtml(p.source)}" class="text-left p-2.5 rounded-xl bg-slate-950/80 border ${on ? c.split(' ')[0] + ' ring-1 ring-offset-0 ring-' + p.color + '-500/60 bg-slate-900' : 'border-slate-800 hover:border-slate-600'} transition group">
+        return `<button type="button" onclick="chApplyPreset('${id}')" title="${escapeHtml(p.source)}" class="shrink-0 w-[230px] text-left p-2.5 rounded-xl bg-slate-950/80 border ${on ? c.split(' ')[0] + ' ring-1 ring-offset-0 ring-' + p.color + '-500/60 bg-slate-900' : 'border-slate-800 hover:border-slate-600'} transition group">
           <div class="flex items-center justify-between gap-1">
             <span class="text-xs font-bold ${c.split(' ')[1]} flex items-center gap-1.5"><i class="fa-solid ${p.icon}"></i>${escapeHtml(p.name)}</span>
             ${on ? '<i class="fa-solid fa-circle-check text-[11px] text-cyan-300"></i>' : '<i class="fa-solid fa-play text-[9px] text-slate-600 group-hover:text-slate-300"></i>'}
@@ -7100,6 +7184,41 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           <p class="text-[11px] text-slate-400 mt-1 leading-snug">${escapeHtml(p.desc)}</p></button>`;
       }).join('');
     }
+    // 프리셋 줄: 마우스로 누른 채 옆으로 끌면 가로 스크롤 + 놓은 뒤 관성으로 부드럽게 감속 (5px 넘게 끌면 클릭으로 취급하지 않음)
+    (function () {
+      const box = $id('presetCards');
+      if (!box) return;
+      let down = false, sx = 0, sl = 0, moved = false, lastX = 0, lastT = 0, vel = 0, raf = 0;
+      const stop = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } };
+      const glide = () => {
+        if (Math.abs(vel) < 0.02) { raf = 0; return; }
+        const before = box.scrollLeft;
+        box.scrollLeft -= vel * 16;
+        vel *= 0.94;
+        raf = box.scrollLeft === before ? 0 : requestAnimationFrame(glide);
+      };
+      box.addEventListener('mousedown', e => { if (e.button !== 0) return; stop(); down = true; moved = false; sx = lastX = e.pageX; sl = box.scrollLeft; lastT = performance.now(); vel = 0; });
+      window.addEventListener('mousemove', e => {
+        if (!down) return;
+        const dx = e.pageX - sx;
+        if (Math.abs(dx) > 5) { if (!moved) box.style.cursor = 'grabbing'; moved = true; }
+        if (!moved) return;
+        e.preventDefault();
+        box.scrollLeft = sl - dx;
+        const now = performance.now(), dt = Math.max(1, now - lastT);
+        vel = 0.8 * vel + 0.2 * ((e.pageX - lastX) / dt); // px/ms, 최근 움직임에 가중
+        lastX = e.pageX; lastT = now;
+      });
+      window.addEventListener('mouseup', () => {
+        if (!down) return;
+        down = false; box.style.cursor = 'grab';
+        if (moved && performance.now() - lastT < 80) raf = requestAnimationFrame(glide); // 멈췄다 놓으면 관성 없음
+      });
+      box.addEventListener('click', e => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+      box.addEventListener('dragstart', e => e.preventDefault());
+      box.style.cursor = 'grab';
+      box.style.userSelect = 'none';
+    })();
     async function chApplyPreset(id) {
       const P = CHART_PRESETS[id];
       if (!P || !CH.hist.length) return;
@@ -7873,7 +7992,7 @@ ${buildVerifiedDataText(analysisInputs)}`;
       sortBy: 'rank',
       sortDir: 'asc',
       searchKeyword: '',
-      tab: 'desc',      // 필터 탭: desc(기본정보) | fund(재무) | tech(기술) | rev(리비전)
+      tab: 'desc',      // 필터 탭: desc(기본정보) | fund(재무) | tech(기술) | sqz(스퀴즈) | rev(리비전)
       view: 'overview', // 표 보기: overview | valuation | fundamental | technical | revision
       filters: {},      // { 필터ID: 옵션키 } — FILTER_DEFS 참고
       preset: null      // 마지막으로 적용한 프리셋 { src, id, score, filters } (필터가 그대로일 때만 "활성")
@@ -8313,6 +8432,7 @@ EPRT|Essential Properties Realty Trust|E
       sma20Pct: null, sma50Pct: null, sma200Pct: null, maAlign: null, atrPct: null,
       fromHigh52: null, fromLow52: null, fromHigh20: null, fromLow20: null, fromHigh50: null, fromLow50: null,
       break20: null, avgVol: null, relVol: null, gapPct: null, macdState: null, squeeze: null, pullback: null, volSurge: null,
+      bbwNow: null, bbwPct: null, sqzDays: null, boxPct: null, volDry: null, maSpread: null, higherLows: null, sqzScore: null,
       loaded: false, loading: false, missing: false, searched: false
     };
     SCREENER_MASTER_DATA.forEach((s, i) => Object.assign(s, SCREENER_BLANK, { rank: i }));
@@ -8360,7 +8480,8 @@ EPRT|Essential Properties Realty Trust|E
         chgPct: null, perf1w: null, perf1m: null, perf3m: null, perf6m: null, perfYtd: null, perf1y: null,
         sma20Pct: null, sma50Pct: null, sma200Pct: null, maAlign: null, rsi: null, sma20Diff: '', atrPct: null,
         fromHigh52: null, fromLow52: null, fromHigh20: null, fromLow20: null, fromHigh50: null, fromLow50: null,
-        break20: null, avgVol: null, relVol: null, gapPct: null, macdState: null, squeeze: null, pullback: null, volSurge: null
+        break20: null, avgVol: null, relVol: null, gapPct: null, macdState: null, squeeze: null, pullback: null, volSurge: null,
+        bbwNow: null, bbwPct: null, sqzDays: null, boxPct: null, volDry: null, maSpread: null, higherLows: null, sqzScore: null
       };
       if (!Array.isArray(history) || history.length === 0) return out;
       const ok = Number.isFinite;
@@ -8473,6 +8594,11 @@ EPRT|Essential Properties Realty Trust|E
         const mx = Math.max(...win), mn = Math.min(...win);
         out.squeeze = mx > mn && win.filter(v => v < bwNow).length / win.length <= 0.2;
       }
+
+      // 스퀴즈 정밀 지표 (TA.sqzMetrics)
+      const sq = TA.sqzMetrics(h);
+      out.bbwNow = sq.bbwNow; out.bbwPct = sq.bbwPct; out.sqzDays = sq.sqzDays; out.boxPct = sq.boxPct;
+      out.volDry = sq.volDry; out.maSpread = sq.maSpread; out.higherLows = sq.higherLows; out.sqzScore = sq.score;
 
       // 스윙 셋업
       if (out.maAlign !== null && ok(s20) && ok(s50)) out.pullback = out.maAlign === 'bull' && Math.abs(px / s20 - 1) <= 0.025 && px >= s50;
@@ -8886,6 +9012,9 @@ EPRT|Essential Properties Realty Trust|E
     // state.filters = { 필터ID: 옵션키 }
     // ======================================================================
     // @@PURE-BEGIN
+    // 돌파 전: 최근 상승이 작고 20일·50일 고점을 아직 넘지 않음 (값이 없으면 통과시키지 않음)
+    const preBreak = (e, m1, w1, d1) => Number.isFinite(e.perf1m) && Number.isFinite(e.perf1w) && Number.isFinite(e.fromHigh20) && Number.isFinite(e.fromHigh50)
+      && e.perf1m < m1 && e.perf1w < w1 && (!Number.isFinite(e.chgPct) || e.chgPct < d1) && e.fromHigh20 < 0 && e.fromHigh50 < 0;
     const FILTER_DEFS = (() => {
       const gt = (v, u = '', l) => ({ k: 'gt' + v, label: l || `${v}${u} 초과`, min: v, minX: true });
       const ge = (v, u = '', l) => ({ k: 'ge' + v, label: l || `${v}${u} 이상`, min: v });
@@ -8975,6 +9104,22 @@ EPRT|Essential Properties Realty Trust|E
         { id: 'setup', tab: 'tech', label: '스윙 셋업 (Setup)', tip: '자주 쓰이는 매매 패턴입니다. 돌파 = 20일 고점 돌파, 눌림목 = 정배열 상승 추세에서 20일선 근처까지 조정, 스퀴즈 = 변동폭이 한껏 좁아진 상태, 거래량 급증 = 평소 1.5배 이상 거래되며 2% 이상 상승.', opts: [
           flag('break20', '20일 고점 돌파', e => e.break20 === true, 'break20'), flag('pullback', '정배열 눌림목', e => e.pullback === true, 'pullback'),
           flag('squeeze', '볼린저 스퀴즈', e => e.squeeze === true, 'squeeze'), flag('volSurge', '거래량 급증 상승', e => e.volSurge === true, 'volSurge')] },
+
+        // ---------------- 스퀴즈 (변동성 수축 · 일봉 1년치에서 계산) ----------------
+        { id: 'sqzscore', tab: 'sqz', label: '압축 점수 (종합)', field: 'sqzScore', tip: '밴드폭 백분위·거래량 고갈·이평선 수렴·박스 폭을 0~100으로 평균한 값입니다. 높을수록 변동성이 많이 눌려 있습니다(방향은 알 수 없음).', opts: [ge(40, '점'), ge(50, '점'), ge(60, '점'), ge(70, '점'), ge(80, '점')] },
+        { id: 'sqzbbwp', tab: 'sqz', label: '밴드폭 백분위 (낮을수록 압축)', field: 'bbwPct', tip: '볼린저 밴드폭이 최근 6개월(126봉) 중 어느 위치인지입니다. 5 이하 = 6개월 중 가장 좁은 5% 안.', opts: [le(5, '', '하위 5% 이내'), le(10, '', '하위 10% 이내'), le(20, '', '하위 20% 이내'), le(30, '', '하위 30% 이내'), le(50, '', '하위 절반')] },
+        { id: 'sqzbbw', tab: 'sqz', label: '밴드폭 (%)', field: 'bbwNow', tip: '(상단−하단)÷중심선, 볼린저(20, 2σ) 기준. 종목마다 평소 폭이 달라 백분위와 함께 보세요.', opts: [lt(3, '%'), lt(5, '%'), lt(8, '%'), lt(12, '%'), lt(20, '%')] },
+        { id: 'sqzdays', tab: 'sqz', label: '압축 지속 일수', field: 'sqzDays', tip: '밴드폭이 6개월 하위 20% 안에 연속으로 머문 일수입니다. 오래 눌릴수록 이후 움직임이 커지는 경향이 있지만 보장은 아닙니다.', opts: [ge(3, '일'), ge(5, '일'), ge(10, '일'), ge(15, '일'), ge(20, '일')] },
+        { id: 'sqzbox', tab: 'sqz', label: '박스 폭 (최근 40봉)', field: 'boxPct', tip: '최근 40봉 최고가와 최저가의 차이가 현재가의 몇 %인지입니다. 작을수록 좁은 횡보입니다.', opts: [lt(8, '%'), lt(12, '%'), lt(15, '%'), lt(20, '%'), lt(30, '%')] },
+        { id: 'sqzvol', tab: 'sqz', label: '거래량 고갈 (10일 ÷ 63일 평균)', field: 'volDry', tip: '최근 10일 평균 거래량이 63일 평균의 몇 배인지입니다. 0.7 미만이면 거래가 눈에 띄게 마른 상태입니다.', opts: [lt(0.5, '배'), lt(0.7, '배'), lt(0.85, '배'), lt(1, '배')] },
+        { id: 'sqzma', tab: 'sqz', label: '이평선 수렴 (20·50·100·200)', field: 'maSpread', tip: '20·50·100·200일선의 최고값과 최저값 차이가 현재가의 몇 %인지입니다. 작을수록 이평선이 한곳에 모여 있습니다.', opts: [lt(3, '%'), lt(5, '%'), lt(8, '%'), lt(12, '%')] },
+        { id: 'sqzhi', tab: 'sqz', label: '박스 상단 근접 (50일 고점 대비)', field: 'fromHigh50', tip: '직전 50봉 최고가 대비 현재가 위치입니다. 상단에 가까울수록 돌파가 임박한 모양이지만 이미 넘은 종목(0 이상)은 따로 고르세요.', opts: [rng(-3, 0, '%', '고점 3% 이내 (미돌파)'), rng(-5, 0, '%', '고점 5% 이내 (미돌파)'), rng(-10, 0, '%', '고점 10% 이내 (미돌파)'), ge(0, '%', '돌파 (50일 고점 이상)')] },
+        { id: 'sqzrv', tab: 'sqz', label: '오늘 거래량 (돌파 확인)', field: 'relVol', tip: '오늘 거래량 ÷ 63일 평균. 압축 종목이 거래량을 동반하면 돌파 신뢰도가 올라갑니다(장중에는 낮게 나옴).', opts: [ge(1.5, '배'), ge(2, '배'), ge(3, '배')] },
+        { id: 'sqzpre', tab: 'sqz', label: '돌파 전 (이미 오른 종목 제외)', field: 'perf1m', tip: '최근에 많이 오르지 않았고 20일 고점도 아직 넘지 않은 종목만 남깁니다. 엄격 = 1개월 +5%·1주 +3%·오늘 +2% 미만, 보통 = 1개월 +10%·1주 +5%·오늘 +3% 미만.', opts: [
+          flag('strict', '엄격 (1개월 +5% · 1주 +3% · 오늘 +2% 미만)', e => preBreak(e, 5, 3, 2), 'perf1m'), flag('normal', '보통 (1개월 +10% · 1주 +5% · 오늘 +3% 미만)', e => preBreak(e, 10, 5, 3), 'perf1m')] },
+        { id: 'sqzflag', tab: 'sqz', label: '보조 조건', tip: '저점 높아짐 = 최근 20봉 저점이 직전 20봉 저점보다 높음(수축 삼각형). 정배열 = 20>50>200일선.', opts: [
+          flag('hl', '저점 높아짐', e => e.higherLows === true, 'higherLows'), flag('bull', '정배열 (20>50>200)', e => e.maAlign === 'bull', 'maAlign'),
+          flag('both', '저점 높아짐 + 정배열', e => e.higherLows === true && e.maAlign === 'bull', 'higherLows')] },
 
         // ---------------- 리비전 (EPS 추정치 변화 — 「리비전 불러오기」로 채움) ----------------
         { id: 'revrank', tab: 'rev', label: '리비전 등급 (1=강한 상향)', field: 'revRank', tip: '애널리스트 EPS 추정치 변화로 매긴 1~5등급(절대 점수 기준)입니다. 값은 「리비전 불러오기」로 채웁니다.', opts: [
@@ -9089,6 +9234,7 @@ EPRT|Essential Properties Realty Trust|E
       valuation:   { label: '밸류에이션', cols: ['marketCapVal', 'pe', 'fpe', 'peg', 'pS', 'pB', 'pFcf', 'divYield', 'targetUpside'] },
       fundamental: { label: '재무',       cols: ['roe', 'roa', 'revGrowth', 'epsGrowth', 'opMargin', 'profitMargin', 'de', 'currentRatio', 'fcfYield'] },
       revision:    { label: '리비전',   cols: ['revRank', 'revType', 'revC7', 'revC30', 'revUD', 'revTiming', 'revVerdict', 'perf3m', 'sma20Pct', 'rsi'] },
+      squeeze:     { label: '스퀴즈',     cols: ['sqzScore', 'bbwNow', 'bbwPct', 'sqzDays', 'boxPct', 'volDry', 'maSpread', 'fromHigh50', 'relVol', 'rsi'] },
       technical:   { label: '기술',       cols: ['perf1w', 'perf1m', 'perf3m', 'perf1y', 'sma20Pct', 'sma50Pct', 'sma200Pct', 'rsi', 'atrPct', 'fromHigh52', 'relVol', 'beta'] }
     };
     const screenerViewCols = v => ['ticker', 'name', 'price', 'change', ...(v === 'revision' ? [] : ['revRank']), ...(SCREENER_VIEWS[v] || SCREENER_VIEWS.overview).cols, 'score', 'action'];
@@ -9153,6 +9299,14 @@ EPRT|Essential Properties Realty Trust|E
         perf1m: col('1개월', 'perf1m', { sign: true, signed: true, tip: '최근 21거래일 수익률' }),
         perf3m: col('3개월', 'perf3m', { sign: true, signed: true, tip: '최근 63거래일 수익률' }),
         perf1y: col('1년', 'perf1y', { sign: true, signed: true, tip: '1년 전 대비 수익률' }),
+        sqzScore: col('압축점수', 'sqzScore', { d: 0, tip: '밴드폭 백분위·거래량 고갈·이평선 수렴·박스 폭을 평균한 0~100 점수 — 높을수록 압축 (방향은 알 수 없음)' }),
+        bbwNow: col('밴드폭', 'bbwNow', { suf: '%', tip: '볼린저(20, 2σ) 밴드폭 = (상단−하단) ÷ 중심선' }),
+        bbwPct: col('폭 백분위', 'bbwPct', { d: 0, tip: '밴드폭이 최근 6개월 중 지금보다 좁았던 날의 비율 — 낮을수록 압축 (0 = 6개월 최저)' }),
+        sqzDays: col('압축일', 'sqzDays', { d: 0, suf: '일', tip: '밴드폭이 6개월 하위 20% 안에 연속으로 머문 일수' }),
+        boxPct: col('박스폭', 'boxPct', { suf: '%', tip: '최근 40봉 (최고가−최저가) ÷ 현재가' }),
+        volDry: col('거래량고갈', 'volDry', { d: 2, suf: '배', tip: '최근 10일 평균 거래량 ÷ 63일 평균 — 낮을수록 거래가 마름' }),
+        maSpread: col('이평수렴', 'maSpread', { suf: '%', tip: '20·50·100·200일선 최고−최저 ÷ 현재가 — 작을수록 이평선이 모임' }),
+        fromHigh50: col('50일고점대비', 'fromHigh50', { signed: true, sign: true, tip: '직전 50봉 최고가 대비 현재가 (0 이상이면 돌파)' }),
         atrPct: col('ATR%', 'atrPct', { suf: '%', tip: '14일 평균 변동폭 ÷ 주가 — 하루 변동성의 크기' }),
         fromHigh52: col('52주 고점 대비', 'fromHigh52', { signed: true, tip: '1년 최고가 대비 현재가 (0%에 가까울수록 신고가 부근)' }),
         relVol: col('상대거래량', 'relVol', { d: 2, suf: '배', tip: '오늘 거래량 ÷ 최근 63일 평균 거래량 (장중에는 낮게 나옴)' }),
@@ -9216,6 +9370,8 @@ EPRT|Essential Properties Realty Trust|E
         filters: { hi52: 'ge-5', p3m: 'gt15', maalign: 'bull' } },
       { id: 'bb-squeeze', tag: '스윙', name: '볼린저 스퀴즈', desc: '변동폭이 좁아진 뒤 터질 준비를 하는 종목', score: 'momentum', view: 'technical',
         filters: { setup: 'squeeze', sma50: 'gt0', mcap: 'ge2' } },
+      { id: 'sqz-precise', tag: '스윙', name: '스퀴즈 · 돌파 임박 (정밀)', desc: '압축 점수 70+ · 밴드폭 하위 20% · 거래량 고갈 · 50일 고점 5% 이내 · 최근 상승 작음(돌파 전) · 중형주 이상', score: 'momentum', view: 'squeeze',
+        filters: { sqzscore: 'ge70', sqzbbwp: 'le20', sqzvol: 'lt0.85', sqzhi: 'r-5_0', sqzpre: 'strict', mcap: 'ge2' } },
       { id: 'oversold-bounce', tag: '스윙', name: '우량주 과매도 반등', desc: '장기 추세가 살아있는 대형주의 단기 급락', score: 'quality', view: 'technical',
         filters: { rsi: 'lt35', sma200: 'gt0', mcap: 'ge10', rec: 'le2' } },
       { id: 'short-squeeze', tag: '이벤트', name: '숏스퀴즈 후보', desc: '공매도가 많은데 주가가 오르며 거래량이 터짐', score: 'momentum', view: 'overview',
@@ -9296,7 +9452,7 @@ EPRT|Essential Properties Realty Trust|E
       const grid = document.getElementById('screenerFilterGrid');
       if (!grid) return;
       const sel = 'w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-cyan-400 transition';
-      grid.innerHTML = ['desc', 'fund', 'tech', 'rev'].map(tab => `
+      grid.innerHTML = ['desc', 'fund', 'tech', 'sqz', 'rev'].map(tab => `
         <div data-panel="${tab}" class="${tab === screenerState.tab ? '' : 'hidden '}grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-3 gap-y-2.5">
           ${FILTER_DEFS.filter(d => d.tab === tab).map(d => `
             <label class="block min-w-0">
@@ -9376,7 +9532,7 @@ EPRT|Essential Properties Realty Trust|E
         s.classList.toggle('border-slate-700', !s.value);
       });
       const active = activeScreenerFilters();
-      ['desc', 'fund', 'tech', 'rev'].forEach(tab => {
+      ['desc', 'fund', 'tech', 'sqz', 'rev'].forEach(tab => {
         const btn = document.querySelector(`#screenerFilterTabs button[data-tab="${tab}"]`);
         const panel = document.querySelector(`#screenerFilterGrid [data-panel="${tab}"]`);
         const cnt = active.filter(a => a.def.tab === tab).length;
