@@ -4752,5 +4752,18 @@
 "POC {0} · VA {1}~{2} · 종가는 {3}, POC {4}": "POC {0} · VA {1}~{2} · Schlusskurs {3}, {4} POC",
 "VPVR (최근 {0}봉)": "VPVR (letzte {0} Kerzen)",
 "VWMA = Σ(종가×거래량)/Σ(거래량). 거래량이 크게 터진 구간일수록 캔들 쪽으로 끌려와 일반 이평선보다 먼저 반응합니다. 종가가 VWMA100에서 6 ATR 이상 벌어지면 되돌림 경고를 냅니다(6 ATR은 이 앱의 가정).": "VWMA = Σ(Schlusskurs×Volumen)/Σ(Volumen). Je größer der Volumenausbruch, desto stärker wird er zu den Kerzen gezogen und reagiert früher als ein einfacher MA. Entfernt sich der Schlusskurs 6 ATR oder mehr von VWMA100, erscheint eine Rücksetzer-Warnung (6 ATR ist eine Annahme dieser App).",
-"Σ(종가×거래량)/Σ(거래량). 거래량이 큰 가격대로 끌려가 일반 이평선보다 먼저 반응합니다 (불단왕 4강: VWMA 100).": "Σ(Schlusskurs×Volumen)/Σ(Volumen). Zieht zu Preisniveaus mit hohem Volumen und reagiert früher als ein einfacher MA (Bul-dan-wang Lektion 4: VWMA 100)."
+"Σ(종가×거래량)/Σ(거래량). 거래량이 큰 가격대로 끌려가 일반 이평선보다 먼저 반응합니다 (불단왕 4강: VWMA 100).": "Σ(Schlusskurs×Volumen)/Σ(Volumen). Zieht zu Preisniveaus mit hohem Volumen und reagiert früher als ein einfacher MA (Bul-dan-wang Lektion 4: VWMA 100).",
+"— 핵심 3선(MA200 · VWMA100 · MA50)은 굵게, 근거는 이평선·POC·VAH·VAL이 겹치는 자리에서 봅니다.": " — die drei Kernlinien (MA200 · VWMA100 · MA50) sind dick; Einstiege dort suchen, wo sich Durchschnitte, POC, VAH und VAL überlappen.",
+"과매도": "Überverkauft",
+"과매수": "Überkauft",
+"불단왕 인터뷰 세팅 + 강의 4강 · 5강": "Bul-dan-wang Interview-Setup + Lektion 4 · 5",
+"불단왕 통합": "BDW kombiniert",
+"불단왕 통합 (인터뷰 + 4강)": "Bul-dan-wang kombiniert (Interview + Lektion 4)",
+"이평선 · VWMA · 매물대 · RSI": "Gleitende Durchschnitte · VWMA · Volumenzonen · RSI",
+"이평선 7·25·50·100·200(50·200 굵게) + VWMA100 + POC·VAH·VAL + RSI, 근거가 겹치는 자리 점검 (Stochastic은 지표 목록에서 켜기)": "Gleitende Durchschnitte 7·25·50·100·200 (50·200 dick) + VWMA100 + POC·VAH·VAL + RSI; prüft Stellen mit überlappenden Gründen (Stochastik über die Indikatorliste einschalten)",
+"통합 세팅": "Kombiniertes Setup",
+"MA 7·25·50·100·200 (50·200 굵게) + VWMA100 굵게 + POC·VAH·VAL 선 (히스토그램·볼린저·Stochastic은 켜고 끄기)": "MA 7·25·50·100·200 (50·200 dick) + VWMA100 dick + POC·VAH·VAL-Linien (Histogramm, Bollinger und Stochastik schaltbar)",
+"RSI 아래에 스토캐스틱(14,3,3) 창 추가 — RSI와 같은 계열이라 횡보·박스권 보조용 (불단왕 강의에는 없는 지표)": "Fügt unter dem RSI ein Stochastik-Fenster (14,3,3) hinzu — gleiche Familie wie der RSI, Hilfe für Seitwärts-/Boxmärkte (nicht Teil der Bul-dan-wang-Lektionen)",
+"RSI(14) · 5강 경고등": "RSI(14) · Warnleuchte aus Lektion 5",
+"RSI(14)는 5강의 단계 기준(30·20 / 70·80, 앱 가정)으로 표시하며 경고등일 뿐 진입 버튼이 아닙니다. Stochastic(14,3,3)은 강의에 없는 보조 지표라 기본으로 꺼 두었고 지표 목록에서 켤 수 있습니다.": "Der RSI(14) wird mit den Stufen aus Lektion 5 angezeigt (30·20 / 70·80, Annahme der App) und ist eine Warnleuchte, kein Einstiegsknopf. Die Stochastik(14,3,3) gehört nicht zu den Lektionen und ist standardmäßig aus; sie lässt sich über die Indikatorliste einschalten."
 }

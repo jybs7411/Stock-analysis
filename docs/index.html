@@ -1613,7 +1613,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.21.0';
+    const APP_VERSION = '1.22.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -5594,6 +5594,12 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         const pos = c > vp.vah ? '밸류 에어리어 위' : c < vp.val ? '밸류 에어리어 아래' : '밸류 에어리어 안';
         rows.push({ k: `VPVR (최근 ${Math.min(n, BDW4_VP_BARS)}봉)`, v: `POC ${fmtN(vp.poc)} · VA ${fmtN(vp.val)}~${fmtN(vp.vah)} · 종가는 ${pos}, POC ${c >= vp.poc ? '위' : '아래'}`, tone: 'info' });
       } else rows.push({ k: 'VPVR', v: '거래량 데이터가 없거나 봉이 부족합니다', tone: 'warn' });
+      // RSI(14): 5강 기본값 30·20 / 70·80 (경고등이지 진입 버튼이 아님)
+      const rsiA = rsiSeries(closes, 14), rv14 = rsiA[i];
+      if (rv14 !== null && rv14 !== undefined) {
+        const lab = rv14 <= 20 ? '과매도 2단계' : rv14 <= 30 ? '과매도 1단계' : rv14 >= 80 ? '과매수 2단계' : rv14 >= 70 ? '과매수 1단계' : '중립';
+        rows.push({ k: 'RSI(14) · 5강 경고등', v: `${rv14.toFixed(1)} · ${lab}`, tone: rv14 <= 30 ? 'info' : rv14 >= 70 ? 'warn' : 'info' });
+      }
       // 근거 중첩: 가격 아래(지지)·위(저항)에서 ±1 ATR 이내에 겹쳐 있는 선·매물대
       const cand = [];
       have.filter(m => m.p >= 25).forEach(m => cand.push([m.name, m.s[i]]));
@@ -5614,6 +5620,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           'VWMA = Σ(종가×거래량)/Σ(거래량). 거래량이 크게 터진 구간일수록 캔들 쪽으로 끌려와 일반 이평선보다 먼저 반응합니다. 종가가 VWMA100에서 6 ATR 이상 벌어지면 되돌림 경고를 냅니다(6 ATR은 이 앱의 가정).',
           '불단왕 4강 · 무기①: VPVR(볼륨 프로파일). 거래가 쌓인 가격대는 강한 지지/저항이고 가장 집중된 자리가 POC입니다. 이 화면은 최근 250봉의 봉별 거래량을 고저가 걸친 가격대에 균등 배분해 POC와 밸류 에어리어(거래량 70%)를 계산합니다.',
           '근거 중첩: 4강의 핵심은 지표 하나가 아니라 여러 근거가 겹치는 자리입니다. 종가 기준 ±1 ATR(가정) 이내의 MA25·50·100·200, VWMA100, POC, VAL/VAH 개수를 센 값입니다.',
+          'RSI(14)는 5강의 단계 기준(30·20 / 70·80, 앱 가정)으로 표시하며 경고등일 뿐 진입 버튼이 아닙니다. Stochastic(14,3,3)은 강의에 없는 보조 지표라 기본으로 꺼 두었고 지표 목록에서 켤 수 있습니다.',
           '강의에 진입·청산의 숫자 규칙이 없어 신호·승률 통계는 만들지 않습니다. 청산맵·박스권/상승·하락 채널(무기③~⑤)은 불단왕 탭의 차트에서 봅니다. 규칙 점검용이며 매수·매도 권유가 아닙니다.'
         ]
       };
@@ -5943,10 +5950,10 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         analyze: analyzeBrooks
       },
       bdw4: {
-        name: '불단왕 4강 지표', short: '불단왕 4강', icon: 'fa-toolbox', color: 'emerald',
-        tag: '이평선 · VWMA · 매물대', desc: '이평선 7·25·50·100·200 + VWMA100 + VPVR(POC·밸류 에어리어), 근거가 겹치는 자리 점검', source: '불단왕 강의 4강 · 실전 무기 지급 1편',
+        name: '불단왕 통합 (인터뷰 + 4강)', short: '불단왕 통합', icon: 'fa-toolbox', color: 'emerald',
+        tag: '이평선 · VWMA · 매물대 · RSI', desc: '이평선 7·25·50·100·200(50·200 굵게) + VWMA100 + POC·VAH·VAL + RSI, 근거가 겹치는 자리 점검 (Stochastic은 지표 목록에서 켜기)', source: '불단왕 인터뷰 세팅 + 강의 4강 · 5강',
         interval: 'D', chartType: 'candles', range: '1Y',
-        studies: [{ id: 'sma', params: { period: 7 }, color: '#a78bfa' }, { id: 'sma', params: { period: 25 }, color: '#fb923c' }, { id: 'sma', params: { period: 50 }, color: '#4ade80' }, { id: 'sma', params: { period: 100 }, color: '#38bdf8' }, { id: 'sma', params: { period: 200 }, color: '#f87171' }, { id: 'vwma', params: { period: 100 }, color: '#f8fafc', width: 2.2 }, { id: 'volume', params: { ma: 50 } }],
+        studies: [{ id: 'sma', params: { period: 7 }, color: '#a78bfa', width: 1.2 }, { id: 'sma', params: { period: 25 }, color: '#fb923c', width: 1.2 }, { id: 'sma', params: { period: 50 }, color: '#4ade80', width: 2.4 }, { id: 'sma', params: { period: 100 }, color: '#38bdf8', width: 1.2 }, { id: 'sma', params: { period: 200 }, color: '#f87171', width: 2.4 }, { id: 'vwma', params: { period: 100 }, color: '#f8fafc', width: 2.6 }, { id: 'volume', params: { ma: 50 } }, { id: 'rsi', params: {} }, { id: 'stoch', params: {}, hidden: true }],
         analyze: analyzeBdw4
       },
       turtle: {
@@ -7099,7 +7106,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (CH.presetId === id) { chClearPreset(); return; }
       CH.presetId = id; CH.type = P.chartType; CH.ha = null; CH.showSignals = true;
       if (P.prevLevels) CH.showPrev = true;
-      CH.studies = P.studies.map((s, i) => newStudy(s.id, { params: s.params, color: s.color, width: s.width }, i));
+      CH.studies = P.studies.map((s, i) => { const st = newStudy(s.id, { params: s.params, color: s.color, width: s.width }, i); if (st && s.hidden) st.hidden = true; return st; });
       if (CH.interval !== P.interval) { await chSetInterval(P.interval); }
       chRunPreset();
       chSetRange(P.range, false);
@@ -10222,6 +10229,7 @@ EPRT|Essential Properties Realty Trust|E
         // 세팅 선택. 인터뷰 세팅이 기본값(실제로 쓰는 차트 설정), 강의4 세팅은 4강에서 설명한 세트.
         const BDW_SETUPS = {
             interview: { label: '인터뷰 세팅', desc: 'MA 7·15·50·100·200·400 (50·200 굵게) + 볼린저(참고) + VWMA100 굵게 + POC 선만', mas: ['ma7', 'ma15', 'ma50', 'ma100', 'ma200', 'ma400'], thick: ['ma50', 'ma200'], bb: true, vwmaThick: true, vp: 'poc', support: ['ma15', 'ma50', 'ma100', 'ma200', 'ma400', 'vwma'] },
+            combined: { label: '통합 세팅', desc: 'MA 7·25·50·100·200 (50·200 굵게) + VWMA100 굵게 + POC·VAH·VAL 선 (히스토그램·볼린저·Stochastic은 켜고 끄기)', mas: ['ma7', 'ma25', 'ma50', 'ma100', 'ma200'], thick: ['ma50', 'ma200'], bb: true, bbDefault: false, vwmaThick: true, vp: 'poc', vaLines: true, support: ['ma25', 'ma50', 'ma100', 'ma200', 'vwma'] },
             lecture4: { label: '강의4 세팅', desc: 'MA 7·25·50·100·200 + VWMA + VPVR 히스토그램 전체', mas: ['ma7', 'ma25', 'ma50', 'ma100', 'ma200'], thick: [], bb: false, vwmaThick: false, vp: 'full', support: ['ma25', 'ma50', 'ma100', 'ma200', 'vwma'] }
         };
         const BDW_KEY_LINES = ['ma200', 'vwma', 'ma50'];   // 인터뷰: 가장 중요한 세 줄
@@ -10369,7 +10377,7 @@ EPRT|Essential Properties Realty Trust|E
         const BDW_MIN_VISIBLE = 20;
 
         // 화면·판정이 공유하는 상태 (판정 함수들이 임계값/세팅을 여기서 읽는다)
-        const BDW = { ticker: '', name: '', style: 'short', setup: 'interview', th: { ...BDW_RSI_DEFAULT }, tf: '15m', tfUser: false, currency: 'USD', an: {}, raw: {}, src: {}, prog: {}, res: null, fund: null, rs: null, turnover: null, vpFull: null, proj: true, showBb: true, userTicker: false, loading: false, seq: 0, account: null, riskPct: 0.5, view: {}, hover: -1, aiText: '', aiBusy: false, status: null, inited: false };
+        const BDW = { ticker: '', name: '', style: 'short', setup: 'combined', th: { ...BDW_RSI_DEFAULT }, tf: '15m', tfUser: false, currency: 'USD', an: {}, raw: {}, src: {}, prog: {}, res: null, fund: null, rs: null, turnover: null, vpFull: null, proj: true, showBb: null, stoch: false, userTicker: false, loading: false, seq: 0, account: null, riskPct: 0.5, view: {}, hover: -1, aiText: '', aiBusy: false, status: null, inited: false };
         const bdwSetup = () => BDW_SETUPS[BDW.setup] || BDW_SETUPS.interview;
         const bdwSupportKeys = () => bdwSetup().support;
         const bdwMaName = k => k === 'vwma' ? 'VWMA' + BDW_VWMA_P : k.toUpperCase();
@@ -11428,12 +11436,13 @@ EPRT|Essential Properties Realty Trust|E
                     if (typeof j.proj === 'boolean') BDW.proj = j.proj;
                     if (typeof j.vpFull === 'boolean') BDW.vpFull = j.vpFull;
                     if (typeof j.showBb === 'boolean') BDW.showBb = j.showBb;
+                    if (typeof j.stoch === 'boolean') BDW.stoch = j.stoch;
                     BDW.userTicker = !!j.userTicker;
                 }
             } catch (e) { /* 저장소를 못 읽어도 기본값으로 동작 */ }
         }
         function bdwSavePrefs() {
-            try { localStorage.setItem(BDW_STORE_KEY, JSON.stringify({ ticker: BDW.ticker, userTicker: BDW.userTicker, style: BDW.style, setup: BDW.setup, th: BDW.th, tf: BDW.tf, account: BDW.account, riskPct: BDW.riskPct, proj: BDW.proj, vpFull: BDW.vpFull, showBb: BDW.showBb })); } catch (e) { /* 무시 */ }
+            try { localStorage.setItem(BDW_STORE_KEY, JSON.stringify({ ticker: BDW.ticker, userTicker: BDW.userTicker, style: BDW.style, setup: BDW.setup, th: BDW.th, tf: BDW.tf, account: BDW.account, riskPct: BDW.riskPct, proj: BDW.proj, vpFull: BDW.vpFull, showBb: BDW.showBb, stoch: BDW.stoch })); } catch (e) { /* 무시 */ }
         }
 
         // ---------- 껍데기 (한 번만 그린다) ----------
@@ -11563,7 +11572,8 @@ EPRT|Essential Properties Realty Trust|E
                 if (t === 'zoomin') bdwZoom(1 / 1.3); else if (t === 'zoomout') bdwZoom(1.3); else if (t === 'reset') { delete BDW.view[BDW.tf]; bdwDraw(); }
                 else if (t === 'vp') { BDW.vpFull = !bdwVpFull(); bdwSavePrefs(); bdwRenderChartHead(); bdwDraw(); }
                 else if (t === 'proj') { BDW.proj = !BDW.proj; bdwSavePrefs(); bdwRenderChartHead(); bdwDraw(); }
-                else if (t === 'bb') { BDW.showBb = !BDW.showBb; bdwSavePrefs(); bdwRenderChartHead(); bdwDraw(); }
+                else if (t === 'bb') { BDW.showBb = !bdwShowBb(); bdwSavePrefs(); bdwRenderChartHead(); bdwDraw(); }
+                else if (t === 'stoch') { BDW.stoch = !BDW.stoch; bdwSavePrefs(); bdwRenderChartHead(); bdwDraw(); }
             });
             $bdw('bdwAcct').addEventListener('input', () => { const v = parseFloat($bdw('bdwAcct').value); BDW.account = bdwOk(v) && v > 0 ? v : null; bdwSavePrefs(); bdwRenderSizing(); });
             $bdw('bdwRiskPct').addEventListener('input', () => { const v = parseFloat($bdw('bdwRiskPct').value); BDW.riskPct = bdwOk(v) && v > 0 && v <= 100 ? v : null; bdwSavePrefs(); bdwRenderSizing(); });
@@ -11571,14 +11581,15 @@ EPRT|Essential Properties Realty Trust|E
             bdwBindChart();
         }
         function bdwVpFull() { return BDW.vpFull === null ? bdwSetup().vp === 'full' : BDW.vpFull; }
+        function bdwShowBb() { return BDW.showBb === null ? bdwSetup().bbDefault !== false : BDW.showBb; }
 
         // ---------- 컨트롤 그리기 ----------
         function bdwRenderControls() {
             $bdw('bdwStyleBtns').innerHTML = Object.keys(BDW_STYLES).map(k => { const s = BDW_STYLES[k], on = k === BDW.style; return `<button type="button" data-bdw-style="${k}" class="px-3 py-1.5 rounded-lg text-xs border transition ${on ? 'bg-orange-600 border-orange-400 text-white font-bold' : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-orange-500'}">${s.label}<span class="ml-1 text-[10px] ${on ? 'text-orange-100' : 'text-slate-500'}">${s.hold}</span></button>`; }).join('');
             const S = BDW_STYLES[BDW.style], g = BDW_TF_GUIDE[S.main] || {};
             $bdw('bdwStyleNote').innerHTML = `기준 <strong class="text-orange-300">${bdwTfLabel(S.main)}</strong> · 확인 ${bdwTfLabel(S.entry)} · 상위 ${S.ctx.map(bdwTfLabel).join('·')}. ${bdwEsc(S.note)}`;
-            $bdw('bdwSetupBtns').innerHTML = Object.keys(BDW_SETUPS).map(k => { const s = BDW_SETUPS[k], on = k === BDW.setup; return `<button type="button" data-bdw-setup="${k}" class="px-3 py-1.5 rounded-lg text-xs border transition ${on ? 'bg-orange-600 border-orange-400 text-white font-bold' : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-orange-500'}">${s.label}${k === 'interview' ? '<span class="ml-1 text-[10px] text-orange-100/80">기본</span>' : ''}</button>`; }).join('');
-            $bdw('bdwSetupNote').textContent = bdwSetup().desc + (BDW.setup === 'interview' ? ' — 볼린저는 신호가 아니라 과열 구간 참고용입니다. 핵심 3선은 MA200 · VWMA100 · MA50.' : '');
+            $bdw('bdwSetupBtns').innerHTML = Object.keys(BDW_SETUPS).map(k => { const s = BDW_SETUPS[k], on = k === BDW.setup; return `<button type="button" data-bdw-setup="${k}" class="px-3 py-1.5 rounded-lg text-xs border transition ${on ? 'bg-orange-600 border-orange-400 text-white font-bold' : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-orange-500'}">${s.label}${k === 'combined' ? '<span class="ml-1 text-[10px] text-orange-100/80">기본</span>' : ''}</button>`; }).join('');
+            $bdw('bdwSetupNote').textContent = bdwSetup().desc + (BDW.setup === 'interview' ? ' — 볼린저는 신호가 아니라 과열 구간 참고용입니다. 핵심 3선은 MA200 · VWMA100 · MA50.' : BDW.setup === 'combined' ? ' — 핵심 3선(MA200 · VWMA100 · MA50)은 굵게, 근거는 이평선·POC·VAH·VAL이 겹치는 자리에서 봅니다.' : '');
         }
         function bdwFillTh() { ['os2', 'os1', 'ob1', 'ob2'].forEach(k => { const el = $bdw('bdwTh_' + k); if (el) el.value = BDW.th[k]; }); }
         function bdwThChanged() {
@@ -11757,7 +11768,7 @@ EPRT|Essential Properties Realty Trust|E
         }
         function bdwSetSetup(k) {
             if (!BDW_SETUPS[k] || k === BDW.setup) return;
-            BDW.setup = k; BDW.vpFull = null; bdwSavePrefs(); bdwRenderControls();
+            BDW.setup = k; BDW.vpFull = null; BDW.showBb = null; bdwSavePrefs(); bdwRenderControls();
             if (Object.keys(BDW.raw).length) { BDW.an = bdwAnalyzeAll(BDW.raw); bdwRefresh(); }
         }
         function bdwRenderAll() {
@@ -12035,12 +12046,14 @@ EPRT|Essential Properties Realty Trust|E
             const tools = $bdw('bdwChartTools');
             const tg = (key, on, label, title) => `<button type="button" data-bdw-tool="${key}" title="${bdwEsc(title)}" class="px-2.5 py-1 rounded-md border ${on ? 'border-orange-500 bg-orange-950/40 text-orange-200' : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-white'}">${on ? '<i class="fa-solid fa-check mr-1 text-[9px]"></i>' : ''}${label}</button>`;
             if (tools) tools.innerHTML = `<button type="button" data-bdw-tool="zoomout" class="w-8 py-1 rounded-md border border-slate-700 bg-slate-900 text-slate-300 hover:text-white" title="축소"><i class="fa-solid fa-minus"></i></button><button type="button" data-bdw-tool="zoomin" class="w-8 py-1 rounded-md border border-slate-700 bg-slate-900 text-slate-300 hover:text-white" title="확대"><i class="fa-solid fa-plus"></i></button><button type="button" data-bdw-tool="reset" class="px-2.5 py-1 rounded-md border border-slate-700 bg-slate-900 text-slate-300 hover:text-white">초기화</button><span class="w-px h-5 bg-slate-700 mx-1"></span>`
-                + tg('vp', bdwVpFull(), 'VPVR 히스토그램', '끄면 POC 선만 표시 (인터뷰 세팅 기본)') + tg('proj', BDW.proj, '이평선 연장선', 'MA50·VWMA100·MA200의 최근 기울기를 그대로 이은 점선 (예측 아님)') + (setup.bb ? tg('bb', BDW.showBb, '볼린저(참고)', '신호가 아니라 과열 구간 참고용 (20, 2)') : '');
+                + tg('vp', bdwVpFull(), 'VPVR 히스토그램', '끄면 POC 선만 표시 (인터뷰 세팅 기본)') + tg('proj', BDW.proj, '이평선 연장선', 'MA50·VWMA100·MA200의 최근 기울기를 그대로 이은 점선 (예측 아님)') + (setup.bb ? tg('bb', bdwShowBb(), '볼린저(참고)', '신호가 아니라 과열 구간 참고용 (20, 2)') : '') + tg('stoch', BDW.stoch, 'Stochastic', 'RSI 아래에 스토캐스틱(14,3,3) 창 추가 — RSI와 같은 계열이라 횡보·박스권 보조용 (불단왕 강의에는 없는 지표)');
             const lg = $bdw('bdwLegend');
             if (lg) lg.innerHTML = setup.mas.map(k => { const d = BDW_MA_DEFS.find(x => x.key === k); return `<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 rounded" style="height:${setup.thick.includes(k) ? 3 : 1.5}px;background:${d.color}"></span>${d.name}</span>`; }).join('')
                 + `<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 rounded" style="height:${setup.vwmaThick ? 3 : 1.5}px;background:${BDW_VWMA_COLOR}"></span>VWMA${BDW_VWMA_P}</span>`
                 + `<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-dashed" style="border-color:${BDW_COL.gold}"></span>POC</span>`
-                + (setup.bb ? '<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 border-t border-dashed border-slate-500"></span>볼린저(참고)</span>' : '')
+                + (setup.vaLines ? '<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 border-t border-dashed" style="border-color:rgba(251,146,60,0.8)"></span>VAH·VAL</span>' : '')
+                + (setup.bb && bdwShowBb() ? '<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 border-t border-dashed border-slate-500"></span>볼린저(참고)</span>' : '')
+                + (BDW.stoch ? '<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 rounded" style="height:1.5px;background:#06b6d4"></span>Stoch %K<span class="inline-block w-4 rounded ml-1" style="height:1.5px;background:#f59e0b"></span>%D</span>' : '')
                 + '<span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-dashed border-slate-300"></span>이평선 연장(가정)</span><span class="inline-flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded-sm bg-sky-500/30"></span>RSI 과매도 단계<span class="inline-block w-3 h-3 rounded-sm bg-rose-500/30 ml-1"></span>과매수 단계</span>';
         }
 
@@ -12091,15 +12104,16 @@ EPRT|Essential Properties Realty Trust|E
             const setup = bdwSetup(), full = bdwVpFull(), n = a.n, bars = a.bars, v = bdwView(a);
             const axisW = W < 560 ? 50 : 58, vpW = full ? Math.max(48, Math.min(140, Math.round(W * 0.15))) : 0;
             const pl = 4, pr = W - axisW - vpW - (full ? 2 : 0), plotW = pr - pl, top = 6, timeH = 18, avail = H - top - timeH;
-            const priceH = Math.round(avail * 0.70), gap = 8, rsiH = avail - priceH - gap, py0 = top, py1 = top + priceH, ry0 = py1 + gap, ry1 = ry0 + rsiH, volH = Math.round(priceH * 0.13);
+            const stOn = !!BDW.stoch && !!(a.stoch || (a.stoch = TA.stochastic(a.bars, 14, 3, 3)));
+            const priceH = Math.round(avail * (stOn ? 0.60 : 0.70)), gap = 8, subH = stOn ? Math.round((avail - priceH - gap * 2) / 2) : avail - priceH - gap, rsiH = subH, py0 = top, py1 = top + priceH, ry0 = py1 + gap, ry1 = ry0 + rsiH, sy0 = ry1 + gap, sy1 = stOn ? sy0 + subH : ry1, volH = Math.round(priceH * 0.13);
             const step = plotW / v.count, xOf = i => pl + (i - v.start + 0.5) * step;
             const i0 = Math.max(0, Math.floor(v.start)), i1 = Math.min(n - 1, Math.ceil(v.start + v.count));
             let hi = -Infinity, lo = Infinity;
             for (let i = i0; i <= i1; i++) { hi = Math.max(hi, bars[i].high); lo = Math.min(lo, bars[i].low); }
             if (!isFinite(hi) || !isFinite(lo)) { hi = a.price * 1.01; lo = a.price * 0.99; }
             const padP = (hi - lo || hi * 0.01) * 0.06; hi += padP; lo -= padP;
-            const yOf = p => py0 + (hi - p) / (hi - lo) * priceH, yR = r => ry0 + (100 - r) / 100 * rsiH;
-            const L = { ctx, W, H, pl, pr, plotW, py0, py1, ry0, ry1, priceH, rsiH, step, xOf, yOf, yR, v, i0, i1, hi, lo, axisW, vpW, a, volH, n, bars };
+            const yOf = p => py0 + (hi - p) / (hi - lo) * priceH, yR = r => ry0 + (100 - r) / 100 * rsiH, yS = r => sy0 + (100 - r) / 100 * subH;
+            const L = { ctx, W, H, pl, pr, plotW, py0, py1, ry0, ry1, priceH, rsiH, stOn, sy0, sy1, subH, yS, step, xOf, yOf, yR, v, i0, i1, hi, lo, axisW, vpW, a, volH, n, bars };
             BDWC.lay = L;
             ctx.fillStyle = BDW_COL.bg; ctx.fillRect(0, 0, W, H);
             ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace'; ctx.textBaseline = 'middle';
@@ -12113,7 +12127,7 @@ EPRT|Essential Properties Realty Trust|E
             L.vp = vp;
             if (vp && vp.poc !== null) bdwDrawVp(L, vp, full);
             // 볼린저 (참고)
-            if (setup.bb && BDW.showBb) bdwDrawBb(L);
+            if (setup.bb && bdwShowBb()) bdwDrawBb(L);
             // 이평선
             ctx.save(); ctx.beginPath(); ctx.rect(pl, py0, plotW, priceH); ctx.clip();
             const line = (arr, color, w, dash) => { ctx.beginPath(); let started = false; for (let i = i0; i <= i1; i++) { const val = arr[i]; if (!bdwOk(val)) { started = false; continue; } const x = xOf(i), y = yOf(val); if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); } ctx.strokeStyle = color; ctx.lineWidth = w; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); };
@@ -12142,6 +12156,7 @@ EPRT|Essential Properties Realty Trust|E
             { const y = yOf(a.price), up = a.price >= (bars[n - 2] ? bars[n - 2].close : a.price); ctx.fillStyle = up ? BDW_COL.up : BDW_COL.down; ctx.fillRect(W - axisW, y - 8, axisW, 16); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(bdwFmtAxis(a.price, pStep), W - axisW + 4, y); }
             // RSI 패널
             bdwDrawRsi(L);
+            if (stOn) bdwDrawStoch(L);
             // 시간 축
             ctx.fillStyle = BDW_COL.axis; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             const every = Math.max(1, Math.round((W < 560 ? 84 : 118) / step));
@@ -12166,7 +12181,12 @@ EPRT|Essential Properties Realty Trust|E
                 ctx.fillText('VAH', pl + 3, yOf(vp.vaHigh) - 5); ctx.fillText('VAL', pl + 3, yOf(vp.vaLow) + 6);
                 ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
             }
-            // POC 선 (두 세팅 모두)
+            if (!full && bdwSetup().vaLines) {
+                ctx.setLineDash([3, 3]); ctx.strokeStyle = 'rgba(251,146,60,0.6)'; ctx.lineWidth = 1; ctx.fillStyle = 'rgba(251,146,60,0.95)'; ctx.font = '9px ui-monospace, monospace'; ctx.textAlign = 'left';
+                [[vp.vaHigh, 'VAH'], [vp.vaLow, 'VAL']].forEach(([pv, nm]) => { const yy = Math.round(yOf(pv)) + 0.5; ctx.beginPath(); ctx.moveTo(pl, yy); ctx.lineTo(right, yy); ctx.stroke(); ctx.fillText(nm, pl + 3, yy + (nm === 'VAH' ? -5 : 6)); });
+                ctx.setLineDash([]); ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+            }
+            // POC 선 (모든 세팅)
             const y = Math.round(yOf(vp.poc)) + 0.5;
             ctx.setLineDash([6, 4]); ctx.strokeStyle = BDW_COL.gold; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(pl, y); ctx.lineTo(right, y); ctx.stroke(); ctx.setLineDash([]);
             ctx.fillStyle = BDW_COL.gold; ctx.fillRect(W - axisW, y - 7, axisW, 14); ctx.fillStyle = '#111827'; ctx.textAlign = 'left'; ctx.font = '9px ui-monospace, monospace'; ctx.fillText('POC', W - axisW + 3, y); ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -12288,6 +12308,26 @@ EPRT|Essential Properties Realty Trust|E
             ctx.fillText(`RSI(14) ${a.rsiNow !== null ? a.rsiNow.toFixed(1) : '-'} · ${rs.label}`, pr - 4, ry0 + 9); ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
         }
 
+        function bdwDrawStoch(L) {
+            const { ctx, a, W, pl, pr, axisW, sy0, subH, yS, xOf, i0, i1, plotW } = L, sk = a.stoch.k, sd = a.stoch.d;
+            ctx.fillStyle = 'rgba(15,23,42,0.55)'; ctx.fillRect(pl, sy0, plotW, subH);
+            ctx.textAlign = 'left';
+            [[20, '과매도'], [50, ''], [80, '과매수']].forEach(([val, name]) => {
+                const y = Math.round(yS(val)) + 0.5; ctx.strokeStyle = val === 50 ? 'rgba(148,163,184,0.25)' : 'rgba(148,163,184,0.35)'; ctx.setLineDash(val === 50 ? [2, 4] : [4, 3]); ctx.beginPath(); ctx.moveTo(pl, y); ctx.lineTo(W - axisW, y); ctx.stroke(); ctx.setLineDash([]);
+                ctx.fillStyle = BDW_COL.axis; ctx.fillText(String(val), W - axisW + 4, y); if (name) { ctx.fillStyle = 'rgba(148,163,184,0.55)'; ctx.font = '9px system-ui, sans-serif'; ctx.fillText(name, pl + 4, y - 5); ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace'; }
+            });
+            ctx.save(); ctx.beginPath(); ctx.rect(pl, sy0, plotW, subH); ctx.clip();
+            [[sk, '#06b6d4'], [sd, '#f59e0b']].forEach(([arr, col]) => {
+                ctx.beginPath(); let st = false;
+                for (let i = i0; i <= i1; i++) { const r = arr[i]; if (!bdwOk(r)) { st = false; continue; } const x = xOf(i), y = yS(r); if (!st) { ctx.moveTo(x, y); st = true; } else ctx.lineTo(x, y); }
+                ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.stroke();
+            });
+            ctx.restore();
+            const n = a.n - 1, kk = sk[n], dd = sd[n];
+            ctx.textAlign = 'right'; ctx.fillStyle = '#67e8f9'; ctx.font = 'bold 10px system-ui, sans-serif';
+            ctx.fillText(`Stoch(14,3,3) %K ${bdwOk(kk) ? kk.toFixed(1) : '-'} · %D ${bdwOk(dd) ? dd.toFixed(1) : '-'}`, pr - 4, sy0 + 9); ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+        }
+
         // ---------- 십자선 · 툴팁 · 상호작용 ----------
         function bdwDrawOver() {
             const ov = $bdw('bdwOver'), tip = $bdw('bdwTip'), L = BDWC.lay;
@@ -12298,7 +12338,7 @@ EPRT|Essential Properties Realty Trust|E
             if (i < 0 || i >= L.n || BDWC.drag && BDWC.drag.moved) { if (tip) tip.classList.add('hidden'); return; }
             const x = L.xOf(i), b = L.bars[i], a = L.a;
             ctx.strokeStyle = 'rgba(203,213,225,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-            ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, L.py0); ctx.lineTo(Math.round(x) + 0.5, L.ry1); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, L.py0); ctx.lineTo(Math.round(x) + 0.5, L.sy1); ctx.stroke();
             if (BDWC.my >= L.py0 && BDWC.my <= L.py1) { ctx.beginPath(); ctx.moveTo(L.pl, BDWC.my); ctx.lineTo(L.W - L.axisW, BDWC.my); ctx.stroke(); const p = L.hi - (BDWC.my - L.py0) / L.priceH * (L.hi - L.lo); ctx.setLineDash([]); ctx.fillStyle = '#334155'; ctx.fillRect(L.W - L.axisW, BDWC.my - 8, L.axisW, 16); ctx.fillStyle = '#e2e8f0'; ctx.font = '10px ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(bdwFmtAxis(p, bdwNice(L.hi - L.lo, 7)), L.W - L.axisW + 4, BDWC.my); }
             ctx.setLineDash([]);
             if (!tip) return;
