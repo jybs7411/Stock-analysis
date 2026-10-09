@@ -204,6 +204,7 @@
     .subtab { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .8rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; color: #94a3b8; border: 1px solid transparent; transition: all .15s; white-space: nowrap; }
     .subtab:not(.hidden) { display: inline-flex; }
     .subtab.hidden { display: none; }
+    .chart-fs-on .chart-fs-hide { display: none !important; }
     .subtab:hover { color: #fff; background: #1e293b; }
     .subtab.is-on { color: #fff; background: #1e293b; border-color: #475569; font-weight: 700; }
     @media (max-width: 639px) {
@@ -212,7 +213,7 @@
       #tabSearchForm { margin-left: auto; }
       #mobileTabBar { display: block; }
       main { padding-bottom: 5.5rem; }
-      #toTopBtn { bottom: 5rem; }
+      #toTopBtn, #backBtn { bottom: 5rem; }
       #toBottomBtn { bottom: 8rem; }
     }
     @media (min-width: 640px) { #mobileTabBar { display: none !important; } }
@@ -350,7 +351,7 @@
     <div id="subTabRow" role="tablist" aria-label="화면 선택" class="hidden max-w-7xl mx-auto flex items-center gap-1.5 pb-2 overflow-x-auto whitespace-nowrap">
       <button type="button" role="tab" aria-selected="false" aria-controls="view-watch" onclick="switchAppTab('watch')" id="tabBtn-watch" title="관심종목" class="subtab hidden"><i class="fa-solid fa-star text-yellow-400"></i><span>관심종목</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-analysis" onclick="switchAppTab('analysis')" id="tabBtn-analysis" title="5인 전문가 심층 분석" class="subtab hidden"><i class="fa-solid fa-users-viewfinder text-cyan-400"></i><span>5인 분석</span></button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-multi" onclick="switchAppTab('multi')" id="tabBtn-multi" title="멀티 차트 (4분할)" class="subtab hidden"><i class="fa-solid fa-table-cells-large text-fuchsia-400"></i><span>멀티 차트</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-multi" onclick="switchAppTab('multi')" id="tabBtn-multi" title="멀티 차트 (1·2·4·6분할)" class="subtab hidden"><i class="fa-solid fa-table-cells-large text-fuchsia-400"></i><span>멀티 차트</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-screener" onclick="switchAppTab('screener')" id="tabBtn-screener" title="스마트 스크리너 (Finviz × Fool)" class="subtab hidden"><i class="fa-solid fa-filter text-amber-400"></i><span>스크리너</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-revision" onclick="switchAppTab('revision')" id="tabBtn-revision" title="리비전 랭크 (EPS 추정치 변화)" class="subtab hidden"><i class="fa-solid fa-arrow-trend-up text-lime-400"></i><span>리비전 랭크</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-market" onclick="switchAppTab('market')" id="tabBtn-market" title="시장 · 매크로" class="subtab hidden"><i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장·매크로</span></button>
@@ -369,6 +370,8 @@
     <div id="mobileTabGrid" class="grid grid-cols-5"></div>
   </nav>
 
+  <!-- 뒤로가기 (이전에 보던 탭) -->
+  <button type="button" id="backBtn" onclick="appGoBack()" title="뒤로가기 (이전에 보던 탭)" aria-label="뒤로가기" class="hidden fixed left-4 bottom-20 z-40 w-11 h-11 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-lg shadow-slate-950/50 grid place-items-center transition active:scale-95"><i class="fa-solid fa-arrow-left"></i></button>
   <!-- 맨 아래로 -->
   <button type="button" id="toBottomBtn" onclick="window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })" title="맨 아래로" aria-label="맨 아래로" class="hidden fixed right-4 bottom-32 z-40 w-11 h-11 rounded-full bg-slate-700 hover:bg-slate-600 text-white shadow-lg shadow-slate-950/50 grid place-items-center transition active:scale-95"><i class="fa-solid fa-arrow-down"></i></button>
   <!-- 맨 위로 -->
@@ -1627,7 +1630,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.18.1';
+    const APP_VERSION = '1.20.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -1721,9 +1724,48 @@
       if (grid) grid.innerHTML = APP_HUBS.map(h => `<button type="button" id="mtabBtn-${h.id}" onclick="switchHub('${h.id}')" class="mtab flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-400"><i class="fa-solid ${h.icon.split(' ')[0]} text-base ${h.icon.split(' ').slice(1).join(' ')}"></i><span>${h.short}</span></button>`).join('');
     })();
 
+    // 탭 이동 기록 — 뒤로가기 버튼(#backBtn)이 이전에 보던 탭으로 돌아간다
+    const TAB_HIST = [];
+    let tabBackBusy = false;
+    function syncBackBtn() { const b = document.getElementById('backBtn'); if (b) b.classList.toggle('hidden', !TAB_HIST.length); }
+    function appGoBack() {
+      const t = TAB_HIST.pop();
+      if (!t) return;
+      tabBackBusy = true;
+      try { switchAppTab(t); } finally { tabBackBusy = false; }
+      syncBackBtn();
+    }
+    // 차트 전체화면 (불단왕·전일 복기): 차트 섹션이 화면을 가득 채우고 캔버스가 남는 높이를 쓴다. Esc 로 복귀.
+    const CHART_FS = { bdw: false, pd: false };
+    const CHART_FS_ELS = { bdw: ['bdwChartSec', 'bdwChartBox'], pd: ['pdChartSec', 'pdChartBox'] };
+    function chartFsToggle(key, redraw, force) {
+      const on = force === undefined ? !CHART_FS[key] : !!force;
+      const sec = document.getElementById(CHART_FS_ELS[key][0]), box = document.getElementById(CHART_FS_ELS[key][1]);
+      if (!sec || !box) return;
+      CHART_FS[key] = on;
+      sec.classList.toggle('chart-fs-on', on);
+      ['fixed', 'inset-0', 'z-[80]', 'flex', 'flex-col', 'overflow-y-auto', '!rounded-none', '!p-2', '!m-0'].forEach(c => sec.classList.toggle(c, on));
+      sec.style.background = on ? '#0b1220' : '';
+      box.classList.toggle('flex-1', on); box.classList.toggle('min-h-0', on);
+      if (on) box.style.height = '';
+      const btn = sec.querySelector('[data-fs-btn]');
+      if (btn) btn.innerHTML = on ? '<i class="fa-solid fa-minimize mr-1"></i>전체화면 종료' : '<i class="fa-solid fa-maximize mr-1"></i>전체화면';
+      setTimeout(() => { try { redraw(); } catch (e) { /* 아직 그릴 데이터 없음 */ } }, 30);
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (CHART_FS.bdw && typeof window.bdwSchedule === 'function') chartFsToggle('bdw', window.bdwSchedule, false);
+      else if (CHART_FS.pd && typeof pdDrawChart === 'function') chartFsToggle('pd', pdDrawChart, false);
+    });
+    window.addEventListener('resize', () => {
+      if (CHART_FS.bdw && typeof window.bdwSchedule === 'function') window.bdwSchedule();
+      if (CHART_FS.pd && typeof pdDrawChart === 'function') requestAnimationFrame(pdDrawChart);
+    });
     function switchAppTab(tab) {
       if (!APP_TABS[tab]) tab = 'analysis';
+      if (!tabBackBusy && tab !== activeAppTab) { TAB_HIST.push(activeAppTab); if (TAB_HIST.length > 30) TAB_HIST.shift(); }
       activeAppTab = tab;
+      syncBackBtn();
       const hub = hubOf(tab);
       try { const m = JSON.parse(localStorage.getItem(HUB_LAST_KEY) || '{}'); m[hub.id] = tab; localStorage.setItem(HUB_LAST_KEY, JSON.stringify(m)); } catch (e) { /* 저장 불가 */ }
       Object.keys(APP_TABS).forEach(id => {
@@ -11464,10 +11506,13 @@ EPRT|Essential Properties Realty Trust|E
                   <div id="bdwKeyLines"></div>
                   <div id="bdwCycle"></div>
                 </section>
-                <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl space-y-3">
+                <section id="bdwChartSec" class="bg-[#131e32] border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl space-y-3">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-line text-orange-400"></i>차트 <span id="bdwChartTitle" class="text-xs font-normal text-slate-400"></span></h4>
-                    <p class="text-[11px] text-slate-500"><i class="fa-regular fa-hand-pointer mr-1"></i>휠 확대/축소 · 드래그 이동 · 더블클릭 초기화</p>
+                    <div class="flex items-center gap-3">
+                      <p class="chart-fs-hide text-[11px] text-slate-500"><i class="fa-regular fa-hand-pointer mr-1"></i>휠 확대/축소 · 드래그 이동 · 더블클릭 초기화</p>
+                      <button type="button" data-fs-btn onclick="chartFsToggle('bdw', window.bdwSchedule)" class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-500 transition" title="차트가 화면 전체를 채웁니다 (Esc로 복귀)"><i class="fa-solid fa-maximize mr-1"></i>전체화면</button>
+                    </div>
                   </div>
                   <div id="bdwTfTabs" class="flex flex-wrap gap-1.5"></div>
                   <div id="bdwChartTools" class="flex flex-wrap items-center gap-1.5 text-[11px]"></div>
@@ -11478,7 +11523,7 @@ EPRT|Essential Properties Realty Trust|E
                     <div id="bdwChartMsg" class="hidden absolute inset-0 flex items-center justify-center text-sm text-slate-400 text-center px-6"></div>
                   </div>
                   <div id="bdwLegend" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400"></div>
-                  <div id="bdwPatterns" class="space-y-2"></div>
+                  <div id="bdwPatterns" class="chart-fs-hide space-y-2"></div>
                 </section>
                 <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
                   <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-list-check text-orange-400"></i>불단왕식 판독 · 체크리스트 <span class="text-xs font-normal text-slate-400">(규칙 점검 — 매수·매도 권유 아님)</span></h4>
@@ -12053,8 +12098,9 @@ EPRT|Essential Properties Realty Trust|E
             if (msg) msg.classList.add('hidden');
             const W = box.clientWidth;
             if (!W) return; // 숨겨진 탭 — 열릴 때 BDW_HOOKS / ResizeObserver 가 다시 그린다
-            const H = W < 560 ? 480 : 560, dpr = window.devicePixelRatio || 1;
-            if (BDWC.lastH !== H) { box.style.height = `${H}px`; BDWC.lastH = H; }
+            const fs = CHART_FS.bdw, H = fs ? Math.max(240, box.clientHeight) : (W < 560 ? 480 : 560), dpr = window.devicePixelRatio || 1;
+            if (!fs) box.style.height = `${H}px`;
+            BDWC.lastH = H;
             [cv, ov].forEach(c => { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); c.style.width = `${W}px`; c.style.height = `${H}px`; });
             const ctx = cv.getContext('2d');
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -12350,6 +12396,7 @@ EPRT|Essential Properties Realty Trust|E
         window.BDW_HOOKS = window.BDW_HOOKS || {};
         window.BDW_HOOKS.analyze = bdwOnVisible;
         window.bdwState = BDW;   // 읽기용(디버깅·테스트) 핸들
+        window.bdwSchedule = bdwSchedule;   // 차트 전체화면(chartFsToggle)이 다시 그릴 때 사용
         window.bdwAnalyzeTicker = tk => { bdwInit(); const t = $bdw('bdwTicker'); if (t) t.value = tk; BDW.userTicker = true; BDW.syncWanted = false; return bdwRun(tk); };
         APP_SYM_APPLY.bdw = () => { BDW.syncWanted = true; };   // 불단왕의 분석 패널이 보일 때(bdwOnVisible) 반영
         bdwInit();
@@ -13328,10 +13375,13 @@ ${pdFactsText(d)}`;
             <div id="pdNote"></div>
             <section class="space-y-3"><div id="pdCards" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5"></div></section>
             <section id="pdClass" class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3"></section>
-            <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl space-y-3">
+            <section id="pdChartSec" class="bg-[#131e32] border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-column text-violet-400"></i>세션 차트 <span id="pdChartTitle" class="text-xs font-normal text-slate-400"></span></h4>
-                <p class="text-[11px] text-slate-500"><i class="fa-regular fa-hand-pointer mr-1"></i>차트 위에 마우스를 올리면 봉 정보, 번호 마커를 누르면 아래 해설로 이동합니다.</p>
+                <div class="flex items-center gap-3">
+                  <p class="chart-fs-hide text-[11px] text-slate-500"><i class="fa-regular fa-hand-pointer mr-1"></i>차트 위에 마우스를 올리면 봉 정보, 번호 마커를 누르면 아래 해설로 이동합니다.</p>
+                  <button type="button" data-fs-btn onclick="chartFsToggle('pd', pdDrawChart)" class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-500 transition" title="차트가 화면 전체를 채웁니다 (Esc로 복귀)"><i class="fa-solid fa-maximize mr-1"></i>전체화면</button>
+                </div>
               </div>
               <div id="pdChartBox" class="relative w-full bg-slate-950 rounded-xl border border-slate-800 overflow-hidden select-none" style="height:460px">
                 <canvas id="pdCanvas" class="absolute left-0 top-0"></canvas>
@@ -13668,8 +13718,8 @@ ${pdFactsText(d)}`;
       if (!d || !box || !cv) return;
       const W = box.clientWidth;
       if (!W) return; // 탭이 숨겨져 있으면 크기 0 — 열릴 때 ResizeObserver/탭 훅이 다시 그린다
-      const H = W < 560 ? 380 : 470, dpr = window.devicePixelRatio || 1;
-      box.style.height = `${H}px`;
+      const fs = CHART_FS.pd, H = fs ? Math.max(240, box.clientHeight) : (W < 560 ? 380 : 470), dpr = window.devicePixelRatio || 1;
+      if (!fs) box.style.height = `${H}px`;
       [cv, ov].forEach(c => { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); c.style.width = `${W}px`; c.style.height = `${H}px`; });
       const ctx = cv.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
@@ -16556,67 +16606,96 @@ ${digest}`;
 
       const defInd = () => ({ ema20: true, sma50: true, sma200: false, bb: false, vwap: false, vol: true, rsi: false });
       const mkCfg = (t, iv) => ({ t, iv, type: 'candle', ind: defInd() });
+      const LAYOUTS = [1, 2, 4, 6];   // 분할 수 (2분할 = 좌우 비교)
+      const MAXP = 6;
+      const DEF_T = ['SPY', 'QQQ', 'IWM', 'DIA', 'XLK', 'SMH'];
+      const FRAMES = { 1: ['D'], 2: ['D', '60m'], 4: ['W', 'D', '60m', '15m'], 6: ['M', 'W', 'D', '60m', '15m', '5m'] };
+      // 주요 ETF (앞의 6개가 '묶음' 프리셋, 전체는 칸의 ETF 메뉴에 표시). 레버리지·인버스는 장기 보유용이 아닙니다.
+      const ETF_GROUPS = [
+        { k: 'idx', g: '미국 지수', items: [['SPY', 'S&P 500'], ['QQQ', '나스닥 100'], ['DIA', '다우'], ['IWM', '러셀 2000'], ['VTI', '미국 전체'], ['RSP', 'S&P 500 동일가중']] },
+        { k: 'sec', g: '섹터', items: [['XLK', '기술'], ['XLF', '금융'], ['XLE', '에너지'], ['XLV', '헬스케어'], ['XLY', '경기소비재'], ['XLI', '산업재'], ['XLP', '필수소비재'], ['XLU', '유틸리티'], ['XLB', '소재'], ['XLRE', '부동산'], ['XLC', '커뮤니케이션']] },
+        { k: 'thm', g: '테마', items: [['SMH', '반도체'], ['IGV', '소프트웨어'], ['ARKK', '혁신 성장'], ['XBI', '바이오텍'], ['ITA', '방산·항공'], ['ICLN', '청정에너지'], ['CIBR', '사이버보안'], ['KRE', '지역은행']] },
+        { k: 'bnd', g: '채권·금리', items: [['TLT', '미국채 20년+'], ['IEF', '미국채 7-10년'], ['HYG', '하이일드'], ['LQD', '투자등급 회사채'], ['SHY', '미국채 1-3년'], ['AGG', '종합채권']] },
+        { k: 'cmd', g: '원자재·통화', items: [['GLD', '금'], ['SLV', '은'], ['USO', '원유'], ['UNG', '천연가스'], ['DBC', '원자재 종합'], ['UUP', '달러지수'], ['IBIT', '비트코인']] },
+        { k: 'int', g: '해외', items: [['EFA', '선진국'], ['EEM', '신흥국'], ['EWY', '한국'], ['EWJ', '일본'], ['FXI', '중국 대형주'], ['INDA', '인도'], ['VGK', '유럽']] },
+        { k: 'fac', g: '배당·가치·성장', items: [['SCHD', '배당 성장'], ['VIG', '배당 성장(VIG)'], ['VYM', '고배당'], ['VUG', '대형 성장'], ['VTV', '대형 가치'], ['JEPI', '커버드콜 인컴']] },
+        { k: 'lev', g: '레버리지·인버스', items: [['TQQQ', '나스닥 3배'], ['SQQQ', '나스닥 -3배'], ['SOXL', '반도체 3배'], ['UPRO', 'S&P 3배'], ['SH', 'S&P -1배']] }
+      ];
       const PRESETS = {
-        tickers: () => [mkCfg('SPY', 'D'), mkCfg('QQQ', 'D'), mkCfg('IWM', 'D'), mkCfg('DIA', 'D')],
-        frames: t => [mkCfg(t, 'W'), mkCfg(t, 'D'), mkCfg(t, '60m'), mkCfg(t, '15m')]
+        tickers: n => DEF_T.slice(0, n).map(t => mkCfg(t, 'D')),
+        frames: (t, n) => FRAMES[n].map(iv => mkCfg(t, iv)),
+        etf: (k, n) => { const g = ETF_GROUPS.find(x => x.k === k); return g ? g.items.slice(0, n).map(it => mkCfg(it[0], 'D')) : []; }
       };
 
-      const S = { panels: null, sync: true, h: 360, focus: -1 };   // 저장되는 상태
+      const S = { panels: null, sync: true, h: 360, focus: -1, n: 4, full: false };   // 저장되는 상태(focus·full 제외)
       const P = [];                                                 // 패널 런타임
       let built = false, hoverSrc = -1, hoverT = null, ro = null;
 
       function load() {
         try {
           const j = JSON.parse(localStorage.getItem(KEY) || 'null');
-          if (j && Array.isArray(j.panels) && j.panels.length === 4) {
-            S.panels = j.panels.map(c => ({
+          if (j && Array.isArray(j.panels) && j.panels.length >= 4) {
+            S.panels = j.panels.slice(0, MAXP).map(c => ({
               t: String(c.t || '').toUpperCase().slice(0, 20) || 'SPY', iv: IVS.includes(c.iv) ? c.iv : 'D',
               type: TYPES[c.type] ? c.type : 'candle', ind: Object.assign(defInd(), c.ind || {})
             }));
             S.sync = j.sync !== false;
             S.h = [300, 360, 460].includes(j.h) ? j.h : 360;
+            S.n = LAYOUTS.includes(j.n) ? j.n : 4;
           }
         } catch (e) { /* 저장값이 없거나 깨져도 기본값으로 시작 */ }
         if (!S.panels) {
           const cur = (typeof currentAnalysisData !== 'undefined' && currentAnalysisData && currentAnalysisData.ticker) || '';
-          S.panels = cur ? PRESETS.frames(cur) : PRESETS.tickers();
+          S.panels = cur ? PRESETS.frames(cur, 4) : PRESETS.tickers(4);
         }
+        while (S.panels.length < MAXP) S.panels.push(mkCfg(DEF_T[S.panels.length], 'D'));   // 4분할로만 저장돼 있던 설정에 5·6번 칸 보충
       }
-      function save() { try { localStorage.setItem(KEY, JSON.stringify({ panels: S.panels, sync: S.sync, h: S.h })); } catch (e) { /* 저장 불가 환경 */ } }
+      const vis = () => P.filter(p => p.i < S.n);
+      function save() { try { localStorage.setItem(KEY, JSON.stringify({ panels: S.panels, sync: S.sync, h: S.h, n: S.n })); } catch (e) { /* 저장 불가 환경 */ } }
 
       // ---------- 골격 ----------
       function buildSkeleton() {
         const root = document.getElementById('multiRoot');
         if (!root) return false;
         const btn = 'px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:border-slate-500 transition';
+        const lbtn = 'px-2 py-1.5 text-[11px] font-semibold';
         root.innerHTML = `
           <style>@media (pointer: coarse) { #multiRoot .mc-panel button, #multiRoot .mc-panel select, #multiRoot .mc-panel input[data-f=ticker] { min-height: 34px; } #multiRoot .mc-panel [data-iv] { min-width: 30px; } }</style>
-          <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3">
+          <div id="mcStage" class="space-y-3">
+          <div id="mcBar" class="bg-slate-900/70 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3">
             <div class="flex flex-wrap items-center gap-2">
-              <div class="text-sm font-bold text-white mr-1"><i class="fa-solid fa-table-cells-large text-fuchsia-400 mr-1.5"></i>멀티 차트 <span class="text-slate-500 font-normal text-xs">4분할 (ㅁ)</span></div>
-              <button type="button" class="${btn}" data-mc="preset-tickers" title="SPY·QQQ·IWM·DIA 일봉 4개 (지수 ETF)"><i class="fa-solid fa-layer-group mr-1"></i>4종목 보기</button>
-              <button type="button" class="${btn}" data-mc="preset-frames" title="한 종목을 주·일·60분·15분봉으로 나란히 봅니다"><i class="fa-solid fa-clock mr-1"></i>한 종목 4시간대</button>
+              <div class="text-sm font-bold text-white mr-1"><i class="fa-solid fa-table-cells-large text-fuchsia-400 mr-1.5"></i>멀티 차트 <span id="mcLabel" class="text-slate-500 font-normal text-xs"></span></div>
+              <div id="mcLayouts" class="flex items-center rounded-lg border border-slate-700 overflow-hidden" title="분할 수 (2분할은 좌우 비교)">
+                ${LAYOUTS.map(n => `<button type="button" data-mcn="${n}" class="${lbtn}">${n}분할</button>`).join('')}
+              </div>
+              <button type="button" class="${btn}" data-mc="full" id="mcFullBtn" title="분할 화면이 화면 전체를 채웁니다 (Esc로 복귀)"><i class="fa-solid fa-maximize mr-1"></i><span>전체화면</span></button>
+              <button type="button" class="${btn}" data-mc="preset-tickers" title="SPY·QQQ·IWM·DIA… 지수 ETF 일봉을 칸 수만큼"><i class="fa-solid fa-layer-group mr-1"></i>지수 ETF</button>
+              <button type="button" class="${btn}" data-mc="preset-frames" title="한 종목을 칸마다 다른 시간대(주·일·60분·15분…)로 봅니다"><i class="fa-solid fa-clock mr-1"></i>한 종목 시간대</button>
+              <select id="mcEtf" class="bg-slate-950 border border-slate-700 rounded-lg px-1.5 py-1.5 text-[11px] text-slate-300 focus:outline-none" title="주요 ETF 묶음을 칸 수만큼 일봉으로 채웁니다">
+                <option value="">ETF 묶음…</option>${ETF_GROUPS.map(g => `<option value="${g.k}">${g.g}</option>`).join('')}
+              </select>
               <form id="mcAllForm" class="flex items-center gap-1" autocomplete="off">
-                <input id="mcAllInput" type="text" placeholder="종목 → 4칸 모두" class="w-32 sm:w-40 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-fuchsia-500">
-                <button class="${btn}" title="입력한 종목을 4칸 모두에 적용 (시간대는 유지)">적용</button>
+                <input id="mcAllInput" type="text" placeholder="종목 → 모든 칸" class="w-32 sm:w-40 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-fuchsia-500">
+                <button class="${btn}" title="입력한 종목을 모든 칸에 적용 (시간대는 유지)">적용</button>
               </form>
               <div class="flex items-center gap-1 ml-auto">
                 <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none mr-1" title="한 차트에 마우스를 올리면 다른 차트에도 같은 시각의 세로선을 표시합니다"><input id="mcSync" type="checkbox" class="accent-fuchsia-500">크로스헤어 연동</label>
-                <select id="mcAllIv" class="bg-slate-950 border border-slate-700 rounded-lg px-1.5 py-1.5 text-[11px] text-slate-300 focus:outline-none" title="4칸 모두 같은 봉으로">
+                <select id="mcAllIv" class="bg-slate-950 border border-slate-700 rounded-lg px-1.5 py-1.5 text-[11px] text-slate-300 focus:outline-none" title="모든 칸 같은 봉으로">
                   <option value="">봉 일괄…</option>${IVS.map(v => `<option value="${v}">${IV_LABEL[v]}봉</option>`).join('')}
                 </select>
                 <select id="mcH" class="bg-slate-950 border border-slate-700 rounded-lg px-1.5 py-1.5 text-[11px] text-slate-300 focus:outline-none" title="차트 높이">
                   <option value="300">높이 작게</option><option value="360">높이 보통</option><option value="460">높이 크게</option>
                 </select>
-                <button type="button" class="${btn}" data-mc="refresh" title="4개 모두 최신 데이터로 다시 불러오기"><i class="fa-solid fa-rotate"></i></button>
+                <button type="button" class="${btn}" data-mc="refresh" title="보이는 차트 모두 최신 데이터로 다시 불러오기"><i class="fa-solid fa-rotate"></i></button>
               </div>
             </div>
-            <div class="text-[11px] text-slate-500 leading-relaxed">휠: 확대·축소 · 드래그: 이동 · 더블클릭: 처음 보기로 · 칸 제목의 <i class="fa-solid fa-expand"></i> : 한 칸만 크게 (Esc로 복귀). 분봉은 Worker를 최신으로 배포해야 나옵니다. 설정은 이 브라우저에 저장됩니다.</div>
+            <div id="mcHelp" class="text-[11px] text-slate-500 leading-relaxed">휠: 확대·축소 · 드래그: 이동 · 더블클릭: 처음 보기로 · 칸 제목의 <i class="fa-solid fa-expand"></i> : 한 칸만 크게 · <i class="fa-solid fa-chart-pie"></i> : 주요 ETF 고르기 (Esc로 복귀). 분봉은 Worker를 최신으로 배포해야 나옵니다. 설정은 이 브라우저에 저장됩니다.</div>
           </div>
-          <div id="mcGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-3"></div>`;
+          <div id="mcGrid" class="grid gap-3"></div>
+          </div>`;
         const grid = document.getElementById('mcGrid');
         P.length = 0;
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < MAXP; i++) {
           const el = document.createElement('div');
           el.className = 'mc-panel bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden flex flex-col';
           el.dataset.i = i;
@@ -16635,8 +16714,12 @@ ${digest}`;
               </select>
               <div class="relative ml-auto flex items-center gap-1">
                 <button type="button" data-f="indBtn" class="px-1.5 py-1 rounded-md border border-slate-700 text-[10px] font-semibold text-slate-300 hover:text-white" title="보조지표"><i class="fa-solid fa-chart-line mr-1"></i>지표</button>
+                <button type="button" data-f="etfBtn" class="px-1.5 py-1 rounded-md border border-slate-700 text-[10px] text-slate-300 hover:text-white" title="주요 ETF 고르기"><i class="fa-solid fa-chart-pie"></i></button>
                 <button type="button" data-f="open" class="px-1.5 py-1 rounded-md border border-slate-700 text-[10px] text-slate-300 hover:text-white" title="분석 탭에서 이 종목 자세히 보기"><i class="fa-solid fa-magnifying-glass-chart"></i></button>
                 <button type="button" data-f="focus" class="px-1.5 py-1 rounded-md border border-slate-700 text-[10px] text-slate-300 hover:text-white" title="이 칸만 크게"><i class="fa-solid fa-expand"></i></button>
+                <div data-f="etfMenu" class="hidden absolute z-30 right-0 top-full mt-1 w-64 max-h-72 overflow-y-auto bg-slate-950 border border-slate-700 rounded-lg shadow-xl p-2 space-y-2">
+                  ${ETF_GROUPS.map(g => `<div><div class="text-[10px] font-bold text-slate-500 mb-1">${g.g}</div><div class="flex flex-wrap gap-1">${g.items.map(it => `<button type="button" data-etf="${it[0]}" title="${it[1]}" class="px-1.5 py-0.5 rounded border border-slate-700 text-[11px] font-semibold text-slate-300 hover:text-white hover:border-fuchsia-500">${it[0]}</button>`).join('')}</div></div>`).join('')}
+                </div>
                 <div data-f="indMenu" class="hidden absolute z-30 right-0 top-full mt-1 w-40 bg-slate-950 border border-slate-700 rounded-lg shadow-xl p-1.5 space-y-0.5">
                   ${IND.map(d => `<label class="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-slate-800 text-[11px] text-slate-300 cursor-pointer"><input type="checkbox" data-ind="${d.k}" class="accent-fuchsia-500">${d.color ? `<span class="w-2 h-2 rounded-full" style="background:${d.color}"></span>` : '<span class="w-2"></span>'}${d.label}${d.intraOnly ? '<span class="text-slate-600 text-[9px] ml-auto">분봉</span>' : ''}</label>`).join('')}
                 </div>
@@ -16651,7 +16734,7 @@ ${digest}`;
           const p = { i, el, cfg: S.panels[i], data: null, hist: [], ha: null, ind: {}, tix: null, nv: 100, right: 0, w: 0, h: 0, dpr: 1, hover: -1, mx: 0, my: 0, raf: 0, loading: false, err: '', pointers: new Map(), drag: null, seq: 0, sugTimer: null, sugSeq: 0 };
           p.cv = el.querySelector('[data-f=cv]'); p.wrap = el.querySelector('[data-f=wrap]'); p.msg = el.querySelector('[data-f=msg]');
           p.title = el.querySelector('[data-f=title]'); p.inp = el.querySelector('[data-f=ticker]'); p.sug = el.querySelector('[data-f=sug]');
-          p.indMenu = el.querySelector('[data-f=indMenu]');
+          p.indMenu = el.querySelector('[data-f=indMenu]'); p.etfMenu = el.querySelector('[data-f=etfMenu]');
           P.push(p);
           wirePanel(p);
         }
@@ -16681,12 +16764,18 @@ ${digest}`;
       function wireToolbar(root) {
         root.querySelectorAll('[data-mc]').forEach(b => b.addEventListener('click', () => {
           const a = b.dataset.mc;
-          if (a === 'preset-tickers') setAll(PRESETS.tickers());
+          if (a === 'preset-tickers') setAll(PRESETS.tickers(S.n));
           else if (a === 'preset-frames') {
             const base = (typeof currentAnalysisData !== 'undefined' && currentAnalysisData && currentAnalysisData.ticker) || P[0].cfg.t || 'SPY';
-            setAll(PRESETS.frames(base));
-          } else if (a === 'refresh') P.forEach(p => loadPanel(p));
+            setAll(PRESETS.frames(base, S.n));
+          } else if (a === 'refresh') vis().forEach(p => loadPanel(p));
+          else if (a === 'full') { S.full = !S.full; applyFocus(); }
         }));
+        root.querySelectorAll('[data-mcn]').forEach(b => b.addEventListener('click', () => setLayout(+b.dataset.mcn)));
+        root.querySelector('#mcEtf').addEventListener('change', e => {
+          const k = e.target.value; e.target.value = '';
+          if (k) setAll(PRESETS.etf(k, S.n));
+        });
         root.querySelector('#mcAllForm').addEventListener('submit', async e => {
           e.preventDefault();
           const inp = root.querySelector('#mcAllInput');
@@ -16695,42 +16784,81 @@ ${digest}`;
           const t = await resolve(raw);
           inp.value = '';
           S.panels.forEach(c => { c.t = t; });
-          P.forEach(p => { p.cfg = S.panels[p.i]; syncControls(p); loadPanel(p); });
+          P.forEach(p => { p.cfg = S.panels[p.i]; syncControls(p); });
+          vis().forEach(loadPanel);
           save();
           appSetSymbol(t, 'multi');
         });
         root.querySelector('#mcSync').addEventListener('change', e => { S.sync = e.target.checked; save(); if (!S.sync) clearHover(); });
         root.querySelector('#mcH').addEventListener('change', e => {
           S.h = +e.target.value; save();
-          P.forEach(p => { p.wrap.style.height = S.h + 'px'; resizePanel(p); });
+          applyFocus();
         });
         root.querySelector('#mcAllIv').addEventListener('change', e => {
           const v = e.target.value; e.target.value = '';
           if (!v) return;
           S.panels.forEach(c => { c.iv = v; });
-          P.forEach(p => { syncControls(p); loadPanel(p); });
+          P.forEach(syncControls);
+          vis().forEach(loadPanel);
           save();
         });
-        document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.focus >= 0 && activeAppTab === 'multi') { S.focus = -1; applyFocus(); } });
+        document.addEventListener('keydown', e => {
+          if (e.key !== 'Escape' || activeAppTab !== 'multi') return;
+          if (S.focus >= 0) { S.focus = -1; applyFocus(); }
+          else if (S.full) { S.full = false; applyFocus(); }
+        });
         document.addEventListener('click', e => {
           if (!e.target.closest('[data-f=indMenu]') && !e.target.closest('[data-f=indBtn]')) P.forEach(p => p.indMenu.classList.add('hidden'));
+          if (!e.target.closest('[data-f=etfMenu]') && !e.target.closest('[data-f=etfBtn]')) P.forEach(p => p.etfMenu.classList.add('hidden'));
           if (!e.target.closest('[data-f=sug]') && !e.target.closest('[data-f=ticker]')) P.forEach(p => p.sug.classList.add('hidden'));
         });
       }
 
       function setAll(cfgs) {
-        S.panels = cfgs;
-        P.forEach(p => { p.cfg = S.panels[p.i]; syncControls(p); loadPanel(p); });
+        cfgs.forEach((c, i) => { S.panels[i] = c; });
+        P.forEach(p => { p.cfg = S.panels[p.i]; syncControls(p); });
+        vis().forEach(loadPanel);
         save();
       }
+      function setLayout(n) {
+        if (!LAYOUTS.includes(n) || n === S.n) return;
+        S.n = n; S.focus = -1; save();
+        applyFocus();
+        vis().forEach(p => { if (!p.hist.length && !p.loading) loadPanel(p); });
+      }
 
+      // 열 수: 화면 폭에 맞춰 정한다 (2분할은 넓은 화면에서 좌우 비교, 좁은 화면에서는 위아래)
+      function colsFor(k) {
+        const W = window.innerWidth;
+        if (k <= 1) return 1;
+        if (k === 2) return W >= 640 ? 2 : 1;
+        if (k <= 4) return W >= 480 ? 2 : 1;
+        return W >= 1100 ? 3 : (W >= 480 ? 2 : 1);
+      }
+      // 분할 수 · 한 칸 확대 · 전체화면 상태를 화면에 반영한다
       function applyFocus() {
+        const root = document.getElementById('multiRoot'), stage = root && root.querySelector('#mcStage'), grid = root && root.querySelector('#mcGrid');
+        if (!stage || !grid) return;
+        const shown = P.filter(p => S.focus >= 0 ? p.i === S.focus : p.i < S.n);
+        const cols = colsFor(shown.length), rows = Math.ceil(shown.length / cols);
+        grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        grid.style.gridTemplateRows = S.full ? `repeat(${rows}, minmax(0, 1fr))` : '';
+        grid.className = 'grid gap-3' + (S.full ? ' flex-1 min-h-0' : '');
+        stage.className = S.full ? 'fixed inset-0 z-[80] bg-[#0b1220] p-2 sm:p-3 flex flex-col gap-2 overflow-hidden' : 'space-y-3';
+        const help = root.querySelector('#mcHelp'); if (help) help.classList.toggle('hidden', S.full);
+        const bar = root.querySelector('#mcBar'); if (bar) bar.classList.toggle('shrink-0', S.full);
+        const fb = root.querySelector('#mcFullBtn');
+        if (fb) { fb.querySelector('i').className = S.full ? 'fa-solid fa-minimize mr-1' : 'fa-solid fa-maximize mr-1'; fb.querySelector('span').textContent = S.full ? '전체화면 종료' : '전체화면'; }
+        const lab = root.querySelector('#mcLabel'); if (lab) lab.textContent = `${S.n}분할${S.n === 2 ? ' (좌우 비교)' : ''}${S.full ? ' · 전체화면' : ''}`;
+        root.querySelectorAll('[data-mcn]').forEach(b => { const on = +b.dataset.mcn === S.n; b.className = `px-2 py-1.5 text-[11px] font-semibold ${on ? 'bg-fuchsia-600 text-white' : 'text-slate-400 hover:text-white'}`; });
         P.forEach(p => {
-          p.el.classList.toggle('hidden', S.focus >= 0 && S.focus !== p.i);
-          p.el.classList.toggle('lg:col-span-2', S.focus === p.i);
+          const on = shown.includes(p);
+          p.el.classList.toggle('hidden', !on);
+          p.el.classList.toggle('min-h-0', S.full);
           const b = p.el.querySelector('[data-f=focus] i');
           if (b) b.className = S.focus === p.i ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
-          p.wrap.style.height = (S.focus === p.i ? Math.max(S.h, Math.min(640, Math.round(window.innerHeight * 0.68))) : S.h) + 'px';
+          p.wrap.classList.toggle('flex-1', S.full); p.wrap.classList.toggle('min-h-0', S.full);
+          p.wrap.style.height = S.full ? '' : (S.focus === p.i ? Math.max(S.h, Math.min(640, Math.round(window.innerHeight * 0.68))) : S.h) + 'px';
         });
         setTimeout(() => P.forEach(resizePanel), 30);
       }
@@ -16782,13 +16910,24 @@ ${digest}`;
         el.querySelector('[data-f=type]').addEventListener('change', e => { p.cfg.type = e.target.value; save(); prepare(p); fit(p, false); draw(p); });
         el.querySelector('[data-f=indBtn]').addEventListener('click', () => {
           const open = p.indMenu.classList.contains('hidden');
-          P.forEach(q => q.indMenu.classList.add('hidden'));
+          P.forEach(q => { q.indMenu.classList.add('hidden'); q.etfMenu.classList.add('hidden'); });
           p.indMenu.classList.toggle('hidden', !open);
         });
         p.indMenu.addEventListener('change', e => {
           const cb = e.target.closest('[data-ind]');
           if (!cb) return;
           p.cfg.ind[cb.dataset.ind] = cb.checked; save(); draw(p);
+        });
+        el.querySelector('[data-f=etfBtn]').addEventListener('click', () => {
+          const open = p.etfMenu.classList.contains('hidden');
+          P.forEach(q => { q.etfMenu.classList.add('hidden'); q.indMenu.classList.add('hidden'); });
+          p.etfMenu.classList.toggle('hidden', !open);
+        });
+        p.etfMenu.addEventListener('click', e => {
+          const b = e.target.closest('[data-etf]');
+          if (!b) return;
+          p.etfMenu.classList.add('hidden');
+          setTicker(p, b.dataset.etf);
         });
         el.querySelector('[data-f=open]').addEventListener('click', () => { if (typeof quickSearch === 'function') quickSearch(p.cfg.t); });
         el.querySelector('[data-f=focus]').addEventListener('click', () => { S.focus = S.focus === p.i ? -1 : p.i; applyFocus(); });
@@ -17223,36 +17362,40 @@ ${digest}`;
 
       // ---------- 외부 진입 ----------
       function onOpen() {
-        if (!built) { load(); built = buildSkeleton(); if (built) P.forEach(p => loadPanel(p)); return; }
+        if (!built) { load(); built = buildSkeleton(); if (built) vis().forEach(p => loadPanel(p)); return; }
         const root = document.getElementById('multiRoot');
-        if (root && !root.querySelector('#mcGrid')) { built = buildSkeleton(); if (built) P.forEach(p => loadPanel(p)); return; }
+        if (root && !root.querySelector('#mcGrid')) { built = buildSkeleton(); if (built) vis().forEach(p => loadPanel(p)); return; }
+        applyFocus();
         setTimeout(() => P.forEach(p => { p.w = 0; resizePanel(p); }), 30); // 숨겨져 있던 동안 폭이 0 이었을 수 있다
-        P.forEach(p => { if (!p.hist.length && !p.loading) loadPanel(p); });
+        vis().forEach(p => { if (!p.hist.length && !p.loading) loadPanel(p); });
       }
       if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.multi = onOpen;
-      window.addEventListener('resize', () => { if (built) { P.forEach(p => resizePanel(p)); if (S.focus >= 0) applyFocus(); } });
+      window.addEventListener('resize', () => { if (built) applyFocus(); });
       // 외부(관심종목 탭)에서 종목을 보낼 때: 최대 4개를 같은 봉(일봉)으로 채운다. 4개 미만이면 나머지는 지수 ETF 로 채워 중복을 피한다.
       window.multiSetSymbols = function (arr) {
         const list = [];
-        (Array.isArray(arr) ? arr : []).forEach(s => { const t = String(s || '').trim().toUpperCase().slice(0, 20); if (t && !list.includes(t) && list.length < 4) list.push(t); });
+        (Array.isArray(arr) ? arr : []).forEach(s => { const t = String(s || '').trim().toUpperCase().slice(0, 20); if (t && !list.includes(t) && list.length < MAXP) list.push(t); });
         if (!list.length) return [];
-        ['SPY', 'QQQ', 'IWM', 'DIA'].forEach(t => { if (list.length < 4 && !list.includes(t)) list.push(t); });
-        const cfgs = list.map(t => mkCfg(t, 'D'));
-        if (built && P.length === 4) { setAll(cfgs); }
-        else { load(); S.panels = cfgs; save(); }
+        if (!S.panels) load();
+        const n = Math.max(S.n, LAYOUTS.find(x => x >= list.length) || MAXP);   // 현재 분할 수로 모자라면 한 단계 키운다
+        DEF_T.concat(['VTI', 'XLF']).forEach(t => { if (list.length < n && !list.includes(t)) list.push(t); });
+        const cfgs = list.slice(0, n).map(t => mkCfg(t, 'D'));
+        S.n = n; S.focus = -1;
+        if (built && P.length === MAXP) { setAll(cfgs); applyFocus(); }
+        else { cfgs.forEach((c, i) => { S.panels[i] = c; }); save(); }
         appSetSymbol(list[0], 'multi');
-        return list.slice(0, 4);
+        return list.slice(0, n);
       };
       // 다른 탭에서 고른 종목을 멀티 차트가 열릴 때 반영한다.
-      // 한 종목 4시간대 보기(4칸이 같은 종목)면 4칸 모두, 4종목 보기면 이미 있는 종목이 아닐 때 첫 칸만 바꾼다.
+      // 한 종목 시간대 보기(보이는 칸이 모두 같은 종목)면 모든 칸, 여러 종목 보기면 이미 있는 종목이 아닐 때 첫 칸만 바꾼다.
       APP_SYM_APPLY.multi = sym => {
         if (!S.panels) load();
-        const cfgs = S.panels;
-        if (!cfgs || cfgs.some(c => c.t === sym)) return;
-        const targets = cfgs.every(c => c.t === cfgs[0].t) ? [0, 1, 2, 3] : [0];
+        const cfgs = S.panels, shown = cfgs.slice(0, S.n);
+        if (!cfgs || shown.some(c => c.t === sym)) return;
+        const targets = shown.every(c => c.t === shown[0].t) ? cfgs.map((_, i) => i) : [0];
         targets.forEach(i => { if (cfgs[i]) cfgs[i].t = sym; });
         save();
-        if (built && P.length === 4) targets.forEach(i => { const p = P[i]; p.cfg = cfgs[i]; syncControls(p); loadPanel(p); });
+        if (built && P.length === MAXP) targets.filter(i => i < S.n).forEach(i => { const p = P[i]; p.cfg = cfgs[i]; syncControls(p); loadPanel(p); });
       };
       window.MC_DEBUG = { S, P };
     })();
