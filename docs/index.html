@@ -1613,7 +1613,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.22.0';
+    const APP_VERSION = '1.22.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -5950,10 +5950,10 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         analyze: analyzeBrooks
       },
       bdw4: {
-        name: '불단왕 통합 (인터뷰 + 4강)', short: '불단왕 통합', icon: 'fa-toolbox', color: 'emerald',
-        tag: '이평선 · VWMA · 매물대 · RSI', desc: '이평선 7·25·50·100·200(50·200 굵게) + VWMA100 + POC·VAH·VAL + RSI, 근거가 겹치는 자리 점검 (Stochastic은 지표 목록에서 켜기)', source: '불단왕 인터뷰 세팅 + 강의 4강 · 5강',
+        name: '불단왕 통합', short: '불단왕 통합', icon: 'fa-toolbox', color: 'emerald',
+        tag: '이평선 · VWMA · 매물대 · RSI', desc: '이평선 7·25·50·100·200(50·200 굵게) + VWMA100 + POC·VAH·VAL + RSI', source: '불단왕 인터뷰 세팅 + 강의 4강 · 5강',
         interval: 'D', chartType: 'candles', range: '1Y',
-        studies: [{ id: 'sma', params: { period: 7 }, color: '#a78bfa', width: 1.2 }, { id: 'sma', params: { period: 25 }, color: '#fb923c', width: 1.2 }, { id: 'sma', params: { period: 50 }, color: '#4ade80', width: 2.4 }, { id: 'sma', params: { period: 100 }, color: '#38bdf8', width: 1.2 }, { id: 'sma', params: { period: 200 }, color: '#f87171', width: 2.4 }, { id: 'vwma', params: { period: 100 }, color: '#f8fafc', width: 2.6 }, { id: 'volume', params: { ma: 50 } }, { id: 'rsi', params: {} }, { id: 'stoch', params: {}, hidden: true }],
+        studies: [{ id: 'sma', params: { period: 7 }, color: '#a78bfa', width: 1.2 }, { id: 'sma', params: { period: 25 }, color: '#fb923c', width: 1.2 }, { id: 'sma', params: { period: 50 }, color: '#4ade80', width: 2.4 }, { id: 'sma', params: { period: 100 }, color: '#38bdf8', width: 1.2 }, { id: 'sma', params: { period: 200 }, color: '#f87171', width: 2.4 }, { id: 'vwma', params: { period: 100 }, color: '#f8fafc', width: 2.6 }, { id: 'volume', params: { ma: 50 } }, { id: 'rsi', params: {} }, { id: 'stoch', params: {}, hidden: true }, { id: 'bb', params: {}, hidden: true }],
         analyze: analyzeBdw4
       },
       turtle: {
