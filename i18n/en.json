@@ -5474,5 +5474,6 @@
 "평가손익(금액)": "Unrealized P/L (amount)",
 "평균 매수가": "Average buy price",
 "평균단가법으로 계산하고 수수료·세금·환율은 반영하지 않아요. 통화가 다른 종목은 합치지 않고 따로 보여 줘요. 이 기록은 이 브라우저에만 저장됩니다.": "Calculated with average cost; fees, taxes and exchange rates are not included. Stocks in different currencies are shown separately, not added together. These records are stored only in this browser.",
-"하면, 산 금액·평가손익·수익률이 자동으로 계산돼요.": "and the amount invested, P/L and return are calculated automatically."
+"하면, 산 금액·평가손익·수익률이 자동으로 계산돼요.": "and the amount invested, P/L and return are calculated automatically.",
+"손절·포지션 크기 계산기와 매매일지": "Stop-loss and position-size calculators and trading journal"
 }

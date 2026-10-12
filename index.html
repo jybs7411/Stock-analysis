@@ -886,6 +886,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       <button type="button" role="tab" aria-selected="false" aria-controls="view-market" onclick="switchAppTab('market')" id="tabBtn-market" title="시장 · 매크로" class="subtab hidden"><i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장·매크로</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-fx" onclick="switchAppTab('fx')" id="tabBtn-fx" title="환율" class="subtab hidden"><i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-calendar" onclick="switchAppTab('calendar')" id="tabBtn-calendar" title="금융 달력" class="subtab hidden"><i class="fa-solid fa-calendar-days text-rose-400"></i><span>금융 달력</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-bdwtools" onclick="switchAppTab('bdwtools')" id="tabBtn-bdwtools" title="손절·포지션 크기 계산기와 매매일지" class="subtab hidden"><i class="fa-solid fa-calculator text-orange-400"></i><span>계산기 · 매매일지</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-bdw" onclick="switchAppTab('bdw')" id="tabBtn-bdw" title="불단왕 매매법" class="subtab hidden"><i class="fa-solid fa-fire text-orange-400"></i><span>불단왕</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-prevday" onclick="switchAppTab('prevday')" id="tabBtn-prevday" title="전일 복기" class="subtab hidden"><i class="fa-solid fa-clock-rotate-left text-violet-400"></i><span>전일 복기</span></button>
     </div>
@@ -1981,12 +1982,15 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         <div class="mt-4 flex flex-wrap gap-2" id="bdwSubTabs">
           <button type="button" data-bdw="analyze" onclick="bdwSwitch('analyze')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-magnifying-glass-chart mr-1.5"></i>종목 분석 (불단왕식 판독)</button>
           <button type="button" data-bdw="notes" onclick="bdwSwitch('notes')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-book-open mr-1.5"></i>강의 정리 (1~6강 + 인터뷰)</button>
-          <button type="button" data-bdw="tools" onclick="bdwSwitch('tools')" class="px-4 py-2 rounded-xl text-xs sm:text-sm border transition"><i class="fa-solid fa-calculator mr-1.5"></i>계산기 · 매매일지</button>
         </div>
       </section>
       <div id="bdwPane-analyze"><div id="bdwAnalyzeRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div></div>
       <div id="bdwPane-notes" class="hidden"><div id="bdwNotesRoot"></div></div>
-      <div id="bdwPane-tools" class="hidden"><div id="bdwToolsRoot"></div></div>
+    </div>
+
+    <!-- 계산기 · 매매일지 (module: mod-bdw-notes) — 내 종목 허브 -->
+    <div id="view-bdwtools" class="hidden space-y-5">
+      <div id="bdwToolsRoot"></div>
     </div>
 
     <!-- TAB 3: 전일 복기 (module: prevday) -->
@@ -2170,6 +2174,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     // 탭 정의: 각 탭은 view-<id> 영역과 tabBtn-<id> 버튼을 가진다. 모듈은 TAB_HOOKS[id] 에 '탭이 열릴 때' 실행할 함수를 등록한다.
     const APP_TABS = {
       watch: { on: 'bg-yellow-950 text-yellow-300 border-yellow-700/80 shadow-md shadow-yellow-950/50' },
+      bdwtools: { on: 'bg-orange-950 text-orange-300 border-orange-700/80 shadow-md shadow-orange-950/50' },
       holdings: { on: 'bg-emerald-950 text-emerald-300 border-emerald-700/80 shadow-md shadow-emerald-950/50' },
       analysis: { on: 'bg-cyan-950 text-cyan-300 border-cyan-700/80 shadow-md shadow-cyan-950/50' },
       revision: { on: 'bg-lime-950 text-lime-300 border-lime-700/80 shadow-md shadow-lime-950/50' },
@@ -2185,7 +2190,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.29.0';
+    const APP_VERSION = '1.30.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2260,11 +2265,11 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
     // 허브(상단 5개) → 보조 탭(둘째 줄). 탭 id·view-<id>·TAB_HOOKS 는 그대로, 내비게이션만 묶는다.
     const APP_HUBS = [
-      { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch', 'holdings'] },
-      { id: 'analyze', label: '분석', short: '분석', icon: 'fa-users-viewfinder text-cyan-400', on: APP_TABS.analysis.on, tabs: ['analysis', 'multi'] },
+      { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch', 'holdings', 'bdwtools'] },
+      { id: 'analyze', label: '분석', short: '분석', icon: 'fa-users-viewfinder text-cyan-400', on: APP_TABS.analysis.on, tabs: ['analysis', 'multi', 'prevday'] },
       { id: 'discover', label: '발굴', short: '발굴', icon: 'fa-filter text-amber-400', on: APP_TABS.screener.on, tabs: ['screener', 'revision'] },
       { id: 'market', label: '시장', short: '시장', icon: 'fa-earth-americas text-sky-400', on: APP_TABS.market.on, tabs: ['market', 'fx', 'calendar'] },
-      { id: 'method', label: '매매법', short: '매매법', icon: 'fa-book-open text-orange-400', on: APP_TABS.bdw.on, tabs: ['bdw', 'prevday'] }
+      { id: 'method', label: '매매법', short: '매매법', icon: 'fa-book-open text-orange-400', on: APP_TABS.bdw.on, tabs: ['bdw'] }
     ];
     const hubOf = tab => APP_HUBS.find(h => h.tabs.includes(tab)) || APP_HUBS[1];
     const HUB_LAST_KEY = 'pentanalyst_hub_last_v1';
@@ -10621,9 +10626,9 @@ EPRT|Essential Properties Realty Trust|E
     window.BDW_HOOKS = window.BDW_HOOKS || {};
     let bdwPane = 'analyze';
     function bdwSwitch(pane) {
-      if (!['analyze', 'notes', 'tools'].includes(pane)) pane = 'analyze';
+      if (!['analyze', 'notes'].includes(pane)) pane = 'analyze';
       bdwPane = pane;
-      ['analyze', 'notes', 'tools'].forEach(p => {
+      ['analyze', 'notes'].forEach(p => {
         const el = document.getElementById(`bdwPane-${p}`);
         if (el) el.classList.toggle('hidden', p !== pane);
       });
@@ -10632,11 +10637,11 @@ EPRT|Essential Properties Realty Trust|E
         b.className = `px-4 py-2 rounded-xl text-xs sm:text-sm border transition ${on ? 'bg-orange-950 text-orange-300 border-orange-700/80 font-bold shadow' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700 font-semibold'}`;
       });
       if (pane === 'notes') bdwRenderNotes();
-      if (pane === 'tools') bdwRenderTools();
       const hook = window.BDW_HOOKS[pane];
       if (typeof hook === 'function') { try { hook(); } catch (e) { console.error('불단왕 패널 초기화 실패', e); } }
     }
     TAB_HOOKS.bdw = () => bdwSwitch(bdwPane);
+    TAB_HOOKS.bdwtools = () => bdwRenderTools();
 
     // ---------- 강의 정리 데이터 ----------
     // tag: all=코인·주식 공통 원칙 / stock=주식에 바로 적용 / coin=코인(선물) 전용
