@@ -2190,7 +2190,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.30.0';
+    const APP_VERSION = '1.31.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -4258,7 +4258,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         const atrA = h.length > 20 && typeof TA !== 'undefined' ? TA.atr(h, 14) : null;
         const atr = atrA ? atrA[atrA.length - 1] : null;
         const lows = h.slice(-20).map(c => c.low).filter(Number.isFinite);
-        RiskKit.render(body, { price: px, atr: Number.isFinite(atr) ? atr : null, low20: lows.length ? Math.min.apply(null, lows) : null, title: `${inp.upperTicker} 포지션 사이징 — 손절 거리로 수량 정하기` });
+        const wp = (typeof window.watchSymbols === 'function' ? window.watchSymbols() : []).find(x => x.sym === inp.upperTicker) || {};
+        RiskKit.render(body, { sym: inp.upperTicker, stop: wp.stop, goal: wp.goal, price: px, atr: Number.isFinite(atr) ? atr : null, low20: lows.length ? Math.min.apply(null, lows) : null, title: `${inp.upperTicker} 포지션 사이징 — 손절 거리로 수량 정하기` });
         body.dataset.sym = inp.upperTicker; body.dataset.px = String(px);
         sec.classList.remove('hidden');
       } catch (e) { console.error('포지션 사이징 카드 오류', e); sec.classList.add('hidden'); }
@@ -7968,7 +7969,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (d[mid].date <= date) lo = mid; else hi = mid - 1; }
         return lo;
       };
-      bdwLoadJournal().forEach(t => {
+      bdwResolve(bdwLoadJournal()).forEach(t => {
         if (String(t.ticker).toUpperCase() !== tk) return;
         const long = t.side !== 'short', i0 = idxOf(t.date), i1 = t.exit != null ? idxOf(t.exitDate || '') : -1;
         out.push({ t, long, i0, i1 });
@@ -10882,6 +10883,37 @@ EPRT|Essential Properties Realty Trust|E
     function bdwLoadJournal() { try { const a = JSON.parse(localStorage.getItem(BDW_JOURNAL_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
     function bdwSaveJournal(list) { try { localStorage.setItem(BDW_JOURNAL_KEY, JSON.stringify(list)); } catch (e) { showToast('저장 실패', '이 브라우저에서는 저장할 수 없습니다.', 'warning'); } }
 
+    // ---- 매매일지 ↔ 거래 장부(Ledger) 연결 ----
+    // 일지 항목에 lid(장부의 매도 거래 id) 또는 lbuy(장부의 매수 거래 id)가 있으면 진입가·청산가·날짜·수량·손익은 장부 값을 쓴다(감정·메모·스타일 같은 복기 내용만 일지에 저장).
+    // 장부에서 거래가 지워지면 일지에 남겨 둔 값을 그대로 보여 주고 '장부에서 삭제됨'으로 표시한다. 순수 해석 함수(테스트 대상).
+    function bdwResolve(list) {
+      if (!window.Ledger) return list;
+      const D = window.Ledger.derive(), closedBy = {}, buyBy = {};
+      D.closed.forEach(c => { if (c.tid != null) closedBy[c.tid] = c; });
+      window.Ledger.load().trades.forEach(t => { buyBy[t.id] = t; });
+      const claimed = new Set(list.map(t => t.lid).filter(x => x != null));
+      return list.map(t => {
+        const fromClosed = c => ({ ...t, entry: +c.entry.toFixed(4), exit: +c.exit.toFixed(4), date: c.entryDate || t.date, exitDate: c.exitDate, qty: c.qty, pnlPct: c.pnlPct, rlid: c.tid });
+        if (t.lid != null) { const c = closedBy[t.lid]; return c ? { ...fromClosed(c), linked: 'ok' } : { ...t, linked: 'lost' }; }
+        if (t.lbuy != null) {
+          const b = buyBy[t.lbuy];
+          if (!b) return { ...t, linked: 'lost' };
+          // 나중에 장부에서 이 매수가 청산됐다면(가져오기·직접 기록) 자동으로 이어 붙인다
+          const c = D.closed.find(x => x.sym === b.sym && x.entryDate === b.date && !claimed.has(x.tid));
+          if (c) { claimed.add(c.tid); return { ...fromClosed(c), linked: 'ok' }; }
+          return { ...t, entry: b.price, date: b.date, qty: b.qty, linked: 'open' };
+        }
+        return t;
+      });
+    }
+    // 아직 복기를 쓰지 않은 장부의 청산 거래(최근 순)
+    function bdwUnreviewed() {
+      if (!window.Ledger) return [];
+      const used = new Set(bdwResolve(bdwLoadJournal()).map(t => t.rlid).filter(x => x != null));
+      return window.Ledger.derive().closed.filter(c => c.tid != null && !used.has(c.tid)).reverse();
+    }
+    window.bdwUnreviewed = bdwUnreviewed;
+
     // 순수 계산 함수 (테스트 대상)
     function bdwRecoveryNeeded(lossPct) { return lossPct >= 100 ? null : (100 / (100 - lossPct) - 1) * 100; }
     function bdwLeveraged(movePct, lev) { return movePct * lev; }
@@ -10944,7 +10976,7 @@ EPRT|Essential Properties Realty Trust|E
       if (root.dataset.ready !== '1') {
         root.dataset.ready = '1';
         const card = (icon, color, title, desc, body) => `<section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 space-y-3"><div><h3 class="text-sm font-bold text-white"><i class="fa-solid ${icon} ${color} mr-2"></i>${title}</h3><p class="text-[11px] text-slate-500 mt-0.5 leading-snug">${desc}</p></div>${body}</section>`;
-        const inp = (id, label, val, ph = '', step = 'any') => `<label class="block text-[11px] text-slate-400">${label}<input id="${id}" type="number" step="${step}" value="${val}" placeholder="${ph}" oninput="bdwCalcAll()" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers text-xs outline-none focus:border-orange-400"></label>`;
+        const inp = (id, label, val, ph = '', step = 'any') => `<label class="block text-[11px] text-slate-400">${label}<input id="${id}" type="number" step="${step}" value="${val}" placeholder="${ph}" oninput="bdwCalcAll(this.id)" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers text-xs outline-none focus:border-orange-400"></label>`;
         root.innerHTML = `
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
             ${card('fa-arrow-rotate-left', 'text-rose-400', '복구 계산기 (3강)', '손실이 커질수록 원금 복구에 필요한 수익률은 기하급수적으로 커집니다. 강사 기준: −10% 넘으면 손절 결단, 최대 마지노선 −20%.',
@@ -10955,7 +10987,8 @@ EPRT|Essential Properties Realty Trust|E
                <div class="grid grid-cols-2 gap-3 text-[11px]"><div class="rounded-lg bg-slate-950/70 border border-slate-800 p-3"><div class="text-slate-500">내 계좌 손익</div><div id="bdwLevOut" class="text-xl font-bold font-mono-numbers">-</div></div><div class="rounded-lg bg-slate-950/70 border border-slate-800 p-3"><div class="text-slate-500">대략적인 청산 거리 (1/배율)</div><div id="bdwLevLiq" class="text-xl font-bold font-mono-numbers text-amber-300">-</div></div></div>
                <p id="bdwLevNote" class="text-[11px] text-slate-500 leading-snug"></p>`)}
             ${card('fa-scale-balanced', 'text-emerald-400', '손절 · 포지션 크기 계산기', '계좌의 몇 %를 잃을 각오인지 먼저 정하고, 손절선까지의 거리로 수량을 역산합니다. (진입가 > 손절가면 롱, 반대면 숏으로 계산)',
-              `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">${inp('bdwPsAcc', '계좌 규모', 10000, '예: 10000')}${inp('bdwPsRisk', '감수할 손실 (%)', 1, '예: 1')}${inp('bdwPsEntry', '진입가', 100)}${inp('bdwPsStop', '손절가', 92)}${inp('bdwPsTarget', '목표가 (선택)', 120)}</div>
+              `<div class="flex flex-wrap items-end gap-2"><label class="block text-[11px] text-slate-400 min-w-[10rem] flex-1">종목 불러오기 (관심종목·보유종목)<select id="bdwPsSym" onchange="bdwPsLoad(this.value)" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs outline-none"><option value="">직접 입력</option></select></label><button type="button" id="bdwPsSave" onclick="bdwPsSaveTargets()" class="min-h-9 px-3 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[11px] text-sky-300 font-semibold">이 손절·목표를 종목에 저장</button></div>
+               <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">${inp('bdwPsAcc', '계좌 규모 (모든 계산기와 공유)', bdwKit().equity || 10000, '예: 10000')}${inp('bdwPsRisk', '감수할 손실 (%)', bdwKit().riskPct, '예: 1')}${inp('bdwPsEntry', '진입가', 100)}${inp('bdwPsStop', '손절가', 92)}${inp('bdwPsTarget', '목표가 (선택)', 120)}</div>
                <div id="bdwPsOut" class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]"></div><p id="bdwPsWarn" class="text-[11px] leading-snug"></p>`)}
             ${card('fa-layer-group', 'text-sky-400', '분할 매수 플래너 (물타기와 구분)', '계획된 분할 매수는 매물대 같은 근거 가격에 미리 정해 둔 금액으로. 평균 단가와 손절 시 손실을 먼저 계산해 보세요.',
               `<div class="space-y-1.5" id="bdwAvgRows">${[[100, 500], [95, 500], [90, 1000]].map((r, i) => `<div class="grid grid-cols-2 gap-2">${inp('bdwAvgP' + i, `${i + 1}차 가격`, r[0])}${inp('bdwAvgA' + i, `${i + 1}차 금액`, r[1])}</div>`).join('')}</div>
@@ -10966,8 +10999,8 @@ EPRT|Essential Properties Realty Trust|E
                <div id="bdwAsyOut" class="grid grid-cols-2 gap-2 text-[11px]"></div>
                <p class="text-[11px] text-slate-500 leading-snug">롱은 가격이 오르면 이익이 무한, 최대 손실은 −100%. 숏은 가격이 0이 되어도 최대 이익 +100%, 오르면 손실이 무한 → 숏은 과열 구간의 단기 역추세·헷징용으로만.</p>`)}
             ${card('fa-gauge-high', 'text-rose-400', '하루 운영 규칙 점검 (6강)', '손실 한도를 미리 정하고 오늘 상태를 입력하면 중단해야 하는지 알려 줍니다. 비율은 본인 기준으로 정하세요 (강사 예시: 1회 2% · 하루 10% · 월 30%).',
-              `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${inp('bdwRlSeed', '운용 시드', 10000)}${inp('bdwRlTrade', '1회 최대 손실 (%)', 0.5)}${inp('bdwRlDay', '하루 한도 (%)', 2)}${inp('bdwRlMonth', '월 한도 (%)', 6)}</div>
-               <div class="grid grid-cols-3 gap-3">${inp('bdwRlDayPnl', '오늘 실현 손익 (금액)', 0)}${inp('bdwRlMonPnl', '이번 달 실현 손익 (금액)', 0)}${inp('bdwRlStreak', '연속 손절 횟수', 0, '', '1')}</div>
+              `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${inp('bdwRlSeed', '운용 시드 (= 계좌 규모)', bdwKit().equity || 10000)}${inp('bdwRlTrade', '1회 최대 손실 (%)', 0.5)}${inp('bdwRlDay', '하루 한도 (%)', 2)}${inp('bdwRlMonth', '월 한도 (%)', 6)}</div>
+               <div class="grid grid-cols-3 gap-3">${inp('bdwRlDayPnl', '오늘 실현 손익 (금액) · 장부 자동', bdwLedgerPnl().day)}${inp('bdwRlMonPnl', '이번 달 실현 손익 (금액) · 장부 자동', bdwLedgerPnl().month)}${inp('bdwRlStreak', '연속 손절 횟수', 0, '', '1')}</div>
                <div id="bdwRlOut" class="space-y-1.5 text-xs"></div>`)}
             ${card('fa-clipboard-question', 'text-sky-400', '7가지 필수 질문 (6강, 직접 체크)', '나만의 시스템을 확립하기 위한 질문. 종목 분석 탭이 ①~⑥ 중 계산 가능한 항목을 자동 판정합니다.',
               `<div id="bdwQ7" class="space-y-1.5 text-xs text-slate-300">${['현재 장세는 추세장인가, 횡보장인가? (추세 채널 / 박스권 상하단)', '기준 시간축은 무엇인가? (15분봉 진입이면 수십 분 내 종료)', '어떤 기술적 근거가 중첩되는 자리인가? (매물대·VWMA·이평선 지지 등)', '캔들과 거래량의 반전 반응이 실제 확인되었는가?', '내 시나리오가 틀리면 어디서 손절할 것인가?', '맞았을 때 어디서 분할 익절해 수익을 확정할 것인가?', '오늘의 매매를 언제 중단하고 끝낼 것인가?'].map((t, i) => `<label class="flex items-start gap-2 rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-2 cursor-pointer"><input type="checkbox" class="mt-0.5 accent-sky-500" onchange="bdwQ7Update()"><span>${i + 1}. ${t}</span></label>`).join('')}</div>
@@ -10980,6 +11013,7 @@ EPRT|Essential Properties Realty Trust|E
             <div class="flex flex-wrap items-center justify-between gap-2"><div><h3 class="text-sm font-bold text-white"><i class="fa-solid fa-book-journal-whills text-orange-400 mr-2"></i>매매일지 (3강)</h3>
               <p class="text-[11px] text-slate-500 mt-0.5">진입·청산 이유와 시장 상황, 무엇보다 <strong class="text-orange-300">당시의 감정 상태</strong>를 기록해 어떤 감정에서 실수하는지 찾아내는 것이 목적입니다. 이 브라우저에만 저장됩니다.</p></div>
               <div class="flex gap-2 text-xs"><button type="button" onclick="bdwJournalExport()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300"><i class="fa-solid fa-file-csv mr-1"></i>CSV 내보내기</button></div></div>
+            <div id="bdwJTodo"></div>
             <form id="bdwJForm" onsubmit="bdwJournalAdd(event)" class="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] text-slate-400">
               <label>날짜<input id="bdwJDate" type="date" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs outline-none focus:border-orange-400"></label>
               <label>종목<input id="bdwJTicker" type="text" placeholder="NVDA" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs outline-none focus:border-orange-400 uppercase"></label>
@@ -10989,6 +11023,10 @@ EPRT|Essential Properties Realty Trust|E
               <label>청산가 (미청산이면 비움)<input id="bdwJExit" type="number" step="any" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers text-xs outline-none focus:border-orange-400"></label>
               <label>청산일 (청산했다면)<input id="bdwJExitDate" type="date" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs outline-none focus:border-orange-400"></label>
               <label>손절가<input id="bdwJStop" type="number" step="any" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers text-xs outline-none focus:border-orange-400"></label>
+              <label>수량 (장부 연동용, 선택)<input id="bdwJQty" type="number" step="any" min="0" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers text-xs outline-none focus:border-orange-400"></label>
+              <label class="flex items-end gap-2 pb-1.5 text-slate-300"><input id="bdwJLedger" type="checkbox" checked class="accent-orange-500 w-4 h-4"><span>수량을 넣으면 보유종목 장부에도 기록 (롱만)</span></label>
+              <input type="hidden" id="bdwJLid">
+              <div id="bdwJLink" class="hidden col-span-2 md:col-span-4 rounded-lg border border-sky-800 bg-sky-950/30 px-3 py-2 text-xs text-sky-200 flex flex-wrap items-center gap-2"></div>
               <label>시장 상황<select id="bdwJMarket" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs outline-none"><option>정배열 상승장</option><option>역배열 하락장</option><option>박스권 횡보</option><option>급등락 변동성</option></select></label>
               <div class="col-span-2 md:col-span-4"><div class="mb-1">당시 감정 상태 (해당되는 것 모두)</div><div class="flex flex-wrap gap-1.5" id="bdwJEmos">${BDW_EMOTIONS.map(e => `<label class="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-950 text-slate-300 cursor-pointer has-[:checked]:bg-orange-950 has-[:checked]:border-orange-600 has-[:checked]:text-orange-200"><input type="checkbox" value="${e}" class="hidden">${e}</label>`).join('')}</div></div>
               <div class="col-span-2 md:col-span-4 space-y-1">
@@ -11006,11 +11044,54 @@ EPRT|Essential Properties Realty Trust|E
         document.getElementById('bdwJDate').value = new Date().toISOString().slice(0, 10);
         bdwChkUpdate(); bdwQ7Update();
       }
+      // 열 때마다: 공유 설정(계좌·허용 손실)·장부의 오늘/이번 달 실현손익·종목 목록을 최신으로
+      { const k = bdwKit(), pnl = bdwLedgerPnl(), put = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el && v !== null && v !== undefined && v !== '') el.value = v; };
+        put('bdwPsAcc', k.equity); put('bdwRlSeed', k.equity); put('bdwPsRisk', k.riskPct); put('bdwRlDayPnl', pnl.day); put('bdwRlMonPnl', pnl.month); bdwPsRefreshOptions(); }
       bdwCalcAll();
       bdwJournalRender();
     }
 
-    function bdwCalcAll() {
+    // 계좌 규모·허용 손실은 앱 전체가 공유하는 설정(RiskKit)이 단일 출처. 장부의 오늘·이번 달 실현손익은 하루 운영 규칙 점검에 자동으로 채운다.
+    function bdwKit() { return window.RiskKit ? window.RiskKit.cfg() : { equity: null, riskPct: 1 }; }
+    function bdwLedgerPnl() {
+      const none = { day: 0, month: 0 };
+      if (!window.Ledger) return none;
+      const today = new Date().toISOString().slice(0, 10), ym = today.slice(0, 7), cl = window.Ledger.derive().closed;
+      const usd = cl.filter(c => window.Ledger.curOfSym(c.sym) === 'USD'), use = usd.length ? usd : cl;   // 통화가 섞이면 달러 거래 기준
+      const sum = f => Math.round(use.filter(f).reduce((a, c) => a + (c.exit - c.entry) * c.qty, 0) * 100) / 100;
+      return { day: sum(c => c.exitDate === today), month: sum(c => String(c.exitDate).slice(0, 7) === ym) };
+    }
+    function bdwPsRefreshOptions() {
+      const sel = document.getElementById('bdwPsSym'); if (!sel) return;
+      const held = window.Ledger ? window.Ledger.derive().holdings : [], seen = new Set(), opts = [];
+      held.forEach(h => { seen.add(h.sym); opts.push(`<option value="${escapeHtml(h.sym)}">${escapeHtml(h.sym)} · 보유 ${h.qty}주</option>`); });
+      (typeof window.watchSymbols === 'function' ? window.watchSymbols() : []).forEach(w => { if (!seen.has(w.sym)) opts.push(`<option value="${escapeHtml(w.sym)}">${escapeHtml(w.sym)} · 관심</option>`); });
+      const cur = sel.value; sel.innerHTML = '<option value="">직접 입력</option>' + opts.join(''); sel.value = cur;
+    }
+    function bdwPsLoad(sym) {
+      if (!sym) return;
+      const h = window.Ledger ? window.Ledger.derive().holdings.find(x => x.sym === sym) : null;
+      const w = (typeof window.watchSymbols === 'function' ? window.watchSymbols() : []).find(x => x.sym === sym) || {};
+      const q = typeof window.watchQuote === 'function' ? window.watchQuote(sym) : null;
+      const set = (id, v) => { const el = document.getElementById(id); if (el && v !== null && v !== undefined && Number.isFinite(v)) el.value = Math.round(v * 10000) / 10000; };
+      set('bdwPsEntry', h ? h.avg : (q ? q.price : null)); set('bdwPsStop', w.stop); set('bdwPsTarget', w.goal);
+      bdwCalcAll();
+      showToast('불러왔어요', `${sym}: ${h ? '내 평균 매수가' : '현재가'}를 진입가로, 저장된 손절·목표가를 채웠어요.`, 'info');
+    }
+    function bdwPsSaveTargets() {
+      const sym = (document.getElementById('bdwPsSym') || {}).value;
+      if (!sym) { showToast('종목을 먼저 골라 주세요', '위의 "종목 불러오기"에서 종목을 고르면 이 손절·목표를 그 종목에 저장해요.', 'info'); return; }
+      const stop = bdwNum('bdwPsStop'), goal = bdwNum('bdwPsTarget');
+      if (typeof window.watchSetTargets === 'function' && window.watchSetTargets(sym, { stop, goal })) showToast('저장했어요', `${sym}의 손절가·목표가를 관심종목 가격 계획에 저장했어요.`, 'success');
+    }
+    function bdwCalcAll(srcId) {
+      if (window.RiskKit && srcId) {       // 계좌 규모·허용 손실을 바꾸면 공유 설정에 저장하고, 같은 뜻의 다른 칸을 맞춘다
+        const k = window.RiskKit.cfg();
+        if (srcId === 'bdwPsAcc' || srcId === 'bdwRlSeed') {
+          const v = bdwNum(srcId);
+          if (v > 0) { window.RiskKit.saveCfg({ equity: v, riskPct: k.riskPct }); const o = document.getElementById(srcId === 'bdwPsAcc' ? 'bdwRlSeed' : 'bdwPsAcc'); if (o) o.value = v; }
+        } else if (srcId === 'bdwPsRisk') { const v = bdwNum('bdwPsRisk'); if (v > 0 && v <= 100) window.RiskKit.saveCfg({ equity: k.equity, riskPct: v }); }
+      }
       const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
       const tile = (label, val, cls = 'text-white') => `<div class="rounded-lg bg-slate-950/70 border border-slate-800 p-2.5"><div class="text-slate-500">${label}</div><div class="text-sm font-bold font-mono-numbers ${cls}">${val}</div></div>`;
       // 복구
@@ -11077,19 +11158,61 @@ EPRT|Essential Properties Realty Trust|E
 
     function bdwJournalAdd(e) {
       e.preventDefault();
-      const entry = bdwNum('bdwJEntry'), exit = bdwNum('bdwJExit'), side = document.getElementById('bdwJSide').value;
-      const ticker = document.getElementById('bdwJTicker').value.trim().toUpperCase();
+      const g = id => document.getElementById(id), L = window.Ledger;
+      const lid = g('bdwJLid').value ? Number(g('bdwJLid').value) : null;
+      const emotions = [...document.querySelectorAll('#bdwJEmos input:checked')].map(i => i.value), note = g('bdwJNote').value.trim();
+      const list = bdwLoadJournal();
+      if (lid !== null && L) {        // 장부 거래를 복기: 가격·날짜는 장부 값(연결), 감정·메모만 새로 쓴다
+        const c = L.derive().closed.find(x => x.tid === lid);
+        if (!c) { showToast('거래를 찾지 못했어요', '장부에서 이 거래가 지워졌어요. 연결을 해제하고 다시 시도해 주세요.', 'warning'); return; }
+        list.unshift({ id: Date.now(), lid, date: c.entryDate || c.exitDate, exitDate: c.exitDate, ticker: c.sym, side: 'long', style: g('bdwJStyle').value, entry: +c.entry.toFixed(4), exit: +c.exit.toFixed(4), stop: bdwNum('bdwJStop'), market: g('bdwJMarket').value, emotions, note, pnlPct: c.pnlPct });
+        bdwSaveJournal(list.slice(0, 500)); bdwJournalUnlink(true); bdwJournalRender();
+        showToast('복기 완료', `${c.sym} 거래의 복기를 일지에 기록했습니다.`, 'success'); return;
+      }
+      const entry = bdwNum('bdwJEntry'), exit = bdwNum('bdwJExit'), side = g('bdwJSide').value, qty = bdwNum('bdwJQty');
+      const ticker = g('bdwJTicker').value.trim().toUpperCase();
       if (!ticker || entry === null || entry <= 0) { showToast('입력 확인', '종목과 진입가는 필수입니다.', 'warning'); return; }
       const pnlPct = exit !== null ? (side === 'long' ? exit / entry - 1 : -(exit / entry - 1)) * 100 : null;
-      const list = bdwLoadJournal();
-      list.unshift({
-        id: Date.now(), date: document.getElementById('bdwJDate').value, exitDate: exit !== null ? (document.getElementById('bdwJExitDate').value || document.getElementById('bdwJDate').value) : null, ticker, side, style: document.getElementById('bdwJStyle').value, entry, exit, stop: bdwNum('bdwJStop'),
-        market: document.getElementById('bdwJMarket').value, emotions: [...document.querySelectorAll('#bdwJEmos input:checked')].map(i => i.value), note: document.getElementById('bdwJNote').value.trim(), pnlPct
-      });
+      const date = g('bdwJDate').value, exitDate = exit !== null ? (g('bdwJExitDate').value || date) : null;
+      const rec = { id: Date.now(), date, exitDate, ticker, side, style: g('bdwJStyle').value, entry, exit, stop: bdwNum('bdwJStop'), market: g('bdwJMarket').value, emotions, note, pnlPct };
+      let ledgerMsg = '';
+      if (L && g('bdwJLedger').checked && qty > 0 && side === 'long' && window.TradeImport) {
+        const sym = window.TradeImport.resolveSymbol(ticker, '', {}).sym || ticker;
+        const r = L.addTrades([{ sym, name: '', date, side: 'buy', qty, price: entry }].concat(exit !== null ? [{ sym, name: '', date: exitDate, side: 'sell', qty, price: exit }] : []), 'manual');
+        rec.lbuy = r.ids[0]; if (exit !== null) rec.lid = r.ids[1];
+        rec.ticker = sym; L.syncWatch(); ledgerMsg = ' 보유종목 장부에도 반영했어요.';
+        if (typeof window.ExitKitRefresh === 'function') window.ExitKitRefresh();
+      }
+      list.unshift(rec);
       bdwSaveJournal(list.slice(0, 500));
-      document.getElementById('bdwJForm').reset(); document.getElementById('bdwJDate').value = new Date().toISOString().slice(0, 10);
+      g('bdwJForm').reset(); g('bdwJDate').value = new Date().toISOString().slice(0, 10);
       bdwJournalRender();
-      showToast('기록 완료', `${ticker} 매매를 일지에 기록했습니다.`, 'success');
+      showToast('기록 완료', `${rec.ticker} 매매를 일지에 기록했습니다.${ledgerMsg}`, 'success');
+    }
+    // 장부의 청산 거래를 복기하려고 폼을 채운다 (보유종목 탭·종목 상세의 '복기 쓰기')
+    function bdwJournalPrefill(tid) {
+      if (!window.Ledger) return;
+      if (!document.getElementById('bdwJForm')) bdwRenderTools();
+      const c = window.Ledger.derive().closed.find(x => x.tid === tid), g = id => document.getElementById(id);
+      if (!c || !g('bdwJForm')) { showToast('거래를 찾지 못했어요', '장부에서 이 거래를 찾을 수 없어요.', 'warning'); return; }
+      if (bdwResolve(bdwLoadJournal()).some(t => t.rlid === tid)) { showToast('이미 복기했어요', '이 거래는 일지에 복기가 있어요. 아래 목록을 확인하세요.', 'info'); return; }
+      g('bdwJLid').value = String(tid);
+      g('bdwJTicker').value = c.sym; g('bdwJSide').value = 'long'; g('bdwJEntry').value = +c.entry.toFixed(4); g('bdwJExit').value = +c.exit.toFixed(4);
+      g('bdwJDate').value = c.entryDate || c.exitDate; g('bdwJExitDate').value = c.exitDate; g('bdwJQty').value = c.qty;
+      ['bdwJTicker', 'bdwJSide', 'bdwJEntry', 'bdwJExit', 'bdwJDate', 'bdwJExitDate', 'bdwJQty'].forEach(id => { g(id).disabled = true; g(id).classList.add('opacity-60'); });
+      g('bdwJLedger').disabled = true;
+      const box = g('bdwJLink'); box.classList.remove('hidden');
+      box.innerHTML = `<i class="fa-solid fa-link"></i><span><b>${escapeHtml(c.sym)}</b> ${escapeHtml(c.entryDate || '')} → ${escapeHtml(c.exitDate)} · ${bdwFmt(c.entry)} → ${bdwFmt(c.exit)} (${c.pnlPct >= 0 ? '+' : ''}${bdwFmt(c.pnlPct, 1)}%) — 장부의 거래를 복기하고 있어요. 감정·이유·손절 원칙만 적어 주세요.</span><button type="button" onclick="bdwJournalUnlink()" class="ml-auto px-2.5 py-1 rounded border border-slate-600 text-slate-200">연결 해제</button>`;
+      g('bdwJForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => g('bdwJNote').focus(), 300);
+    }
+    window.bdwJournalPrefill = bdwJournalPrefill;
+    function bdwJournalUnlink(silent) {
+      const g = id => document.getElementById(id); if (!g('bdwJForm')) return;
+      g('bdwJLid').value = '';
+      ['bdwJTicker', 'bdwJSide', 'bdwJEntry', 'bdwJExit', 'bdwJDate', 'bdwJExitDate', 'bdwJQty'].forEach(id => { g(id).disabled = false; g(id).classList.remove('opacity-60'); });
+      g('bdwJLedger').disabled = false; g('bdwJLink').classList.add('hidden');
+      if (silent) { g('bdwJForm').reset(); g('bdwJDate').value = new Date().toISOString().slice(0, 10); }
     }
     function bdwJournalDelete(id) { bdwSaveJournal(bdwLoadJournal().filter(t => t.id !== id)); bdwJournalRender(); }
     function bdwJournalCloseTrade(id) {
@@ -11097,15 +11220,22 @@ EPRT|Essential Properties Realty Trust|E
       if (!Number.isFinite(exit) || exit <= 0) return;
       const list = bdwLoadJournal(), t = list.find(x => x.id === id);
       if (!t) return;
+      if (t.lbuy != null && !window.Ledger) return;
       const today = new Date().toISOString().slice(0, 10), ed = (prompt('청산일 (YYYY-MM-DD)', today) || today).trim();
       t.exitDate = /^\d{4}-\d{2}-\d{2}$/.test(ed) ? ed : today;
       t.exit = exit; t.pnlPct = (t.side === 'long' ? exit / t.entry - 1 : -(exit / t.entry - 1)) * 100;
+      if (t.lbuy != null && window.Ledger) {        // 장부에서 산 거래에서 시작한 일지 → 같은 수량을 장부에도 매도로 기록
+        const b = window.Ledger.load().trades.find(x => x.id === t.lbuy);
+        if (b) { const r = window.Ledger.addTrades([{ sym: b.sym, name: b.name, date: t.exitDate, side: 'sell', qty: b.qty, price: exit }], 'manual'); t.lid = r.ids[0]; window.Ledger.syncWatch(); if (typeof window.ExitKitRefresh === 'function') window.ExitKitRefresh(); }
+      }
       bdwSaveJournal(list); bdwJournalRender();
     }
     function bdwJournalRender() {
       const listEl = document.getElementById('bdwJList'), statEl = document.getElementById('bdwJStats');
       if (!listEl) return;
-      const list = bdwLoadJournal(), st = bdwJournalStats(list);
+      const list = bdwResolve(bdwLoadJournal()), st = bdwJournalStats(list);
+      const todoEl = document.getElementById('bdwJTodo');
+      if (todoEl) { const todo = bdwUnreviewed().slice(0, 5); todoEl.innerHTML = todo.length ? `<div class="rounded-xl border border-amber-800 bg-amber-950/20 p-3 space-y-2"><div class="text-xs font-bold text-amber-200"><i class="fa-solid fa-clipboard-check mr-1.5"></i>복기하지 않은 청산 거래 (보유종목 장부) ${bdwUnreviewed().length}건</div>${todo.map(c => `<div class="flex flex-wrap items-center gap-2 text-xs font-mono-numbers text-slate-200"><b class="text-orange-300">${escapeHtml(c.sym)}</b><span class="text-slate-400">${escapeHtml(c.entryDate || '')} → ${escapeHtml(c.exitDate)}</span><span>${bdwFmt(c.entry)} → ${bdwFmt(c.exit)}</span><span class="${c.pnlPct >= 0 ? 'text-emerald-300' : 'text-rose-300'} font-bold">${c.pnlPct >= 0 ? '+' : ''}${bdwFmt(c.pnlPct, 1)}%</span><button type="button" onclick="bdwJournalPrefill(${c.tid})" class="ml-auto px-2.5 py-1.5 rounded-lg border border-amber-700 bg-amber-950/40 text-amber-200 font-sans font-semibold">복기 쓰기</button></div>`).join('')}</div>` : ''; }
       statEl.innerHTML = list.length ? `
         <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px]">
           ${[['기록', `${st.total}건 (청산 ${st.closed})`], ['승률', st.winRate === null ? '' : `${bdwFmt(st.winRate, 0)}%`], ['평균 수익', st.avgWin === null ? '' : `+${bdwFmt(st.avgWin, 1)}%`], ['평균 손실', st.avgLoss === null ? '' : `${bdwFmt(st.avgLoss, 1)}%`], ['평균 손익', st.avg === null ? '' : `${st.avg >= 0 ? '+' : ''}${bdwFmt(st.avg, 1)}%`]].map(x => `<div class="rounded-lg bg-slate-950/70 border border-slate-800 p-2.5"><div class="text-slate-500">${x[0]}</div><div class="text-sm font-bold font-mono-numbers text-white">${x[1]}</div></div>`).join('')}
@@ -11116,7 +11246,7 @@ EPRT|Essential Properties Realty Trust|E
       listEl.innerHTML = list.length ? list.map(t => `
         <div class="rounded-xl bg-slate-950/60 border border-slate-800 p-3">
           <div class="flex flex-wrap items-center gap-2 text-xs">
-            <span class="font-mono-numbers font-bold text-orange-300">${escapeHtml(t.ticker)}</span>
+            <span class="font-mono-numbers font-bold text-orange-300">${escapeHtml(t.ticker)}</span>${t.linked === 'ok' || t.linked === 'open' ? '<span class="px-1.5 py-0.5 rounded border border-sky-800 bg-sky-950/40 text-sky-300 text-[10px]" title="진입·청산 가격과 수량은 보유종목 거래 장부의 값이에요"><i class="fa-solid fa-link mr-1"></i>장부 연동</span>' : t.linked === 'lost' ? '<span class="px-1.5 py-0.5 rounded border border-amber-800 bg-amber-950/40 text-amber-300 text-[10px]" title="장부에서 이 거래가 삭제돼 일지에 남겨 둔 값을 보여 줘요">장부에서 삭제됨</span>' : ''}
             <span class="px-1.5 py-0.5 rounded border text-[10px] ${t.side === 'long' ? 'border-emerald-800 text-emerald-300 bg-emerald-950/40' : 'border-rose-800 text-rose-300 bg-rose-950/40'}">${t.side === 'long' ? '롱' : '숏'}</span>
             <span class="text-slate-400">${escapeHtml(t.date || '')} · ${escapeHtml(t.style || '')} · ${escapeHtml(t.market || '')}</span>
             <span class="font-mono-numbers text-slate-300">진입 ${bdwFmt(t.entry)}${t.exit != null ? ` → 청산 ${bdwFmt(t.exit)}` : ''}${t.stop != null ? ` · 손절 ${bdwFmt(t.stop)}` : ''}</span>
@@ -11128,7 +11258,7 @@ EPRT|Essential Properties Realty Trust|E
         </div>`).join('') : '<div class="text-center text-xs text-slate-500 py-6">아직 기록이 없습니다. 첫 매매부터 감정 상태와 함께 적어 보세요.</div>';
     }
     function bdwJournalExport() {
-      const list = bdwLoadJournal();
+      const list = bdwResolve(bdwLoadJournal());
       if (!list.length) { showToast('내보낼 기록 없음', '매매일지가 비어 있습니다.', 'info'); return; }
       const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const rows = [['날짜', '종목', '방향', '스타일', '시장', '진입가', '청산가', '손절가', '손익%', '감정', '메모'].map(q).join(',')]
@@ -20189,9 +20319,9 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           <div><h3 class="text-sm font-bold text-white"><i class="fa-solid fa-scale-balanced text-emerald-400 mr-1.5"></i>${esc(o.title || '포지션 사이징 — 손절 거리로 수량 정하기')}</h3>
           <p class="text-[11px] text-slate-400 mt-1 leading-snug">먼저 "이 매매에서 잃어도 되는 금액"을 정하고, 손절가까지의 거리로 수량을 거꾸로 계산합니다. 이길 확률이 아니라 질 때의 크기를 통제하는 도구예요.</p></div>
           <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-            ${inp('equity', '계좌 크기', c.equity, '예: 10000')}${inp('riskPct', '1회 허용 손실 (%)', c.riskPct, '1')}${inp('entry', '진입가', price, '')}${inp('stop', '손절가', atrStop || lowStop, '')}${inp('goal', '목표가 (선택)', num(o.goal) ? o.goal : null, '')}
+            ${inp('equity', '계좌 크기', c.equity, '예: 10000')}${inp('riskPct', '1회 허용 손실 (%)', c.riskPct, '1')}${inp('entry', '진입가', price, '')}${inp('stop', '손절가', num(o.stop) ? o.stop : (atrStop || lowStop), '')}${inp('goal', '목표가 (선택)', num(o.goal) ? o.goal : null, '')}
           </div>
-          <div class="flex flex-wrap gap-1.5 items-center text-[11px] text-slate-500">손절가 빠르게 채우기: ${preset('atr', '진입가 − 2×ATR', atrStop)}${preset('low', '직전 20일 저점', lowStop)}</div>
+          <div class="flex flex-wrap gap-1.5 items-center text-[11px] text-slate-500">손절가 빠르게 채우기: ${preset('atr', '진입가 − 2×ATR', atrStop)}${preset('low', '직전 20일 저점', lowStop)}${o.sym ? `<button type="button" data-rk-save class="ml-auto px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[11px] text-sky-300 font-semibold">이 손절·목표를 ${esc(o.sym)} 가격 계획에 저장</button>` : ''}</div>
           <div data-rk-out class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 text-xs text-slate-300 leading-relaxed"></div>
           <p class="text-[10px] text-slate-500 leading-snug">갭 하락·슬리피지·수수료·세금·레버리지는 반영하지 않습니다. 손절가는 지지/저항 같은 구조적 근거에서 정하고, 수량은 그 결과로 따라와야 합니다. 교육·참고용 계산이며 투자 권유가 아닙니다.</p>
         </section>`;
@@ -20216,7 +20346,13 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           out.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
         };
         el.oninput = calc;
-        el.onclick = e => { const b = e.target.closest('[data-rk-set]'); if (!b) return; const i = el.querySelector('[data-rk="stop"]'); i.value = b.dataset.rkSet; calc(); };
+        el.onclick = e => {
+          if (e.target.closest('[data-rk-save]')) {
+            if (typeof window.watchSetTargets === 'function' && window.watchSetTargets(o.sym, { stop: val('stop'), goal: val('goal') }) && typeof showToast === 'function') showToast('저장했어요', `${o.sym}의 손절가·목표가를 관심종목 가격 계획에 저장했어요.`, 'success');
+            return;
+          }
+          const b = e.target.closest('[data-rk-set]'); if (!b) return; const i = el.querySelector('[data-rk="stop"]'); i.value = b.dataset.rkSet; calc();
+        };
         calc();
       }
       window.RiskKit = { cfg, saveCfg, size, render };
@@ -20868,7 +21004,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             <label class="text-[11px] text-slate-400">단가<input name="price" type="number" step="any" min="0" required inputmode="decimal" class="mt-1 w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white font-mono-numbers outline-none focus:border-cyan-400"></label>
             <button type="submit" class="min-h-11 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-bold col-span-2 sm:col-span-1">기록</button></form>
           ${list.length ? `<div class="overflow-x-auto rounded-xl border border-slate-800"><table class="w-full text-xs font-mono-numbers text-slate-200"><thead class="bg-slate-950/70 text-slate-400"><tr><th class="px-2 py-2 text-left font-semibold">날짜</th><th class="px-2 text-left font-semibold">종목</th><th class="px-2 font-semibold">구분</th><th class="px-2 text-right font-semibold">수량</th><th class="px-2 text-right font-semibold">단가</th><th class="px-2 text-right font-semibold">거래금액</th><th class="px-2 text-right font-semibold">실현손익</th><th class="px-2"></th></tr></thead><tbody class="divide-y divide-slate-800">
-            ${list.slice(0, 200).map(t => { const c = realized[t.id], cu = curOfSym(t.sym), p = c ? (c.exit - c.entry) * c.qty : null; return `<tr><td class="px-2 py-1.5 whitespace-nowrap">${esc(t.date)}</td><td class="px-2 font-bold text-cyan-300">${esc(t.sym)}</td><td class="px-2 text-center font-sans ${t.side === 'buy' ? 'text-emerald-300' : 'text-rose-300'}">${t.side === 'buy' ? '매수' : '매도'}</td><td class="px-2 text-right">${fmtN(t.qty, t.qty % 1 ? 4 : 0)}</td><td class="px-2 text-right">${money(t.price, cu)}</td><td class="px-2 text-right">${money(t.qty * t.price, cu)}</td><td class="px-2 text-right ${tone(p)}">${c ? `${money(p, cu, true)} <span class="text-[10px]">${pct(c.pnlPct)}</span>` : ''}</td><td class="px-2 text-right whitespace-nowrap">${c && typeof bdwSaveJournal === 'function' ? `<button type="button" data-tojournal="${t.id}" title="불단왕 매매일지에 감정·메모와 함께 기록" class="px-1.5 py-1 text-[10px] text-sky-300 hover:text-sky-200 font-sans">일지로</button>` : ''}<button type="button" data-del="${t.id}" aria-label="이 거래 삭제" class="min-h-9 min-w-9 text-slate-500 hover:text-rose-300"><i class="fa-solid fa-trash"></i></button></td></tr>`; }).join('')}
+            ${list.slice(0, 200).map(t => { const c = realized[t.id], cu = curOfSym(t.sym), p = c ? (c.exit - c.entry) * c.qty : null; return `<tr><td class="px-2 py-1.5 whitespace-nowrap">${esc(t.date)}</td><td class="px-2 font-bold text-cyan-300">${esc(t.sym)}</td><td class="px-2 text-center font-sans ${t.side === 'buy' ? 'text-emerald-300' : 'text-rose-300'}">${t.side === 'buy' ? '매수' : '매도'}</td><td class="px-2 text-right">${fmtN(t.qty, t.qty % 1 ? 4 : 0)}</td><td class="px-2 text-right">${money(t.price, cu)}</td><td class="px-2 text-right">${money(t.qty * t.price, cu)}</td><td class="px-2 text-right ${tone(p)}">${c ? `${money(p, cu, true)} <span class="text-[10px]">${pct(c.pnlPct)}</span>` : ''}</td><td class="px-2 text-right whitespace-nowrap">${c && typeof bdwSaveJournal === 'function' ? `<button type="button" data-tojournal="${t.id}" title="이 거래를 매매일지에 연결해 감정·이유를 복기" class="px-1.5 py-1 text-[10px] text-sky-300 hover:text-sky-200 font-sans">복기</button>` : ''}<button type="button" data-del="${t.id}" aria-label="이 거래 삭제" class="min-h-9 min-w-9 text-slate-500 hover:text-rose-300"><i class="fa-solid fa-trash"></i></button></td></tr>`; }).join('')}
             </tbody></table></div>${list.length > 200 ? `<div class="text-[11px] text-slate-500">최근 200건만 표시해요 (전체 ${list.length}건).</div>` : ''}` : '<div class="text-xs text-slate-400">아직 거래 기록이 없어요.</div>'}</div>`;
       }
       function paint() {
@@ -20886,6 +21022,11 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             : `<div class="rounded-2xl border border-dashed border-slate-700 p-6 text-center text-sm text-slate-300 leading-relaxed space-y-3"><i class="fa-solid fa-wallet text-3xl text-emerald-400"></i><div>아직 보유 종목이 없어요.<br>증권사 <b>거래내역 파일</b>을 올리거나 아래에서 <b>거래를 직접 기록</b>하면, 산 금액·평가손익·수익률이 자동으로 계산돼요.</div><button type="button" data-act="import" class="min-h-11 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-bold">거래내역 올리기</button></div>`}
           <details id="hdExit" class="rounded-2xl border border-slate-800 bg-[#0b0e13]" ${keep.ex ? 'open' : ''}><summary class="px-4 py-3 cursor-pointer min-h-11 flex items-center gap-2 text-sm font-bold text-white list-none"><i class="fa-solid fa-hand-holding-dollar text-emerald-400"></i>매도 타이밍 점검<span id="hdExitSum" class="text-xs font-normal text-slate-300"></span></summary><div id="hdExitBody" class="px-4 pb-4 border-t border-slate-800 pt-3"></div></details>
           <details id="hdLedger" class="rounded-2xl border border-slate-800 bg-[#0b0e13]" ${keep.lg || !rows.length ? 'open' : ''}><summary class="px-4 py-3 cursor-pointer min-h-11 flex items-center gap-2 text-sm font-bold text-white list-none"><i class="fa-solid fa-list-check text-sky-400"></i>거래 기록 · 실현손익<span class="text-xs font-normal text-slate-300">${load().trades.length}건</span></summary><div class="px-4 pb-4 border-t border-slate-800 pt-3">${ledgerHtml(m)}</div></details>
+          <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-[11px] text-slate-400 leading-relaxed space-y-0.5"><div class="font-bold text-slate-300">내 정보는 이렇게 한 곳씩에 모여요</div>
+            <div>· <b class="text-slate-200">산·판 거래</b> → 이 탭의 거래 장부 (수량·평균 매수가·실현손익은 여기서만 계산)</div>
+            <div>· <b class="text-slate-200">종목별 계획</b> (매수·손절·익절가, 메모, 알림) → 관심종목의 종목 카드 — 계산기에서 정한 손절·목표도 저장돼요</div>
+            <div>· <b class="text-slate-200">매매 복기</b> (감정·이유) → 매매일지, 장부 거래에 연결돼 가격은 자동으로 따라와요</div>
+            <div>· <b class="text-slate-200">계좌 규모·허용 손실</b> → 한 번만 넣으면 모든 계산기·리스크 점검이 같이 써요</div></div>
           <p class="text-[11px] text-slate-500 leading-relaxed">평균단가법으로 계산하고 수수료·세금·환율은 반영하지 않아요. 통화가 다른 종목은 합치지 않고 따로 보여 줘요. 이 기록은 이 브라우저에만 저장됩니다.</p></div>`;
         mountExit();
       }
@@ -20923,13 +21064,10 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (e.target.closest('button, a, select, input, summary, label')) return;
         const o = e.target.closest('[data-open]'); if (o) openSym(o.dataset.open);
       }
+      // 장부의 청산 거래를 복사하지 않고, 일지 폼을 그 거래에 연결해서 연다(가격은 장부 값 그대로, 감정·메모만 일지에)
       function toJournal(tid) {
-        const P = derive(), c = P.closed.find(x => x.tid === tid);
-        if (!c || typeof bdwLoadJournal !== 'function') return;
-        const list = bdwLoadJournal();
-        list.unshift({ id: Date.now(), date: c.entryDate || c.exitDate, exitDate: c.exitDate, ticker: c.sym, side: 'long', style: '', entry: +c.entry.toFixed(4), exit: +c.exit.toFixed(4), stop: null, market: '', emotions: [], note: `보유종목 장부에서 기록 · ${c.qty}주`, pnlPct: c.pnlPct });
-        bdwSaveJournal(list.slice(0, 500)); if (typeof bdwJournalRender === 'function') bdwJournalRender();
-        showToast('일지에 기록했어요', '불단왕 탭 매매일지에서 감정·메모를 덧붙일 수 있어요.', 'success');
+        switchAppTab('bdwtools');
+        setTimeout(() => { if (typeof window.bdwJournalPrefill === 'function') window.bdwJournalPrefill(tid); }, 150);
       }
       function onSubmit(e) {
         if (e.target.id !== 'hdTradeForm') return;
@@ -21635,6 +21773,18 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       }
       // 다른 화면의 ★ 버튼이 호출하는 전역 API
       window.watchHas = function (sym) { ensure(); const s = P.normSym(sym); return !!(s && ST.items[s]); };
+      window.watchQuote = function (sym) { ensure(); const s = P.normSym(sym); if (!s || !ST.items[s]) return null; const r = rowModel(s); return r && isNum(r.price) ? { price: r.price, cur: r.cur } : null; };
+      window.watchSymbols = function () { ensure(); return Object.keys(ST.items).map(s => { const it = ST.items[s]; return { sym: s, name: it.name, buy: it.target.buy, stop: it.target.stop, goal: it.target.goal }; }); };
+      // 계산기·분석 탭의 손절·목표를 이 종목의 가격 계획에 저장 (관심종목에 없으면 담는다)
+      window.watchSetTargets = function (sym, t) {
+        ensure(); const s = P.normSym(sym); if (!s) return false;
+        if (!ST.items[s]) { const r = addSymbol(s, { silent: true }); if (!r.ok) return false; }
+        const it = ST.items[s];
+        ['buy', 'stop', 'goal'].forEach(k => { if (t && t[k] !== undefined) it.target[k] = isNum(t[k]) && t[k] > 0 ? t[k] : null; });
+        saveState(); fireChanged({ sym: s, has: true });
+        if (RT.built) { renderAll(); if (RT.sel === s) renderDetail(); }
+        updateBadges(); return true;
+      };
       window.watchOpenDetail = function (sym) { ensure(); const s = P.normSym(sym); if (s && ST.items[s] && RT.built) openDetail(s); };
       // 보유 종목(진입가가 있는 종목) — 매도 점검(ExitKit)이 읽는다
       window.watchHoldings = function () {
@@ -22082,9 +22232,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             <input id="wlImport" type="file" accept="application/json,.json" class="hidden" aria-label="관심종목 JSON 파일 가져오기">
           </div>`;
         wireRoot();
-        const acc = $('wlAcc'), rp = $('wlRiskPct');
-        if (isNum(ST.ui.accountSize)) acc.value = ST.ui.accountSize;
-        rp.value = ST.ui.riskPct;
+        adoptKit();
         $('wlRisk').open = !!ST.ui.riskOpen;
         RT.built = true;
         return true;
@@ -22304,7 +22452,18 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (isNum(risk.budgetUse) && risk.budgetUse > 1) warn++;
         return { rows, dom, sameCur, curList, sector, risk, surge, corr, stops, warn, allQty, nSeries: Object.keys(series).length };
       }
+      // 계좌 크기·1회 허용 손실(%)은 모든 계산기와 공유하는 RiskKit 설정이 단일 출처다. 예전에 이 패널에만 넣어 둔 값은 한 번 옮긴다.
+      function adoptKit() {
+        const K = window.RiskKit; if (!K || !ST) return;
+        let c = K.cfg();
+        if (c.equity === null && isNum(ST.ui.accountSize)) { K.saveCfg({ equity: ST.ui.accountSize, riskPct: isNum(ST.ui.riskPct) ? ST.ui.riskPct : c.riskPct }); c = K.cfg(); }
+        ST.ui.accountSize = c.equity; ST.ui.riskPct = c.riskPct;
+        const a = $('wlAcc'), r = $('wlRiskPct');
+        if (a && document.activeElement !== a) a.value = isNum(c.equity) ? c.equity : '';
+        if (r && document.activeElement !== r) r.value = c.riskPct;
+      }
       function renderRisk() {
+        adoptKit();
         const sumEl = $('wlRiskSum'), out = $('wlRiskOut');
         if (!sumEl || !ST) return;
         const rd = riskData();
@@ -22387,18 +22546,20 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
               <textarea data-memo="note" rows="2" maxlength="3000" class="${INPUT} min-h-[4.5rem] py-2" placeholder="자유롭게 적어 두세요">${esc(it.note)}</textarea>
             </div>
           </section>
-          <section class="space-y-2"><h3 class="text-xs font-bold text-slate-300 tracking-wide flex items-center gap-2">가격 목표 · 포지션 <span id="wlTargetSaved" class="text-emerald-300 font-normal"></span></h3>
+          ${secHtml('내 포지션 — 산 기록은 거래 장부 한 곳에서', 'wlDPos')}
+          <section class="space-y-2"><h3 class="text-xs font-bold text-slate-300 tracking-wide flex items-center gap-2">가격 계획 (매수·손절·익절) <span id="wlTargetSaved" class="text-emerald-300 font-normal"></span></h3>
             <form id="wlTargetForm" class="grid grid-cols-2 gap-2">
-              ${[['buy', '매수 목표가', num(it.target.buy)], ['stop', '손절가', num(it.target.stop)], ['goal', '목표가(익절)', num(it.target.goal)], ['qty', '수량', num(it.qty)], ['entry', '진입가', num(it.entry)]].map(f => `<label class="text-xs text-slate-300 space-y-1">${f[1]}<input data-tf="${f[0]}" type="number" inputmode="decimal" min="0" step="any" value="${f[2]}" class="${INPUT}"></label>`).join('')}
+              ${[['buy', '매수 목표가', num(it.target.buy)], ['stop', '손절가', num(it.target.stop)], ['goal', '목표가(익절)', num(it.target.goal)]].map(f => `<label class="text-xs text-slate-300 space-y-1">${f[1]}<input data-tf="${f[0]}" type="number" inputmode="decimal" min="0" step="any" value="${f[2]}" class="${INPUT}"></label>`).join('')}
               <div class="flex items-end"><button type="submit" class="${BTN_PRIMARY} w-full">저장</button></div>
             </form>
             <div id="wlTargetOut" class="text-xs text-slate-300 leading-relaxed"></div>
           </section>
           ${secHtml('매도 타이밍 점검 (진입가를 넣으면 보여요)', 'wlDExit')}
+          ${secHtml('매매 복기 (매매일지와 연결)', 'wlDJournal')}
           <section class="space-y-2"><h3 class="text-xs font-bold text-slate-300 tracking-wide">알림</h3><div id="wlDAlerts"></div></section>
         </div>`;
-        mountDetailExit(sym); lockPosition(sym);
-        renderDetailGroups(); renderAlertBlock(); renderDetailLive(); renderTargetOut();
+        mountDetailExit(sym);
+        renderDetailGroups(); renderAlertBlock(); renderDetailLive(); renderTargetOut(); renderPos(); renderJournalLink();
       }
       function applyBodyLayout() {
         const body = $('wlBody'), det = $('wlDetail'), list = $('wlList');
@@ -22452,6 +22613,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           <button type="button" data-act="close" aria-label="상세 닫기" class="min-h-11 min-w-11 text-slate-300 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button></div>`;
         $('wlDChart').innerHTML = bigChartHtml(sym, r);
         const btEl = $('wlDBt'); if (btEl && !btEl.dataset.init) { btEl.dataset.init = '1'; renderBt(); }
+        if ($('wlDPos') && !(document.activeElement && $('wlDPos').contains(document.activeElement))) renderPos();
         const chips = e && e.chips ? e.chips : [];
         $('wlDSig').innerHTML = chips.length
           ? `<ul class="space-y-2">${chips.map(c => `<li class="space-y-0.5">${chipHtml(c)}<p class="text-xs text-slate-300 leading-relaxed">${esc(c.detail) || '<span class="text-slate-400">설명 없음</span>'}</p>${guideHtml(c.id)}</li>`).join('')}</ul>`
@@ -22548,12 +22710,56 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (RT.sel === sym) renderBt();
       }
 
-      // 장부(보유종목 탭)가 관리하는 종목은 진입가·수량 칸을 잠그고 안내한다
-      function lockPosition(sym) {
-        if (!window.Ledger || !window.Ledger.locked(sym)) return;
-        const form = $('wlTargetForm'); if (!form) return;
-        ['entry', 'qty'].forEach(k => { const i = form.querySelector(`[data-tf="${k}"]`); if (i) { i.disabled = true; i.title = '보유종목 탭의 거래 장부로 관리돼요'; } });
-        form.insertAdjacentHTML('afterbegin', '<p class="col-span-2 text-[11px] text-sky-300 leading-relaxed"><i class="fa-solid fa-wallet mr-1"></i>진입가·수량은 <b>보유종목 탭의 거래 장부</b>에서 계산돼요. 바꾸려면 거래를 추가·삭제하세요.</p>');
+      // ---------- 내 포지션(거래 장부) · 매매 복기 연결 ----------
+      const todayIso = () => new Date().toISOString().slice(0, 10);
+      function renderPos() {
+        const el = $('wlDPos'), sym = RT.sel;
+        if (!el || !sym || !ST.items[sym]) return;
+        const L = window.Ledger;
+        if (!L) { el.innerHTML = ''; return; }
+        const D = L.derive(), h = D.holdings.find(x => x.sym === sym), r = rowModel(sym), price = r && isNum(r.price) ? r.price : null, cur = r ? r.cur : 'USD';
+        const mine = L.load().trades.filter(t => t.sym === sym).sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+        const real = D.closed.filter(c => c.sym === sym).reduce((a, c) => a + (c.exit - c.entry) * c.qty, 0);
+        const kv = (k, v, cls) => `<div class="min-w-0"><div class="text-[11px] text-slate-400">${k}</div><div class="text-xs font-mono-numbers ${cls || 'text-slate-100'} truncate">${v}</div></div>`;
+        let sum = '<p class="text-xs text-slate-400 leading-relaxed">아직 이 종목을 산 기록이 없어요. 아래에서 거래를 기록하거나 증권사 거래내역 파일을 올리면 산 금액·평가손익이 자동으로 계산돼요.</p>';
+        if (h) {
+          const cost = h.qty * h.avg, val = isNum(price) ? h.qty * price : null, pnl = isNum(val) ? val - cost : null, tone = v => !isNum(v) || v === 0 ? '' : v > 0 ? 'text-emerald-300' : 'text-rose-300';
+          const days = h.firstDate ? Math.max(0, Math.floor((Date.now() - new Date(h.firstDate + 'T00:00:00').getTime()) / 86400000)) : null;
+          sum = `<div class="grid grid-cols-3 gap-x-3 gap-y-2">${kv('수량', h.qty.toLocaleString('en-US', { maximumFractionDigits: 4 }))}${kv('평균 매수가', esc(fmtP(h.avg, cur)))}${kv('산 금액', esc(fmtP(cost, cur)))}
+            ${kv('평가금액', isNum(val) ? esc(fmtP(val, cur)) : '—')}${kv('평가손익', isNum(pnl) ? `${pnl >= 0 ? '+' : '−'}${esc(fmtP(Math.abs(pnl), cur))}` : '—', tone(pnl))}${kv('수익률', isNum(pnl) ? `${pnl >= 0 ? '+' : '−'}${Math.abs(pnl / cost * 100).toFixed(2)}%` : '—', tone(pnl))}
+            ${kv('보유', days !== null ? `${days}일째` : '—')}${real ? kv('이 종목 실현손익', `${real >= 0 ? '+' : '−'}${esc(fmtP(Math.abs(real), cur))}`, tone(real)) : ''}</div>`;
+        } else if (real) sum += `<div class="text-xs mt-1 ${real >= 0 ? 'text-emerald-300' : 'text-rose-300'}">이 종목 실현손익 ${real >= 0 ? '+' : '−'}${esc(fmtP(Math.abs(real), cur))}</div>`;
+        const list = mine.slice(0, 5).map(t => `<li class="flex items-center gap-2 text-[11px] font-mono-numbers text-slate-300"><span class="w-20 shrink-0">${esc(t.date)}</span><span class="w-8 ${t.side === 'buy' ? 'text-emerald-300' : 'text-rose-300'} font-sans">${t.side === 'buy' ? '매수' : '매도'}</span><span>${t.qty.toLocaleString('en-US', { maximumFractionDigits: 4 })}주 @ ${esc(fmtP(t.price, cur))}</span><button type="button" data-act="tradeDel" data-id="${t.id}" aria-label="이 거래 삭제" class="ml-auto min-h-9 min-w-9 text-slate-500 hover:text-rose-300"><i class="fa-solid fa-trash"></i></button></li>`).join('');
+        el.innerHTML = `${sum}${list ? `<ul class="mt-2 space-y-0.5">${list}</ul>${mine.length > 5 ? `<div class="text-[11px] text-slate-500">최근 5건만 보여요 (전체 ${mine.length}건 · 보유종목 탭)</div>` : ''}` : ''}
+          <details class="mt-2 rounded-xl border border-slate-800 bg-slate-950/40"><summary class="cursor-pointer px-3 min-h-11 flex items-center text-xs font-semibold text-sky-300">거래 기록하기 (매수·매도)</summary>
+            <form id="wlTradeForm" class="grid grid-cols-2 gap-2 p-3 pt-0" autocomplete="off">
+              <label class="text-xs text-slate-300 space-y-1">구분<select name="side" class="${INPUT}"><option value="buy">매수</option><option value="sell">매도</option></select></label>
+              <label class="text-xs text-slate-300 space-y-1">날짜<input name="date" type="date" required value="${todayIso()}" class="${INPUT}"></label>
+              <label class="text-xs text-slate-300 space-y-1">수량<input name="qty" type="number" inputmode="decimal" min="0" step="any" required class="${INPUT}"></label>
+              <label class="text-xs text-slate-300 space-y-1">단가<input name="price" type="number" inputmode="decimal" min="0" step="any" required value="${isNum(price) ? price : ''}" class="${INPUT}"></label>
+              <button type="submit" class="${BTN_PRIMARY} col-span-2">기록</button></form></details>
+          <div class="mt-1 text-right"><button type="button" onclick="switchAppTab('holdings')" class="text-[11px] text-sky-300 hover:text-sky-200 min-h-9">보유종목 탭에서 전체 보기 →</button></div>`;
+      }
+      function renderJournalLink() {
+        const el = $('wlDJournal'), sym = RT.sel;
+        if (!el || !sym) return;
+        if (typeof bdwLoadJournal !== 'function' || typeof bdwResolve !== 'function') { el.innerHTML = ''; return; }
+        const all = bdwResolve(bdwLoadJournal()), mine = all.filter(t => String(t.ticker).toUpperCase() === sym), closed = mine.filter(t => isNum(t.pnlPct));
+        const todo = typeof window.bdwUnreviewed === 'function' ? window.bdwUnreviewed().filter(c => c.sym === sym) : [];
+        const avg = closed.length ? closed.reduce((a, t) => a + t.pnlPct, 0) / closed.length : null;
+        el.innerHTML = `<div class="text-xs text-slate-300 leading-relaxed">${mine.length ? `이 종목 복기 ${mine.length}건${avg !== null ? ` · 평균 ${avg >= 0 ? '+' : '−'}${Math.abs(avg).toFixed(1)}%` : ''}` : '아직 이 종목의 복기가 없어요.'}${todo.length ? ` <span class="text-amber-300">복기 안 한 청산 거래 ${todo.length}건</span>` : ''}</div>
+          <div class="flex flex-wrap gap-2 mt-1.5">${todo.length ? `<button type="button" data-act="jReview" data-id="${todo[0].tid}" class="${BTN}">복기 쓰기</button>` : ''}<button type="button" data-act="jOpen" class="${BTN}">매매일지 열기</button></div>`;
+      }
+      function addTradeFromForm(f) {
+        const L = window.Ledger, sym = RT.sel; if (!L || !sym) return;
+        const side = f.side.value, date = f.date.value, qty = parseFloat(f.qty.value), price = parseFloat(f.price.value);
+        if (!(qty > 0) || !(price > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { notify('입력 확인', '날짜·수량·단가를 넣어 주세요.', 'warning'); return; }
+        if (side === 'sell') { const held = L.derive().holdings.find(h => h.sym === sym); if (!held || qty > held.qty + 1e-9) { notify('수량 확인', `보유 수량(${held ? held.qty : 0})보다 많이 팔 수 없어요. 먼저 매수 기록을 넣어 주세요.`, 'warning'); return; } }
+        L.addTrades([{ sym, name: ST.items[sym].name, date, side, qty, price }], 'manual');
+        L.syncWatch();
+        notify('기록했어요', `${sym} ${side === 'buy' ? '매수' : '매도'} ${qty}주 @ ${price}`, 'success');
+        renderPos(); renderJournalLink(); renderDetailLive(); renderTargetOut(); mountDetailExit(sym); scheduleRender();
+        if (window.ExitKitRefresh) window.ExitKitRefresh();
       }
       // 종목 상세의 매도 점검(한 종목). 진입가가 있을 때만 일봉을 불러와 계산한다.
       function mountDetailExit(sym) {
@@ -22574,7 +22780,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (isNum(it.entry) && isNum(it.target.stop) && isNum(it.qty) && it.entry > it.target.stop) parts.push(`손절가까지 가면 약 ${fmtP((it.entry - it.target.stop) * it.qty, r.cur)} 손실`);
         // 권장 수량: 계좌·허용 손실%(위험 점검 패널의 값, 없으면 포지션 사이징 카드 값)와 손절가로 역산
         if (window.RiskKit && isNum(e0) && isNum(it.target.stop)) {
-          const rc = window.RiskKit.cfg(), eq = isNum(ST.ui.accountSize) ? ST.ui.accountSize : rc.equity, rp = isNum(ST.ui.riskPct) ? ST.ui.riskPct : rc.riskPct;
+          const rc = window.RiskKit.cfg(), eq = rc.equity, rp = rc.riskPct;
           const sz = window.RiskKit.size({ equity: eq, riskPct: rp, entry: e0, stop: it.target.stop, goal: it.target.goal });
           if (sz && sz.qty !== null) parts.push(sz.qty > 0 ? `권장 수량 약 ${sz.qty.toLocaleString('en-US')}주 (계좌 ${rp}% 위험 기준, 투자금 ${fmtP(sz.value, r.cur)})` : '손절폭이 커서 허용 손실로는 1주도 못 사요');
           else if (sz) parts.push('계좌 크기를 위험 점검 패널에 넣으면 권장 수량을 계산해요');
@@ -22964,20 +23170,11 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         let bad = false;
         document.querySelectorAll('#wlTargetForm [data-tf]').forEach(inp => { const n = numField(inp.value); if (Number.isNaN(n)) bad = true; vals[inp.dataset.tf] = n; });
         if (bad) { notify('숫자를 확인해 주세요', '가격·수량은 0 이상의 숫자만 넣을 수 있어요.', 'warning'); return false; }
-        const L = window.Ledger;
-        if (L && L.locked(sym)) { vals.entry = it.entry; vals.qty = it.qty; }            // 장부(보유종목 탭)가 관리하는 종목은 진입가·수량을 장부 값으로 고정
-        else if (L && (isNum(vals.entry) !== isNum(it.entry) || vals.entry !== it.entry || vals.qty !== it.qty)) {
-          L.remove(L.load().trades.filter(t => t.sym === sym && t.src === 'detail').map(t => t.id));
-          if (isNum(vals.entry) && vals.entry > 0 && isNum(vals.qty) && vals.qty > 0) {
-            const day = it.entryDate || new Date().toISOString().slice(0, 10);
-            L.addTrades([{ sym, name: it.name, date: day, side: 'buy', qty: vals.qty, price: vals.entry }], 'detail'); it.entryDate = day;
-          }
-        }
-        it.target = { buy: vals.buy, stop: vals.stop, goal: vals.goal }; it.qty = vals.qty; it.entry = vals.entry;
+        it.target = { buy: vals.buy, stop: vals.stop, goal: vals.goal };
         saveState(); renderTargetOut(); renderDetailLive(); scheduleRender();
-        if (!silent) { mountDetailExit(sym); if (window.ExitKitRefresh) window.ExitKitRefresh(); }
+        if (!silent) { renderPos(); mountDetailExit(sym); if (window.ExitKitRefresh) window.ExitKitRefresh(); }
         const s = $('wlTargetSaved'); if (s) { s.textContent = '저장됨 ✓'; clearTimeout(RT.memoT); RT.memoT = setTimeout(() => { s.textContent = ''; }, 2000); }
-        if (!silent) notify('저장했어요', `${sym} 목표가·포지션 값을 저장했어요.`, 'success');
+        if (!silent) notify('저장했어요', `${sym} 가격 계획을 저장했어요.`, 'success');
         return true;
       }
       function onClick(e) {
@@ -23005,6 +23202,9 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           case 'open': openDetail(sym); break;
           case 'close': closeDetail(); break;
           case 'btRun': runBt(sym); break;
+          case 'tradeDel': { const L = window.Ledger; if (L && confirm('이 거래 기록을 삭제할까요? 보유 수량과 평균 매수가가 다시 계산돼요.')) { const syms = L.remove([+t.dataset.id]); L.syncWatch(syms); renderPos(); renderJournalLink(); renderDetailLive(); renderTargetOut(); mountDetailExit(RT.sel); scheduleRender(); if (window.ExitKitRefresh) window.ExitKitRefresh(); } break; }
+          case 'jOpen': switchAppTab('bdwtools'); break;
+          case 'jReview': switchAppTab('bdwtools'); setTimeout(() => { if (typeof window.bdwJournalPrefill === 'function') window.bdwJournalPrefill(+t.dataset.id); }, 120); break;
           case 'menu': e.stopPropagation(); openMenu(t, sym); break;
           case 'mDetail': openDetail(sym); break;
           case 'mAnalyze': case 'goAnalyze': goTo('analyze', sym); break;
@@ -23076,6 +23276,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           const g = ST.lists.find(l => l.id === ST.ui.group), name = $('wlRenameInput').value.trim().slice(0, 24);
           if (g && name) { g.name = name; saveState(); renderToolbarDyn(); renderBulk(); }
         } else if (f.id === 'wlTargetForm') { e.preventDefault(); commitTargets(false); }
+        else if (f.id === 'wlTradeForm') { e.preventDefault(); addTradeFromForm(f); }
         else if (f.id === 'wlAlertForm') {
           e.preventDefault();
           const it = ST.items[RT.sel]; if (!it) return;
@@ -23108,8 +23309,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           const n = RT.picked.size;
           RT.picked.forEach(s => { if (ST.items[s]) ST.items[s].lists = v === '__none' ? [] : [v]; });
           saveState(); renderAll(); notify('그룹 이동', `${n}개 종목을 옮겼어요.`, 'success');
-        } else if (t.id === 'wlAcc') { const n = numField(t.value); ST.ui.accountSize = isNum(n) && n > 0 ? n : null; saveState(); renderRisk(); }
-        else if (t.id === 'wlRiskPct') { const n = numField(t.value); ST.ui.riskPct = isNum(n) && n > 0 && n <= 100 ? n : 1; saveState(); renderRisk(); }
+        } else if (t.id === 'wlAcc') { const n = numField(t.value); ST.ui.accountSize = isNum(n) && n > 0 ? n : null; saveState(); if (window.RiskKit) window.RiskKit.saveCfg({ equity: ST.ui.accountSize, riskPct: window.RiskKit.cfg().riskPct }); renderRisk(); }
+        else if (t.id === 'wlRiskPct') { const n = numField(t.value); ST.ui.riskPct = isNum(n) && n > 0 && n <= 100 ? n : 1; saveState(); if (window.RiskKit) window.RiskKit.saveCfg({ equity: window.RiskKit.cfg().equity, riskPct: ST.ui.riskPct }); renderRisk(); }
         else if (t.id === 'wlAlType') syncAlertForm();
         else if (t.dataset && t.dataset.altoggle) {
           const it = ST.items[RT.sel], a = it && it.alerts.find(x => x.id === t.dataset.altoggle);
