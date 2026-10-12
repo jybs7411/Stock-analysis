@@ -15,6 +15,8 @@
  *   GET /api/deep?symbol=NVDA                    -> 실적·재무·애널리스트·수급·배당·뉴스 (심층 분석용)
  *   GET /api/calendar?type=earnings|economic|ipo|splits&from=YYYY-MM-DD&to=YYYY-MM-DD -> 야후 금융 달력 {type,from,to,items[]} (기간 최대 70일)
  *
+ * 응답 헤더: X-Fetched-At(데이터를 받아 온 시각, ISO) · X-Cache(HIT|MISS|STALE — STALE 이면 야후 장애로 마지막 성공본을 돌려준 것)
+ *
  * 환경 변수 (wrangler.toml [vars] 또는 대시보드)
  *   ALLOWED_ORIGIN  허용할 Origin (예: https://jybs7411.github.io). 비우면 "*" 허용.
  */
@@ -38,6 +40,8 @@ function corsHeaders(request, env) {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    // 프런트가 '데이터 기준 시각·캐시 상태'를 표시할 수 있게 노출
+    'Access-Control-Expose-Headers': 'X-Fetched-At, X-Cache',
     'Vary': 'Origin'
   };
 }
@@ -45,6 +49,7 @@ function corsHeaders(request, env) {
 function json(body, status, request, env, cacheSeconds = 0) {
   const headers = {
     'Content-Type': 'application/json; charset=utf-8',
+    'X-Fetched-At': new Date().toISOString(),
     ...corsHeaders(request, env)
   };
   if (cacheSeconds > 0) headers['Cache-Control'] = `public, max-age=${cacheSeconds}`;
@@ -462,19 +467,43 @@ function parseSymbols(url, max) {
   return uniq;
 }
 
+// 신선 캐시(ttl) + 장애 대비 stale 캐시(STALE_TTL). 야후가 실패(예외·5xx)하면 마지막으로 성공한 응답을 X-Cache: STALE 로 돌려준다.
+const STALE_TTL = 24 * 3600;
+const staleKey = request => new Request(request.url + (request.url.includes('?') ? '&' : '?') + '__stale=1');
+
 async function cached(request, ctx, ttl, producer) {
   const cache = typeof caches !== 'undefined' ? caches.default : null;
   if (cache) {
     const hit = await cache.match(request);
-    if (hit) return hit;
+    if (hit) {
+      const headers = new Headers(hit.headers);
+      headers.set('X-Cache', 'HIT');
+      return new Response(hit.body, { status: hit.status, headers });
+    }
   }
-  const res = await producer();
+  const withStale = async err => {
+    const old = cache ? await cache.match(staleKey(request)) : null;
+    if (!old) { if (err) throw err; return null; }
+    const headers = new Headers(old.headers);
+    headers.set('X-Cache', 'STALE');
+    headers.set('Cache-Control', 'no-store');
+    return new Response(old.body, { status: 200, headers });
+  };
+  let res;
+  try { res = await producer(); } catch (err) { return withStale(err); }
+  if (res.status >= 500) return (await withStale(null)) || res;
   if (cache && res.ok) {
-    const copy = res.clone();
-    const headers = new Headers(copy.headers);
-    headers.set('Cache-Control', `public, max-age=${ttl}`);
-    const stored = new Response(copy.body, { status: copy.status, headers });
-    ctx && ctx.waitUntil ? ctx.waitUntil(cache.put(request, stored)) : await cache.put(request, stored);
+    const put = (key, maxAge) => {
+      const headers = new Headers(res.headers);
+      headers.set('Cache-Control', `public, max-age=${maxAge}`);
+      const p = cache.put(key, new Response(res.clone().body, { status: res.status, headers }));
+      return ctx && ctx.waitUntil ? (ctx.waitUntil(p), null) : p;
+    };
+    await put(request, ttl);
+    await put(staleKey(request), STALE_TTL);
+    const headers = new Headers(res.headers);
+    headers.set('X-Cache', 'MISS');
+    return new Response(res.body, { status: res.status, headers });
   }
   return res;
 }
@@ -593,7 +622,11 @@ export default {
         if (isSpark) {
           const range = RANGES.has(url.searchParams.get('range')) ? url.searchParams.get('range') : '3mo';
           const interval = INTERVALS.has(url.searchParams.get('interval')) ? url.searchParams.get('interval') : '1d';
-          return await cached(request, ctx, 60, async () => json(await fetchSparkAll(symbols, range, interval), 200, request, env, 60));
+          return await cached(request, ctx, 60, async () => {
+            const data = await fetchSparkAll(symbols, range, interval);
+            if (!Object.keys(data).length) throw new Error('yahoo spark empty'); // 전부 실패 → stale 캐시 또는 502
+            return json(data, 200, request, env, 60);
+          });
         }
         return await cached(request, ctx, 30, async () => json({ quotes: await fetchQuotes(symbols) }, 200, request, env, 30));
       } catch (err) {
