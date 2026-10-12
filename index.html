@@ -3,13 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0b101c">
+  <meta name="theme-color" content="#000000">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="PentAnalyst">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <!-- 화면 테마: 어두움(OLED 순검정, 기본) / 밝음 / 자동(기기 설정). 첫 페인트 전에 html[data-theme]를 정해 번쩍임을 막는다 -->
+  <script id="theme-boot">
+    (function () {
+      var mode = 'dark';
+      try { mode = localStorage.getItem('pentanalyst_theme') || 'dark'; } catch (e) { /* 저장소 사용 불가: 기본 어두움 */ }
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'auto') mode = 'dark';
+      var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+      function apply() {
+        var eff = mode === 'auto' ? (mq && mq.matches ? 'light' : 'dark') : mode;
+        document.documentElement.setAttribute('data-theme', eff);
+        window.THEME = eff;
+        var c = document.querySelector('meta[name="theme-color"]'); if (c) c.setAttribute('content', eff === 'light' ? '#f1f5f9' : '#000000');
+        document.querySelectorAll('.theme-btn').forEach(function (b) { b.classList.toggle('is-on', b.dataset.theme === mode); b.setAttribute('aria-pressed', String(b.dataset.theme === mode)); });
+      }
+      window.THEME_MODE = mode;
+      window.setTheme = function (m) {
+        if (m !== 'light' && m !== 'dark' && m !== 'auto') return;
+        mode = m; window.THEME_MODE = m;
+        try { localStorage.setItem('pentanalyst_theme', m); } catch (e) { /* 저장 실패해도 이번 접속에는 적용 */ }
+        apply();
+      };
+      if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (mode === 'auto') apply(); });
+      apply();
+      document.addEventListener('DOMContentLoaded', apply);
+    })();
+  </script>
   <!-- 언어(한국어/English/Deutsch): 선택한 언어의 번역 사전(i18n/<언어>.js)을 먼저 읽고, 화면의 한국어 문구를 자동으로 바꿔 보여준다 -->
   <script id="i18n-boot">
     (function () {
@@ -168,13 +194,14 @@
       theme: {
         extend: {
           colors: {
-            finvizDark: '#0e1726',
-            finvizCard: '#131e32',
-            finvizBorder: '#1e293b',
+            finvizDark: '#000000',
+            finvizCard: '#0b0e13',
+            finvizBorder: '#1c222b',
             accentCyan: '#06b6d4',
             bullGreen: '#10b981',
             bearRed: '#ef4444',
-            foolGold: '#f59e0b'
+            foolGold: '#f59e0b',
+            slate: { 700: '#232a34', 800: '#151a21', 900: '#0a0d12', 950: '#000000' }
           }
         }
       }
@@ -227,13 +254,13 @@
     #tabNav.is-stuck [id^=tabBtn-] > span.rounded-full { display: none; }
     .chart-lg-row { pointer-events: auto; display: flex; width: fit-content; max-width: 100%; }
     #proChartContainer canvas { display: block; }
-    #chartFsRoot:fullscreen { display: flex; flex-direction: column; padding: 14px; background: #0a0f1d; height: 100vh; }
+    #chartFsRoot:fullscreen { display: flex; flex-direction: column; padding: 14px; background: #000000; height: 100vh; }
     #chartFsRoot:fullscreen #chartWrap { flex: 1; min-height: 0; }
     #chartFsRoot:fullscreen #proChartContainer { height: 100% !important; }
 
     /* ===== 폰(≤639px): 구글 앱 느낌 — 상단 앱바(로고 · 검색 필 · 설정) + 칩형 보조 탭 + 하단 내비(알약 표시) + 촘촘한 카드 ===== */
     @media (max-width: 639px) {
-      #appBar { position: sticky; top: 0; z-index: 55; padding: .5rem .75rem .375rem; border-bottom: 1px solid rgba(51,65,85,.6); background: rgba(14,23,38,.97); }
+      #appBar { position: sticky; top: 0; z-index: 55; padding: .5rem .75rem .375rem; border-bottom: 1px solid rgba(51,65,85,.6); background: rgba(0,0,0,.97); }
       #appBar > div { flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: .375rem .5rem; }
       #hdrLeft { display: contents; }
       #hdrLeft > div:first-child { order: 1; width: 2.25rem; height: 2.25rem; border-radius: .75rem; flex: none; }
@@ -241,7 +268,7 @@
       #hdrBrand { display: none; }
       #hdrSearchSlot { display: block; order: 2; flex: 1 1 0; min-width: 0; }
       #hdrTools { order: 3; position: relative; flex: none; }
-      #hdrTools button { width: 2.5rem; height: 2.5rem; padding: 0; justify-content: center; border-radius: 9999px; background: #1b2538; border-color: transparent; }
+      #hdrTools button { width: 2.5rem; height: 2.5rem; padding: 0; justify-content: center; border-radius: 9999px; background: #12161c; border-color: transparent; }
       #hdrTools button span { display: none; }
       #liveFeedStatusBadge { position: absolute; top: 0; right: 0; width: .75rem; height: .75rem; z-index: 2; pointer-events: none; }
       #liveFeedDot { width: .5rem; height: .5rem; }
@@ -253,22 +280,22 @@
 
       /* 검색 필 */
       #tabSearchForm { margin: 0; width: 100%; }
-      #hdrSearchSlot #tabSearchInput { width: 100%; height: 2.5rem; padding: 0 .875rem 0 2.5rem; border-radius: 9999px; background: #1b2538; border: 1px solid transparent; font-size: 16px; }
-      #hdrSearchSlot #tabSearchInput:focus { background: #0b1220; border-color: #22d3ee; }
+      #hdrSearchSlot #tabSearchInput { width: 100%; height: 2.5rem; padding: 0 .875rem 0 2.5rem; border-radius: 9999px; background: #12161c; border: 1px solid transparent; font-size: 16px; }
+      #hdrSearchSlot #tabSearchInput:focus { background: #000000; border-color: #22d3ee; }
       #hdrSearchSlot #tabSearchBtn { left: .375rem; right: auto; width: 2rem; height: 2rem; }
       #hdrSearchSlot #tabSearchSuggest { left: 0; right: 0; width: auto; max-width: none; }
 
       /* 보조 탭: 한 줄 칩 (본 탭 줄은 하단 내비가 대신함) */
-      #tabNav { top: var(--appbar-h, 3.25rem); padding: 0 .75rem; border-bottom: 0; background: rgba(10,15,29,.96); }
+      #tabNav { top: var(--appbar-h, 3.25rem); padding: 0 .75rem; border-bottom: 0; background: rgba(0,0,0,.96); }
       #tabNavRow { display: none; }
       #tabNav:not(:has(#subTabRow:not(.hidden))) { display: none; }
       #subTabRow { gap: .5rem; padding: .375rem 0 .5rem; scrollbar-width: none; }
       #subTabRow::-webkit-scrollbar { display: none; }
-      .subtab { padding: .375rem .875rem; font-size: .8125rem; background: #172033; border-color: rgba(51,65,85,.7); }
+      .subtab { padding: .375rem .875rem; font-size: .8125rem; background: #12161c; border-color: rgba(51,65,85,.7); }
       .subtab.is-on { background: rgba(34,211,238,.16); color: #a5f3fc; border-color: rgba(34,211,238,.35); }
 
       /* 하단 내비: 알약 표시 + 구분선 대신 그림자 */
-      #mobileTabBar { background: #101a2c; border-top: 0; box-shadow: 0 -1px 0 rgba(148,163,184,.1), 0 -10px 24px rgba(0,0,0,.35); }
+      #mobileTabBar { background: #07090c; border-top: 0; box-shadow: 0 -1px 0 rgba(148,163,184,.1), 0 -10px 24px rgba(0,0,0,.35); }
       #mobileTabBar .mtab { min-height: 62px; gap: .125rem; background: transparent; box-shadow: none; }
       #mobileTabBar .mtab.is-on { background: transparent; box-shadow: none; color: #e0f2fe; }
       #mobileTabBar .mtab > i { padding: .25rem 1.1rem; border-radius: 9999px; transition: background .15s, color .15s; }
@@ -300,13 +327,48 @@
       #wlGroups + div > * { flex: none; }
       #wlSortDir span, #wlEditBtn span { display: none; }
     }
+
+    /* ===== 테마: 기본은 어두움(OLED — 배경 #000, 카드 #0b0e13). 밝음은 html[data-theme="light"] 규칙(클래스 덮어쓰기는 tools/gen-light-theme.py 가 만든 블록) ===== */
+    html[data-theme="dark"] { color-scheme: dark; }
+    html[data-theme="light"] { color-scheme: light; }
+    .theme-btn.is-on { background: #0e7490; color: #fff; }
+    html[data-theme="light"] body { background: #f1f5f9; color: #0f172a; }
+    html[data-theme="light"] ::-webkit-scrollbar-track { background: #e2e8f0; }
+    html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #94a3b8; }
+    html[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    /* 캔버스 차트는 어두운 배경으로 그려지므로 밝은 모드에서는 색을 반전(색조는 유지) */
+    html[data-theme="light"] canvas { filter: invert(1) hue-rotate(180deg); }
+    html[data-theme="light"] #hdrBrand span.bg-clip-text { background-image: linear-gradient(to right, #0891b2, #0369a1, #b45309); }
+    html[data-theme="light"] .subtab { color: #64748b; }
+    html[data-theme="light"] .subtab:hover { color: #0f172a; background: #e2e8f0; }
+    html[data-theme="light"] .subtab.is-on { color: #0f172a; background: #e2e8f0; border-color: #94a3b8; }
+    html[data-theme="light"] .hubtab:hover { color: #0f172a; }
+    html[data-theme="light"] .lang-btn.is-on, html[data-theme="light"] .theme-btn.is-on { background: #0e7490; color: #fff; }
+    html[data-theme="light"] #chartFsRoot:fullscreen { background: #fff; }
+    html[data-theme="light"] #marketRoot .mk-card { background: #fff; border-color: #e2e8f0; box-shadow: 0 4px 14px rgba(15,23,42,.08); }
+    html[data-theme="light"] #marketRoot .mk-sticky { background: #fff; }
+    html[data-theme="light"] #marketRoot .mk-tile { box-shadow: inset 0 0 0 1px #f1f5f9; }
+    html[data-theme="light"] #marketRoot .mk-blk { box-shadow: inset 0 0 0 2px #f1f5f9; }
+    html[data-theme="light"] :focus-visible { outline-color: #0891b2; }
+    @media (max-width: 639px) {
+      html[data-theme="light"] #appBar { background: rgba(255,255,255,.97); border-bottom-color: #e2e8f0; }
+      html[data-theme="light"] #hdrTools button { background: #e9eef5; }
+      html[data-theme="light"] #hdrSearchSlot #tabSearchInput { background: #e9eef5; }
+      html[data-theme="light"] #hdrSearchSlot #tabSearchInput:focus { background: #fff; border-color: #0891b2; }
+      html[data-theme="light"] #tabNav { background: rgba(241,245,249,.96); }
+      html[data-theme="light"] .subtab { background: #e9eef5; border-color: #dbe3ee; color: #475569; }
+      html[data-theme="light"] .subtab.is-on { background: rgba(8,145,178,.14); color: #0e7490; border-color: rgba(8,145,178,.35); }
+      html[data-theme="light"] #mobileTabBar { background: #fff; box-shadow: 0 -1px 0 rgba(15,23,42,.08), 0 -8px 20px rgba(15,23,42,.08); }
+      html[data-theme="light"] #mobileTabBar .mtab.is-on { color: #0e7490; }
+      html[data-theme="light"] #mobileTabBar .mtab.is-on > i { background: rgba(8,145,178,.14); color: #0e7490; }
+    }
     /* Custom scrollbars */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
     }
     ::-webkit-scrollbar-track {
-      background: #0f172a;
+      background: #07090c;
     }
     ::-webkit-scrollbar-thumb {
       background: #334155;
@@ -315,13 +377,386 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #475569;
     }
+/* LIGHT-THEME:BEGIN (tools/gen-light-theme.py 가 생성 — 직접 고치지 말 것) */
+html[data-theme="light"] body .bg-\[\#000000\]\/70{background-color:rgb(241 245 249 / 0.7)}
+html[data-theme="light"] body .bg-\[\#000000\]\/90{background-color:rgb(241 245 249 / 0.9)}
+html[data-theme="light"] body .bg-\[\#000000\]\/95{background-color:rgb(241 245 249 / 0.95)}
+html[data-theme="light"] body .bg-\[\#000000\]{background-color:rgb(241 245 249)}
+html[data-theme="light"] body .bg-\[\#0b0e13\]{background-color:rgb(255 255 255)}
+html[data-theme="light"] body .bg-amber-900\/50{background-color:rgb(254 243 199 / 0.8)}
+html[data-theme="light"] body .bg-amber-900\/60{background-color:rgb(254 243 199 / 0.95)}
+html[data-theme="light"] body .bg-amber-950\/20{background-color:rgb(255 251 235 / 0.27999999999999997)}
+html[data-theme="light"] body .bg-amber-950\/25{background-color:rgb(255 251 235 / 0.35)}
+html[data-theme="light"] body .bg-amber-950\/30{background-color:rgb(255 251 235 / 0.42)}
+html[data-theme="light"] body .bg-amber-950\/40{background-color:rgb(255 251 235 / 0.5599999999999999)}
+html[data-theme="light"] body .bg-amber-950\/60{background-color:rgb(255 251 235 / 0.84)}
+html[data-theme="light"] body .bg-amber-950\/70{background-color:rgb(255 251 235 / 0.95)}
+html[data-theme="light"] body .bg-amber-950\/80{background-color:rgb(255 251 235 / 0.95)}
+html[data-theme="light"] body .bg-amber-950{background-color:rgb(255 251 235)}
+html[data-theme="light"] body .bg-blue-950\/60{background-color:rgb(239 246 255 / 0.84)}
+html[data-theme="light"] body .bg-blue-950{background-color:rgb(239 246 255)}
+html[data-theme="light"] body .bg-cyan-900\/60{background-color:rgb(207 250 254 / 0.95)}
+html[data-theme="light"] body .bg-cyan-900{background-color:rgb(207 250 254)}
+html[data-theme="light"] body .bg-cyan-950\/20{background-color:rgb(236 254 255 / 0.27999999999999997)}
+html[data-theme="light"] body .bg-cyan-950\/30{background-color:rgb(236 254 255 / 0.42)}
+html[data-theme="light"] body .bg-cyan-950\/40{background-color:rgb(236 254 255 / 0.5599999999999999)}
+html[data-theme="light"] body .bg-cyan-950\/50{background-color:rgb(236 254 255 / 0.7)}
+html[data-theme="light"] body .bg-cyan-950\/60{background-color:rgb(236 254 255 / 0.84)}
+html[data-theme="light"] body .bg-cyan-950\/80{background-color:rgb(236 254 255 / 0.95)}
+html[data-theme="light"] body .bg-cyan-950{background-color:rgb(236 254 255)}
+html[data-theme="light"] body .bg-emerald-900\/50{background-color:rgb(209 250 229 / 0.8)}
+html[data-theme="light"] body .bg-emerald-900\/70{background-color:rgb(209 250 229 / 0.95)}
+html[data-theme="light"] body .bg-emerald-950\/20{background-color:rgb(236 253 245 / 0.27999999999999997)}
+html[data-theme="light"] body .bg-emerald-950\/30{background-color:rgb(236 253 245 / 0.42)}
+html[data-theme="light"] body .bg-emerald-950\/40{background-color:rgb(236 253 245 / 0.5599999999999999)}
+html[data-theme="light"] body .bg-emerald-950\/50{background-color:rgb(236 253 245 / 0.7)}
+html[data-theme="light"] body .bg-emerald-950\/60{background-color:rgb(236 253 245 / 0.84)}
+html[data-theme="light"] body .bg-emerald-950\/80{background-color:rgb(236 253 245 / 0.95)}
+html[data-theme="light"] body .bg-emerald-950{background-color:rgb(236 253 245)}
+html[data-theme="light"] body .bg-fuchsia-950{background-color:rgb(253 244 255)}
+html[data-theme="light"] body .bg-indigo-950\/70{background-color:rgb(238 242 255 / 0.95)}
+html[data-theme="light"] body .bg-lime-900\/50{background-color:rgb(236 252 203 / 0.8)}
+html[data-theme="light"] body .bg-lime-900\/60{background-color:rgb(236 252 203 / 0.95)}
+html[data-theme="light"] body .bg-lime-950{background-color:rgb(247 254 231)}
+html[data-theme="light"] body .bg-orange-900\/50{background-color:rgb(255 237 213 / 0.8)}
+html[data-theme="light"] body .bg-orange-900\/60{background-color:rgb(255 237 213 / 0.95)}
+html[data-theme="light"] body .bg-orange-950\/20{background-color:rgb(255 247 237 / 0.27999999999999997)}
+html[data-theme="light"] body .bg-orange-950\/30{background-color:rgb(255 247 237 / 0.42)}
+html[data-theme="light"] body .bg-orange-950\/40{background-color:rgb(255 247 237 / 0.5599999999999999)}
+html[data-theme="light"] body .bg-orange-950\/60{background-color:rgb(255 247 237 / 0.84)}
+html[data-theme="light"] body .bg-orange-950{background-color:rgb(255 247 237)}
+html[data-theme="light"] body .bg-pink-950\/60{background-color:rgb(253 242 248 / 0.84)}
+html[data-theme="light"] body .bg-purple-950\/10{background-color:rgb(250 245 255 / 0.13999999999999999)}
+html[data-theme="light"] body .bg-purple-950\/60{background-color:rgb(250 245 255 / 0.84)}
+html[data-theme="light"] body .bg-purple-950{background-color:rgb(250 245 255)}
+html[data-theme="light"] body .bg-rose-900\/50{background-color:rgb(255 228 230 / 0.8)}
+html[data-theme="light"] body .bg-rose-900\/70{background-color:rgb(255 228 230 / 0.95)}
+html[data-theme="light"] body .bg-rose-950\/20{background-color:rgb(255 241 242 / 0.27999999999999997)}
+html[data-theme="light"] body .bg-rose-950\/30{background-color:rgb(255 241 242 / 0.42)}
+html[data-theme="light"] body .bg-rose-950\/40{background-color:rgb(255 241 242 / 0.5599999999999999)}
+html[data-theme="light"] body .bg-rose-950\/50{background-color:rgb(255 241 242 / 0.7)}
+html[data-theme="light"] body .bg-rose-950\/60{background-color:rgb(255 241 242 / 0.84)}
+html[data-theme="light"] body .bg-rose-950\/80{background-color:rgb(255 241 242 / 0.95)}
+html[data-theme="light"] body .bg-rose-950{background-color:rgb(255 241 242)}
+html[data-theme="light"] body .bg-sky-900\/50{background-color:rgb(224 242 254 / 0.8)}
+html[data-theme="light"] body .bg-sky-900\/60{background-color:rgb(224 242 254 / 0.95)}
+html[data-theme="light"] body .bg-sky-950\/30{background-color:rgb(240 249 255 / 0.42)}
+html[data-theme="light"] body .bg-sky-950\/40{background-color:rgb(240 249 255 / 0.5599999999999999)}
+html[data-theme="light"] body .bg-sky-950\/60{background-color:rgb(240 249 255 / 0.84)}
+html[data-theme="light"] body .bg-sky-950{background-color:rgb(240 249 255)}
+html[data-theme="light"] body .bg-slate-700\/40{background-color:rgb(203 213 225 / 0.4)}
+html[data-theme="light"] body .bg-slate-700\/60{background-color:rgb(203 213 225 / 0.6)}
+html[data-theme="light"] body .bg-slate-700{background-color:rgb(203 213 225)}
+html[data-theme="light"] body .bg-slate-800\/40{background-color:rgb(226 232 240 / 0.4)}
+html[data-theme="light"] body .bg-slate-800\/60{background-color:rgb(226 232 240 / 0.6)}
+html[data-theme="light"] body .bg-slate-800\/70{background-color:rgb(226 232 240 / 0.7)}
+html[data-theme="light"] body .bg-slate-800\/90{background-color:rgb(226 232 240 / 0.9)}
+html[data-theme="light"] body .bg-slate-800{background-color:rgb(226 232 240)}
+html[data-theme="light"] body .bg-slate-900\/40{background-color:rgb(248 250 252 / 0.4)}
+html[data-theme="light"] body .bg-slate-900\/50{background-color:rgb(248 250 252 / 0.5)}
+html[data-theme="light"] body .bg-slate-900\/60{background-color:rgb(248 250 252 / 0.6)}
+html[data-theme="light"] body .bg-slate-900\/70{background-color:rgb(248 250 252 / 0.7)}
+html[data-theme="light"] body .bg-slate-900\/80{background-color:rgb(248 250 252 / 0.8)}
+html[data-theme="light"] body .bg-slate-900\/90{background-color:rgb(248 250 252 / 0.9)}
+html[data-theme="light"] body .bg-slate-900\/95{background-color:rgb(248 250 252 / 0.95)}
+html[data-theme="light"] body .bg-slate-900{background-color:rgb(248 250 252)}
+html[data-theme="light"] body .bg-slate-950\/40{background-color:rgb(241 245 249 / 0.4)}
+html[data-theme="light"] body .bg-slate-950\/50{background-color:rgb(241 245 249 / 0.5)}
+html[data-theme="light"] body .bg-slate-950\/60{background-color:rgb(241 245 249 / 0.6)}
+html[data-theme="light"] body .bg-slate-950\/70{background-color:rgb(241 245 249 / 0.7)}
+html[data-theme="light"] body .bg-slate-950\/80{background-color:rgb(241 245 249 / 0.8)}
+html[data-theme="light"] body .bg-slate-950\/90{background-color:rgb(241 245 249 / 0.9)}
+html[data-theme="light"] body .bg-slate-950{background-color:rgb(241 245 249)}
+html[data-theme="light"] body .bg-violet-900\/60{background-color:rgb(237 233 254 / 0.95)}
+html[data-theme="light"] body .bg-violet-950\/20{background-color:rgb(245 243 255 / 0.27999999999999997)}
+html[data-theme="light"] body .bg-violet-950\/40{background-color:rgb(245 243 255 / 0.5599999999999999)}
+html[data-theme="light"] body .bg-violet-950{background-color:rgb(245 243 255)}
+html[data-theme="light"] body .bg-yellow-950\/30{background-color:rgb(254 252 232 / 0.42)}
+html[data-theme="light"] body .bg-yellow-950\/60{background-color:rgb(254 252 232 / 0.84)}
+html[data-theme="light"] body .bg-yellow-950\/70{background-color:rgb(254 252 232 / 0.95)}
+html[data-theme="light"] body .bg-yellow-950{background-color:rgb(254 252 232)}
+html[data-theme="light"] body .border-amber-600\/50{border-color:rgb(252 211 77 / 0.5)}
+html[data-theme="light"] body .border-amber-600{border-color:rgb(252 211 77)}
+html[data-theme="light"] body .border-amber-700\/50{border-color:rgb(252 211 77 / 0.5)}
+html[data-theme="light"] body .border-amber-700\/60{border-color:rgb(252 211 77 / 0.6)}
+html[data-theme="light"] body .border-amber-700\/80{border-color:rgb(252 211 77 / 0.8)}
+html[data-theme="light"] body .border-amber-700{border-color:rgb(252 211 77)}
+html[data-theme="light"] body .border-amber-800\/50{border-color:rgb(253 230 138 / 0.5)}
+html[data-theme="light"] body .border-amber-800\/60{border-color:rgb(253 230 138 / 0.6)}
+html[data-theme="light"] body .border-amber-800\/70{border-color:rgb(253 230 138 / 0.7)}
+html[data-theme="light"] body .border-amber-800{border-color:rgb(253 230 138)}
+html[data-theme="light"] body .border-amber-900\/50{border-color:rgb(253 230 138 / 0.5)}
+html[data-theme="light"] body .border-amber-900\/60{border-color:rgb(253 230 138 / 0.6)}
+html[data-theme="light"] body .border-blue-700\/60{border-color:rgb(147 197 253 / 0.6)}
+html[data-theme="light"] body .border-cyan-600{border-color:rgb(103 232 249)}
+html[data-theme="light"] body .border-cyan-700\/50{border-color:rgb(103 232 249 / 0.5)}
+html[data-theme="light"] body .border-cyan-700\/60{border-color:rgb(103 232 249 / 0.6)}
+html[data-theme="light"] body .border-cyan-700\/70{border-color:rgb(103 232 249 / 0.7)}
+html[data-theme="light"] body .border-cyan-700\/80{border-color:rgb(103 232 249 / 0.8)}
+html[data-theme="light"] body .border-cyan-700{border-color:rgb(103 232 249)}
+html[data-theme="light"] body .border-cyan-800\/40{border-color:rgb(165 243 252 / 0.4)}
+html[data-theme="light"] body .border-cyan-800\/50{border-color:rgb(165 243 252 / 0.5)}
+html[data-theme="light"] body .border-cyan-800\/60{border-color:rgb(165 243 252 / 0.6)}
+html[data-theme="light"] body .border-cyan-800\/70{border-color:rgb(165 243 252 / 0.7)}
+html[data-theme="light"] body .border-cyan-800\/80{border-color:rgb(165 243 252 / 0.8)}
+html[data-theme="light"] body .border-cyan-800{border-color:rgb(165 243 252)}
+html[data-theme="light"] body .border-cyan-900\/50{border-color:rgb(165 243 252 / 0.5)}
+html[data-theme="light"] body .border-cyan-900\/60{border-color:rgb(165 243 252 / 0.6)}
+html[data-theme="light"] body .border-emerald-600\/50{border-color:rgb(110 231 183 / 0.5)}
+html[data-theme="light"] body .border-emerald-600{border-color:rgb(110 231 183)}
+html[data-theme="light"] body .border-emerald-700\/40{border-color:rgb(110 231 183 / 0.4)}
+html[data-theme="light"] body .border-emerald-700\/60{border-color:rgb(110 231 183 / 0.6)}
+html[data-theme="light"] body .border-emerald-700\/80{border-color:rgb(110 231 183 / 0.8)}
+html[data-theme="light"] body .border-emerald-700{border-color:rgb(110 231 183)}
+html[data-theme="light"] body .border-emerald-800\/60{border-color:rgb(167 243 208 / 0.6)}
+html[data-theme="light"] body .border-emerald-800\/70{border-color:rgb(167 243 208 / 0.7)}
+html[data-theme="light"] body .border-emerald-800{border-color:rgb(167 243 208)}
+html[data-theme="light"] body .border-emerald-900\/30{border-color:rgb(167 243 208 / 0.3)}
+html[data-theme="light"] body .border-emerald-900\/40{border-color:rgb(167 243 208 / 0.4)}
+html[data-theme="light"] body .border-emerald-900\/50{border-color:rgb(167 243 208 / 0.5)}
+html[data-theme="light"] body .border-emerald-900\/60{border-color:rgb(167 243 208 / 0.6)}
+html[data-theme="light"] body .border-emerald-900\/70{border-color:rgb(167 243 208 / 0.7)}
+html[data-theme="light"] body .border-emerald-900{border-color:rgb(167 243 208)}
+html[data-theme="light"] body .border-fuchsia-700\/80{border-color:rgb(240 171 252 / 0.8)}
+html[data-theme="light"] body .border-indigo-700\/60{border-color:rgb(165 180 252 / 0.6)}
+html[data-theme="light"] body .border-lime-700\/60{border-color:rgb(190 242 100 / 0.6)}
+html[data-theme="light"] body .border-lime-700\/80{border-color:rgb(190 242 100 / 0.8)}
+html[data-theme="light"] body .border-lime-700{border-color:rgb(190 242 100)}
+html[data-theme="light"] body .border-orange-600{border-color:rgb(253 186 116)}
+html[data-theme="light"] body .border-orange-700\/60{border-color:rgb(253 186 116 / 0.6)}
+html[data-theme="light"] body .border-orange-700\/70{border-color:rgb(253 186 116 / 0.7)}
+html[data-theme="light"] body .border-orange-700\/80{border-color:rgb(253 186 116 / 0.8)}
+html[data-theme="light"] body .border-orange-700{border-color:rgb(253 186 116)}
+html[data-theme="light"] body .border-orange-800\/60{border-color:rgb(254 215 170 / 0.6)}
+html[data-theme="light"] body .border-pink-700\/60{border-color:rgb(249 168 212 / 0.6)}
+html[data-theme="light"] body .border-purple-700\/60{border-color:rgb(216 180 254 / 0.6)}
+html[data-theme="light"] body .border-purple-800\/60{border-color:rgb(233 213 255 / 0.6)}
+html[data-theme="light"] body .border-purple-900\/50{border-color:rgb(233 213 255 / 0.5)}
+html[data-theme="light"] body .border-rose-600{border-color:rgb(253 164 175)}
+html[data-theme="light"] body .border-rose-700\/40{border-color:rgb(253 164 175 / 0.4)}
+html[data-theme="light"] body .border-rose-700\/60{border-color:rgb(253 164 175 / 0.6)}
+html[data-theme="light"] body .border-rose-700\/80{border-color:rgb(253 164 175 / 0.8)}
+html[data-theme="light"] body .border-rose-700{border-color:rgb(253 164 175)}
+html[data-theme="light"] body .border-rose-800\/60{border-color:rgb(254 205 211 / 0.6)}
+html[data-theme="light"] body .border-rose-800\/70{border-color:rgb(254 205 211 / 0.7)}
+html[data-theme="light"] body .border-rose-800{border-color:rgb(254 205 211)}
+html[data-theme="light"] body .border-rose-900\/30{border-color:rgb(254 205 211 / 0.3)}
+html[data-theme="light"] body .border-rose-900\/40{border-color:rgb(254 205 211 / 0.4)}
+html[data-theme="light"] body .border-rose-900\/50{border-color:rgb(254 205 211 / 0.5)}
+html[data-theme="light"] body .border-rose-900\/60{border-color:rgb(254 205 211 / 0.6)}
+html[data-theme="light"] body .border-rose-900\/70{border-color:rgb(254 205 211 / 0.7)}
+html[data-theme="light"] body .border-rose-900{border-color:rgb(254 205 211)}
+html[data-theme="light"] body .border-sky-600{border-color:rgb(125 211 252)}
+html[data-theme="light"] body .border-sky-700\/60{border-color:rgb(125 211 252 / 0.6)}
+html[data-theme="light"] body .border-sky-700\/80{border-color:rgb(125 211 252 / 0.8)}
+html[data-theme="light"] body .border-sky-700{border-color:rgb(125 211 252)}
+html[data-theme="light"] body .border-sky-800{border-color:rgb(186 230 253)}
+html[data-theme="light"] body .border-sky-900\/60{border-color:rgb(186 230 253 / 0.6)}
+html[data-theme="light"] body .border-slate-400{border-color:rgb(148 163 184)}
+html[data-theme="light"] body .border-slate-500{border-color:rgb(148 163 184)}
+html[data-theme="light"] body .border-slate-600\/40{border-color:rgb(203 213 225 / 0.4)}
+html[data-theme="light"] body .border-slate-600\/50{border-color:rgb(203 213 225 / 0.5)}
+html[data-theme="light"] body .border-slate-600{border-color:rgb(203 213 225)}
+html[data-theme="light"] body .border-slate-700\/60{border-color:rgb(203 213 225 / 0.6)}
+html[data-theme="light"] body .border-slate-700{border-color:rgb(203 213 225)}
+html[data-theme="light"] body .border-slate-800\/60{border-color:rgb(226 232 240 / 0.6)}
+html[data-theme="light"] body .border-slate-800\/70{border-color:rgb(226 232 240 / 0.7)}
+html[data-theme="light"] body .border-slate-800\/80{border-color:rgb(226 232 240 / 0.8)}
+html[data-theme="light"] body .border-slate-800{border-color:rgb(226 232 240)}
+html[data-theme="light"] body .border-violet-600{border-color:rgb(196 181 253)}
+html[data-theme="light"] body .border-violet-700\/80{border-color:rgb(196 181 253 / 0.8)}
+html[data-theme="light"] body .border-violet-800\/50{border-color:rgb(221 214 254 / 0.5)}
+html[data-theme="light"] body .border-violet-900\/60{border-color:rgb(221 214 254 / 0.6)}
+html[data-theme="light"] body .border-yellow-600{border-color:rgb(253 224 71)}
+html[data-theme="light"] body .border-yellow-700\/70{border-color:rgb(253 224 71 / 0.7)}
+html[data-theme="light"] body .border-yellow-700\/80{border-color:rgb(253 224 71 / 0.8)}
+html[data-theme="light"] body .border-yellow-800\/60{border-color:rgb(254 240 138 / 0.6)}
+html[data-theme="light"] body .divide-slate-800\/70 > :not([hidden]) ~ :not([hidden]){border-color:rgb(226 232 240 / 0.7)}
+html[data-theme="light"] body .divide-slate-800\/80 > :not([hidden]) ~ :not([hidden]){border-color:rgb(226 232 240 / 0.8)}
+html[data-theme="light"] body .focus\:border-slate-600:focus{border-color:rgb(203 213 225)}
+html[data-theme="light"] body .group:hover .group-hover\:bg-\[\#12161c\]{background-color:rgb(241 245 249)}
+html[data-theme="light"] body .group:hover .group-hover\:text-amber-400{color:rgb(180 83 9)}
+html[data-theme="light"] body .group:hover .group-hover\:text-cyan-200{color:rgb(21 94 117)}
+html[data-theme="light"] body .group:hover .group-hover\:text-cyan-300{color:rgb(14 116 144)}
+html[data-theme="light"] body .group:hover .group-hover\:text-cyan-400{color:rgb(14 116 144)}
+html[data-theme="light"] body .group:hover .group-hover\:text-emerald-400{color:rgb(4 120 87)}
+html[data-theme="light"] body .group:hover .group-hover\:text-slate-300{color:rgb(51 65 85)}
+html[data-theme="light"] body .hover\:bg-amber-800:hover{background-color:rgb(254 243 199)}
+html[data-theme="light"] body .hover\:bg-amber-900\/40:hover{background-color:rgb(254 243 199 / 0.6400000000000001)}
+html[data-theme="light"] body .hover\:bg-amber-950\/40:hover{background-color:rgb(255 251 235 / 0.5599999999999999)}
+html[data-theme="light"] body .hover\:bg-amber-950\/60:hover{background-color:rgb(255 251 235 / 0.84)}
+html[data-theme="light"] body .hover\:bg-cyan-800:hover{background-color:rgb(207 250 254)}
+html[data-theme="light"] body .hover\:bg-cyan-900:hover{background-color:rgb(207 250 254)}
+html[data-theme="light"] body .hover\:bg-cyan-950:hover{background-color:rgb(236 254 255)}
+html[data-theme="light"] body .hover\:bg-cyan-950\/40:hover{background-color:rgb(236 254 255 / 0.5599999999999999)}
+html[data-theme="light"] body .hover\:bg-cyan-950\/60:hover{background-color:rgb(236 254 255 / 0.84)}
+html[data-theme="light"] body .hover\:bg-emerald-950\/40:hover{background-color:rgb(236 253 245 / 0.5599999999999999)}
+html[data-theme="light"] body .hover\:bg-emerald-950\/50:hover{background-color:rgb(236 253 245 / 0.7)}
+html[data-theme="light"] body .hover\:bg-emerald-950\/60:hover{background-color:rgb(236 253 245 / 0.84)}
+html[data-theme="light"] body .hover\:bg-indigo-900:hover{background-color:rgb(224 231 255)}
+html[data-theme="light"] body .hover\:bg-lime-800:hover{background-color:rgb(236 252 203)}
+html[data-theme="light"] body .hover\:bg-rose-950:hover{background-color:rgb(255 241 242)}
+html[data-theme="light"] body .hover\:bg-rose-950\/40:hover{background-color:rgb(255 241 242 / 0.5599999999999999)}
+html[data-theme="light"] body .hover\:bg-rose-950\/60:hover{background-color:rgb(255 241 242 / 0.84)}
+html[data-theme="light"] body .hover\:bg-sky-950\/40:hover{background-color:rgb(240 249 255 / 0.5599999999999999)}
+html[data-theme="light"] body .hover\:bg-sky-950\/50:hover{background-color:rgb(240 249 255 / 0.7)}
+html[data-theme="light"] body .hover\:bg-slate-700:hover{background-color:rgb(203 213 225)}
+html[data-theme="light"] body .hover\:bg-slate-700\/70:hover{background-color:rgb(203 213 225 / 0.7)}
+html[data-theme="light"] body .hover\:bg-slate-800:hover{background-color:rgb(226 232 240)}
+html[data-theme="light"] body .hover\:bg-slate-800\/40:hover{background-color:rgb(226 232 240 / 0.4)}
+html[data-theme="light"] body .hover\:bg-slate-800\/60:hover{background-color:rgb(226 232 240 / 0.6)}
+html[data-theme="light"] body .hover\:bg-slate-800\/70:hover{background-color:rgb(226 232 240 / 0.7)}
+html[data-theme="light"] body .hover\:bg-slate-900:hover{background-color:rgb(248 250 252)}
+html[data-theme="light"] body .hover\:bg-slate-900\/60:hover{background-color:rgb(248 250 252 / 0.6)}
+html[data-theme="light"] body .hover\:bg-teal-950\/40:hover{background-color:rgb(240 253 250 / 0.5599999999999999)}
+html[data-theme="light"] body .hover\:bg-violet-950\/40:hover{background-color:rgb(245 243 255 / 0.5599999999999999)}
+html[data-theme="light"] body .hover\:border-cyan-600:hover{border-color:rgb(103 232 249)}
+html[data-theme="light"] body .hover\:border-cyan-600\/60:hover{border-color:rgb(103 232 249 / 0.6)}
+html[data-theme="light"] body .hover\:border-rose-800:hover{border-color:rgb(254 205 211)}
+html[data-theme="light"] body .hover\:border-sky-600:hover{border-color:rgb(125 211 252)}
+html[data-theme="light"] body .hover\:border-slate-500:hover{border-color:rgb(148 163 184)}
+html[data-theme="light"] body .hover\:border-slate-600:hover{border-color:rgb(203 213 225)}
+html[data-theme="light"] body .hover\:border-slate-700:hover{border-color:rgb(203 213 225)}
+html[data-theme="light"] body .hover\:text-amber-300:hover{color:rgb(180 83 9)}
+html[data-theme="light"] body .hover\:text-cyan-200:hover{color:rgb(21 94 117)}
+html[data-theme="light"] body .hover\:text-cyan-300:hover{color:rgb(14 116 144)}
+html[data-theme="light"] body .hover\:text-emerald-300:hover{color:rgb(4 120 87)}
+html[data-theme="light"] body .hover\:text-orange-400:hover{color:rgb(194 65 12)}
+html[data-theme="light"] body .hover\:text-rose-200:hover{color:rgb(159 18 57)}
+html[data-theme="light"] body .hover\:text-rose-300:hover{color:rgb(190 18 60)}
+html[data-theme="light"] body .hover\:text-rose-400:hover{color:rgb(190 18 60)}
+html[data-theme="light"] body .hover\:text-sky-200:hover{color:rgb(7 89 133)}
+html[data-theme="light"] body .hover\:text-slate-300:hover{color:rgb(51 65 85)}
+html[data-theme="light"] body .hover\:text-white:hover{color:rgb(15 23 42)}
+html[data-theme="light"] body .hover\:text-yellow-200:hover{color:rgb(133 77 14)}
+html[data-theme="light"] body .placeholder-slate-400::placeholder{color:rgb(148 163 184)}
+html[data-theme="light"] body .placeholder-slate-500::placeholder{color:rgb(148 163 184)}
+html[data-theme="light"] body .placeholder\:text-slate-400::placeholder{color:rgb(71 85 105)}
+html[data-theme="light"] body .ring-\[\#0b0e13\]{--tw-ring-color:rgb(255 255 255)}
+html[data-theme="light"] body .ring-slate-900{--tw-ring-color:rgb(226 232 240)}
+html[data-theme="light"] body .text-amber-100{color:rgb(146 64 14)}
+html[data-theme="light"] body .text-amber-200\/90{color:rgb(146 64 14 / 0.9)}
+html[data-theme="light"] body .text-amber-200{color:rgb(146 64 14)}
+html[data-theme="light"] body .text-amber-300\/90{color:rgb(180 83 9 / 0.9)}
+html[data-theme="light"] body .text-amber-300{color:rgb(180 83 9)}
+html[data-theme="light"] body .text-amber-400{color:rgb(180 83 9)}
+html[data-theme="light"] body .text-blue-300{color:rgb(29 78 216)}
+html[data-theme="light"] body .text-blue-400{color:rgb(29 78 216)}
+html[data-theme="light"] body .text-cyan-200{color:rgb(21 94 117)}
+html[data-theme="light"] body .text-cyan-300{color:rgb(14 116 144)}
+html[data-theme="light"] body .text-cyan-400\/80{color:rgb(14 116 144 / 0.8)}
+html[data-theme="light"] body .text-cyan-400{color:rgb(14 116 144)}
+html[data-theme="light"] body .text-emerald-200{color:rgb(6 95 70)}
+html[data-theme="light"] body .text-emerald-300{color:rgb(4 120 87)}
+html[data-theme="light"] body .text-emerald-400{color:rgb(4 120 87)}
+html[data-theme="light"] body .text-fuchsia-300{color:rgb(162 28 175)}
+html[data-theme="light"] body .text-fuchsia-400{color:rgb(162 28 175)}
+html[data-theme="light"] body .text-indigo-200{color:rgb(55 48 163)}
+html[data-theme="light"] body .text-lime-200{color:rgb(63 98 18)}
+html[data-theme="light"] body .text-lime-300{color:rgb(77 124 15)}
+html[data-theme="light"] body .text-lime-400{color:rgb(77 124 15)}
+html[data-theme="light"] body .text-orange-100\/80{color:rgb(154 52 18 / 0.8)}
+html[data-theme="light"] body .text-orange-100{color:rgb(154 52 18)}
+html[data-theme="light"] body .text-orange-200{color:rgb(154 52 18)}
+html[data-theme="light"] body .text-orange-300{color:rgb(194 65 12)}
+html[data-theme="light"] body .text-orange-400{color:rgb(194 65 12)}
+html[data-theme="light"] body .text-pink-300{color:rgb(190 24 93)}
+html[data-theme="light"] body .text-pink-400{color:rgb(190 24 93)}
+html[data-theme="light"] body .text-purple-300{color:rgb(126 34 206)}
+html[data-theme="light"] body .text-purple-400{color:rgb(126 34 206)}
+html[data-theme="light"] body .text-red-400{color:rgb(185 28 28)}
+html[data-theme="light"] body .text-red-500{color:rgb(220 38 38)}
+html[data-theme="light"] body .text-rose-200{color:rgb(159 18 57)}
+html[data-theme="light"] body .text-rose-300{color:rgb(190 18 60)}
+html[data-theme="light"] body .text-rose-400{color:rgb(190 18 60)}
+html[data-theme="light"] body .text-sky-200{color:rgb(7 89 133)}
+html[data-theme="light"] body .text-sky-300{color:rgb(3 105 161)}
+html[data-theme="light"] body .text-sky-400{color:rgb(3 105 161)}
+html[data-theme="light"] body .text-slate-100{color:rgb(15 23 42)}
+html[data-theme="light"] body .text-slate-200{color:rgb(30 41 59)}
+html[data-theme="light"] body .text-slate-300{color:rgb(51 65 85)}
+html[data-theme="light"] body .text-slate-400{color:rgb(71 85 105)}
+html[data-theme="light"] body .text-slate-500{color:rgb(91 107 130)}
+html[data-theme="light"] body .text-slate-600{color:rgb(100 116 139)}
+html[data-theme="light"] body .text-slate-700{color:rgb(71 85 105)}
+html[data-theme="light"] body .text-teal-300{color:rgb(15 118 110)}
+html[data-theme="light"] body .text-violet-200{color:rgb(91 33 182)}
+html[data-theme="light"] body .text-violet-300{color:rgb(109 40 217)}
+html[data-theme="light"] body .text-violet-400{color:rgb(109 40 217)}
+html[data-theme="light"] body .text-white{color:rgb(15 23 42)}
+html[data-theme="light"] body .text-yellow-100{color:rgb(133 77 14)}
+html[data-theme="light"] body .text-yellow-200{color:rgb(133 77 14)}
+html[data-theme="light"] body .text-yellow-300{color:rgb(161 98 7)}
+html[data-theme="light"] body .text-yellow-400{color:rgb(161 98 7)}
+html[data-theme="light"] body .from-\[\#0b0e13\]{--tw-gradient-from:rgb(255 255 255) var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)}
+html[data-theme="light"] body .from-cyan-950\/40{--tw-gradient-from:rgb(236 254 255 / 0.5599999999999999) var(--tw-gradient-from-position);--tw-gradient-to:rgb(236 254 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)}
+html[data-theme="light"] body .from-slate-900{--tw-gradient-from:rgb(248 250 252) var(--tw-gradient-from-position);--tw-gradient-to:rgb(248 250 252 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)}
+html[data-theme="light"] body .from-slate-950{--tw-gradient-from:rgb(241 245 249) var(--tw-gradient-from-position);--tw-gradient-to:rgb(241 245 249 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)}
+html[data-theme="light"] body .via-\[\#0b0e13\]{--tw-gradient-to:rgb(255 255 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),rgb(255 255 255) var(--tw-gradient-via-position),var(--tw-gradient-to)}
+html[data-theme="light"] body .via-indigo-950\/40{--tw-gradient-to:rgb(238 242 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),rgb(238 242 255 / 0.5599999999999999) var(--tw-gradient-via-position),var(--tw-gradient-to)}
+html[data-theme="light"] body .to-\[\#0d2822\]{--tw-gradient-to:rgb(231 234 233) var(--tw-gradient-to-position)}
+html[data-theme="light"] body .to-\[\#10241f\]{--tw-gradient-to:rgb(231 233 233) var(--tw-gradient-to-position)}
+html[data-theme="light"] body .to-\[\#122338\]{--tw-gradient-to:rgb(231 233 235) var(--tw-gradient-to-position)}
+html[data-theme="light"] body .to-\[\#1f1a14\]{--tw-gradient-to:rgb(233 232 232) var(--tw-gradient-to-position)}
+html[data-theme="light"] body .to-\[\#2c131a\]{--tw-gradient-to:rgb(234 231 232) var(--tw-gradient-to-position)}
+html[data-theme="light"] body .to-slate-900{--tw-gradient-to:rgb(248 250 252) var(--tw-gradient-to-position)}
+html[data-theme="light"] body .to-slate-950{--tw-gradient-to:rgb(241 245 249) var(--tw-gradient-to-position)}
+@media (min-width:1024px){
+html[data-theme="light"] body .lg\:bg-slate-900{background-color:rgb(248 250 252)}
+}
+html[data-theme="light"] body :is(.bg-amber-500,.bg-amber-600,.bg-amber-700,.bg-cyan-600,.bg-cyan-700,.bg-emerald-500,.bg-fuchsia-600,.bg-lime-500,.bg-orange-500,.bg-orange-600,.bg-rose-500,.bg-rose-600,.bg-sky-500,.bg-sky-600,.bg-violet-600,.bg-yellow-500,.from-cyan-500,.from-purple-600,.bg-gradient-to-tr,.bg-gradient-to-r.from-cyan-500).text-white, html[data-theme="light"] body :is(.bg-amber-500,.bg-amber-600,.bg-amber-700,.bg-cyan-600,.bg-cyan-700,.bg-emerald-500,.bg-fuchsia-600,.bg-lime-500,.bg-orange-500,.bg-orange-600,.bg-rose-500,.bg-rose-600,.bg-sky-500,.bg-sky-600,.bg-violet-600,.bg-yellow-500,.from-cyan-500,.from-purple-600,.bg-gradient-to-tr,.bg-gradient-to-r.from-cyan-500) .text-white, html[data-theme="light"] body :is(.bg-amber-500,.bg-amber-600,.bg-amber-700,.bg-cyan-600,.bg-cyan-700,.bg-emerald-500,.bg-fuchsia-600,.bg-lime-500,.bg-orange-500,.bg-orange-600,.bg-rose-500,.bg-rose-600,.bg-sky-500,.bg-sky-600,.bg-violet-600,.bg-yellow-500,.from-cyan-500,.from-purple-600,.bg-gradient-to-tr,.bg-gradient-to-r.from-cyan-500) :is(i,span,b):not([class*="text-"]) {color:#fff}
+html[data-theme="light"] body [style*="color:#22d3ee" i]{color:#0d96aa !important}
+html[data-theme="light"] body [style*="color: #22d3ee" i]{color:#0d96aa !important}
+html[data-theme="light"] body [style*="color:#2dd4bf" i]{color:#1f9889 !important}
+html[data-theme="light"] body [style*="color: #2dd4bf" i]{color:#1f9889 !important}
+html[data-theme="light"] body [style*="color:#34d399" i]{color:#21976c !important}
+html[data-theme="light"] body [style*="color: #34d399" i]{color:#21976c !important}
+html[data-theme="light"] body [style*="color:#38bdf8" i]{color:#067db1 !important}
+html[data-theme="light"] body [style*="color: #38bdf8" i]{color:#067db1 !important}
+html[data-theme="light"] body [style*="color:#4ade80" i]{color:#1c9b4b !important}
+html[data-theme="light"] body [style*="color: #4ade80" i]{color:#1c9b4b !important}
+html[data-theme="light"] body [style*="color:#67e8f9" i]{color:#079db1 !important}
+html[data-theme="light"] body [style*="color: #67e8f9" i]{color:#079db1 !important}
+html[data-theme="light"] body [style*="color:#a5f3fc" i]{color:#06a0b2 !important}
+html[data-theme="light"] body [style*="color: #a5f3fc" i]{color:#06a0b2 !important}
+html[data-theme="light"] body [style*="color:#a78bfa" i]{color:#3208b0 !important}
+html[data-theme="light"] body [style*="color: #a78bfa" i]{color:#3208b0 !important}
+html[data-theme="light"] body [style*="color:#a855f7" i]{color:#5e08af !important}
+html[data-theme="light"] body [style*="color: #a855f7" i]{color:#5e08af !important}
+html[data-theme="light"] body [style*="color:#c084fc" i]{color:#5c04b3 !important}
+html[data-theme="light"] body [style*="color: #c084fc" i]{color:#5c04b3 !important}
+html[data-theme="light"] body [style*="color:#dbe3ee" i]{color:#3b577d !important}
+html[data-theme="light"] body [style*="color: #dbe3ee" i]{color:#3b577d !important}
+html[data-theme="light"] body [style*="color:#e0f2fe" i]{color:#066db2 !important}
+html[data-theme="light"] body [style*="color: #e0f2fe" i]{color:#066db2 !important}
+html[data-theme="light"] body [style*="color:#e2e8f0" i]{color:#3f5879 !important}
+html[data-theme="light"] body [style*="color: #e2e8f0" i]{color:#3f5879 !important}
+html[data-theme="light"] body [style*="color:#e879f9" i]{color:#9908b0 !important}
+html[data-theme="light"] body [style*="color: #e879f9" i]{color:#9908b0 !important}
+html[data-theme="light"] body [style*="color:#f43f5e" i]{color:#ae0a26 !important}
+html[data-theme="light"] body [style*="color: #f43f5e" i]{color:#ae0a26 !important}
+html[data-theme="light"] body [style*="color:#f472b6" i]{color:#aa0d5f !important}
+html[data-theme="light"] body [style*="color: #f472b6" i]{color:#aa0d5f !important}
+html[data-theme="light"] body [style*="color:#f59e0b" i]{color:#b07107 !important}
+html[data-theme="light"] body [style*="color: #f59e0b" i]{color:#b07107 !important}
+html[data-theme="light"] body [style*="color:#f87171" i]{color:#af0909 !important}
+html[data-theme="light"] body [style*="color: #f87171" i]{color:#af0909 !important}
+html[data-theme="light"] body [style*="color:#f8fafc" i]{color:#375c81 !important}
+html[data-theme="light"] body [style*="color: #f8fafc" i]{color:#375c81 !important}
+html[data-theme="light"] body [style*="color:#fb7185" i]{color:#b3051e !important}
+html[data-theme="light"] body [style*="color: #fb7185" i]{color:#b3051e !important}
+html[data-theme="light"] body [style*="color:#fb923c" i]{color:#b45304 !important}
+html[data-theme="light"] body [style*="color: #fb923c" i]{color:#b45304 !important}
+html[data-theme="light"] body [style*="color:#fbbf24" i]{color:#b48303 !important}
+html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !important}
+/* LIGHT-THEME:END */
   </style>
 </head>
-<body class="bg-[#0a0f1d] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-white">
+<body class="bg-[#000000] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-white">
 
   <!-- Top Navigation Bar -->
   <div id="stickyNav" class="contents">
-  <header id="appBar" class="border-b border-slate-800 bg-[#0e1726]/95 backdrop-blur px-4 lg:px-8 py-2">
+  <header id="appBar" class="border-b border-slate-800 bg-[#000000]/95 backdrop-blur px-4 lg:px-8 py-2">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div id="hdrLeft" class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
@@ -386,7 +821,7 @@
   </header>
 
   <!-- Main View Tabs Navigation -->
-  <div id="tabNav" class="sticky top-0 z-50 bg-[#0b1220]/95 backdrop-blur border-b border-slate-800 px-4 lg:px-8 transition-shadow duration-200">
+  <div id="tabNav" class="sticky top-0 z-50 bg-[#000000]/95 backdrop-blur border-b border-slate-800 px-4 lg:px-8 transition-shadow duration-200">
     <div id="tabNavRow" class="max-w-7xl mx-auto flex items-center gap-2 py-2">
     <!-- 스크롤하면 위쪽 헤더가 사라지고 이 미니 브랜드가 나타남 -->
     <div id="navMini" class="flex items-center gap-1.5 shrink-0 overflow-hidden transition-all duration-300 ease-out opacity-0 max-w-0 pointer-events-none">
@@ -422,7 +857,7 @@
 
 
   <!-- 폰 하단 탭바 -->
-  <nav id="mobileTabBar" aria-label="메뉴" class="fixed bottom-0 inset-x-0 z-[60] bg-[#0b1220]/95 backdrop-blur border-t border-slate-800 hidden" style="padding-bottom: env(safe-area-inset-bottom)">
+  <nav id="mobileTabBar" aria-label="메뉴" class="fixed bottom-0 inset-x-0 z-[60] bg-[#000000]/95 backdrop-blur border-t border-slate-800 hidden" style="padding-bottom: env(safe-area-inset-bottom)">
     <div id="mobileTabGrid" class="grid grid-cols-5"></div>
   </nav>
 
@@ -435,7 +870,7 @@
 
   <!-- Live API Configuration Modal -->
   <div id="apiSettingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
-    <div class="bg-[#131e32] border border-cyan-800/80 rounded-2xl max-w-lg w-full max-h-[90vh] max-h-[90dvh] flex flex-col p-4 sm:p-6 shadow-2xl my-auto">
+    <div class="bg-[#0b0e13] border border-cyan-800/80 rounded-2xl max-w-lg w-full max-h-[90vh] max-h-[90dvh] flex flex-col p-4 sm:p-6 shadow-2xl my-auto">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
         <div class="flex items-center gap-2">
           <span class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400">
@@ -454,6 +889,17 @@
         <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
           <span class="font-semibold text-white"><i class="fa-solid fa-language text-cyan-400 mr-1.5"></i>언어 / Language</span>
           <div id="langSwitch" role="group" aria-label="Language" translate="no" class="flex rounded-lg border border-slate-700 overflow-hidden bg-slate-800 shrink-0"><button type="button" data-lang="ko" onclick="setLang('ko')" aria-label="한국어" class="lang-btn px-3 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">KO</button><button type="button" data-lang="en" onclick="setLang('en')" aria-label="English" class="lang-btn px-3 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">EN</button><button type="button" data-lang="de" onclick="setLang('de')" aria-label="Deutsch" class="lang-btn px-3 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white">DE</button></div>
+        </div>
+
+        <!-- 화면 테마 -->
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3 flex-wrap">
+          <span class="font-semibold text-white"><i class="fa-solid fa-circle-half-stroke text-cyan-400 mr-1.5"></i>화면 테마</span>
+          <div id="themeSwitch" role="group" aria-label="화면 테마" class="flex rounded-lg border border-slate-700 overflow-hidden bg-slate-800 shrink-0">
+            <button type="button" data-theme="dark" onclick="setTheme('dark')" class="theme-btn px-3 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white"><i class="fa-solid fa-moon mr-1"></i>어두움 (OLED)</button>
+            <button type="button" data-theme="light" onclick="setTheme('light')" class="theme-btn px-3 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white"><i class="fa-solid fa-sun mr-1"></i>밝음</button>
+            <button type="button" data-theme="auto" onclick="setTheme('auto')" class="theme-btn px-3 min-h-9 text-[11px] font-bold text-slate-300 hover:text-white"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>자동</button>
+          </div>
+          <p class="w-full text-[11px] text-slate-400 leading-relaxed">어두움은 배경을 완전한 검정(#000)으로 써서 OLED 화면에서 검은 픽셀이 꺼지고 배터리를 아낍니다. 자동은 기기의 라이트/다크 설정을 따릅니다.</p>
         </div>
 
         <!-- Data feed status -->
@@ -564,7 +1010,7 @@
 
   <!-- QR Code Instant Sync Modal -->
   <div id="qrSyncModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-    <div class="bg-[#131e32] border border-cyan-800/80 rounded-2xl max-w-sm w-full p-5 shadow-2xl text-center space-y-4 my-auto">
+    <div class="bg-[#0b0e13] border border-cyan-800/80 rounded-2xl max-w-sm w-full p-5 shadow-2xl text-center space-y-4 my-auto">
       <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
         <h3 class="text-sm font-bold text-white flex items-center gap-2">
           <i class="fa-solid fa-qrcode text-cyan-400"></i>모바일로 설정 즉시 전송
@@ -599,7 +1045,7 @@
     <div id="view-analysis" class="space-y-6">
 
     <!-- Search Hero Section -->
-    <section class="bg-gradient-to-r from-slate-900 via-[#131e32] to-slate-900 border border-slate-800 rounded-2xl p-6 lg:p-8 shadow-2xl relative overflow-hidden">
+    <section class="bg-gradient-to-r from-slate-900 via-[#0b0e13] to-slate-900 border border-slate-800 rounded-2xl p-6 lg:p-8 shadow-2xl relative overflow-hidden">
       <div class="absolute -right-10 -bottom-10 opacity-5 pointer-events-none text-9xl text-cyan-400">
         <i class="fa-solid fa-chart-line"></i>
       </div>
@@ -791,7 +1237,7 @@
     <div id="dashboardSection" class="hidden space-y-6">
 
       <!-- Stock Overview Header & Live Quote Banner -->
-      <div class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
+      <div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
         <div>
           <div class="flex items-center gap-3">
             <button type="button" id="dispStarBtn" data-star="" onclick="starToggle(this.dataset.star)" aria-pressed="false" aria-label="관심종목에 추가" title="관심종목에 추가/제거" class="w-11 h-11 grid place-items-center rounded-xl border border-slate-700 bg-slate-900 hover:border-yellow-500/60 shrink-0"><i class="fa-regular fa-star text-lg text-slate-400"></i></button>
@@ -907,7 +1353,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         <!-- Finviz Key Metrics Table (8 Cols) -->
-        <div class="lg:col-span-8 bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+        <div class="lg:col-span-8 bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
           <div class="flex items-center justify-between mb-4 border-b border-slate-800/80 pb-3">
             <div class="flex items-center gap-2">
               <span class="p-1.5 rounded bg-cyan-950 text-cyan-400 text-sm"><i class="fa-solid fa-table-cells"></i></span>
@@ -941,7 +1387,7 @@
         </div>
 
         <!-- Technical Chart & Target Gauge (4 Cols) -->
-        <div class="lg:col-span-4 bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+        <div class="lg:col-span-4 bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
               <div class="flex items-center gap-2">
@@ -990,7 +1436,7 @@
       </div>
 
       <!-- Pro Chart Station (TradingView-style) -->
-      <section id="chartStation" class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 lg:p-5 shadow-2xl space-y-3">
+      <section id="chartStation" class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 lg:p-5 shadow-2xl space-y-3">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
           <div class="flex items-center flex-wrap gap-2.5">
             <span class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/40 text-cyan-400 flex items-center justify-center text-sm shadow">
@@ -1013,7 +1459,7 @@
           <div id="presetCards" class="flex gap-2 overflow-x-auto pb-1.5"></div>
         </div>
 
-        <div id="chartFsRoot" class="space-y-2 bg-[#131e32]">
+        <div id="chartFsRoot" class="space-y-2 bg-[#0b0e13]">
           <!-- 툴바 -->
           <div id="chartToolbar" class="flex flex-wrap items-center gap-2 text-xs">
             <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800">
@@ -1078,7 +1524,7 @@
 
       <!-- 지표 선택 모달 -->
       <div id="indicatorModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-        <div class="bg-[#131e32] border border-cyan-800/70 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+        <div class="bg-[#0b0e13] border border-cyan-800/70 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl">
           <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-800">
             <div class="flex items-center gap-2"><i class="fa-solid fa-chart-simple text-cyan-400"></i><h3 class="text-base font-bold text-white">지표 · 분석 도구</h3></div>
             <button type="button" onclick="chCloseIndicators()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
@@ -1141,7 +1587,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         <!-- Bull Case -->
-        <div class="bg-gradient-to-br from-[#131e32] to-[#0d2822] border border-emerald-900/40 rounded-2xl p-6 shadow-xl">
+        <div class="bg-gradient-to-br from-[#0b0e13] to-[#0d2822] border border-emerald-900/40 rounded-2xl p-6 shadow-xl">
           <div class="flex items-center justify-between mb-4 border-b border-emerald-900/30 pb-3">
             <div class="flex items-center gap-2">
               <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
@@ -1159,7 +1605,7 @@
         </div>
 
         <!-- Bear Case -->
-        <div class="bg-gradient-to-br from-[#131e32] to-[#2c131a] border border-rose-900/40 rounded-2xl p-6 shadow-xl">
+        <div class="bg-gradient-to-br from-[#0b0e13] to-[#2c131a] border border-rose-900/40 rounded-2xl p-6 shadow-xl">
           <div class="flex items-center justify-between mb-4 border-b border-rose-900/30 pb-3">
             <div class="flex items-center gap-2">
               <div class="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
@@ -1179,7 +1625,7 @@
       </div>
 
       <!-- Interactive Expert Roundtable & Q&A Arena -->
-      <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 lg:p-7 shadow-2xl space-y-5">
+      <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 lg:p-7 shadow-2xl space-y-5">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
           <div>
             <h3 class="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
@@ -1300,7 +1746,7 @@
     <!-- TAB 2: SMART STOCK SCREENER VIEW -->
     <div id="view-screener" class="hidden space-y-6">
       <!-- Screener Hero & Preset Bar -->
-      <section class="bg-gradient-to-r from-slate-900 via-[#131e32] to-[#122338] border border-slate-800 rounded-2xl p-5 lg:p-7 shadow-2xl">
+      <section class="bg-gradient-to-r from-slate-900 via-[#0b0e13] to-[#122338] border border-slate-800 rounded-2xl p-5 lg:p-7 shadow-2xl">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
           <div>
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-950/60 border border-amber-700/60 text-amber-400 text-xs font-semibold mb-2">
@@ -1344,7 +1790,7 @@
       </section>
 
       <!-- Filters -->
-      <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+      <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
         <!-- Universal Stock Search & Instant Add Tool -->
         <div class="p-3 rounded-xl bg-slate-950/90 border border-cyan-900/50 flex flex-col md:flex-row items-center justify-between gap-3">
           <div class="flex-1 w-full">
@@ -1409,7 +1855,7 @@
       </section>
 
       <!-- Screener Results Table (Finviz Style) -->
-      <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+      <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
         <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-700/50 text-cyan-400 flex items-center justify-center text-xs">
@@ -1477,7 +1923,7 @@
 
     <!-- TAB: 불단왕 매매법 (modules: bdw-notes, bdw) -->
     <div id="view-bdw" class="hidden space-y-5">
-      <section class="bg-gradient-to-r from-slate-900 via-[#131e32] to-[#1f1a14] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-xl">
+      <section class="bg-gradient-to-r from-slate-900 via-[#0b0e13] to-[#1f1a14] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-xl">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div>
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-950/60 border border-orange-700/60 text-orange-300 text-xs font-semibold mb-2"><i class="fa-solid fa-fire"></i> 불장단타왕 무료 강의 1~6강 + 인터뷰 기반</div>
@@ -1519,7 +1965,7 @@
 
   </main>
 
-  <footer class="border-t border-slate-800 bg-[#0b101c] py-6 px-4 text-center text-xs text-slate-500">
+  <footer class="border-t border-slate-800 bg-[#000000] py-6 px-4 text-center text-xs text-slate-500">
     <div class="max-w-7xl mx-auto space-y-2">
       <p>
         PentAnalyst는 Motley Fool의 정성적 해자(Moat) 분석 및 Finviz의 정량적 기술 지표 방법론을 참고한 AI 보조 도구입니다.
@@ -1691,7 +2137,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.25.0';
+    const APP_VERSION = '1.26.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -1806,7 +2252,7 @@
       CHART_FS[key] = on;
       sec.classList.toggle('chart-fs-on', on);
       ['fixed', 'inset-0', 'z-[80]', 'flex', 'flex-col', 'overflow-y-auto', '!rounded-none', '!p-2', '!m-0'].forEach(c => sec.classList.toggle(c, on));
-      sec.style.background = on ? '#0b1220' : '';
+      sec.style.background = on ? '#000000' : '';
       box.classList.toggle('flex-1', on); box.classList.toggle('min-h-0', on);
       if (on) box.style.height = '';
       const btn = sec.querySelector('[data-fs-btn]');
@@ -2801,7 +3247,7 @@
                 설정을 저장하면 내 Google Drive의 앱 전용 숨김 폴더에 자동 백업되며, 다른 기기에서 같은 계정으로 로그인만 하면 키가 자동으로 등록됩니다.
               </p>
             </div>` : `
-            <div class="p-3.5 rounded-xl bg-gradient-to-r from-slate-950 via-[#111e35] to-slate-950 border border-cyan-800/60 space-y-3">
+            <div class="p-3.5 rounded-xl bg-gradient-to-r from-slate-950 via-[#0b0e13] to-slate-950 border border-cyan-800/60 space-y-3">
               <div class="flex items-center gap-2">
                 <span class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400 shrink-0"><i class="fa-brands fa-google"></i></span>
                 <div>
@@ -3830,7 +4276,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     function deepCard(title, icon, color, body) {
       if (!body || !body.trim()) return '';
       return `
-        <div class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl">
           <div class="flex items-center gap-2 mb-3 border-b border-slate-800/80 pb-2">
             <span class="w-7 h-7 rounded-lg ${color} flex items-center justify-center text-xs"><i class="fa-solid ${icon}"></i></span>
             <h4 class="text-sm font-bold text-white">${escapeHtml(title)}</h4>
@@ -4349,7 +4795,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     function renderExperts(experts) {
       const container = document.getElementById('expertsContainer');
       container.innerHTML = experts.map(exp => `
-        <div class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-cyan-500/40 transition">
+        <div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-cyan-500/40 transition">
           <div>
             <div class="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
               <div class="flex items-center gap-2.5">
@@ -4395,7 +4841,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         ? `<ul class="space-y-1.5">${flags.slice(0, 5).map(x => { const m = RATING_META[x.rating] || RATING_META.info; return `<li class="flex gap-2 text-xs leading-snug"><span class="mt-0.5 shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${m.badge}">${escapeHtml(x.label)}</span><span class="text-slate-300">${escapeHtml(x.text)}</span></li>`; }).join('')}</ul>`
         : '<p class="text-xs text-slate-400 leading-relaxed font-sans">재무 요약 기준으로 눈에 띄는 위험 신호가 없습니다. 그래도 위원회가 한쪽으로 쏠렸다면 "틀릴 수 있는 이유"를 직접 물어보세요.</p>';
       return `
-        <div class="bg-[#131e32] border border-rose-900/50 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-rose-500/50 transition">
+        <div class="bg-[#0b0e13] border border-rose-900/50 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-rose-500/50 transition">
           <div>
             <div class="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
               <div class="flex items-center gap-2.5">
@@ -6711,7 +7157,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       // 사용자 드로잉
       CH.drawings.forEach((d, k) => chDrawDrawing(ctx, sc, d, k === CH.sel));
       ctx.restore();
-      CH.drawings.forEach(d => { if (d.type === 'hline') { const y = sc.yOf(d.pts[0].p); if (y > mp.y0 && y < mp.y1) chAxisTag(ctx, y, chFmtPrice(d.pts[0].p, 0.01), CH_DRAW_COLORS.hline, '#0b1220'); } });
+      CH.drawings.forEach(d => { if (d.type === 'hline') { const y = sc.yOf(d.pts[0].p); if (y > mp.y0 && y < mp.y1) chAxisTag(ctx, y, chFmtPrice(d.pts[0].p, 0.01), CH_DRAW_COLORS.hline, '#000000'); } });
 
       // 마지막 종가 라인 + 태그
       const last = CH.hist[n - 1];
@@ -6789,7 +7235,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         if (bw < 2.6) continue;
         const top = Math.min(yO, yC), bh = Math.max(1, Math.abs(yC - yO));
         const x0 = Math.round(x - bodyW / 2);
-        if (CH.type === 'hollow' && c.close > c.open) { ctx.fillStyle = '#020617'; ctx.fillRect(x0, top, bodyW, bh); ctx.strokeRect(x0 + 0.5, top + 0.5, Math.max(1, bodyW - 1), Math.max(1, bh - 1)); }
+        if (CH.type === 'hollow' && c.close > c.open) { ctx.fillStyle = '#000000'; ctx.fillRect(x0, top, bodyW, bh); ctx.strokeRect(x0 + 0.5, top + 0.5, Math.max(1, bodyW - 1), Math.max(1, bh - 1)); }
         else ctx.fillRect(x0, top, bodyW, bh);
       }
     }
@@ -6880,7 +7326,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       marks.forEach(labelAt);
       const first = (spec.lines && spec.lines[0]) ? spec.lines[0] : null;
       const lastV = first ? chLastVal(first.v, CH.hist.length - 1) : (spec.hist ? chLastVal(spec.hist.v, CH.hist.length - 1) : null);
-      if (lastV !== null) { const y = sc.yOf(lastV); if (y > pane.y0 + 4 && y < pane.y1 - 4) chAxisTag(ctx, y, chFmtVal(lastV, spec) || '0', first ? first.color : '#475569', '#0b1220'); }
+      if (lastV !== null) { const y = sc.yOf(lastV); if (y > pane.y0 + 4 && y < pane.y1 - 4) chAxisTag(ctx, y, chFmtVal(lastV, spec) || '0', first ? first.color : '#475569', '#000000'); }
     }
     const chLastVal = (arr, idx) => { for (let i = Math.min(idx, arr.length - 1); i >= Math.max(0, idx - 8); i--) if (arr[i] !== null && arr[i] !== undefined) return arr[i]; return null; };
 
@@ -7066,7 +7512,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         }
       }
       if (selected) {
-        ctx.fillStyle = '#0b1220'; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        ctx.fillStyle = '#000000'; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
         P.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
       }
       ctx.restore();
@@ -7541,7 +7987,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const out = document.createElement('canvas');
       out.width = Math.round(CH.W * CH.dpr); out.height = Math.round(CH.H * CH.dpr) + 30 * CH.dpr;
       const ctx = out.getContext('2d');
-      ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, out.width, out.height);
+      ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, out.width, out.height);
       ctx.drawImage($id('chartCanvas'), 0, 30 * CH.dpr); ctx.drawImage($id('chartOverlay'), 0, 30 * CH.dpr);
       ctx.setTransform(CH.dpr, 0, 0, CH.dpr, 0, 0);
       ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 13px "JetBrains Mono", monospace'; ctx.textBaseline = 'middle';
@@ -8130,7 +8576,7 @@ ${buildVerifiedDataText(analysisInputs)}`;
         const ctx = offscreen.getContext('2d');
 
         // Background
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = '#07090c';
         ctx.fillRect(0, 0, 800, 450);
 
         // Header Banner
@@ -8144,7 +8590,7 @@ ${buildVerifiedDataText(analysisInputs)}`;
         ctx.fillText(currentAnalysisData.name, 180, 70);
 
         // Key stats box
-        ctx.fillStyle = '#131e32';
+        ctx.fillStyle = '#0b0e13';
         ctx.fillRect(20, 120, 370, 300);
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 20px Inter, sans-serif';
@@ -9492,7 +9938,7 @@ EPRT|Essential Properties Realty Trust|E
         rank: { label: '', val: e => e.rank },
         ticker: { label: '티커', al: 'l', sticky: true, val: e => e.ticker, html: e => {
           const t = escapeHtml(e.ticker);
-          return `<td class="py-2.5 px-2 border-r border-slate-800 font-bold text-cyan-400 group-hover:text-cyan-300 sticky left-0 z-10 bg-[#131e32] group-hover:bg-[#1a2740]"><div class="flex items-center gap-1.5 whitespace-nowrap"><span>${t}</span>${e.marketCap ? `<span class="text-[10px] text-slate-500 font-normal">(${escapeHtml(e.marketCap)})</span>` : ''}${e.searched ? '<span class="text-[9px] px-1 rounded bg-cyan-900 text-cyan-300 font-sans font-normal">검색</span>' : ''}</div></td>`;
+          return `<td class="py-2.5 px-2 border-r border-slate-800 font-bold text-cyan-400 group-hover:text-cyan-300 sticky left-0 z-10 bg-[#0b0e13] group-hover:bg-[#12161c]"><div class="flex items-center gap-1.5 whitespace-nowrap"><span>${t}</span>${e.marketCap ? `<span class="text-[10px] text-slate-500 font-normal">(${escapeHtml(e.marketCap)})</span>` : ''}${e.searched ? '<span class="text-[9px] px-1 rounded bg-cyan-900 text-cyan-300 font-sans font-normal">검색</span>' : ''}</div></td>`;
         } },
         name: { label: '종목명', al: 'l', val: e => e.name, html: e => `<td class="${SCR_TD} text-white font-sans text-xs whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title="${escapeHtml(e.name)}">${escapeHtml(e.name)}</td>` },
         price: { label: '현재가 ($)', val: e => e.price, html: e => `<td class="${SCR_TD} text-right font-bold text-white">${scrFin(e.price) ? '$' + Number(e.price).toFixed(2) : ''}</td>` },
@@ -10295,7 +10741,7 @@ EPRT|Essential Properties Realty Trust|E
         ['+', 'VWMA 100선 (인터뷰)', '200·VWMA100·50이 3대 선. 지지 이탈 시 즉시, 늦어도 −3% 손절. 수렴 끝 매수, 손익비 1:6 이상 자리만.']
       ];
       root.innerHTML = `
-        <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 space-y-3">
+        <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h3 class="text-base font-bold text-white"><i class="fa-solid fa-lightbulb text-amber-400 mr-2"></i>한눈에 보는 핵심 6줄</h3>
             <div class="flex items-center gap-1.5 text-[10px] text-slate-400">${['all', 'stock', 'coin'].map(tagHtml).join('')}<span class="hidden sm:inline">← 각 항목의 적용 범위 표시</span></div>
@@ -10306,7 +10752,7 @@ EPRT|Essential Properties Realty Trust|E
           <p class="text-[11px] text-slate-500 leading-snug">※ 유튜버 '불장단타왕'의 무료 강의(1~6강)와 인터뷰 자막을 읽기 쉽게 정리한 요약입니다. 강사의 개인 의견이며 투자 권유가 아닙니다. 강의의 수익 사례·수치는 강사의 주장이고 이 앱이 검증한 것이 아닙니다.</p>
         </section>
 
-        <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 space-y-3">
+        <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h3 class="text-base font-bold text-white"><i class="fa-solid fa-book-open text-orange-400 mr-2"></i>강의별 정리 (1~6강 + 인터뷰)</h3>
             <div class="flex items-center gap-2 text-xs">
@@ -10331,12 +10777,12 @@ EPRT|Essential Properties Realty Trust|E
         </section>
 
         <section class="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <div class="bg-[#131e32] border border-slate-800 rounded-2xl p-5">
+          <div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5">
             <h3 class="text-base font-bold text-white mb-3"><i class="fa-solid fa-right-left text-emerald-400 mr-2"></i>코인 → 주식 적용 대응표</h3>
             <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-500 text-left"><th class="py-1.5 pr-3 font-medium">강의 내용</th><th class="py-1.5 pr-3 font-medium">주식에서</th><th class="py-1.5 font-medium">설명</th></tr></thead>
               <tbody>${BDW_STOCK_MAP.map(r => `<tr class="border-t border-slate-800/70 align-top"><td class="py-2 pr-3 text-slate-200">${escapeHtml(r[0])}</td><td class="py-2 pr-3 whitespace-nowrap font-semibold ${r[1] === '그대로 적용' ? 'text-emerald-300' : r[1] === '개념 적용' ? 'text-sky-300' : r[1] === '대체 필요' ? 'text-amber-300' : 'text-slate-300'}">${escapeHtml(r[1])}</td><td class="py-2 text-slate-400 leading-snug">${escapeHtml(r[2])}</td></tr>`).join('')}</tbody></table></div>
           </div>
-          <div class="bg-[#131e32] border border-slate-800 rounded-2xl p-5">
+          <div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5">
             <h3 class="text-base font-bold text-white mb-3"><i class="fa-solid fa-spell-check text-sky-400 mr-2"></i>용어 사전</h3>
             <dl class="space-y-2">${BDW_GLOSSARY.map(g => `<div class="rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-2"><dt class="text-xs font-bold text-orange-200">${escapeHtml(g[0])}</dt><dd class="text-[12px] text-slate-400 leading-snug mt-0.5">${escapeHtml(g[1])}</dd></div>`).join('')}</dl>
           </div>
@@ -10423,7 +10869,7 @@ EPRT|Essential Properties Realty Trust|E
       if (!root) return;
       if (root.dataset.ready !== '1') {
         root.dataset.ready = '1';
-        const card = (icon, color, title, desc, body) => `<section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 space-y-3"><div><h3 class="text-sm font-bold text-white"><i class="fa-solid ${icon} ${color} mr-2"></i>${title}</h3><p class="text-[11px] text-slate-500 mt-0.5 leading-snug">${desc}</p></div>${body}</section>`;
+        const card = (icon, color, title, desc, body) => `<section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 space-y-3"><div><h3 class="text-sm font-bold text-white"><i class="fa-solid ${icon} ${color} mr-2"></i>${title}</h3><p class="text-[11px] text-slate-500 mt-0.5 leading-snug">${desc}</p></div>${body}</section>`;
         const inp = (id, label, val, ph = '', step = 'any') => `<label class="block text-[11px] text-slate-400">${label}<input id="${id}" type="number" step="${step}" value="${val}" placeholder="${ph}" oninput="bdwCalcAll()" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers text-xs outline-none focus:border-orange-400"></label>`;
         root.innerHTML = `
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
@@ -10456,7 +10902,7 @@ EPRT|Essential Properties Realty Trust|E
               `<div id="bdwChk" class="space-y-1.5 text-xs text-slate-300">${['지금 매매하는 시간축과 보유 계획이 일치한다', '추세선·이평선·매물대 등 기술적 진입 근거가 명확하다', '틀렸을 때의 손절선과 감당 가능한 손실 폭(죽을 자리)을 확인했다', '손익비에 맞는 명확한 익절 기준이 있다', '내 멘탈이 평온하고 조급함·분노에 휩싸이지 않았다'].map((t, i) => `<label class="flex items-start gap-2 rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-2 cursor-pointer"><input type="checkbox" class="mt-0.5 accent-orange-500" onchange="bdwChkUpdate()"><span>${i + 1}. ${t}</span></label>`).join('')}</div>
                <div id="bdwChkOut" class="rounded-lg border px-3 py-2 text-xs font-semibold"></div>`)}
           </div>
-          <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 space-y-4 mt-5">
+          <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 space-y-4 mt-5">
             <div class="flex flex-wrap items-center justify-between gap-2"><div><h3 class="text-sm font-bold text-white"><i class="fa-solid fa-book-journal-whills text-orange-400 mr-2"></i>매매일지 (3강)</h3>
               <p class="text-[11px] text-slate-500 mt-0.5">진입·청산 이유와 시장 상황, 무엇보다 <strong class="text-orange-300">당시의 감정 상태</strong>를 기록해 어떤 감정에서 실수하는지 찾아내는 것이 목적입니다. 이 브라우저에만 저장됩니다.</p></div>
               <div class="flex gap-2 text-xs"><button type="button" onclick="bdwJournalExport()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300"><i class="fa-solid fa-file-csv mr-1"></i>CSV 내보내기</button></div></div>
@@ -11867,7 +12313,7 @@ EPRT|Essential Properties Realty Trust|E
             if (!root) return;
             root.innerHTML = `
             <div class="space-y-5">
-              <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3.5">
+              <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3.5">
                 <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
                   <div class="min-w-0">
                     <h3 class="text-xl font-extrabold text-white flex items-center gap-2.5"><i class="fa-solid fa-magnifying-glass-chart text-orange-400"></i>종목 분석 — 불단왕식 판독</h3>
@@ -11909,13 +12355,13 @@ EPRT|Essential Properties Realty Trust|E
               </section>
               <div id="bdwStatus"></div>
               <div id="bdwBody" class="hidden space-y-5">
-                <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3.5">
+                <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3.5">
                   <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-rotate text-orange-400"></i>사이클 판독 <span class="text-xs font-normal text-slate-400">(1강 · 이평선 50/200 · 큰 사이클 → 작은 사이클)</span></h4>
                   <div id="bdwStance"></div>
                   <div id="bdwKeyLines"></div>
                   <div id="bdwCycle"></div>
                 </section>
-                <section id="bdwChartSec" class="bg-[#131e32] border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl space-y-3">
+                <section id="bdwChartSec" class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl space-y-3">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-line text-orange-400"></i>차트 <span id="bdwChartTitle" class="text-xs font-normal text-slate-400"></span></h4>
                     <div class="flex items-center gap-3">
@@ -11934,7 +12380,7 @@ EPRT|Essential Properties Realty Trust|E
                   <div id="bdwLegend" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400"></div>
                   <div id="bdwPatterns" class="chart-fs-hide space-y-2"></div>
                 </section>
-                <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+                <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
                   <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-list-check text-orange-400"></i>불단왕식 판독 · 체크리스트 <span class="text-xs font-normal text-slate-400">(규칙 점검 — 매수·매도 권유 아님)</span></h4>
                   <div id="bdwVerdict"></div>
                   <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -12058,7 +12504,7 @@ EPRT|Essential Properties Realty Trust|E
             if (!el) return;
             if (kind === 'ok') { el.innerHTML = ''; if (body) body.classList.remove('hidden'); return; }
             if (body) body.classList.add('hidden');
-            const box = (icon, color, title, msg, btn = '') => `<div class="bg-[#131e32] border border-slate-800 rounded-2xl p-8 text-center space-y-2"><i class="fa-solid ${icon} text-3xl ${color}"></i><div class="text-base font-bold text-white">${title}</div><p class="text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">${msg}</p>${btn}</div>`;
+            const box = (icon, color, title, msg, btn = '') => `<div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-8 text-center space-y-2"><i class="fa-solid ${icon} text-3xl ${color}"></i><div class="text-base font-bold text-white">${title}</div><p class="text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">${msg}</p>${btn}</div>`;
             const T = bdwEsc(extra || '');
             const msgs = {
                 idle: box('fa-chart-simple', 'text-orange-400', '티커를 입력하고 ‘분석’을 누르세요', '일봉·60분봉(1시간·4시간봉)·15분봉·5분봉·주봉을 받아 사이클을 판독하고, 매물대(VPVR)·이평선·RSI 다이버전스·트랩·권총/ㄴ자·박스/채널·근거 중첩 점수를 계산합니다. 분봉은 자체 프록시(Cloudflare Worker)가 필요하며, 프록시가 없어도 일봉·주봉은 분석합니다.'),
@@ -12452,7 +12898,7 @@ EPRT|Essential Properties Realty Trust|E
         // 캔들 + 이평선(세팅별) + VWMA100 + 볼린저(참고) + VPVR(POC/히스토그램/밸류 에어리어) + RSI(단계 음영) + 패턴 표시 + 이평선 연장선
         // =====================================================================
         const BDWC = { lay: null, drag: null, raf: 0, my: -1, lastH: 0 };
-        const BDW_COL = { up: '#22c55e', down: '#ef4444', grid: 'rgba(148,163,184,0.10)', axis: '#94a3b8', bg: '#020617', bull: '#34d399', bear: '#fb7185', orange: '#fb923c', gold: '#facc15', sky: '#38bdf8' };
+        const BDW_COL = { up: '#22c55e', down: '#ef4444', grid: 'rgba(148,163,184,0.10)', axis: '#94a3b8', bg: '#000000', bull: '#34d399', bear: '#fb7185', orange: '#fb923c', gold: '#facc15', sky: '#38bdf8' };
 
         function bdwRenderChartHead() {
             const a = BDW.an[BDW.tf], setup = bdwSetup();
@@ -12605,7 +13051,7 @@ EPRT|Essential Properties Realty Trust|E
             // POC 선 (모든 세팅)
             const y = Math.round(yOf(vp.poc)) + 0.5;
             ctx.setLineDash([6, 4]); ctx.strokeStyle = BDW_COL.gold; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(pl, y); ctx.lineTo(right, y); ctx.stroke(); ctx.setLineDash([]);
-            ctx.fillStyle = BDW_COL.gold; ctx.fillRect(W - axisW, y - 7, axisW, 14); ctx.fillStyle = '#111827'; ctx.textAlign = 'left'; ctx.font = '9px ui-monospace, monospace'; ctx.fillText('POC', W - axisW + 3, y); ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+            ctx.fillStyle = BDW_COL.gold; ctx.fillRect(W - axisW, y - 7, axisW, 14); ctx.fillStyle = '#0b0e13'; ctx.textAlign = 'left'; ctx.font = '9px ui-monospace, monospace'; ctx.fillText('POC', W - axisW + 3, y); ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
         }
         function bdwDrawBb(L) {
             const { ctx, a, i0, i1, xOf, yOf, pl, plotW, py0, priceH } = L;
@@ -13796,7 +14242,7 @@ ${pdFactsText(d)}`;
       if (!root) return;
       root.innerHTML = `
         <div class="space-y-5">
-          <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+          <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
             <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
               <div>
                 <h3 class="text-xl font-extrabold text-white flex items-center gap-2.5"><i class="fa-solid fa-clock-rotate-left text-violet-400"></i>전일 복기</h3>
@@ -13814,8 +14260,8 @@ ${pdFactsText(d)}`;
           <div id="pdBody" class="hidden space-y-5">
             <div id="pdNote"></div>
             <section class="space-y-3"><div id="pdCards" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5"></div></section>
-            <section id="pdClass" class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3"></section>
-            <section id="pdChartSec" class="bg-[#131e32] border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl space-y-3">
+            <section id="pdClass" class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3"></section>
+            <section id="pdChartSec" class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-xl space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-column text-violet-400"></i>세션 차트 <span id="pdChartTitle" class="text-xs font-normal text-slate-400"></span></h4>
                 <div class="flex items-center gap-3">
@@ -13830,7 +14276,7 @@ ${pdFactsText(d)}`;
               </div>
               <div id="pdLegend" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400"></div>
             </section>
-            <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+            <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-comments text-violet-400"></i>봉 단위 해설 <span class="text-xs font-normal text-slate-400">(Al Brooks 방식 · 규칙 기반)</span></h4>
               </div>
@@ -13838,11 +14284,11 @@ ${pdFactsText(d)}`;
               <div id="pdNarr" class="rounded-xl bg-slate-950/60 border border-slate-800 px-4 py-3 text-sm text-slate-200 leading-relaxed"></div>
               <div id="pdList" class="space-y-4"></div>
             </section>
-            <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+            <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
               <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-globe text-violet-400"></i>같은 날의 시장 <span class="text-xs font-normal text-slate-400">(각 지수의 그날 5분봉 유형 포함)</span></h4>
               <div id="pdMarket" class="space-y-2"></div>
             </section>
-            <section class="bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+            <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>AI 해설 <span class="text-xs font-normal text-slate-400">(선택)</span></h4>
                 <button id="pdAiBtn" type="button" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-purple-600/30" title="Gemini를 호출합니다 (호출 1회당 소액 과금)"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI 해설 생성</span></button>
@@ -13883,7 +14329,7 @@ ${pdFactsText(d)}`;
       if (!el) return;
       if (kind === 'ok') { el.innerHTML = ''; return; }
       if (body) body.classList.add('hidden');
-      const box = (icon, color, title, msg, btn = '') => `<div class="bg-[#131e32] border border-slate-800 rounded-2xl p-8 text-center space-y-2"><i class="fa-solid ${icon} text-3xl ${color}"></i><div class="text-base font-bold text-white">${title}</div><p class="text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">${msg}</p>${btn}</div>`;
+      const box = (icon, color, title, msg, btn = '') => `<div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-8 text-center space-y-2"><i class="fa-solid ${icon} text-3xl ${color}"></i><div class="text-base font-bold text-white">${title}</div><p class="text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">${msg}</p>${btn}</div>`;
       const T = escapeHtml(extra || '');
       const msgs = {
         loading: box('fa-circle-notch fa-spin', 'text-violet-300', `${T} 5분봉을 불러오는 중...`, '5분봉(최근 5거래일)과 일봉(약 6개월), SPY·QQQ·IWM·VIX를 함께 가져옵니다.'),
@@ -14878,7 +15324,7 @@ ${pdFactsText(d)}`;
     // ---------------------------------------------------------------------------
     // 4) 화면: 보드 · 강세 미터 · 교차환율 · 드라이버 · 투자 안내 · 현재 상태
     // ---------------------------------------------------------------------------
-    const FX_CARD = 'bg-[#131e32] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-4';
+    const FX_CARD = 'bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-4';
     const fxTone = v => v === null || v === undefined || !Number.isFinite(v) ? 'text-slate-500' : v > 0 ? 'text-emerald-400' : v < 0 ? 'text-rose-400' : 'text-slate-400';
     const fxBtn = on => `px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition ${on ? 'bg-emerald-950 text-emerald-300 border-emerald-700/80' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'}`;
     const fxTitle = (icon, text, sub) => `<div><h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2"><i class="fa-solid ${icon} text-emerald-400"></i>${text}</h3>${sub ? `<p class="text-[11px] text-slate-400 mt-1 leading-relaxed">${sub}</p>` : ''}</div>`;
@@ -14935,7 +15381,7 @@ ${pdFactsText(d)}`;
             const pin = fxPinned(p.sym), sel = fxC.sym === p.sym, sc = fxScale(p.sym);
             const tr = m.trend, chip = (k, v) => `<span class="inline-block w-5 text-center rounded text-[9px] font-bold ${v === null ? 'bg-slate-800 text-slate-600' : v ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'}" title="SMA${k} ${v === null ? '계산 불가(데이터 부족)' : v ? '위' : '아래'}">${k === 200 ? '200' : k}</span>`;
             const rsiCls = !Number.isFinite(m.rsi) ? '' : m.rsi >= 70 ? 'text-amber-300' : m.rsi <= 30 ? 'text-cyan-300' : 'text-slate-200';
-            const bar = m.pos === null ? '' : `<div class="relative h-1.5 w-24 rounded-full bg-slate-800" title="52주 ${fxEsc(fxPriceTxt(p.sym, m.lo52))} ~ ${fxEsc(fxPriceTxt(p.sym, m.hi52))} (${m.rangeSrc} 기준) · 현재 ${Math.round(m.pos * 100)}% 위치"><div class="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-400 ring-2 ring-[#131e32]" style="left:calc(${(m.pos * 100).toFixed(1)}% - 5px)"></div></div><div class="text-[9px] text-slate-500 mt-0.5 font-mono-numbers">${Math.round(m.pos * 100)}%</div>`;
+            const bar = m.pos === null ? '' : `<div class="relative h-1.5 w-24 rounded-full bg-slate-800" title="52주 ${fxEsc(fxPriceTxt(p.sym, m.lo52))} ~ ${fxEsc(fxPriceTxt(p.sym, m.hi52))} (${m.rangeSrc} 기준) · 현재 ${Math.round(m.pos * 100)}% 위치"><div class="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-400 ring-2 ring-[#0b0e13]" style="left:calc(${(m.pos * 100).toFixed(1)}% - 5px)"></div></div><div class="text-[9px] text-slate-500 mt-0.5 font-mono-numbers">${Math.round(m.pos * 100)}%</div>`;
             return `<tr data-act="sel" data-arg="${fxEsc(p.sym)}" class="cursor-pointer border-b border-slate-800/60 hover:bg-slate-800/40 ${sel ? 'bg-cyan-950/30' : ''}">
                 <td class="py-2 pl-1"><button data-act="pin" data-arg="${fxEsc(p.sym)}" class="w-6 h-6 rounded hover:bg-slate-700 ${pin ? 'text-amber-400' : 'text-slate-600 hover:text-slate-300'}" title="${pin ? '관심 해제' : '관심 고정'}" aria-label="관심 고정"><i class="fa-solid fa-star text-[11px]"></i></button></td>
                 <td class="py-2"><div class="font-bold text-white whitespace-nowrap">${fxEsc(fxLabel(p, fxS.x100))}</div><div class="text-[10px] text-slate-500 whitespace-nowrap">${fxEsc(p.ko)}${sc !== 1 ? ' (100엔)' : ''}</div></td>
@@ -15181,9 +15627,9 @@ ${pdFactsText(d)}`;
         if (!el) return;
         if (!kind) { el.classList.add('hidden'); el.innerHTML = ''; return; }
         el.classList.remove('hidden');
-        if (kind === 'loading') { el.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-[#0b1220]/70"><span class="text-xs text-cyan-300"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>차트 불러오는 중...</span></div>'; return; }
-        if (e && e.noProxy) { el.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-[#0b1220] p-4">${fxStateBox('noproxy')}</div>`; return; }
-        el.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-[#0b1220]/90 p-4"><div class="max-w-sm text-center space-y-3"><p class="text-xs text-rose-200 leading-relaxed"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${fxEsc(fxErrMsg(e))}</p><button data-act="retryChart" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white transition"><i class="fa-solid fa-rotate-right mr-1"></i>다시 시도</button></div></div>`;
+        if (kind === 'loading') { el.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-[#000000]/70"><span class="text-xs text-cyan-300"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i>차트 불러오는 중...</span></div>'; return; }
+        if (e && e.noProxy) { el.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-[#000000] p-4">${fxStateBox('noproxy')}</div>`; return; }
+        el.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-[#000000]/90 p-4"><div class="max-w-sm text-center space-y-3"><p class="text-xs text-rose-200 leading-relaxed"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${fxEsc(fxErrMsg(e))}</p><button data-act="retryChart" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white transition"><i class="fa-solid fa-rotate-right mr-1"></i>다시 시도</button></div></div>`;
     }
 
     async function fxLoadChart(o = {}) {
@@ -15278,7 +15724,7 @@ ${pdFactsText(d)}`;
         }
         const ctx = c.ctx;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, L.W, L.H);
+        ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, L.W, L.H);
         const bars = c.bars, n = bars.length;
         if (!n) { fxUpdateInfo(-1); return; }
         const ind = c.ind, barW = L.plotW / c.vn;
@@ -15317,7 +15763,7 @@ ${pdFactsText(d)}`;
         tickIdx.forEach(i => {
             const x = Math.round(xOf(i)) + 0.5;
             if (x < 24 || x > L.plotW - 24) return;
-            ctx.strokeStyle = '#162033'; ctx.beginPath(); ctx.moveTo(x, L.top); ctx.lineTo(x, L.H - L.timeH); ctx.stroke();
+            ctx.strokeStyle = '#12161c'; ctx.beginPath(); ctx.moveTo(x, L.top); ctx.lineTo(x, L.H - L.timeH); ctx.stroke();
             let label;
             if (iv.intraday) {
                 const d = new Date(bars[i].t * 1000), day = `${d.getMonth() + 1}/${d.getDate()}`;
@@ -15383,7 +15829,7 @@ ${pdFactsText(d)}`;
         // RSI 패널
         if (c.opt.rsi) {
             const rt = L.rsiTop, rb = L.rsiB, ry = v => rt + (100 - v) / 100 * (rb - rt);
-            ctx.fillStyle = '#0d1527'; ctx.fillRect(0, rt, L.plotW, rb - rt);
+            ctx.fillStyle = '#0b0e13'; ctx.fillRect(0, rt, L.plotW, rb - rt);
             ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1; ctx.strokeRect(0.5, rt + 0.5, L.plotW - 1, rb - rt - 1);
             ctx.save(); ctx.beginPath(); ctx.rect(0, rt, L.plotW, rb - rt); ctx.clip();
             ctx.fillStyle = 'rgba(244,63,94,0.06)'; ctx.fillRect(0, ry(100), L.plotW, ry(70) - ry(100));
@@ -15527,7 +15973,7 @@ ${pdFactsText(d)}`;
         const root = fxById('fxRoot');
         const cb = (id, label) => `<label class="inline-flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer select-none"><input id="${id}" type="checkbox" class="accent-emerald-500">${label}</label>`;
         root.innerHTML = `<div class="space-y-6">
-            <section class="bg-gradient-to-r from-slate-900 via-[#131e32] to-[#10241f] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-2xl space-y-3">
+            <section class="bg-gradient-to-r from-slate-900 via-[#0b0e13] to-[#10241f] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-2xl space-y-3">
                 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                     <div>
                         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-700/60 text-emerald-300 text-xs font-semibold mb-2"><i class="fa-solid fa-money-bill-transfer"></i> 환율 · FX</div>
@@ -15561,7 +16007,7 @@ ${pdFactsText(d)}`;
                         </div>
                     </div>
                     <div id="fxChartInfo" class="font-mono-numbers text-[11px] leading-relaxed min-h-[1.1rem] whitespace-normal break-words"></div>
-                    <div id="fxChartWrap" class="relative w-full rounded-lg overflow-hidden border border-slate-800 bg-[#0b1220]" style="height:380px">
+                    <div id="fxChartWrap" class="relative w-full rounded-lg overflow-hidden border border-slate-800 bg-[#000000]" style="height:380px">
                         <canvas id="fxCanvas" class="block" style="touch-action:pan-y;cursor:crosshair"></canvas>
                         <div id="fxChartMsg" class="hidden absolute inset-0"></div>
                     </div>
@@ -16397,16 +16843,16 @@ ${pdFactsText(d)}`;
         if (!root) return false;
         root.innerHTML = `
 <style>
-#marketRoot .mk-card{background:#131e32;border:1px solid #1e293b;border-radius:1rem;padding:1.1rem;box-shadow:0 10px 25px rgba(0,0,0,.35)}
-#marketRoot .mk-tile{position:absolute;overflow:hidden;box-sizing:border-box;cursor:pointer;box-shadow:inset 0 0 0 1px #0a0f1d;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.12;text-align:center;font-family:'JetBrains Mono',monospace;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+#marketRoot .mk-card{background:#0b0e13;border:1px solid #1e293b;border-radius:1rem;padding:1.1rem;box-shadow:0 10px 25px rgba(0,0,0,.35)}
+#marketRoot .mk-tile{position:absolute;overflow:hidden;box-sizing:border-box;cursor:pointer;box-shadow:inset 0 0 0 1px #000000;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.12;text-align:center;font-family:'JetBrains Mono',monospace;text-shadow:0 1px 2px rgba(0,0,0,.45)}
 #marketRoot .mk-tile:hover{outline:2px solid #fff;outline-offset:-2px;z-index:6}
 #marketRoot .mk-tile:focus-visible{outline:2px solid #38bdf8;outline-offset:-2px;z-index:6}
-#marketRoot .mk-blk{position:absolute;box-sizing:border-box;pointer-events:none;z-index:3;box-shadow:inset 0 0 0 2px #0a0f1d}
-#marketRoot .mk-lbl{position:absolute;z-index:4;pointer-events:none;font-size:10px;font-weight:700;padding:1px 6px 2px 5px;background:rgba(10,15,29,.78);color:#e2e8f0;border-radius:0 0 6px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+#marketRoot .mk-blk{position:absolute;box-sizing:border-box;pointer-events:none;z-index:3;box-shadow:inset 0 0 0 2px #000000}
+#marketRoot .mk-lbl{position:absolute;z-index:4;pointer-events:none;font-size:10px;font-weight:700;padding:1px 6px 2px 5px;background:rgba(0,0,0,.78);color:#e2e8f0;border-radius:0 0 6px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
 #marketRoot .mk-th{cursor:pointer;white-space:nowrap}
 #marketRoot .mk-th:hover{color:#fff}
 #marketRoot table.mk-tbl td,#marketRoot table.mk-tbl th{padding:6px 8px}
-#marketRoot .mk-sticky{position:sticky;left:0;background:#131e32;z-index:2}
+#marketRoot .mk-sticky{position:sticky;left:0;background:#0b0e13;z-index:2}
 </style>
 <div class="space-y-6">
   <div id="mkHeader"></div>
@@ -16422,7 +16868,7 @@ ${pdFactsText(d)}`;
     <div id="mkHeatCtl" class="flex flex-wrap items-center gap-2"></div>
     <div id="mkHeatInfo" class="text-[11px] text-slate-400"></div>
     <div id="mkLegend"></div>
-    <div id="mkTree" role="group" aria-label="시가총액 비례 시장 히트맵" style="position:relative;width:100%;height:480px;background:#0a0f1d;border-radius:10px;overflow:hidden"></div>
+    <div id="mkTree" role="group" aria-label="시가총액 비례 시장 히트맵" style="position:relative;width:100%;height:480px;background:#000000;border-radius:10px;overflow:hidden"></div>
     <div id="mkSecChips" class="flex flex-wrap gap-1.5"></div>
     <div id="mkMovers" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
   </section>
@@ -16498,7 +16944,7 @@ ${pdFactsText(d)}`;
     function mkRenderNoProxy() {
         const root = document.getElementById('marketRoot');
         if (!root || root.querySelector('#mkNoProxy')) return;
-        root.innerHTML = `<div id="mkNoProxy" class="mk-card text-center space-y-3 py-10" style="background:#131e32;border:1px solid #1e293b;border-radius:1rem">
+        root.innerHTML = `<div id="mkNoProxy" class="mk-card text-center space-y-3 py-10" style="background:#0b0e13;border:1px solid #1e293b;border-radius:1rem">
           <div class="text-3xl text-sky-400"><i class="fa-solid fa-plug-circle-xmark"></i></div>
           <h3 class="text-lg font-extrabold text-white">자체 프록시(Cloudflare Worker)가 연결되지 않았습니다</h3>
           <p class="text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">시장 · 매크로 탭은 지수·ETF·수백 개 종목의 시세를 한꺼번에 가져와야 해서 <b class="text-slate-200">worker/ 폴더의 프록시</b>가 필요합니다. 프록시를 배포한 뒤 상단의 <b class="text-slate-200">API 설정</b>에서 주소를 입력하면 이 탭이 자동으로 채워집니다. (가짜 데이터는 표시하지 않습니다.)</p>
@@ -16786,7 +17232,7 @@ ${!MK.loading && (MK.failQ || MK.failS || missing > 5) && Object.keys(MK.stats).
             <text x="${cx + 3}" y="${T + 9}" font-size="9" fill="#64748b">+${lim}</text><text x="${cx + 3}" y="${B - 2}" font-size="9" fill="#64748b">-${lim}</text>
             <text x="${cx}" y="${B + 20}" text-anchor="middle" font-size="10" fill="#94a3b8">3개월 상대성과 (장기 추세) →</text>
             <text x="10" y="${cy}" text-anchor="middle" font-size="10" fill="#94a3b8" transform="rotate(-90 10 ${cy})">1개월 상대성과 (단기) →</text>
-            ${dots.map((d, i) => `<g style="cursor:pointer" onclick="mkOpenInd('${d.r.def.id}')"><title>${escapeHtml(d.r.def.ko)} (${escapeHtml(d.r.def.etf)}) · 3개월 ${mkFmtPct(d.r.rs3, 1)}p · 1개월 ${mkFmtPct(d.r.rs1, 1)}p · ${MK_QUAD_KO[d.r.quad]}</title><circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="4.2" fill="${MK_QUAD_CLS[d.r.quad]}" stroke="#0a0f1d" stroke-width="1"/><text x="${(d.x + lab[i].dx).toFixed(1)}" y="${(d.y + lab[i].dy).toFixed(1)}" font-size="9" fill="#cbd5e1" font-family="JetBrains Mono, monospace">${escapeHtml(d.label)}</text></g>`).join('')}
+            ${dots.map((d, i) => `<g style="cursor:pointer" onclick="mkOpenInd('${d.r.def.id}')"><title>${escapeHtml(d.r.def.ko)} (${escapeHtml(d.r.def.etf)}) · 3개월 ${mkFmtPct(d.r.rs3, 1)}p · 1개월 ${mkFmtPct(d.r.rs1, 1)}p · ${MK_QUAD_KO[d.r.quad]}</title><circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="4.2" fill="${MK_QUAD_CLS[d.r.quad]}" stroke="#000000" stroke-width="1"/><text x="${(d.x + lab[i].dx).toFixed(1)}" y="${(d.y + lab[i].dy).toFixed(1)}" font-size="9" fill="#cbd5e1" font-family="JetBrains Mono, monospace">${escapeHtml(d.label)}</text></g>`).join('')}
           </svg>
           <p class="text-[10px] text-slate-500 leading-relaxed">선도 = 장기·단기 모두 SPY보다 강함 · 약화 = 장기는 강하지만 최근 1개월은 SPY보다 약함 · 개선 = 장기는 약하지만 최근 1개월은 강함 · 부진 = 둘 다 약함. 과거 수익률의 분류일 뿐 이후 흐름을 예측하지 않습니다.</p></div>`;
     }
@@ -16802,7 +17248,7 @@ ${!MK.loading && (MK.failQ || MK.failS || missing > 5) && Object.keys(MK.stats).
         const th = (k, l, tip) => `<th class="mk-th text-right ${MK.sortKey === k ? 'text-sky-300' : ''}" onclick="mkSort('${k}')" title="${escapeHtml(tip)}" scope="col">${l}${MK.sortKey === k ? (MK.sortDir < 0 ? ' ▼' : ' ▲') : ''}</th>`;
         let html = `<div><h4 class="text-sm font-bold text-white mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-table-list text-sky-400"></i>산업·테마 전체 표 <span class="text-[10px] font-normal text-slate-500">행을 누르면 대표 플레이어가 펼쳐집니다 · 열 제목을 누르면 정렬</span></h4>
         <div class="overflow-x-auto rounded-xl border border-slate-800"><table class="mk-tbl w-full text-xs text-slate-300 min-w-[820px]"><thead class="bg-slate-900 text-[10px] text-slate-400"><tr>
-          <th class="text-left mk-sticky" style="background:#0f172a" scope="col">산업·테마 (ETF)</th>${th('score', '점수', '종합 점수(0~100)')}${th('r1d', '1일', 'ETF 1일 등락률')}${th('r1w', '1주', 'ETF 1주 수익률')}${th('r1m', '1개월', 'ETF 1개월 수익률')}${th('r3m', '3개월', 'ETF 3개월 수익률')}${th('rytd', 'YTD', 'ETF 연초 대비')}${th('rs', 'RS(1M)', 'SPY 대비 1개월 상대성과(%p)')}${th('vol', '거래열기', '오늘 거래량 ÷ 3개월 평균')}${th('bk', '바스켓 1M', '대표 플레이어 동일가중 평균 1개월 수익률')}<th class="text-center" scope="col">사분면</th></tr></thead><tbody>`;
+          <th class="text-left mk-sticky" style="background:#07090c" scope="col">산업·테마 (ETF)</th>${th('score', '점수', '종합 점수(0~100)')}${th('r1d', '1일', 'ETF 1일 등락률')}${th('r1w', '1주', 'ETF 1주 수익률')}${th('r1m', '1개월', 'ETF 1개월 수익률')}${th('r3m', '3개월', 'ETF 3개월 수익률')}${th('rytd', 'YTD', 'ETF 연초 대비')}${th('rs', 'RS(1M)', 'SPY 대비 1개월 상대성과(%p)')}${th('vol', '거래열기', '오늘 거래량 ÷ 3개월 평균')}${th('bk', '바스켓 1M', '대표 플레이어 동일가중 평균 1개월 수익률')}<th class="text-center" scope="col">사분면</th></tr></thead><tbody>`;
         sorted.forEach(r => {
             const open = !!MK.expanded[r.def.id];
             const bk = r.basket['1M'];
@@ -17284,7 +17730,7 @@ ${digest}`;
         grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
         grid.style.gridTemplateRows = S.full ? `repeat(${rows}, minmax(0, 1fr))` : '';
         grid.className = 'grid gap-3' + (S.full ? ' flex-1 min-h-0' : '');
-        stage.className = S.full ? 'fixed inset-0 z-[80] bg-[#0b1220] p-2 sm:p-3 flex flex-col gap-2 overflow-hidden' : 'space-y-3';
+        stage.className = S.full ? 'fixed inset-0 z-[80] bg-[#000000] p-2 sm:p-3 flex flex-col gap-2 overflow-hidden' : 'space-y-3';
         const help = root.querySelector('#mcHelp'); if (help) help.classList.toggle('hidden', S.full);
         const bar = root.querySelector('#mcBar'); if (bar) bar.classList.toggle('shrink-0', S.full);
         const fb = root.querySelector('#mcFullBtn');
@@ -17482,7 +17928,7 @@ ${digest}`;
         if (!p.w) return;
         ctx.setTransform(p.dpr, 0, 0, p.dpr, 0, 0);
         ctx.clearRect(0, 0, p.w, p.h);
-        ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, p.w, p.h);
+        ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, p.w, p.h);
         const h = p.hist, n = h.length;
         if (!n) return;
         const L = layout(p), W = plotW(p), bw = barW(p);
@@ -18215,7 +18661,7 @@ ${digest}`;
         const peChips = peOpts.map(x => `<button type="button" data-act="pe-fill" data-v="${Math.round(x[1])}" class="${chipCls}">${esc(x[0])} ${Number(x[1]).toFixed(x[1] === VAL_MKT_PE ? 0 : 1)}</button>`).join('');
         const gl = (t, d) => `<div><dt class="font-bold text-slate-100">${esc(t)}</dt><dd class="text-slate-300 mt-0.5">${esc(d)}</dd></div>`;
         return `
-        <div class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-2 min-w-0">
               <span class="w-7 h-7 shrink-0 rounded-lg bg-cyan-950 text-cyan-400 flex items-center justify-center text-xs"><i class="fa-solid fa-calculator"></i></span>
@@ -19373,7 +19819,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         const lowStop = num(o.low20) ? +o.low20.toFixed(2) : null;
         const inp = (k, label, val, ph) => `<label class="block text-[11px] text-slate-400">${label}<input data-rk="${k}" type="number" step="any" inputmode="decimal" value="${num(val) ? val : ''}" placeholder="${ph || ''}" class="mt-1 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers text-xs outline-none focus:border-cyan-400"></label>`;
         const preset = (k, label, v) => v ? `<button type="button" data-rk-set="${v}" class="px-2 py-1 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[11px] text-slate-300">${label} ${f(v)}</button>` : '';
-        el.innerHTML = `<section class="bg-[#131e32] border border-slate-800 rounded-2xl p-5 space-y-3">
+        el.innerHTML = `<section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 space-y-3">
           <div><h3 class="text-sm font-bold text-white"><i class="fa-solid fa-scale-balanced text-emerald-400 mr-1.5"></i>${esc(o.title || '포지션 사이징 — 손절 거리로 수량 정하기')}</h3>
           <p class="text-[11px] text-slate-400 mt-1 leading-snug">먼저 "이 매매에서 잃어도 되는 금액"을 정하고, 손절가까지의 거리로 수량을 거꾸로 계산합니다. 이길 확률이 아니라 질 때의 크기를 통제하는 도구예요.</p></div>
           <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -21828,7 +22274,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           <div class="mt-2 overflow-x-auto"><table class="w-full text-xs text-slate-200"><thead class="text-slate-400 text-[11px]"><tr><th class="py-2 px-2 text-left">등급</th><th class="py-2 px-2 text-left">종목 · 업종순위</th><th class="py-2 px-2 text-left">유형 · 태그</th><th class="py-2 px-2 text-center hidden md:table-cell" title="90→60→30→7일 전→현재 올해 EPS 추정치">추세</th>${th('c7', '7일')}${th('c30', '30일')}<th class="py-2 px-2 text-right hidden sm:table-cell" title="최근 30일 상향/하향 건수">상/하향</th><th class="py-2 px-2 text-center hidden lg:table-cell" title="스크리너 기술 지표 기준 진입 타이밍">타이밍</th><th class="py-2 px-2 text-center hidden lg:table-cell">판정</th>${th('score', '점수')}</tr></thead><tbody>${body || '<tr><td colspan="10" class="py-6 text-center text-slate-500">조건에 맞는 종목이 없습니다.</td></tr>'}</tbody></table></div>`
           : '';
         const guideOpen = ST.guideOpen === undefined ? !ST.rows.length : ST.guideOpen;
-        root.innerHTML = `<section class="bg-[#131e32] border border-amber-900/50 rounded-2xl p-5 shadow-2xl">
+        root.innerHTML = `<section class="bg-[#0b0e13] border border-amber-900/50 rounded-2xl p-5 shadow-2xl">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 class="text-lg font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-arrow-trend-up text-amber-400"></i>리비전 랭크 <span class="text-[11px] font-normal text-slate-400">애널리스트 EPS 추정치 변화 · Zacks 방식 아이디어</span></h3>

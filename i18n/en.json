@@ -5197,5 +5197,9 @@
 "EPS 7일": "EPS 7d",
 "EPS 추정치 30일 변화": "30-day change in EPS estimate",
 "John Bollinger 스퀴즈 · TTM Squeeze(John Carter) 개념": "John Bollinger squeeze · TTM Squeeze (John Carter) concept",
-"RS 라인이 직전 저점을 이탈하거나 종목이 50일선 아래로 마감하면 무효로 봅니다.": "It is treated as invalid if the RS line breaks its prior low or the stock closes below the 50-day line."
+"RS 라인이 직전 저점을 이탈하거나 종목이 50일선 아래로 마감하면 무효로 봅니다.": "It is treated as invalid if the RS line breaks its prior low or the stock closes below the 50-day line.",
+"밝음": "Light",
+"어두움 (OLED)": "Dark (OLED)",
+"어두움은 배경을 완전한 검정(#000)으로 써서 OLED 화면에서 검은 픽셀이 꺼지고 배터리를 아낍니다. 자동은 기기의 라이트/다크 설정을 따릅니다.": "Dark uses true black (#000) for the background, so on OLED screens black pixels switch off and save battery. Auto follows your device's light/dark setting.",
+"화면 테마": "Display theme"
 }
