@@ -2,7 +2,7 @@
 //  - 정적 HTML 의 텍스트 노드·속성(title/placeholder/aria-label/alt/label/value)
 //  - <script> 안의 문자열 리터럴·템플릿 리터럴(acorn 으로 파싱; ${…} 는 {0},{1}… 자리표시자로 치환)
 //    HTML 이 들어 있는 템플릿은 태그 경계로 잘라 '텍스트 노드 단위' 조각으로 만든다(렌더된 DOM 텍스트와 같은 단위).
-// 제외: Gemini 프롬프트(변수·함수·속성 이름에 prompt 포함), NAME_TO_TICKER_MAP 의 키(검색용 데이터)
+// 제외: Gemini 프롬프트(변수·함수·속성 이름에 prompt 포함), NAME_TO_TICKER_MAP 의 키·SYN(거래내역 열 이름 동의어) (검색·매칭용 데이터)
 // 사용: node i18n-extract.mjs   (tools 폴더에서)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -80,7 +80,7 @@ function skip(node, anc) {
     if (a.type === 'VariableDeclarator' && /prompt/i.test(nameOf(a.id))) return true;
     if ((a.type === 'FunctionDeclaration' || a.type === 'FunctionExpression') && a.id && /prompt/i.test(a.id.name)) return true;
     if (a.type === 'Property' && /prompt/i.test(nameOf(a.key)) && !a.computed) return true;
-    if (a.type === 'VariableDeclarator' && nameOf(a.id) === 'NAME_TO_TICKER_MAP') return true;
+    if (a.type === 'VariableDeclarator' && (nameOf(a.id) === 'NAME_TO_TICKER_MAP' || nameOf(a.id) === 'SYN')) return true; // SYN = 거래내역 열 이름 동의어(매칭용 데이터)
     if (a.type === 'CallExpression' && a.callee && /^(callGemini)$/.test(a.callee.name || '') && a.arguments[0] === anc[i + 1]) return true;
   }
   // 객체 키로 쓰인 한글 리터럴(검색용 사전 등)은 제외: Property.key === node
