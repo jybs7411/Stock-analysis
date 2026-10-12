@@ -188,13 +188,6 @@
     .font-mono-numbers {
       font-family: 'JetBrains Mono', monospace;
     }
-    /* 폰: 탭 검색창은 돋보기만 보이다가 누르면 펼쳐짐 (탭이 보일 공간 확보) */
-    @media (max-width: 639px) {
-      #tabSearchInput { width: 2.5rem; padding-left: 0; padding-right: 0; color: transparent; cursor: pointer; }
-      #tabSearchInput::placeholder { color: transparent; }
-      #tabSearchInput:focus { position: absolute; right: 0; top: 0; z-index: 61; width: min(80vw, 20rem); padding-left: 0.75rem; padding-right: 2.25rem; color: #fff; cursor: text; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
-      #tabSearchInput:focus::placeholder { color: #64748b; }
-    }
     /* ===== 탭 구조: 5개 허브(상단) + 허브 안 보조 탭(둘째 줄) / 폰은 하단 5칸 탭바 ===== */
     #tabSearchInput { width: 12rem; }
     @media (min-width: 1280px) { #tabSearchInput { width: 16rem; } }
@@ -209,7 +202,6 @@
     .subtab.is-on { color: #fff; background: #1e293b; border-color: #475569; font-weight: 700; }
     @media (max-width: 639px) {
       #tabStrip { display: none; }
-      #tabNav #tabSearchInput:not(:focus) { width: 2.5rem; }
       #tabSearchForm { margin-left: auto; }
       #mobileTabBar { display: block; }
       main { padding-bottom: 5.5rem; }
@@ -238,6 +230,76 @@
     #chartFsRoot:fullscreen { display: flex; flex-direction: column; padding: 14px; background: #0a0f1d; height: 100vh; }
     #chartFsRoot:fullscreen #chartWrap { flex: 1; min-height: 0; }
     #chartFsRoot:fullscreen #proChartContainer { height: 100% !important; }
+
+    /* ===== 폰(≤639px): 구글 앱 느낌 — 상단 앱바(로고 · 검색 필 · 설정) + 칩형 보조 탭 + 하단 내비(알약 표시) + 촘촘한 카드 ===== */
+    @media (max-width: 639px) {
+      #appBar { position: sticky; top: 0; z-index: 55; padding: .5rem .75rem .375rem; border-bottom: 1px solid rgba(51,65,85,.6); background: rgba(14,23,38,.97); }
+      #appBar > div { flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: .375rem .5rem; }
+      #hdrLeft { display: contents; }
+      #hdrLeft > div:first-child { order: 1; width: 2.25rem; height: 2.25rem; border-radius: .75rem; flex: none; }
+      #hdrLeft > div:first-child i { font-size: 1rem; }
+      #hdrBrand { display: none; }
+      #hdrSearchSlot { display: block; order: 2; flex: 1 1 0; min-width: 0; }
+      #hdrTools { order: 3; position: relative; flex: none; }
+      #hdrTools button { width: 2.5rem; height: 2.5rem; padding: 0; justify-content: center; border-radius: 9999px; background: #1b2538; border-color: transparent; }
+      #hdrTools button span { display: none; }
+      #liveFeedStatusBadge { position: absolute; top: 0; right: 0; width: .75rem; height: .75rem; z-index: 2; pointer-events: none; }
+      #liveFeedDot { width: .5rem; height: .5rem; }
+      #usMarketClock { order: 4; flex: 0 0 100%; padding: .25rem .625rem; gap: .5rem; border-radius: 9999px; max-height: 2.25rem; overflow: hidden; white-space: nowrap; transition: max-height .2s ease, opacity .2s ease, padding .2s ease, margin .2s ease; }
+      #usMarketClock > .leading-tight { display: flex; align-items: baseline; gap: .5rem; min-width: 0; }
+      #umcPill { padding: .125rem .5rem; font-size: 11px; }
+      #umcSub { display: none; }
+      body.is-scrolled #usMarketClock { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; border-width: 0; margin-top: -.375rem; }
+
+      /* 검색 필 */
+      #tabSearchForm { margin: 0; width: 100%; }
+      #hdrSearchSlot #tabSearchInput { width: 100%; height: 2.5rem; padding: 0 .875rem 0 2.5rem; border-radius: 9999px; background: #1b2538; border: 1px solid transparent; font-size: 16px; }
+      #hdrSearchSlot #tabSearchInput:focus { background: #0b1220; border-color: #22d3ee; }
+      #hdrSearchSlot #tabSearchBtn { left: .375rem; right: auto; width: 2rem; height: 2rem; }
+      #hdrSearchSlot #tabSearchSuggest { left: 0; right: 0; width: auto; max-width: none; }
+
+      /* 보조 탭: 한 줄 칩 (본 탭 줄은 하단 내비가 대신함) */
+      #tabNav { top: var(--appbar-h, 3.25rem); padding: 0 .75rem; border-bottom: 0; background: rgba(10,15,29,.96); }
+      #tabNavRow { display: none; }
+      #tabNav:not(:has(#subTabRow:not(.hidden))) { display: none; }
+      #subTabRow { gap: .5rem; padding: .375rem 0 .5rem; scrollbar-width: none; }
+      #subTabRow::-webkit-scrollbar { display: none; }
+      .subtab { padding: .375rem .875rem; font-size: .8125rem; background: #172033; border-color: rgba(51,65,85,.7); }
+      .subtab.is-on { background: rgba(34,211,238,.16); color: #a5f3fc; border-color: rgba(34,211,238,.35); }
+
+      /* 하단 내비: 알약 표시 + 구분선 대신 그림자 */
+      #mobileTabBar { background: #101a2c; border-top: 0; box-shadow: 0 -1px 0 rgba(148,163,184,.1), 0 -10px 24px rgba(0,0,0,.35); }
+      #mobileTabBar .mtab { min-height: 62px; gap: .125rem; background: transparent; box-shadow: none; }
+      #mobileTabBar .mtab.is-on { background: transparent; box-shadow: none; color: #e0f2fe; }
+      #mobileTabBar .mtab > i { padding: .25rem 1.1rem; border-radius: 9999px; transition: background .15s, color .15s; }
+      #mobileTabBar .mtab.is-on > i { background: rgba(34,211,238,.2); color: #67e8f9; }
+      #toTopBtn, #backBtn, #toBottomBtn { width: 2.5rem; height: 2.5rem; right: .75rem; }
+      #backBtn { left: .75rem; right: auto; }
+      #toTopBtn, #backBtn { bottom: 5.25rem; }
+      #toBottomBtn { bottom: 8.25rem; }
+
+      /* 본문: 여백·카드 안쪽 여백을 줄이고 모서리는 둥글게 */
+      main { padding: .5rem .75rem 5.75rem !important; }
+      main.space-y-6 > * + *, main .space-y-6 > * + * { margin-top: .75rem !important; }
+      main .space-y-5 > * + * { margin-top: .625rem !important; }
+      main > [id^="view-"] { margin-top: 0 !important; }
+      main .p-6, main .p-8 { padding: 1rem !important; }
+      main .p-5 { padding: .875rem !important; }
+      main .gap-6, main .gap-5 { gap: .75rem !important; }
+      main .rounded-2xl, main .rounded-3xl { border-radius: 1.25rem; }
+      main .text-4xl { font-size: 1.625rem; line-height: 1.25; }
+      main .text-3xl { font-size: 1.4rem; line-height: 1.3; }
+      main .mb-8, main .mb-6 { margin-bottom: .75rem; }
+      footer { padding-bottom: 5rem; }
+
+      /* 관심종목 도구줄: 줄바꿈 대신 가로 스크롤 한 줄, 라벨은 아이콘으로 */
+      #wlGroups { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+      #wlGroups::-webkit-scrollbar { display: none; }
+      #wlGroups + div { flex-wrap: nowrap !important; overflow-x: auto; margin-left: 0 !important; max-width: 100%; scrollbar-width: none; }
+      #wlGroups + div::-webkit-scrollbar { display: none; }
+      #wlGroups + div > * { flex: none; }
+      #wlSortDir span, #wlEditBtn span { display: none; }
+    }
     /* Custom scrollbars */
     ::-webkit-scrollbar {
       width: 6px;
@@ -259,13 +321,13 @@
 
   <!-- Top Navigation Bar -->
   <div id="stickyNav" class="contents">
-  <header class="border-b border-slate-800 bg-[#0e1726]/95 backdrop-blur px-4 lg:px-8 py-2">
+  <header id="appBar" class="border-b border-slate-800 bg-[#0e1726]/95 backdrop-blur px-4 lg:px-8 py-2">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div id="hdrLeft" class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
           <i class="fa-solid fa-chart-pie text-white text-lg"></i>
         </div>
-        <div>
+        <div id="hdrBrand">
           <span class="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-sky-300 to-amber-300">
             PentAnalyst
           </span>
@@ -275,7 +337,7 @@
         </div>
 
         <!-- 데이터 연결 상태(초록 점, 마우스를 올리면 상세) · 외부 확인 링크 · API 설정 -->
-        <div class="flex items-center gap-2 text-xs">
+        <div id="hdrTools" class="flex items-center gap-2 text-xs">
           <div id="liveFeedStatusBadge" class="relative group flex items-center justify-center w-6 h-6 cursor-help" tabindex="0" aria-label="데이터 연결 상태">
             <span id="liveFeedDot" role="img" aria-label="데이터 연결 상태" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow shadow-emerald-500/60"></span>
             <div class="pointer-events-none absolute left-0 top-full mt-2 z-[60] hidden group-hover:block group-focus:block whitespace-nowrap px-3 py-2 rounded-lg bg-slate-900 border border-emerald-700 text-emerald-300 text-[11px] font-mono-numbers shadow-xl">
@@ -308,6 +370,9 @@
         </div>
       </div>
 
+      <!-- 폰: 탭 검색창이 여기로 옮겨 와 상단 앱바의 검색 필이 된다 (initTabSearchAndTop) -->
+      <div id="hdrSearchSlot" class="hidden"></div>
+
       <!-- 미국장 개장/폐장 시계 (내 시간대 기준, 카운트다운) -->
       <div id="usMarketClock" translate="no" class="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs" title="미국 정규장 09:30–16:00 ET (브라우저 시간대로 환산, 서머타임 자동 반영)">
         <span id="umcPill" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold bg-slate-800 text-slate-300"><span id="umcDot" class="w-2 h-2 rounded-full bg-slate-500"></span><span id="umcState">--</span></span>
@@ -322,7 +387,7 @@
 
   <!-- Main View Tabs Navigation -->
   <div id="tabNav" class="sticky top-0 z-50 bg-[#0b1220]/95 backdrop-blur border-b border-slate-800 px-4 lg:px-8 transition-shadow duration-200">
-    <div class="max-w-7xl mx-auto flex items-center gap-2 py-2">
+    <div id="tabNavRow" class="max-w-7xl mx-auto flex items-center gap-2 py-2">
     <!-- 스크롤하면 위쪽 헤더가 사라지고 이 미니 브랜드가 나타남 -->
     <div id="navMini" class="flex items-center gap-1.5 shrink-0 overflow-hidden transition-all duration-300 ease-out opacity-0 max-w-0 pointer-events-none">
       <button type="button" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="맨 위로 (PentAnalyst)" class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 grid place-items-center shadow shadow-cyan-500/20 shrink-0"><i class="fa-solid fa-chart-pie text-white text-sm"></i></button>
@@ -1626,7 +1691,7 @@
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.24.0';
+    const APP_VERSION = '1.25.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -1913,6 +1978,15 @@
         });
         input.addEventListener('blur', () => setTimeout(() => { const s = document.getElementById('tabSearchSuggest'); if (s) s.classList.add('hidden'); }, 150));
       }
+      // 폰: 검색창을 상단 앱바로 옮기고(데스크톱은 원래 자리), 앱바 높이를 CSS 변수로 알려 보조 탭이 그 아래에 붙게 한다
+      const mq = window.matchMedia('(max-width: 639px)'), form = document.getElementById('tabSearchForm'), slot = document.getElementById('hdrSearchSlot'), home = document.getElementById('tabNavRow'), bar = document.getElementById('appBar');
+      const placeSearch = () => { if (form && slot && home) (mq.matches ? slot : home).appendChild(form); syncBar(); };
+      const syncBar = () => { if (bar) document.documentElement.style.setProperty('--appbar-h', mq.matches ? bar.offsetHeight + 'px' : '0px'); };
+      if (mq.addEventListener) mq.addEventListener('change', placeSearch);
+      if (window.ResizeObserver && bar) new ResizeObserver(syncBar).observe(bar);
+      const syncScrolled = () => document.body.classList.toggle('is-scrolled', window.scrollY > 24);
+      window.addEventListener('scroll', syncScrolled, { passive: true });
+      placeSearch(); syncScrolled();
       const nav = document.getElementById('tabNav'), mini = document.getElementById('navMini'), hdr = document.querySelector('header');
       const syncNav = () => {
         const stuck = hdr.getBoundingClientRect().bottom <= 0;
