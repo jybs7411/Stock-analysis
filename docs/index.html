@@ -207,6 +207,22 @@
     .subtab:not(.hidden) { display: inline-flex; }
     .subtab.hidden { display: none; }
     .chart-fs-on .chart-fs-hide { display: none !important; }
+    /* 5인분석 차트 분할 보기: 첫 칸(프로 차트 스테이션)을 작게 */
+    main:has(#view-multi:not(.hidden)) { max-width: min(1880px, 100%); }
+    #chmWrap.chm-full { position: fixed; inset: 0; z-index: 75; background: #000; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem; overflow: hidden; }
+    #chmWrap.chm-full > #chmBar { flex-shrink: 0; }
+    #chmWrap.chm-full > div:not(#chmBar), #chmWrap.chm-full > #chartStation { flex: 1; min-height: 0; }
+    #chmWrap.chm-full #chartStation { display: flex; flex-direction: column; min-height: 0; }
+    #chmWrap.chm-full > div:empty { display: none; }
+    #chmWrap.chm-full .chm-cell, #chmWrap.chm-full .chm-cell > #chartFsRoot, #chmWrap.chm-full #chartStation > #chartFsRoot { display: flex; flex-direction: column; min-height: 0; }
+    #chmWrap.chm-full #chartFsRoot { flex: 1; min-height: 0; }
+    #chmWrap.chm-full #chartWrap, #chmWrap.chm-full .chm-row { flex: 1; min-height: 0; }
+    #chmWrap.chm-full #proChartContainer { height: auto !important; }
+    #indicatorModal { z-index: 90; }
+    #chartStation.ch-compact { padding: 0.5rem; border-radius: 0.75rem; box-shadow: none; }
+    #chartStation.ch-compact > :not(#chartFsRoot) { display: none; }
+    #chartStation.ch-compact #chartToolbar { gap: 0.375rem; font-size: 11px; }
+    #chartStation.ch-compact #chartWrap { gap: 0.25rem; }
     .subtab:hover { color: #fff; background: #1e293b; }
     .subtab.is-on { color: #fff; background: #1e293b; border-color: #475569; font-weight: 700; }
     @media (max-width: 639px) {
@@ -1519,7 +1535,6 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
             <button type="button" id="btnMagnet" onclick="chToggleMagnet()" title="그림을 그릴 때 캔들의 시·고·저·종가에 달라붙기"><i class="fa-solid fa-magnet mr-1 text-[10px]"></i>자석</button>
             <span class="flex-1"></span>
             <button type="button" id="btnSnap" onclick="chSnapshot()" title="차트를 PNG 이미지로 저장" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white"><i class="fa-solid fa-camera"></i></button>
-            <button type="button" id="btnFull" onclick="chToggleFullscreen()" title="전체화면" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white"><i class="fa-solid fa-expand"></i></button>
           </div>
 
           <div id="chartWrap" class="flex gap-1.5 min-h-0">
@@ -2172,7 +2187,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.31.0';
+    const APP_VERSION = '1.32.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2344,7 +2359,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         const mb = document.getElementById(`mtabBtn-${h.id}`); if (mb) mb.classList.toggle('is-on', on);
       });
       if (tab === 'analysis' && currentAnalysisData) {
-        setTimeout(() => { chResize(true); renderMiniTrendPreview(); }, 50);
+        setTimeout(() => { chResizeAll(true); renderMiniTrendPreview(); }, 50);
       } else if (tab === 'screener') {
         runScreenerFilter();
       }
@@ -6757,7 +6772,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     };
     const CH_FIB = [[0, '#94a3b8'], [0.236, '#f87171'], [0.382, '#fb923c'], [0.5, '#facc15'], [0.618, '#4ade80'], [0.786, '#38bdf8'], [1, '#94a3b8'], [1.272, '#c084fc'], [1.618, '#e879f9']];
 
-    const CH = {
+    function chNewState() { return {
+      root: null, mainH: 0, noPreset: false,
       ticker: '', currency: 'USD', interval: 'D', range: '6M',
       sets: {}, hist: [], dsKey: '', tix: null, ha: null,
       type: 'candles', log: false, auto: true, manual: null, magnet: true,
@@ -6767,8 +6783,14 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       mouse: null, hoverIdx: null,
       W: 0, H: 0, dpr: 1, layout: null, scale: null,
       drag: null, pointers: new Map(), raf: 0, raf2: 0, ready: false, loading: false, saveTimer: null
-    };
+    }; }
+    // 차트는 여러 개(5인분석 분할 보기)일 수 있다: CH 는 '지금 다루는' 인스턴스. 이벤트·비동기 진입점에서 chUse 로 바꿔 끼운다.
+    let CH = chNewState();
+    const CH_ALL = [CH];
+    const chUse = inst => { CH = inst; };
+    function chWith(inst, fn) { const prev = CH; CH = inst; try { return fn(); } finally { CH = prev; } }
     const $id = id => document.getElementById(id);
+    const chEl = id => { const r = CH.root; return (r && r.querySelector(`[id="${id}"]`)) || $id(id); };
 
     function chDefaultStudies() {
       return [newStudy('sma', { params: { period: 20 }, color: '#f59e0b' }), newStudy('sma', { params: { period: 50 }, color: '#38bdf8' }), newStudy('sma', { params: { period: 200 }, color: '#a855f7' }), newStudy('volume'), newStudy('rsi')];
@@ -6820,6 +6842,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     // ---------- 데이터 ----------
     function chSetData(ticker, history, currency) {
+      chUse(CH_ALL[0]);
       const changed = ticker !== CH.ticker;
       CH.ticker = ticker; CH.currency = currency || 'USD';
       CH.sets = { D: history || [] };
@@ -6835,6 +6858,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       chBuildLegend();
       chSyncToolbar();
       chDraw();
+      if (typeof chmOnSymbol === 'function') chmOnSymbol();
     }
     function chRebuildDataset() {
       CH.tix = TA.timeIndex(CH.hist);
@@ -6852,7 +6876,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     // ---------- 레이아웃 ----------
     function chLayout() {
       const subs = chVisibleSubs();
-      const mainH = Math.max(180, CH.H - CH_DATE_H - subs.length * CH_SUB_H);
+      const mainH = Math.max(150, CH.H - CH_DATE_H - subs.length * CH_SUB_H);
       const panes = [{ kind: 'main', y0: 0, y1: mainH }];
       let y = mainH;
       subs.forEach(st => { panes.push({ kind: 'sub', st, y0: y, y1: y + CH_SUB_H }); y += CH_SUB_H; });
@@ -6861,10 +6885,10 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     const chPaneAt = y => (CH.layout ? CH.layout.panes.find(p => y >= p.y0 && y < p.y1) : null);
 
     function chResize(force) {
-      const box = $id('proChartContainer');
+      const box = chEl('proChartContainer');
       if (!box) return;
       if (!document.fullscreenElement) {
-        box.style.height = `${CH_MAIN_H + chVisibleSubs().length * CH_SUB_H + CH_DATE_H}px`;
+        box.style.height = `${(CH.mainH || CH_MAIN_H) + chVisibleSubs().length * CH_SUB_H + CH_DATE_H}px`;
       }
       const w = box.clientWidth, h = box.clientHeight;
       if (!w || !h) return;
@@ -6872,7 +6896,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const keepRight = CH.W ? CH.R : null;
       CH.W = w; CH.H = h; CH.dpr = window.devicePixelRatio || 1;
       ['chartCanvas', 'chartOverlay'].forEach(id => {
-        const c = $id(id);
+        const c = chEl(id);
         c.width = Math.round(w * CH.dpr); c.height = Math.round(h * CH.dpr);
         c.style.width = `${w}px`; c.style.height = `${h}px`;
       });
@@ -6885,11 +6909,11 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     // ---------- 스케줄 ----------
     function chDraw() {
       if (CH.raf) return;
-      CH.raf = requestAnimationFrame(() => { CH.raf = 0; chDrawBase(); chDrawOverlay(); });
+      const c = CH; c.raf = requestAnimationFrame(() => { c.raf = 0; chWith(c, () => { chDrawBase(); chDrawOverlay(); }); });
     }
     function chDrawOver() {
       if (CH.raf2) return;
-      CH.raf2 = requestAnimationFrame(() => { CH.raf2 = 0; chDrawOverlay(); });
+      const c = CH; c.raf2 = requestAnimationFrame(() => { c.raf2 = 0; chWith(c, chDrawOverlay); });
     }
 
     // ---------- 눈금 / 포맷 ----------
@@ -7120,13 +7144,13 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     }
 
     function chDrawBase() {
-      const cv = $id('chartCanvas');
+      const cv = chEl('chartCanvas');
       if (!cv || !CH.W) return;
       const ctx = cv.getContext('2d');
       ctx.setTransform(CH.dpr, 0, 0, CH.dpr, 0, 0);
       ctx.clearRect(0, 0, CH.W, CH.H);
       const n = CH.hist.length;
-      const empty = $id('chartEmpty');
+      const empty = chEl('chartEmpty');
       if (empty) empty.classList.toggle('hidden', n > 0);
       if (!n) { CH.scale = null; return; }
       chLayout();
@@ -7588,7 +7612,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     // ---------- 오버레이(크로스헤어 · 드래프트 · 선택 핸들) ----------
     function chDrawOverlay() {
-      const cv = $id('chartOverlay');
+      const cv = chEl('chartOverlay');
       if (!cv || !CH.W) return;
       const ctx = cv.getContext('2d');
       ctx.setTransform(CH.dpr, 0, 0, CH.dpr, 0, 0);
@@ -7640,7 +7664,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         </span></div>`;
     }
     function chBuildLegend() {
-      const lg = $id('chartLegend'), sl = $id('subLegends');
+      const lg = chEl('chartLegend'), sl = chEl('subLegends');
       if (!lg) return;
       const jN = chJournalTrades().filter(x => x.i0 >= 0 || x.i1 >= 0).length;
       const jTag = jN ? `<label class="pointer-events-auto cursor-pointer select-none text-amber-300" title="불단왕 탭 매매일지에 적은 이 종목의 진입·청산을 차트에 표시"><input type="checkbox" ${CH.showJournal ? 'checked' : ''} onchange="chToggleJournal(this.checked)" class="accent-amber-400 mr-1 align-middle">일지 ${jN}건</label>` : '';
@@ -7658,7 +7682,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (!CH.layout) return;
       CH.layout.panes.forEach(p => {
         if (p.kind !== 'sub') return;
-        const el = document.querySelector(`#subLegends .chart-sublg[data-uid="${p.st.uid}"]`);
+        const el = (chEl('subLegends') || document).querySelector(`.chart-sublg[data-uid="${p.st.uid}"]`);
         if (el) el.style.top = `${p.y0 + 2}px`;
       });
     }
@@ -7668,13 +7692,13 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const i = (idx === null || idx === undefined || idx < 0 || idx >= n) ? n - 1 : idx;
       const c = CH.hist[i], prev = i > 0 ? CH.hist[i - 1].close : c.open;
       const chg = prev ? ((c.close - prev) / prev) * 100 : 0;
-      const set = (id, v, cls) => { const el = $id(id); if (el) { el.textContent = v; if (cls) el.className = cls; } };
+      const set = (id, v, cls) => { const el = chEl(id); if (el) { el.textContent = v; if (cls) el.className = cls; } };
       set('lgO', chFmtPrice(c.open, 0.01)); set('lgH', chFmtPrice(c.high, 0.01)); set('lgL', chFmtPrice(c.low, 0.01)); set('lgC', chFmtPrice(c.close, 0.01));
       set('lgChg', `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`, chg >= 0 ? 'text-emerald-400' : 'text-rose-400');
       set('lgV', fmtVol(c.volume));
       set('lgT', c.hm ? `${c.date.slice(5)} ${c.hm}` : '');
       CH.studies.forEach(st => {
-        const el = $id(`lgv-${st.uid}`);
+        const el = chEl(`lgv-${st.uid}`);
         if (!el) return;
         if (st.hidden) { el.innerHTML = ''; return; }
         const sp = chSpec(st), parts = [];
@@ -7702,7 +7726,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       avwap: '<span class="text-[9px] font-bold leading-none">VW</span>'
     };
     function chRenderDrawTools() {
-      const box = $id('drawTools');
+      const box = chEl('drawTools');
       if (!box) return;
       box.innerHTML = Object.keys(CH_TOOLS).map(k => `<button type="button" id="tool-${k}" onclick="chSetTool('${k}')" title="${CH_TOOLS[k].label}" class="w-8 h-8 grid place-items-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 border border-transparent transition">${CH_TOOL_ICONS[k]}</button>`).join('')
         + `<div class="h-px bg-slate-800 my-1"></div>
@@ -7717,24 +7741,24 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     }
     function chTogglePrev() { CH.showPrev = !CH.showPrev; chSyncToolbar(); chDraw(); }
     function chSyncToolbar() {
-      Object.keys(CH_IV).forEach(k => { const b = $id(`iv-${k}`); if (b) b.className = `px-2.5 py-1 rounded-md transition ${CH.interval === k ? 'bg-cyan-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`; });
+      Object.keys(CH_IV).forEach(k => { const b = chEl(`iv-${k}`); if (b) b.className = `px-2.5 py-1 rounded-md transition ${CH.interval === k ? 'bg-cyan-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white'}`; });
       const vis = chVisibleRanges();
-      Object.keys(CH_RANGES).forEach(k => { const b = $id(`rg-${k}`); if (b) { b.className = `px-2 py-1 rounded-md transition ${CH.range === k ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'}${vis.includes(k) ? '' : ' hidden'}`; } });
-      const ig = $id('ivIntraGroup'); if (ig) ig.classList.toggle('bg-slate-800', chIsIntra());
-      const sel = $id('chartTypeSel'); if (sel) sel.value = CH.type;
-      const tog = (id, on) => { const b = $id(id); if (b) b.className = `px-2.5 py-1 rounded-lg border transition ${on ? 'bg-cyan-950 border-cyan-600 text-cyan-300 font-semibold' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}`; };
+      Object.keys(CH_RANGES).forEach(k => { const b = chEl(`rg-${k}`); if (b) { b.className = `px-2 py-1 rounded-md transition ${CH.range === k ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'}${vis.includes(k) ? '' : ' hidden'}`; } });
+      const ig = chEl('ivIntraGroup'); if (ig) ig.classList.toggle('bg-slate-800', chIsIntra());
+      const sel = chEl('chartTypeSel'); if (sel) sel.value = CH.type;
+      const tog = (id, on) => { const b = chEl(id); if (b) b.className = `px-2.5 py-1 rounded-lg border transition ${on ? 'bg-cyan-950 border-cyan-600 text-cyan-300 font-semibold' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}`; };
       tog('btnLog', CH.log); tog('btnAuto', CH.auto); tog('btnMagnet', CH.magnet); tog('btnPrev', CH.showPrev);
-      const pv = $id('btnPrev'); if (pv) pv.classList.toggle('hidden', !chIsIntra());
-      Object.keys(CH_TOOLS).forEach(k => { const b = $id(`tool-${k}`); if (b) b.className = `w-8 h-8 grid place-items-center rounded-lg border transition ${CH.tool === k ? 'bg-cyan-950 text-cyan-300 border-cyan-600' : 'text-slate-400 hover:text-white hover:bg-slate-800 border-transparent'}`; });
-      const box = $id('proChartContainer'); if (box) box.style.touchAction = CH.tool === 'cursor' ? 'pan-y' : 'none';
-      chRenderPresetCards();
+      const pv = chEl('btnPrev'); if (pv) pv.classList.toggle('hidden', !chIsIntra());
+      Object.keys(CH_TOOLS).forEach(k => { const b = chEl(`tool-${k}`); if (b) b.className = `w-8 h-8 grid place-items-center rounded-lg border transition ${CH.tool === k ? 'bg-cyan-950 text-cyan-300 border-cyan-600' : 'text-slate-400 hover:text-white hover:bg-slate-800 border-transparent'}`; });
+      const box = chEl('proChartContainer'); if (box) box.style.touchAction = CH.tool === 'cursor' ? 'pan-y' : 'none';
+      if (!CH.noPreset) chRenderPresetCards();
     }
 
     function chSetTool(tool) {
       CH.tool = tool; CH.draft = null;
       if (tool !== 'measure') CH.measure = null;
       chSyncToolbar(); chDrawOver();
-      const box = $id('proChartContainer'); if (box) box.focus({ preventScroll: true });
+      const box = chEl('proChartContainer'); if (box) box.focus({ preventScroll: true });
     }
     function chSetType(t) { CH.type = t; CH.ha = null; chSyncToolbar(); chBuildLegend(); chDraw(); }
     function chToggleLog() { CH.log = !CH.log; CH.auto = true; CH.manual = null; chSyncToolbar(); chBuildLegend(); chDraw(); }
@@ -7750,12 +7774,14 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     // 해당 주기에서 의미 있는 기간 키 (프리셋이 남긴 범위가 새 주기에 맞지 않으면 기본값으로)
     function chVisibleRangesFor(iv) { return CH_IV[iv].intraday ? ['1D', '5D', '1M', '3M', '6M', 'ALL'] : Object.keys(CH_RANGES).filter(k => k !== '1D' && k !== '5D'); }
     async function chSetInterval(iv) {
+      const C = CH;
       if (!CH_IV[iv] || iv === CH.interval || CH.loading) return;
       if (!CH.sets[iv]) {
-        CH.loading = true; $id('chartLoading').classList.remove('hidden');
+        CH.loading = true; chEl('chartLoading').classList.remove('hidden');
         let res = null;
         try { res = await fetchRealYahooFinanceData(CH.ticker, CH_IV[iv].range, CH_IV[iv].iv); } catch (e) { res = null; }
-        CH.loading = false; $id('chartLoading').classList.add('hidden');
+        chUse(C);
+        CH.loading = false; chEl('chartLoading').classList.add('hidden');
         if (!res || res.notFound || !res.history || res.history.length < 5) { showToast('차트 데이터 없음', `${CH_IV[iv].name} 데이터를 불러오지 못했습니다.${CH_IV[iv].intraday ? ' 분봉은 최신 자체 프록시(Worker)가 필요하며, 거래일이 아닌 종목이나 지원하지 않는 종목은 비어 있을 수 있습니다.' : ''}`, 'warning'); return; }
         if (CH_IV[iv].intraday && !res.intraday) { showToast('분봉 데이터 아님', '프록시가 일봉 데이터를 돌려주었습니다. Worker를 최신 버전으로 다시 배포했는지 확인하세요.', 'warning'); return; }
         CH.sets[iv] = res.history;
@@ -7778,7 +7804,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     function chRemoveStudy(uid) { CH.studies = CH.studies.filter(s => s.uid !== uid); chCloseStudyEditor(); chAfterStudies(); chRenderIndicatorModal(); }
     function chToggleStudy(uid) { const s = CH.studies.find(x => x.uid === uid); if (s) { s.hidden = !s.hidden; chAfterStudies(); } }
     function chEditStudy(uid) {
-      const st = CH.studies.find(s => s.uid === uid), box = $id('studyEditor');
+      const st = CH.studies.find(s => s.uid === uid), box = chEl('studyEditor');
       if (!st || !box) return;
       const def = STUDY_DEFS[st.id];
       box.innerHTML = `
@@ -7792,7 +7818,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         <div class="text-[10px] text-slate-500 mt-2 leading-snug">${escapeHtml(def.desc)}</div>`;
       box.classList.remove('hidden');
     }
-    function chCloseStudyEditor() { const b = $id('studyEditor'); if (b) b.classList.add('hidden'); }
+    function chCloseStudyEditor() { const b = chEl('studyEditor'); if (b) b.classList.add('hidden'); }
     function chStudyParam(uid, k, val) {
       const st = CH.studies.find(s => s.uid === uid), p = STUDY_DEFS[st.id].params.find(x => x.k === k);
       let v = parseFloat(val); if (!Number.isFinite(v)) return;
@@ -7802,12 +7828,12 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     function chStudyColor(uid, c) { const st = CH.studies.find(s => s.uid === uid); st.color = c; st._spec = null; chBuildLegend(); chDraw(); }
 
     // ----- 지표 선택 모달 -----
-    function chOpenIndicators() { $id('indicatorModal').classList.remove('hidden'); const q = $id('indSearch'); q.value = ''; chRenderIndicatorModal(); setTimeout(() => q.focus(), 30); }
-    function chCloseIndicators() { $id('indicatorModal').classList.add('hidden'); }
+    function chOpenIndicators() { chEl('indicatorModal').classList.remove('hidden'); const q = chEl('indSearch'); q.value = ''; chRenderIndicatorModal(); setTimeout(() => q.focus(), 30); }
+    function chCloseIndicators() { chEl('indicatorModal').classList.add('hidden'); }
     function chRenderIndicatorModal() {
-      const body = $id('indList');
-      if (!body || $id('indicatorModal').classList.contains('hidden')) return;
-      const q = ($id('indSearch').value || '').trim().toLowerCase();
+      const body = chEl('indList');
+      if (!body || chEl('indicatorModal').classList.contains('hidden')) return;
+      const q = (chEl('indSearch').value || '').trim().toLowerCase();
       const cats = {};
       Object.keys(STUDY_DEFS).forEach(id => {
         const d = STUDY_DEFS[id];
@@ -7830,7 +7856,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     // ----- 프리셋 -----
     const CH_PRESET_COLORS = { amber: 'border-amber-500/60 text-amber-300 hover:bg-amber-950/40', emerald: 'border-emerald-500/60 text-emerald-300 hover:bg-emerald-950/40', sky: 'border-sky-500/60 text-sky-300 hover:bg-sky-950/40', violet: 'border-violet-500/60 text-violet-300 hover:bg-violet-950/40', rose: 'border-rose-500/60 text-rose-300 hover:bg-rose-950/40', teal: 'border-teal-500/60 text-teal-300 hover:bg-teal-950/40 ring-teal-500/60' };
     function chRenderPresetCards() {
-      const box = $id('presetCards');
+      const box = chEl('presetCards');
       if (!box) return;
       box.innerHTML = Object.keys(CHART_PRESETS).map(id => {
         const p = CHART_PRESETS[id], on = CH.presetId === id, c = CH_PRESET_COLORS[p.color];
@@ -7845,7 +7871,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     }
     // 프리셋 줄: 마우스로 누른 채 옆으로 끌면 가로 스크롤 + 놓은 뒤 관성으로 부드럽게 감속 (5px 넘게 끌면 클릭으로 취급하지 않음)
     (function () {
-      const box = $id('presetCards');
+      const box = chEl('presetCards');
       if (!box) return;
       let down = false, sx = 0, sl = 0, moved = false, lastX = 0, lastT = 0, vel = 0, raf = 0;
       const stop = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } };
@@ -7885,11 +7911,13 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       CH.presetId = id; CH.type = P.chartType; CH.ha = null; CH.showSignals = true;
       if (P.prevLevels) CH.showPrev = true;
       CH.studies = P.studies.map((s, i) => { const st = newStudy(s.id, { params: s.params, color: s.color, width: s.width }, i); if (st && s.hidden) st.hidden = true; return st; });
+      const C = CH;
       if (CH.interval !== P.interval) { await chSetInterval(P.interval); }
+      chUse(C);
       chRunPreset();
       chSetRange(P.range, false);
       chResize(true); chBuildLegend(); chSyncToolbar(); chDraw();
-      const box = $id('presetPanel'); if (box && box.scrollIntoView) { /* 패널은 차트 아래에 표시 */ }
+      const box = chEl('presetPanel'); if (box && box.scrollIntoView) { /* 패널은 차트 아래에 표시 */ }
     }
     function chClearPreset() {
       CH.presetId = null; CH.annot = null; CH.presetResult = null;
@@ -7909,8 +7937,10 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       try { res = await fetchRealYahooFinanceData('SPY', CH_IV[iv].range, CH_IV[iv].iv); } catch (e) { res = null; }
       CH_SPY.loading[key] = false;
       if (res && res.history && res.history.length > 20) CH_SPY.cache[key] = res.history; else CH_SPY.failed[key] = true;
-      CH.studies.forEach(st => { if (st.id === 'rsline') st._spec = null; });
-      chRunPreset(); chBuildLegend(); chDraw();
+      CH_ALL.slice().forEach(inst => chWith(inst, () => {
+        inst.studies.forEach(st => { if (st.id === 'rsline') st._spec = null; });
+        chRunPreset(); chBuildLegend(); chDraw();
+      }));
     }
     TA.spyProvider = hist => {
       if (hist !== CH.hist || !CH_IV[CH.interval]) return null;
@@ -7978,7 +8008,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     const CH_TONE = { good: 'text-emerald-300', bad: 'text-rose-300', warn: 'text-amber-300', info: 'text-slate-200' };
     const CH_TONE_BOX = { good: 'bg-emerald-950/50 border-emerald-800/70', bad: 'bg-rose-950/50 border-rose-800/70', warn: 'bg-amber-950/40 border-amber-800/60', info: 'bg-slate-900 border-slate-700' };
     function chRenderPresetPanel() {
-      const box = $id('presetPanel');
+      const box = chEl('presetPanel');
       if (!box) return;
       const P = CH.presetId ? CHART_PRESETS[CH.presetId] : null;
       if (!P) { box.classList.add('hidden'); box.innerHTML = ''; return; }
@@ -8033,7 +8063,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     // ---------- 전체화면 · 이미지 저장 ----------
     function chToggleFullscreen() {
-      const root = $id('chartFsRoot');
+      const root = chEl('chartFsRoot');
       if (!root) return;
       if (document.fullscreenElement) document.exitFullscreen(); else if (root.requestFullscreen) root.requestFullscreen();
     }
@@ -8043,7 +8073,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       out.width = Math.round(CH.W * CH.dpr); out.height = Math.round(CH.H * CH.dpr) + 30 * CH.dpr;
       const ctx = out.getContext('2d');
       ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, out.width, out.height);
-      ctx.drawImage($id('chartCanvas'), 0, 30 * CH.dpr); ctx.drawImage($id('chartOverlay'), 0, 30 * CH.dpr);
+      ctx.drawImage(chEl('chartCanvas'), 0, 30 * CH.dpr); ctx.drawImage(chEl('chartOverlay'), 0, 30 * CH.dpr);
       ctx.setTransform(CH.dpr, 0, 0, CH.dpr, 0, 0);
       ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 13px "JetBrains Mono", monospace'; ctx.textBaseline = 'middle';
       ctx.fillText(`${CH.ticker} · ${CH_IV[CH.interval].name} · ${CH.hist[CH.hist.length - 1].date}${CH.presetId ? ' · ' + CHART_PRESETS[CH.presetId].name : ''}`, 10, 15);
@@ -8051,7 +8081,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     }
 
     // ---------- 포인터 · 키보드 인터랙션 ----------
-    function chLocal(e) { const r = $id('proChartContainer').getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    function chLocal(e) { const r = chEl('proChartContainer').getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
     function chZone(x, y) {
       if (!CH.layout) return 'plot';
       if (y >= CH.layout.dateY) return 'date';
@@ -8067,7 +8097,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     function chOnDown(e) {
       if (!CH.hist.length) return;
       if (e.target.closest && e.target.closest('.chart-lg-row, #studyEditor')) return;
-      const box = $id('proChartContainer');
+      const box = chEl('proChartContainer');
       box.focus({ preventScroll: true });
       const { x, y } = chLocal(e);
       try { box.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
@@ -8156,7 +8186,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }
       // 호버
       chUpdateHover();
-      const zone = chZone(x, y), box = $id('proChartContainer');
+      const zone = chZone(x, y), box = chEl('proChartContainer');
       if (zone === 'axis') box.style.cursor = 'ns-resize';
       else if (zone === 'date') box.style.cursor = 'ew-resize';
       else if (CH.tool !== 'cursor') box.style.cursor = 'crosshair';
@@ -8170,7 +8200,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (idx !== CH.hoverIdx) { CH.hoverIdx = idx; chUpdateLegendValues(idx); }
     }
     function chOnUp(e) {
-      const box = $id('proChartContainer');
+      const box = chEl('proChartContainer');
       try { box.releasePointerCapture(e.pointerId); } catch (err) { /* noop */ }
       const d = CH.drag;
       CH.pointers.delete(e.pointerId);
@@ -8256,28 +8286,200 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     }
 
     // ---------- 초기화 ----------
+    // 인스턴스 하나의 입력(포인터·휠·키·크기)을 연결. 모든 핸들러는 먼저 자기 인스턴스를 활성화한다.
+    function chBindInst(inst, box) {
+      const w = fn => e => { chUse(inst); return fn(e); };
+      box.addEventListener('pointerdown', w(chOnDown));
+      box.addEventListener('pointermove', w(chOnMove));
+      box.addEventListener('pointerup', w(chOnUp));
+      box.addEventListener('pointercancel', w(chOnUp));
+      box.addEventListener('pointerleave', w(chOnLeave));
+      box.addEventListener('wheel', w(chOnWheel), { passive: false });
+      box.addEventListener('dblclick', w(chOnDbl));
+      box.addEventListener('keydown', w(chOnKey));
+      box.addEventListener('contextmenu', e => { chUse(inst); e.preventDefault(); if (CH.draft || CH.tool !== 'cursor') { CH.draft = null; chSetTool('cursor'); } });
+      if (window.ResizeObserver) new ResizeObserver(() => chWith(inst, () => chResize(false))).observe(box);
+      // 이 차트 영역 안의 버튼(onclick="ch...")이 눌리기 전에 인스턴스를 맞춘다
+      if (inst.root) inst.root.addEventListener('pointerdown', () => chUse(inst), true);
+      if (inst.root) inst.root.addEventListener('focusin', () => chUse(inst), true);
+    }
     function initChartEngine() {
       const box = $id('proChartContainer');
       if (!box) return;
+      CH.root = $id('chartStation');
       const sel = $id('chartTypeSel');
       if (sel) sel.innerHTML = Object.keys(CH_TYPES).map(k => `<option value="${k}">${CH_TYPES[k]}</option>`).join('');
       chRenderDrawTools(); chRenderPresetCards(); chSyncToolbar();
-      box.addEventListener('pointerdown', chOnDown);
-      box.addEventListener('pointermove', chOnMove);
-      box.addEventListener('pointerup', chOnUp);
-      box.addEventListener('pointercancel', chOnUp);
-      box.addEventListener('pointerleave', chOnLeave);
-      box.addEventListener('wheel', chOnWheel, { passive: false });
-      box.addEventListener('dblclick', chOnDbl);
-      box.addEventListener('keydown', chOnKey);
-      box.addEventListener('contextmenu', e => { e.preventDefault(); if (CH.draft || CH.tool !== 'cursor') { CH.draft = null; chSetTool('cursor'); } });
-      if (window.ResizeObserver) new ResizeObserver(() => chResize(false)).observe(box);
-      document.addEventListener('fullscreenchange', () => { setTimeout(() => chResize(true), 60); const b = $id('btnFull'); if (b) b.title = document.fullscreenElement ? '전체화면 종료 (Esc)' : '전체화면'; });
+      chBindInst(CH, box);
+      document.addEventListener('fullscreenchange', () => { setTimeout(() => CH_ALL.slice().forEach(inst => chWith(inst, () => chResize(true))), 60); const b = $id('btnFull'); if (b) b.title = document.fullscreenElement ? '전체화면 종료 (Esc)' : '전체화면'; });
       const im = $id('indicatorModal');
       if (im) im.addEventListener('mousedown', e => { if (e.target === im) chCloseIndicators(); });
       const is = $id('indSearch'); if (is) is.addEventListener('input', chRenderIndicatorModal);
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && im && !im.classList.contains('hidden')) chCloseIndicators(); });
     }
+
+
+    // ===== 5인분석 차트 분할 보기 (1·2·4·6) =====
+    // 같은 종목을 여러 봉 주기로 동시에 본다. 첫 칸은 기존 프로 차트 스테이션 그대로, 나머지 칸은 같은 엔진의 인스턴스(지표·그리기·유형 전부 독립).
+    const CHM_KEY = 'pentanalyst_chart_split';
+    const CHM_FRAMES = { 1: ['D'], 2: ['D', '60m'], 4: ['W', 'D', '60m', '15m'], 6: ['M', 'W', 'D', '60m', '15m', '5m'] };
+    const CHM = { n: 1, cells: [], grid: null, ph: null, full: false };
+    function chResizeAll(force) { CH_ALL.slice().forEach(inst => chWith(inst, () => chResize(force))); }
+    function chmCellHtml(no) {
+      const ib = (k, t) => `<button type="button" id="iv-${k}" onclick="chSetInterval('${k}')"${t ? ` title="${t}"` : ''}>${CH_IV[k].label}</button>`;
+      const rg = k => `<button type="button" id="rg-${k}" onclick="chSetRange('${k}')">${k === 'ALL' ? '전체' : k}</button>`;
+      const bt = 'px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white';
+      return `<div class="flex items-center gap-1.5 text-[11px] text-slate-400 px-0.5"><span class="w-4 h-4 rounded bg-slate-800 text-slate-300 grid place-items-center text-[10px] font-bold">${no}</span><span class="chm-tk font-bold text-white"></span><span class="chm-nm truncate text-slate-500"></span></div>
+      <div id="chartFsRoot" class="space-y-1.5 bg-[#0b0e13]">
+        <div id="chartToolbar" class="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800">${ib('D')}${ib('W')}${ib('M')}</div>
+          <div id="ivIntraGroup" class="inline-flex items-center rounded-lg bg-slate-900 p-0.5 border border-slate-800"><span class="px-1 text-[10px] text-slate-500">분</span>${ib('1m')}${ib('5m')}${ib('15m')}${ib('30m')}${ib('60m')}</div>
+          <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800">${['1D', '5D', '1M', '3M', '6M', '1Y', '2Y', '5Y', 'ALL'].map(rg).join('')}</div>
+          <select id="chartTypeSel" onchange="chSetType(this.value)" title="차트 유형" class="bg-slate-900 border border-slate-700 rounded-lg px-1.5 py-1 text-slate-200 outline-none focus:border-cyan-400"></select>
+          <button type="button" id="btnIndicators" onclick="chOpenIndicators()" class="px-2.5 py-1 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-semibold"><i class="fa-solid fa-chart-simple mr-1"></i>지표</button>
+          <button type="button" id="btnLog" onclick="chToggleLog()" title="로그 스케일">로그</button>
+          <button type="button" id="btnAuto" onclick="chToggleAuto()" title="가격 자동 스케일">자동</button>
+          <button type="button" id="btnPrev" onclick="chTogglePrev()" class="hidden">전일선</button>
+          <button type="button" id="btnMagnet" onclick="chToggleMagnet()" title="그림 자석"><i class="fa-solid fa-magnet text-[10px]"></i></button>
+          <span class="flex-1"></span>
+          <button type="button" id="btnSnap" onclick="chSnapshot()" title="PNG 저장" class="${bt}"><i class="fa-solid fa-camera"></i></button>
+        </div>
+        <div class="chm-row flex gap-1 min-h-0">
+          <div id="drawTools" class="flex flex-col gap-1 w-9 shrink-0 bg-slate-950/70 border border-slate-800 rounded-xl p-0.5 self-start"></div>
+          <div id="proChartContainer" tabindex="0" class="relative flex-1 min-w-0 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden select-none outline-none focus:border-slate-600" style="height:360px">
+            <canvas id="chartCanvas" class="absolute left-0 top-0"></canvas>
+            <canvas id="chartOverlay" class="absolute left-0 top-0 pointer-events-none"></canvas>
+            <div id="chartLegend" class="absolute top-1.5 left-2 z-10 text-[11px] font-mono-numbers space-y-0.5 pointer-events-none"></div>
+            <div id="subLegends" class="absolute inset-0 z-10 pointer-events-none text-[11px] font-mono-numbers"></div>
+            <div id="studyEditor" class="hidden absolute z-30 top-24 left-3 w-60 bg-slate-900 border border-slate-600 rounded-xl p-3 shadow-2xl"></div>
+            <div id="chartLoading" class="hidden absolute inset-0 z-30 grid place-items-center bg-slate-950/60 text-sm text-cyan-300"><span><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>불러오는 중...</span></div>
+            <div id="chartEmpty" class="hidden absolute inset-0 z-20 grid place-items-center text-sm text-slate-500">표시할 시세 데이터가 없습니다.</div>
+          </div>
+        </div>
+      </div>
+      <div id="presetPanel" class="hidden"></div><div id="presetCards" class="hidden"></div>`;
+    }
+    function chmMakeCell(no) {
+      const el = document.createElement('section');
+      el.className = 'chm-cell bg-[#0b0e13] border border-slate-800 rounded-xl p-2 space-y-1.5 min-w-0';
+      el.innerHTML = chmCellHtml(no);
+      const inst = chNewState();
+      inst.root = el; inst.noPreset = true; inst.mainH = 300;
+      CH_ALL.push(inst); CHM.cells.push(inst);
+      chWith(inst, () => {
+        const sel = chEl('chartTypeSel'); sel.innerHTML = Object.keys(CH_TYPES).map(k => `<option value="${k}">${CH_TYPES[k]}</option>`).join('');
+        chRenderDrawTools(); chSyncToolbar();
+        chBindInst(inst, chEl('proChartContainer'));
+      });
+      return inst;
+    }
+    async function chmLoadCell(inst, iv) {
+      const main = CH_ALL[0], tk = main.ticker;
+      if (!tk || !inst.root) return;
+      const ld = inst.root.querySelector('[id="chartLoading"]'); if (ld) ld.classList.remove('hidden');
+      let res = null;
+      try { res = await fetchRealYahooFinanceData(tk, CH_IV[iv].range, CH_IV[iv].iv); } catch (e) { res = null; }
+      if (ld) ld.classList.add('hidden');
+      if (!inst.root.isConnected || CH_ALL[0].ticker !== tk) return;   // 그 사이 칸이 없어졌거나 종목이 바뀜
+      const emp = inst.root.querySelector('[id="chartEmpty"]');
+      if (!res || res.notFound || !res.history || res.history.length < 5) { emp.classList.remove('hidden'); return; }
+      emp.classList.add('hidden');
+      chWith(inst, () => {
+        const changed = tk !== CH.ticker;
+        CH.ticker = tk; CH.currency = main.currency;
+        CH.sets = { [iv]: res.history }; CH.interval = iv; CH.hist = CH.sets[iv];
+        if (!CH.studies.length) CH.studies = chDefaultStudies();
+        if (changed || !CH.ready) { CH.drawings = chLoadDrawings(tk); CH.sel = -1; CH.draft = null; CH.measure = null; }
+        chRebuildDataset(); CH.ready = true;
+        CH.range = CH_IV[iv].rg;
+        chResize(true); chSetRange(CH.range, false); chBuildLegend(); chSyncToolbar(); chDraw();
+      });
+      const t = inst.root.querySelector('.chm-tk'); if (t) t.textContent = tk;
+      const nm = inst.root.querySelector('.chm-nm'); if (nm) nm.textContent = (currentAnalysisData && currentAnalysisData.name) || '';
+    }
+    // 종목이 바뀌었거나 분할 수가 바뀌면 칸별 주기를 다시 맞춘다
+    function chmApply() {
+      const fr = CHM_FRAMES[CHM.n];
+      CHM.cells.forEach((inst, k) => chmLoadCell(inst, fr[k + 1]));
+      const main = CH_ALL[0];
+      if (CHM.n > 1) chWith(main, () => { if (CH.interval !== fr[0]) chSetInterval(fr[0]); });
+    }
+    function chmOnSymbol() { if (CHM.n > 1) chmApply(); }
+    function chmSetLayout(n, noSave) {
+      if (!CHM_FRAMES[n]) n = 1;
+      CHM.n = n;
+      if (!noSave) { try { localStorage.setItem(CHM_KEY, String(n)); } catch (e) { /* 저장 불가 */ } }
+      const st = document.getElementById('chartStation');
+      if (!st) return;
+      // 기존 추가 칸 정리
+      CHM.cells.forEach(inst => { const i = CH_ALL.indexOf(inst); if (i > 0) CH_ALL.splice(i, 1); if (inst.root) inst.root.remove(); });
+      CHM.cells = [];
+      const g = CHM.grid;
+      document.querySelectorAll('#chmBar [data-chm]').forEach(b => { const on = Number(b.dataset.chm) === n; b.className = `px-2.5 py-1 text-xs font-semibold transition ${on ? 'bg-cyan-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}`; });
+      if (n === 1) {
+        st.classList.toggle('ch-compact', !!CHM.full);
+        chmLayoutFull();
+        if (st.parentNode === g) g.parentNode.insertBefore(st, g.nextSibling);
+        g.className = '';
+        CH_ALL[0].mainH = 0;
+        chResizeAll(true);
+        return;
+      }
+      g.className = `grid gap-3 grid-cols-1 md:grid-cols-2 ${n === 6 ? 'xl:grid-cols-3' : ''}`;
+      chmLayoutFull();
+      st.classList.add('ch-compact');
+      g.appendChild(st);
+      CH_ALL[0].mainH = 300;
+      for (let k = 1; k < n; k++) { const inst = chmMakeCell(k + 1); g.appendChild(inst.root); }
+      chmApply();
+      setTimeout(() => chResizeAll(true), 30);
+    }
+    function chmInit() {
+      const st = document.getElementById('chartStation');
+      if (!st || document.getElementById('chmBar')) return;
+      const wrap = document.createElement('div');
+      wrap.id = 'chmWrap';
+      st.parentNode.insertBefore(wrap, st);
+      const bar = document.createElement('div');
+      bar.id = 'chmBar';
+      bar.className = 'flex flex-wrap items-center gap-2 text-xs';
+      bar.innerHTML = `<span class="font-bold text-slate-300"><i class="fa-solid fa-table-cells-large text-fuchsia-400 mr-1.5"></i>차트 분할</span>
+        <div class="inline-flex rounded-lg border border-slate-700 overflow-hidden">${[1, 2, 4, 6].map(n => `<button type="button" data-chm="${n}" onclick="chmSetLayout(${n})">${n}분할</button>`).join('')}</div>
+        <button type="button" id="chmFullBtn" onclick="chmToggleFull()" class="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-900 text-slate-300 hover:text-white font-semibold" title="분할 화면 전체를 화면 가득 보기 (Esc로 복귀)"><i class="fa-solid fa-maximize mr-1"></i><span>전체화면</span></button>
+        <span class="text-[11px] text-slate-500">같은 종목을 여러 봉 주기로 동시에 봅니다 (칸마다 지표·그리기·유형 독립).</span>`;
+      wrap.appendChild(bar);
+      CHM.grid = document.createElement('div');
+      wrap.appendChild(CHM.grid);
+      wrap.appendChild(st);
+      let n = 1; try { n = Number(localStorage.getItem(CHM_KEY)) || 1; } catch (e) { n = 1; }
+      chmSetLayout(CHM_FRAMES[n] ? n : 1, true);
+    }
+    // 분할 화면 전체를 화면 가득(멀티차트 탭의 전체화면과 같은 방식: 고정 오버레이 + Esc)
+    function chmToggleFull(force) {
+      const w = document.getElementById('chmWrap'), st = document.getElementById('chartStation');
+      if (!w) return;
+      CHM.full = force === undefined ? !CHM.full : !!force;
+      w.classList.toggle('chm-full', CHM.full);
+      if (CHM.n === 1) st.classList.toggle('ch-compact', CHM.full);
+      chmLayoutFull();
+      const b = document.getElementById('chmFullBtn');
+      if (b) { b.querySelector('i').className = CHM.full ? 'fa-solid fa-minimize mr-1' : 'fa-solid fa-maximize mr-1'; b.querySelector('span').textContent = CHM.full ? '전체화면 종료' : '전체화면'; }
+      setTimeout(() => chResizeAll(true), 40);
+    }
+    function chmLayoutFull() {
+      const g = CHM.grid; if (!g) return;
+      if (!CHM.full || CHM.n === 1) { g.style.gridTemplateColumns = ''; g.style.gridTemplateRows = ''; return; }
+      const cols = CHM.n === 2 ? (window.innerWidth >= 700 ? 2 : 1) : CHM.n === 4 ? 2 : (window.innerWidth >= 1200 ? 3 : 2);
+      g.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+      g.style.gridTemplateRows = `repeat(${Math.ceil(CHM.n / cols)}, minmax(0, 1fr))`;
+    }
+    document.addEventListener('keydown', e => {
+      const im = document.getElementById('indicatorModal');
+      if (e.key === 'Escape' && CHM.full && !(im && !im.classList.contains('hidden'))) chmToggleFull(false);
+    });
+    window.addEventListener('resize', () => { if (CHM.full) { chmLayoutFull(); chResizeAll(true); } });
+    window.chmToggleFull = chmToggleFull;
+    window.chmSetLayout = chmSetLayout;
 
     function fmtVol(v) {
       if (!v) return '--';
@@ -10578,7 +10780,7 @@ EPRT|Essential Properties Realty Trust|E
 
     window.addEventListener('resize', () => {
       if (currentAnalysisData) {
-        chResize(false);
+        chResizeAll(false);
         renderMiniTrendPreview();
       }
     });
@@ -10587,6 +10789,7 @@ EPRT|Essential Properties Realty Trust|E
       updateGoogleSearchBannerState();
       // Default to JVA or NVDA
       initChartEngine();
+      chmInit();
       initSearchSuggest();
       initTabSearchAndTop();
       renderMetricGuide();
@@ -17759,11 +17962,15 @@ ${digest}`;
                   <option value="300">높이 작게</option><option value="360">높이 보통</option><option value="460">높이 크게</option>
                 </select>
                 <button type="button" class="${btn}" data-mc="refresh" title="보이는 차트 모두 최신 데이터로 다시 불러오기"><i class="fa-solid fa-rotate"></i></button>
+                <button type="button" class="${btn}" data-mc="side" id="mcSideBtn" title="오른쪽 종목 리스트 (내 종목 · 오늘 큰 움직임) 열기/닫기"><i class="fa-solid fa-list mr-1"></i>종목 리스트</button>
               </div>
             </div>
             <div id="mcHelp" class="text-[11px] text-slate-500 leading-relaxed">휠: 확대·축소 · 드래그: 이동 · 더블클릭: 처음 보기로 · 칸 제목의 <i class="fa-solid fa-expand"></i> : 한 칸만 크게 · <i class="fa-solid fa-chart-pie"></i> : 주요 ETF 고르기 (Esc로 복귀). 분봉은 Worker를 최신으로 배포해야 나옵니다. 설정은 이 브라우저에 저장됩니다.</div>
           </div>
-          <div id="mcGrid" class="grid gap-3"></div>
+          <div id="mcBody" class="flex flex-col xl:flex-row gap-3 items-start">
+            <div id="mcGrid" class="grid gap-3 flex-1 min-w-0 w-full"></div>
+            <aside id="mcSide" class="w-full xl:w-64 shrink-0"></aside>
+          </div>
           </div>`;
         const grid = document.getElementById('mcGrid');
         P.length = 0;
@@ -17818,7 +18025,9 @@ ${digest}`;
           P.forEach(p => ro.observe(p.wrap));
         }
         P.forEach(syncControls);
+        sdWire();
         applyFocus();
+        sdFetch(false);
         return true;
       }
 
@@ -17842,6 +18051,7 @@ ${digest}`;
             setAll(PRESETS.frames(base, S.n));
           } else if (a === 'refresh') vis().forEach(p => loadPanel(p));
           else if (a === 'full') { S.full = !S.full; applyFocus(); }
+          else if (a === 'side') sdToggle();
         }));
         root.querySelectorAll('[data-mcn]').forEach(b => b.addEventListener('click', () => setLayout(+b.dataset.mcn)));
         root.querySelector('#mcEtf').addEventListener('change', e => {
@@ -17901,7 +18111,7 @@ ${digest}`;
 
       // 열 수: 화면 폭에 맞춰 정한다 (2분할은 넓은 화면에서 좌우 비교, 좁은 화면에서는 위아래)
       function colsFor(k) {
-        const W = window.innerWidth;
+        const W = window.innerWidth - (SD.open && window.innerWidth >= 1280 ? 270 : 0);   // 오른쪽 리스트가 차지하는 폭
         if (k <= 1) return 1;
         if (k === 2) return W >= 640 ? 2 : 1;
         if (k <= 4) return W >= 480 ? 2 : 1;
@@ -17915,7 +18125,12 @@ ${digest}`;
         const cols = colsFor(shown.length), rows = Math.ceil(shown.length / cols);
         grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
         grid.style.gridTemplateRows = S.full ? `repeat(${rows}, minmax(0, 1fr))` : '';
-        grid.className = 'grid gap-3' + (S.full ? ' flex-1 min-h-0' : '');
+        grid.className = 'grid gap-3 flex-1 min-w-0 w-full' + (S.full ? ' min-h-0' : '');
+        const body = root.querySelector('#mcBody');
+        if (body) body.className = 'flex flex-col xl:flex-row gap-3 ' + (S.full ? 'flex-1 min-h-0 overflow-hidden items-stretch' : 'items-start');
+        const sideEl = root.querySelector('#mcSide');
+        if (sideEl) sideEl.className = 'w-full xl:w-64 shrink-0' + (S.full ? ' overflow-y-auto min-h-0' : '');
+        sdRender(); markAct();
         stage.className = S.full ? 'fixed inset-0 z-[80] bg-[#000000] p-2 sm:p-3 flex flex-col gap-2 overflow-hidden' : 'space-y-3';
         const help = root.querySelector('#mcHelp'); if (help) help.classList.toggle('hidden', S.full);
         const bar = root.querySelector('#mcBar'); if (bar) bar.classList.toggle('shrink-0', S.full);
@@ -17934,6 +18149,116 @@ ${digest}`;
         });
         setTimeout(() => P.forEach(resizePanel), 30);
       }
+
+      // ---------- 오른쪽 종목 리스트 (내 종목 / 오늘 큰 움직임) ----------
+      // 행을 클릭하면 '선택된 칸'에 들어가고 선택이 다음 칸으로 넘어간다. 행을 칸 위로 끌어다 놓아도 된다.
+      const SIDE_KEY = 'pentanalyst_multi_side';
+      const MV_UNI = ('AAPL MSFT NVDA GOOGL AMZN META TSLA AVGO AMD NFLX PLTR COIN MSTR SMCI ARM MU INTC QCOM TSM ASML CRM ORCL ADBE NOW SNOW CRWD PANW NET DDOG SHOP UBER ABNB DASH RBLX HOOD SOFI AFRM UPST RIVN LCID NIO XPEV LI '
+        + 'JPM BAC GS MS C WFC V MA PYPL SQ BRK-B XOM CVX OXY SLB COP LLY NVO UNH JNJ PFE MRNA ABBV MRK AMGN GILD BA LMT RTX CAT DE GE HON WMT COST TGT HD LOW NKE SBUX MCD KO PEP DIS CMCSA T VZ '
+        + 'SPY QQQ IWM DIA SMH SOXL TQQQ SQQQ XLK XLF XLE XLV ARKK GLD SLV USO TLT BITO IBIT MARA RIOT AAL DAL CCL NCLH F GM SNAP PINS ROKU SPOT U AI SOUN IONQ RGTI JOBY RKLB ASTS LUNR HIMS CELH ENPH FSLR').split(' ');
+      const SD = { tab: 'watch', open: true, q: {}, qTs: 0, loading: false, mode: 'abs', err: '' };
+      let ACT = 0;   // 클릭으로 채울 칸
+      try { SD.open = localStorage.getItem(SIDE_KEY) !== '0'; } catch (e) { /* 기본 열림 */ }
+      function sdWatch() {
+        try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); return Object.keys((w && w.items) || {}); } catch (e) { return []; }
+      }
+      function sdSyms() { return SD.tab === 'watch' ? sdWatch() : MV_UNI; }
+      async function sdFetch(force) {
+        if (SD.loading) return;
+        const need = sdSyms().filter(s => force || !SD.q[s] || Date.now() - SD.qTs > 120000);
+        if (!need.length) { sdRender(); return; }
+        SD.loading = true; SD.err = ''; sdRender();
+        let qs = null;
+        try { qs = await fetchQuotes(need.slice(0, 160)); } catch (e) { qs = null; }
+        SD.loading = false;
+        if (!qs) SD.err = '시세를 불러오지 못했습니다 (자체 프록시 Worker 연결 필요).';
+        else { qs.forEach(x => { if (x && x.symbol && Number.isFinite(x.price)) SD.q[x.symbol.toUpperCase()] = x; }); SD.qTs = Date.now(); }
+        sdRender();
+      }
+      function sdRows() {
+        const q = SD.q;
+        if (SD.tab === 'watch') return sdWatch().map(s => q[s] || { symbol: s });
+        let arr = MV_UNI.map(s => q[s]).filter(Boolean).filter(x => Number.isFinite(x.changePct));
+        const vr = x => (x.volume && x.avgVolume) ? x.volume / x.avgVolume : 0;
+        if (SD.mode === 'up') arr = arr.filter(x => x.changePct > 0).sort((a, b) => b.changePct - a.changePct);
+        else if (SD.mode === 'down') arr = arr.filter(x => x.changePct < 0).sort((a, b) => a.changePct - b.changePct);
+        else if (SD.mode === 'vol') arr = arr.sort((a, b) => vr(b) - vr(a));
+        else arr = arr.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+        return arr.slice(0, 40);
+      }
+      function sdRender() {
+        const side = document.getElementById('mcSide');
+        if (!side) return;
+        side.classList.toggle('hidden', !SD.open);
+        const tb = document.getElementById('mcSideBtn'); if (tb) tb.classList.toggle('!text-fuchsia-300', SD.open);
+        if (!SD.open) return;
+        const tabB = (k, t) => `<button type="button" data-sdtab="${k}" class="flex-1 px-2 py-1.5 text-[11px] font-semibold ${SD.tab === k ? 'bg-fuchsia-600 text-white' : 'text-slate-400 hover:text-white'}">${t}</button>`;
+        const modeB = (k, t) => `<button type="button" data-sdmode="${k}" class="px-1.5 py-0.5 rounded text-[10px] font-semibold border ${SD.mode === k ? 'border-fuchsia-500 text-fuchsia-300' : 'border-slate-700 text-slate-500 hover:text-slate-200'}">${t}</button>`;
+        const oldSc = side.querySelector('.overflow-y-auto'), keepTop = oldSc ? oldSc.scrollTop : 0;
+        const rows = sdRows();
+        const body = rows.map(x => {
+          const c = x.changePct;
+          const cls = !Number.isFinite(c) ? 'text-slate-500' : c >= 0 ? 'text-emerald-400' : 'text-rose-400';
+          const vr = (x.volume && x.avgVolume) ? x.volume / x.avgVolume : 0;
+          return `<div data-sdsym="${mcEsc(x.symbol)}" draggable="true" class="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-slate-800/80 border border-transparent hover:border-slate-700" title="${mcEsc(x.name || x.symbol)} — 클릭: 선택한 칸에 넣기 · 끌어서 칸에 놓기">
+            <div class="min-w-0 flex-1"><div class="text-xs font-bold text-white leading-tight">${mcEsc(x.symbol)}</div><div class="text-[10px] text-slate-500 truncate leading-tight">${mcEsc(x.name || '')}</div></div>
+            <div class="text-right shrink-0"><div class="text-[11px] font-mono text-slate-200 leading-tight">${Number.isFinite(x.price) ? x.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—'}</div><div class="text-[11px] font-mono font-semibold ${cls} leading-tight">${Number.isFinite(c) ? (c >= 0 ? '+' : '') + c.toFixed(2) + '%' : ''}${vr >= 1.8 ? ` <span class="text-amber-400" title="평균 거래량 대비">×${vr.toFixed(1)}</span>` : ''}</div></div>
+          </div>`;
+        }).join('');
+        const empty = SD.loading ? '<div class="px-3 py-6 text-[11px] text-slate-500 text-center"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i>불러오는 중...</div>'
+          : SD.err && !rows.length ? `<div class="px-3 py-6 text-[11px] text-slate-500 text-center leading-relaxed">${SD.err}</div>`
+            : !rows.length ? `<div class="px-3 py-6 text-[11px] text-slate-500 text-center leading-relaxed">${SD.tab === 'watch' ? '관심종목 탭에서 추가한 종목이 여기에 나옵니다.' : '표시할 종목이 없습니다.'}</div>` : '';
+        side.innerHTML = `<div class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden flex flex-col max-h-[calc(100vh-7rem)] xl:sticky xl:top-24" id="mcSideBox">
+          <div class="flex border-b border-slate-800">${tabB('watch', '<i class="fa-solid fa-star mr-1 text-amber-400"></i>내 종목')}${tabB('movers', '<i class="fa-solid fa-bolt mr-1 text-amber-400"></i>오늘 큰 움직임')}</div>
+          ${SD.tab === 'movers' ? `<div class="flex flex-wrap gap-1 px-2 pt-2">${modeB('abs', '등락 큰 순')}${modeB('up', '급등')}${modeB('down', '급락')}${modeB('vol', '거래량↑')}</div>` : ''}
+          <div class="flex items-center justify-between px-2.5 py-1.5 text-[10px] text-slate-500"><span>선택된 칸: <b class="text-fuchsia-300">${Math.min(ACT, S.n - 1) + 1}</b>번 · 클릭하면 채워지고 다음 칸으로 이동</span><button type="button" data-sdrefresh class="hover:text-white" title="시세 새로고침"><i class="fa-solid fa-rotate"></i></button></div>
+          <div class="overflow-y-auto px-1.5 pb-2 space-y-0.5">${body}${empty}</div>
+        </div>`;
+        const nsc = side.querySelector('.overflow-y-auto'); if (nsc) nsc.scrollTop = keepTop;
+      }
+      function sdAssign(sym) {
+        const shown = S.focus >= 0 ? [S.focus] : P.filter(p => p.i < S.n).map(p => p.i);
+        let idx = shown.includes(ACT) ? ACT : shown[0];
+        const p = P[idx];
+        if (!p) return;
+        setTicker(p, sym);
+        ACT = shown[(shown.indexOf(idx) + 1) % shown.length];
+        markAct(); sdRender();
+      }
+      function markAct() {
+        P.forEach(p => p.el.classList.toggle('ring-2', p.i === ACT && S.n > 1));
+        P.forEach(p => p.el.classList.toggle('ring-fuchsia-500/60', p.i === ACT && S.n > 1));
+      }
+      function sdWire() {
+        const side = document.getElementById('mcSide');
+        if (!side || side._wired) return;
+        side._wired = true;
+        side.addEventListener('click', e => {
+          const t = e.target.closest('[data-sdtab]'); if (t) { SD.tab = t.dataset.sdtab; sdRender(); sdFetch(false); return; }
+          const m = e.target.closest('[data-sdmode]'); if (m) { SD.mode = m.dataset.sdmode; sdRender(); return; }
+          if (e.target.closest('[data-sdrefresh]')) { sdFetch(true); return; }
+          const r = e.target.closest('[data-sdsym]'); if (r) sdAssign(r.dataset.sdsym);
+        });
+        side.addEventListener('dragstart', e => { const r = e.target.closest('[data-sdsym]'); if (r) { e.dataTransfer.setData('text/plain', r.dataset.sdsym); e.dataTransfer.effectAllowed = 'copy'; } });
+        P.forEach(p => {
+          p.el.addEventListener('pointerdown', () => { if (ACT !== p.i) { ACT = p.i; markAct(); sdRender(); } }, true);
+          p.el.addEventListener('dragover', e => { if (e.dataTransfer && [...e.dataTransfer.types].includes('text/plain')) { e.preventDefault(); p.el.classList.add('ring-2', 'ring-fuchsia-400'); } });
+          p.el.addEventListener('dragleave', () => p.el.classList.remove('ring-fuchsia-400'));
+          p.el.addEventListener('drop', e => {
+            p.el.classList.remove('ring-fuchsia-400');
+            const sym = e.dataTransfer && e.dataTransfer.getData('text/plain');
+            if (!sym || !/^[A-Za-z0-9.\-=^]{1,20}$/.test(sym)) return;
+            e.preventDefault(); ACT = p.i; setTicker(p, sym.toUpperCase()); markAct(); sdRender();
+          });
+        });
+      }
+      function sdToggle() {
+        SD.open = !SD.open;
+        try { localStorage.setItem(SIDE_KEY, SD.open ? '1' : '0'); } catch (e) { /* 저장 불가 */ }
+        sdRender(); if (SD.open) sdFetch(false);
+        applyFocus();
+      }
+      setInterval(() => { const v = document.getElementById('view-multi'); if (SD.open && v && !v.classList.contains('hidden') && !document.hidden) sdFetch(true); }, 90000);
 
       // ---------- 종목 입력 / 자동완성 ----------
       async function resolve(raw) {
@@ -18438,6 +18763,7 @@ ${digest}`;
         const root = document.getElementById('multiRoot');
         if (root && !root.querySelector('#mcGrid')) { built = buildSkeleton(); if (built) vis().forEach(p => loadPanel(p)); return; }
         applyFocus();
+        sdFetch(false);
         setTimeout(() => P.forEach(p => { p.w = 0; resizePanel(p); }), 30); // 숨겨져 있던 동안 폭이 0 이었을 수 있다
         vis().forEach(p => { if (!p.hist.length && !p.loading) loadPanel(p); });
       }
