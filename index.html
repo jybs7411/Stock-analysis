@@ -2213,7 +2213,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.33.0';
+    const APP_VERSION = '1.33.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -23520,13 +23520,16 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         return true;
       }
       // 더블클릭 → 설정('관심종목 더블클릭 이동')에서 고른 화면으로 바로 이동
+      // (첫 클릭이 목록을 다시 그려 대상 노드가 떨어져 나가므로 dblclick 이벤트 대신 click 의 detail===2 로 감지한다)
       function onDblClick(e) {
         const row = e.target.closest('[data-sym]');
-        if (!row || !rootEl.contains(row) || e.target.closest('input,select,textarea,label,a,#wlMenu,[data-act=star],[data-act=menu]')) return;
+        if (!row || e.target.closest('input,select,textarea,label,a,#wlMenu,[data-act=star],[data-act=menu]')) return false;
         const sym = row.dataset.sym, k = typeof watchDblTarget === 'function' ? watchDblTarget() : 'analyze';
         if (k === 'multi') sendMulti(multiFrom(sym)); else goTo(k, sym);
+        return true;
       }
       function onClick(e) {
+        if (e.detail === 2 && rootEl.contains(e.target)) { const w = e.target.closest('[data-sym]'); if (w && onDblClick(e)) return; }
         const t = e.target.closest('[data-act]');
         if (t && rootEl.contains(t)) { act(t, e); return; }
         if (!e.target.closest('#wlMenu')) closeMenu();
@@ -23687,7 +23690,6 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       }
       function wireRoot() {
         rootEl.addEventListener('click', onClick);
-        rootEl.addEventListener('dblclick', onDblClick);
         rootEl.addEventListener('submit', onSubmit);
         rootEl.addEventListener('input', onInput);
         rootEl.addEventListener('change', onChange);
