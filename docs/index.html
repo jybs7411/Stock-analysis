@@ -2195,7 +2195,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.35.0';
+    const APP_VERSION = '1.36.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2317,7 +2317,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       if (btn) btn.innerHTML = on ? '<i class="fa-solid fa-minimize mr-1"></i>전체화면 종료' : '<i class="fa-solid fa-maximize mr-1"></i>전체화면';
       setTimeout(() => { try { redraw(); } catch (e) { /* 아직 그릴 데이터 없음 */ } }, 30);
     }
-    // Esc = 뒤로가기 버튼(#backBtn). 단, Esc 가 이미 다른 용도(입력 중, 팝업·전체화면·상세 닫기)로 쓰이는 순간에는 쓰지 않는다.
+    // Backspace = 뒤로가기 버튼(#backBtn). 단, 입력 중이거나 Esc/Backspace 가 이미 다른 용도(팝업·전체화면·상세 닫기, 차트 선택 도형 삭제)로 쓰이는 순간에는 쓰지 않는다.
     // 각 모듈은 ESC_BUSY.push(() => 닫을 게 있으면 true) 로 자기 상태를 알린다.
     const ESC_BUSY = [() => CHART_FS.bdw || CHART_FS.pd];
     function escShouldGoBack(e) {
@@ -2329,7 +2329,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       return !ESC_BUSY.some(f => { try { return f(); } catch (err) { return false; } });
     }
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && escShouldGoBack(e)) { e.preventDefault(); appGoBack(); return; }
+      if (e.key === 'Backspace' && !e.repeat && escShouldGoBack(e)) { e.preventDefault(); appGoBack(); return; }
     });
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
@@ -18934,10 +18934,17 @@ ${digest}`;
       }
       // 보조 통화 단위(GBp, ZAc, ILA …): EPS 와 가격 단위가 어긋나기 쉬움
       function valSubunit(cur) { return !!cur && (/^[A-Z]{2}[a-z]$/.test(cur) || /^(GBX|ILA|ZAC)$/i.test(cur)); }
-      // ---- 시나리오 가격 경로(차트용) ----
-      // 도착점(5년 뒤 목표가)은 시나리오 계산값 그대로, 중간 출렁임은 이 종목 과거 주간 수익률을 블록 단위로 다시 뽑아(부트스트랩) 만든다.
-      // 출렁임의 합을 0으로 맞춰(브라운 다리) 경로가 정확히 목표가에 도착한다. 한 가지 '예시 경로'일 뿐 예측이 아니다.
+      // ---- 시나리오 가격 경로(차트용) — 규칙 기반 엔진 ----
+      // 뼈대: 주가 = EPS(연 g% 성장) × P/E(현재 → 목표로 수렴). 5년 뒤 도착점은 ③의 계산값과 정확히 같다.
+      // 위에 얹는 규칙(모두 휴리스틱이며 예측이 아님):
+      //  ① 단기 국면: 일목 구름 위치·전환/기준선·26주 모멘텀·40주선으로 점수(-1~+1)를 만들어 앞 반년 관성으로 반영, 과열(40주선 이탈)은 되돌림으로 반영
+      //  ② 구름대·52주 고저가는 지지/저항: 선을 넘는 주는 움직임을 절반으로, 구름 안은 70%로 줄임(앞 26주는 일목 선행스팬이 이미 정해져 있음)
+      //  ③ 변동성: 지금의 변동성에서 5년 평균으로 서서히 복귀, 약세는 ×1.25(하락장 변동성 확대)·강세는 ×0.9, 분기 실적 주는 ×1.8
+      //  ④ 가치 회귀: 가격이 뼈대에서 벗어나도 반감기 약 1년으로 되돌아옴
+      //  ⑤ 시나리오별 P/E 조정 속도: 약세는 일찍(γ 0.6), 강세는 늦게(γ 1.5) 목표 배수에 도달
+      // 그 위의 잔 출렁임은 이 종목 과거 주간 등락을 6주 블록으로 다시 뽑은 것(부트스트랩). 시드 고정 → 같은 입력이면 같은 그림.
       const VAL_WEEKS = 260, VAL_BLOCK = 6, VAL_FALLBACK_VOL = 0.35; // 5년=260주, 블록 6주(변동성 군집 보존), 데이터 없을 때 연 변동성 35%
+      const VAL_TAU = 20, VAL_OU = 78, VAL_SCN = { bear: { gamma: 0.6, vol: 1.25 }, base: { gamma: 1, vol: 1 }, bull: { gamma: 1.5, vol: 0.9 } };
       function valHash(s) { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
       function valRng(seed) {
         let a = seed >>> 0;
@@ -18948,30 +18955,68 @@ ${digest}`;
         for (let i = 1; i < closes.length; i++) if (valFin(closes[i]) && valFin(closes[i - 1]) && closes[i] > 0 && closes[i - 1] > 0) r.push(Math.log(closes[i] / closes[i - 1]));
         return r;
       }
-      // n 주 분량의 출렁임(합=0). closes 가 충분하면 과거 수익률 블록 부트스트랩, 아니면 정규분포(연 35%)
-      function valNoise(n, closes, rng) {
-        const rets = closes ? valLogRets(closes) : [];
-        const out = [];
-        if (rets.length >= 40) {
-          const m = rets.reduce((a, b) => a + b, 0) / rets.length, d = rets.map(x => x - m);
-          while (out.length < n) { const s = Math.floor(rng() * (d.length - VAL_BLOCK + 1)); for (let k = 0; k < VAL_BLOCK && out.length < n; k++) out.push(d[s + k]); }
-        } else {
-          const sg = VAL_FALLBACK_VOL / Math.sqrt(52);
-          while (out.length < n) { const u = Math.max(rng(), 1e-12), v = rng(); out.push(sg * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)); }
+      const valMean = a => a.reduce((s, x) => s + x, 0) / (a.length || 1);
+      const valStd = a => { if (a.length < 2) return 0; const m = valMean(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1)); };
+      // 주간 봉([{high,low,close}], 오래된 → 최신) → 현재 기술적 상태. TAx = 앱의 TA(일목 계산 재사용). 봉이 80개 미만이면 null
+      function valTechState(bars, TAx) {
+        if (!Array.isArray(bars) || bars.length < 80 || !TAx || typeof TAx.ichimoku !== 'function') return null;
+        const n = bars.length, closes = bars.map(b => b.close), last = closes[n - 1];
+        if (!closes.every(v => valFin(v) && v > 0)) return null;
+        const ic = TAx.ichimoku(bars, 9, 26, 52, 26), j = n - 1;
+        const A = ic.spanA[j], B = ic.spanB[j], tk = ic.tenkan[j], kj = ic.kijun[j];
+        if (![A, B, tk, kj].every(valFin)) return null;
+        const ma40 = valMean(closes.slice(-40)), mom26 = last / closes[n - 27] - 1;
+        const cloud = last > Math.max(A, B) ? 1 : (last < Math.min(A, B) ? -1 : 0);
+        const comps = { cloud, tk: tk > kj ? 1 : (tk < kj ? -1 : 0), mom: mom26 > 0 ? 1 : (mom26 < 0 ? -1 : 0), ma: last > ma40 ? 1 : -1 };
+        const rets = valLogRets(closes.slice(-261)), sig5 = valStd(rets);
+        if (!(sig5 > 0)) return null;
+        const sigNow = Math.min(1.8 * sig5, Math.max(0.6 * sig5, valStd(rets.slice(-13))));
+        const cloudTop = [], cloudBot = [];
+        for (let w = 0; w <= 26; w++) { const a = ic.spanA[j + w], b = ic.spanB[j + w]; if (!valFin(a) || !valFin(b)) return null; cloudTop.push(Math.max(a, b)); cloudBot.push(Math.min(a, b)); }
+        const win = bars.slice(-52);
+        const m = valMean(rets);
+        return { comps, score: (comps.cloud + comps.tk + comps.mom + comps.ma) / 4, stretch: Math.log(last / ma40), mom26, ma40, tenkan: tk, kijun: kj,
+          sig5, sigNow, rets: rets.map(r => (r - m) / sig5), cloudTop, cloudBot, hi52: Math.max(...win.map(b => b.high)), lo52: Math.min(...win.map(b => b.low)) };
+      }
+      // o: { price, eps0, g(%), pe, key, tech|null, seed } → { path:[n+1], det:[n+1] } (현재가 → 5년 뒤 목표가, 주간)
+      function valSimulate(o) {
+        const n = VAL_WEEKS, rng = valRng(o.seed), sc = VAL_SCN[o.key] || VAL_SCN.base, tech = o.tech;
+        if (![o.price, o.eps0, o.g, o.pe].every(valFin) || o.price <= 0 || o.eps0 <= 0 || o.pe <= 0 || o.g <= -100) return null;
+        const gr = 1 + o.g / 100, pe0 = o.price / o.eps0, target = o.eps0 * Math.pow(gr, n / 52) * o.pe;
+        const sig5 = tech ? tech.sig5 : VAL_FALLBACK_VOL / Math.sqrt(52), sigNow = tech ? tech.sigNow : sig5;
+        const amp = tech ? 0.5 * sig5 * Math.sqrt(52) * Math.sqrt(VAL_TAU / 52) * tech.score - 0.3 * Math.min(0.3, Math.max(-0.3, tech.stretch)) : 0;
+        const phase = Math.floor(rng() * 13), pool = tech && tech.rets.length >= 40 ? tech.rets : null;
+        const L0 = Math.log(o.price), levels = tech ? [Math.log(tech.hi52), Math.log(tech.lo52)] : [];
+        const det = [o.price], path = [o.price];
+        let dev = 0, bStart = 0, bPos = VAL_BLOCK;
+        for (let i = 1; i <= n; i++) {
+          const pe = pe0 + (o.pe - pe0) * Math.pow(i / n, sc.gamma), d = Math.log(o.eps0 * Math.pow(gr, i / 52) * pe);
+          const xi = i / VAL_TAU, base = d + amp * xi * Math.exp(1 - xi);
+          let e;
+          if (pool) { if (bPos >= VAL_BLOCK) { bStart = Math.floor(rng() * (pool.length - VAL_BLOCK + 1)); bPos = 0; } e = pool[bStart + bPos++]; }
+          else { const u = Math.max(rng(), 1e-12); e = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng()); }
+          let sg = (sig5 + (sigNow - sig5) * Math.exp(-i / 13)) * sc.vol * (i % 13 === phase ? 1.8 : 1), nz = sg * e;
+          const prev = Math.log(path[i - 1]), keep = 1 - 1 / VAL_OU;
+          if (tech) { // 지지·저항: 선을 넘는 주는 절반, 구름 안은 70%
+            const cand = base + dev * keep + nz, lo = Math.min(prev, cand), hi = Math.max(prev, cand);
+            let f = 1;
+            if (levels.some(L => L > lo && L < hi)) f = 0.5;
+            if (i <= 26) {
+              const cT = Math.log(tech.cloudTop[i]), cB = Math.log(tech.cloudBot[i]);
+              if ((cT > lo && cT < hi) || (cB > lo && cB < hi)) f = Math.min(f, 0.5);
+              else if (prev > cB && prev < cT) f = Math.min(f, 0.7);
+            }
+            nz *= f;
+          }
+          dev = dev * keep + nz;
+          det.push(Math.exp(d)); path.push(Math.exp(base + dev));
         }
-        const mean = out.reduce((a, b) => a + b, 0) / n;
-        return out.map(x => x - mean);
+        const err = Math.log(target) - Math.log(path[n]); // 끝점을 정확히 목표가에 맞춤(오차를 시간에 비례해 분산)
+        for (let i = 1; i <= n; i++) path[i] = Math.exp(Math.log(path[i]) + err * i / n);
+        path[n] = target; det[n] = target;
+        return { path, det };
       }
-      // 현재가에서 시작해 target 에 도착하는 주간 가격 경로(길이 n+1). 직선(로그) 추세 + 출렁임
-      function valPath(price, target, noise) {
-        if (!valFin(price) || !valFin(target) || price <= 0 || target <= 0 || !noise || !noise.length) return null;
-        const n = noise.length, lp = Math.log(price), lt = Math.log(target), out = [price];
-        let cum = 0;
-        for (let i = 1; i <= n; i++) { cum += noise[i - 1]; out.push(Math.exp(lp + (lt - lp) * i / n + cum)); }
-        out[n] = target;
-        return out;
-      }
-      window.valCalcPure = { valNum, valEpsFair, valScenario, valPeg, valGrowth, valBarPos, valSubunit, valSmartDefaults, valHash, valRng, valLogRets, valNoise, valPath };
+      window.valCalcPure = { valNum, valEpsFair, valScenario, valPeg, valGrowth, valBarPos, valSubunit, valSmartDefaults, valHash, valRng, valLogRets, valTechState, valSimulate };
 
       // ---------- 표시 보조 ----------
       const esc = s => (typeof escapeHtml === 'function' ? escapeHtml(s) : String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
@@ -19051,6 +19096,7 @@ ${digest}`;
         const keys = Object.keys(o.paths).filter(k => o.paths[k]);
         const all = o.hist.slice(); keys.forEach(k => o.paths[k].slice(0, o.nFut + 1).forEach(v => all.push(v)));
         if (o.band) all.push(o.band.lo, o.band.hi);
+        if (o.cloud) all.push(...o.cloud.top, ...o.cloud.bot);
         const lmn = Math.log(Math.min(...all)) - 0.05, lmx = Math.log(Math.max(...all)) + 0.05;
         const y = v => T + (1 - (Math.log(v) - lmn) / (lmx - lmn)) * (H - T - B);
         let s = `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${esc(o.aria)}" font-family="inherit">`;
@@ -19063,6 +19109,10 @@ ${digest}`;
           s += `<rect x="${L}" y="${yh.toFixed(1)}" width="${W - L - R}" height="${(yl - yh).toFixed(1)}" fill="#475569" opacity=".18"/>`
             + `<line x1="${L}" x2="${W - R}" y1="${yh.toFixed(1)}" y2="${yh.toFixed(1)}" stroke="#94a3b8" stroke-dasharray="4 4"/><text x="${L + 4}" y="${(yh - 4).toFixed(1)}" font-size="11" fill="#94a3b8">52주 최고 ${esc(px(o.band.hi, o.cur))}</text>`
             + `<line x1="${L}" x2="${W - R}" y1="${yl.toFixed(1)}" y2="${yl.toFixed(1)}" stroke="#94a3b8" stroke-dasharray="4 4"/><text x="${L + 4}" y="${(yl + 12).toFixed(1)}" font-size="11" fill="#94a3b8">52주 최저 ${esc(px(o.band.lo, o.cur))}</text>`;
+        }
+        if (o.cloud) { // 일목 구름: 앞 26주(선행스팬은 이미 정해져 있음)
+          const m = o.cloud.top.length - 1, up = o.cloud.top.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`), dn = o.cloud.bot.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).reverse();
+          s += `<polygon points="${up.concat(dn).join(' ')}" fill="#a78bfa" opacity=".22"/><text x="${x(m / 2).toFixed(1)}" y="${(Math.min(...o.cloud.top.map(y)) - 4).toFixed(1)}" font-size="10" fill="#c4b5fd" text-anchor="middle">일목 구름</text>`;
         }
         o.xt.forEach(([w, lb]) => { const xx = x(w); s += `<line x1="${xx.toFixed(1)}" x2="${xx.toFixed(1)}" y1="${T}" y2="${H - B}" stroke="${w === 0 ? '#64748b' : '#1e293b'}" ${w === 0 ? 'stroke-dasharray="3 3"' : ''}/><text x="${xx.toFixed(1)}" y="${H - 8}" font-size="11" fill="#94a3b8" text-anchor="middle">${esc(lb)}</text>`; });
         s += `<polyline fill="none" stroke="#cbd5e1" stroke-width="1.8" stroke-linejoin="round" points="${o.hist.map((v, i) => `${x(i - nh).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/>`;
@@ -19109,7 +19159,7 @@ ${digest}`;
       }
 
       // ---------- 렌더러 ----------
-      const VS = { c: null, st: null, el: null, all: null, notes: null, hist: null, histState: 'loading', noise: null, seedN: 0 };
+      const VS = { c: null, st: null, el: null, all: null, notes: null, hist: null, tech: null, histState: 'loading', seedN: 0 };
 
       function epsInfo() {
         const { c, st } = VS;
@@ -19175,36 +19225,47 @@ ${digest}`;
       }
 
       // ---------- 시나리오 경로 차트 ----------
-      function buildNoise() {
-        const base = valHash(VS.c.ticker) + VS.seedN * 7919, closes = VS.hist && VS.hist.length >= 41 ? VS.hist : null;
-        VS.noise = {};
-        ['bear', 'base', 'bull'].forEach((k, i) => { VS.noise[k] = valNoise(VAL_WEEKS, closes, valRng(base + i * 104729)); });
-      }
       function calcPaths() {
-        const paths = {}; let n = 0;
-        ['bear', 'base', 'bull'].forEach(k => { const r = calcScenario(k); if (r.ok) { paths[k] = valPath(VS.c.price, r.target, VS.noise[k]); n++; } });
+        const paths = {}, e = epsInfo(); let n = 0;
+        ['bear', 'base', 'bull'].forEach((k, i) => {
+          const r = calcScenario(k); if (!r.ok) return;
+          const s = VS.st.sc[k], sim = valSimulate({ price: VS.c.price, eps0: e.v, g: valNum(s.g), pe: valNum(s.pe), key: k, tech: VS.tech, seed: valHash(VS.c.ticker) + VS.seedN * 7919 + i * 104729 });
+          if (sim) { paths[k] = sim.path; n++; }
+        });
         return n ? paths : null;
+      }
+      // 지금 이 종목에 어떤 규칙이 어떻게 적용됐는지 한눈에 (투명성)
+      function techNotes() {
+        const t = VS.tech, cur = VS.c.cur, yn = (v, a, b, z) => (v > 0 ? a : (v < 0 ? b : z));
+        if (!t) return '<li>과거 주가를 못 받아 구름대·모멘텀 규칙은 쓰지 않고, 일반적인 출렁임(연 변동성 35%)만 입혔어요.</li>';
+        const cm = t.comps, sc = t.score, av = Math.abs(sc);
+        const regime = sc >= 0.5 ? '강한 상승 국면' : sc > 0 ? '약한 상승 국면' : sc <= -0.5 ? '강한 하락 국면' : sc < 0 ? '약한 하락 국면' : '방향 없음';
+        const li = x => `<li>${x}</li>`;
+        return [
+          li(`<b>뼈대</b> — 주가 = 이익(EPS)이 매년 g%씩 늘고, P/E가 지금 값에서 5년 뒤 목표 P/E로 옮겨 가는 길. 약세는 배수가 일찍 줄고, 강세는 늦게 올라요.`),
+          li(`<b>단기 국면(앞 6개월)</b> — ${regime}(점수 ${sc >= 0 ? '+' : ''}${sc.toFixed(2)}): 구름 ${yn(cm.cloud, '위', '아래', '안')} · 전환선${yn(cm.tk, '>', '<', '=')}기준선 · 26주 모멘텀 ${t.mom26 >= 0 ? '+' : ''}${(t.mom26 * 100).toFixed(0)}% · 40주선 ${cm.ma > 0 ? '위' : '아래'}. ${av >= 0.25 ? '그 방향의 관성을 앞 반년에 얹고 이후엔 뼈대로 돌아와요.' : '뚜렷한 방향이 없어 관성은 거의 안 넣었어요.'}${Math.abs(t.stretch) > 0.1 ? ` 40주선에서 ${(t.stretch * 100).toFixed(0)}% ${t.stretch > 0 ? '벌어져 있어 되돌림 압력도 반영' : '아래라 반등 여지도 반영'}.` : ''}`),
+          li(`<b>구름대·고저가</b> — 앞 26주 구름은 ${esc(px(Math.min(...t.cloudBot), cur))} ~ ${esc(px(Math.max(...t.cloudTop), cur))}(보라색 띠). 구름 가장자리와 52주 최고·최저(${esc(px(t.hi52, cur))} / ${esc(px(t.lo52, cur))})를 넘는 주는 움직임을 절반으로, 구름 안에서는 70%로 줄였어요.`),
+          li(`<b>변동성</b> — 요즘 주간 ${(t.sigNow * 100).toFixed(1)}% → 5년 평균 ${(t.sig5 * 100).toFixed(1)}%로 서서히 복귀. 약세 ×1.25 · 강세 ×0.9, 분기 실적 주(대략)는 ×1.8.`),
+          li('<b>가치 회귀</b> — 가격이 뼈대에서 벗어나도 반감기 약 1년으로 되돌아와요.')
+        ].join('');
       }
       function outCharts() {
         const { c } = VS, cur = c.cur;
-        if (!VS.noise) buildNoise();
         const paths = calcPaths();
-        if (!paths) return { info: hint('③ 시나리오의 성장률·P/E를 채우면 경로 그래프를 그려요.'), c5: '', c1: '' };
+        if (!paths) return { info: hint('③ 시나리오의 성장률·P/E를 채우면 경로 그래프를 그려요.'), c5: '', c1: '', rules: '' };
         const hs = VS.hist && VS.hist.length >= 30 ? VS.hist.slice(-105) : [];
         const hist5 = hs.length ? hs.slice(0, -1).concat([c.price]) : [c.price]; // 마지막 종가는 현재가로 이어 붙임
         const hist1 = hist5.slice(-53);
         const xt5 = []; for (let w = -104; w <= 260; w += 52) if (-w <= hist5.length - 1) xt5.push([w, w === 0 ? '오늘' : (w < 0 ? `${-w / 52}년 전` : `+${w / 52}년`)]);
         const xt1 = [[-52, '1년 전'], [-26, '6개월 전'], [0, '오늘'], [26, '+6개월'], [52, '+1년']].filter(a => -a[0] <= hist1.length - 1);
-        let info = '';
-        if (VS.histState === 'loading') info = hint('과거 5년 주가를 불러오는 중이에요… (도착하면 이 종목의 실제 출렁임 패턴으로 다시 그려요)');
-        else if (!VS.hist || VS.hist.length < 41) info = warn('과거 주가를 못 받아 연 변동성 35%의 일반적인 출렁임으로 그렸어요. 이 종목의 실제 패턴이 아닙니다.');
+        let info = VS.histState === 'loading' ? hint('과거 5년 주가를 불러오는 중이에요… (도착하면 구름대·모멘텀 규칙을 넣어 다시 그려요)') : '';
         const mk = (k) => { const p = paths[k]; if (!p) return ''; const r = calcScenario(k); return `<div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 min-w-0"><div class="text-xs font-bold" style="color:${VAL_SC[k].col}">${VAL_SC[k].ko}</div>${row('1년 뒤 (경로 예시)', `<span class="text-white">${esc(px(p[52], cur))}</span>`)}${row('5년 뒤', `<span class="text-white">${esc(px(p[VAL_WEEKS], cur))}</span>`)}${row('연 평균', `<span class="${tone(r.annPct)}">${esc(pct(r.annPct))}</span>`)}</div>`; };
         info += `<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">${['bear', 'base', 'bull'].map(mk).join('')}</div>`;
-        const band = c.hasRange ? { lo: c.low52, hi: c.high52 } : null;
+        const band = c.hasRange ? { lo: c.low52, hi: c.high52 } : null, cloud = VS.tech ? { top: VS.tech.cloudTop, bot: VS.tech.cloudBot } : null;
         return {
-          info,
-          c5: svgPathChart({ hist: hist5, paths, nFut: VAL_WEEKS, xt: xt5, band: null, cur, aria: '최근 2년 실제 주가와 앞으로 5년 약세·기준·강세 시나리오 경로' }),
-          c1: svgPathChart({ hist: hist1, paths, nFut: 52, xt: xt1, band, cur, aria: '최근 1년 실제 주가와 52주 최고·최저 범위, 앞으로 1년 시나리오 경로' })
+          info, rules: `<ul class="text-xs text-slate-300 space-y-1 list-disc pl-4">${techNotes()}</ul>`,
+          c5: svgPathChart({ hist: hist5, paths, nFut: VAL_WEEKS, xt: xt5, band: null, cloud, cur, aria: '최근 2년 실제 주가와 앞으로 5년 약세·기준·강세 시나리오 경로, 앞 26주 일목 구름' }),
+          c1: svgPathChart({ hist: hist1, paths, nFut: 52, xt: xt1, band, cloud, cur, aria: '최근 1년 실제 주가와 52주 최고·최저 범위, 앞으로 1년 시나리오 경로, 앞 26주 일목 구름' })
         };
       }
 
@@ -19285,7 +19346,7 @@ ${digest}`;
         set('peg', outPeg());
         set('analyst', outAnalyst());
         set('r52', out52());
-        try { const ch = outCharts(); set('pathsInfo', ch.info); set('chart5', ch.c5); set('chart1', ch.c1); } catch (e) { console.warn('경로 차트 실패:', e); }
+        try { const ch = outCharts(); set('pathsInfo', ch.info); set('chart5', ch.c5); set('chart1', ch.c1); set('pathRules', ch.rules); } catch (e) { console.warn('경로 차트 실패:', e); }
         const box = el.querySelector('[data-out="smartNote"]');
         if (box) box.innerHTML = VS.notes ? `<details class="bg-cyan-950/30 border border-cyan-900/60 rounded-xl p-3"><summary class="text-xs font-bold text-cyan-200 cursor-pointer min-h-11 flex items-center">자동으로 채운 숫자는 이렇게 정했어요 (추정일 뿐, 예측 아님)</summary><ul class="text-xs text-slate-300 space-y-1 list-disc pl-4 mt-1">${VS.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></details>` : '';
       }
@@ -19356,9 +19417,9 @@ ${digest}`;
                   <div><div class="text-xs font-bold text-slate-200 mb-1">애널리스트 목표가</div><div data-out="analyst"></div></div>
                   <div><div class="text-xs font-bold text-slate-200 mb-1">최근 52주(1년) 최저 – 최고</div><div data-out="r52"></div></div>
                 </div>`, 'md:col-span-2')}
-              ${section('⑤', '앞으로 5년 · 1년 주가는 어떻게 움직일까? (그래프)', '③의 3가지 경우가 "어디에 도착하는지"에 이 종목 과거의 출렁임을 입힌 예시 경로예요', `
+              ${section('⑤', '앞으로 5년 · 1년 주가는 어떻게 움직일까? (그래프)', '③의 3가지 경우가 "어디에 도착하는지"에 구름대·모멘텀·변동성 규칙과 이 종목 과거 출렁임을 입힌 예시 경로예요', `
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <p class="text-xs text-slate-300">회색 = 실제 주가, 색 선 = 약세·기준·강세 예시 경로</p>
+                  <p class="text-xs text-slate-300">회색 = 실제 주가, 색 선 = 약세·기준·강세 예시 경로, 보라 띠 = 일목 구름(앞 26주)</p>
                   <button type="button" data-act="reroll" class="min-h-11 px-3 rounded-lg border border-slate-700 bg-slate-900 hover:border-cyan-500 text-xs text-slate-200"><i class="fa-solid fa-shuffle mr-1.5"></i>출렁임 다시 뽑기</button>
                 </div>
                 <div data-out="pathsInfo"></div>
@@ -19366,7 +19427,8 @@ ${digest}`;
                 <div data-out="chart5"></div>
                 <div class="text-xs font-bold text-slate-200 mt-4 mb-1">앞으로 1년 확대 (최근 1년 실제 + 52주 범위 띠 + 3가지 경로)</div>
                 <div data-out="chart1"></div>
-                <p class="text-xs text-slate-300 mt-3">끝점(5년 뒤 가격)만 ③의 계산값이고, 중간의 오르내림은 이 종목의 과거 주간 등락을 섞어 만든 <b>무작위 한 가지 예시</b>예요. 실제로는 같은 도착점이라도 길이 매우 다양하고, 예측이 아닙니다. 세로축은 로그(같은 간격 = 같은 비율)예요.</p>`, 'md:col-span-2')}
+                <details class="mt-3" open><summary class="text-xs font-bold text-cyan-200 cursor-pointer min-h-11 flex items-center">이 그림에 적용된 규칙 (이 종목 기준)</summary><div data-out="pathRules"></div></details>
+                <p class="text-xs text-slate-300 mt-3">끝점(5년 뒤 가격)은 ③의 계산값이고, 중간 길은 위 규칙에 이 종목의 과거 주간 등락을 섞어 만든 <b>한 가지 예시</b>예요(규칙은 근거가 약한 휴리스틱). 실제로는 같은 도착점이라도 길이 매우 다양하고, 예측이 아닙니다. 세로축은 로그(같은 간격 = 같은 비율)예요.</p>`, 'md:col-span-2')}
             </div>
 
             <details class="border-t border-slate-800 pt-3">
@@ -19434,7 +19496,7 @@ ${digest}`;
         } else if (a === 'mos-fill') {
           VS.st.mosReq = b.dataset.v; persist(); syncUi(); updateOutputs();
         } else if (a === 'reroll') {
-          VS.seedN++; buildNoise(); updateOutputs();
+          VS.seedN++; updateOutputs();
         } else if (a === 'smart') {
           const eps = VS.st.eps, man = VS.st.epsManual;
           VS.st = initState(VS.c, null); VS.st.eps = eps; VS.st.epsManual = man; // 기준 EPS 선택은 유지
@@ -19456,18 +19518,17 @@ ${digest}`;
         return st;
       }
 
-      // 과거 5년 주간 종가(경로 출렁임의 재료). 프록시가 없거나 실패하면 일반 변동성으로 대체
+      // 과거 5년 주간 봉(출렁임·구름대·모멘텀의 재료). 프록시가 없거나 실패하면 일반 변동성으로 대체
       function loadHist(tk) {
-        const done = (arr) => {
+        const done = (bars) => {
           if (!VS.c || VS.c.ticker !== tk) return; // 그 사이 다른 종목으로 바뀜
-          VS.hist = arr; VS.histState = arr && arr.length >= 41 ? 'ok' : 'none';
-          buildNoise(); updateOutputs();
+          const ok = Array.isArray(bars) ? bars.filter(b => b && valFin(b.close) && b.close > 0 && valFin(b.high) && valFin(b.low)) : [];
+          VS.hist = ok.length ? ok.map(b => b.close) : null; VS.histState = ok.length >= 41 ? 'ok' : 'none';
+          try { VS.tech = valTechState(ok, typeof TA !== 'undefined' ? TA : null); } catch (e) { VS.tech = null; }
+          updateOutputs();
         };
-        if (typeof fetchSpark !== 'function') { done(null); return; }
-        Promise.resolve(fetchSpark([tk], '5y', '1wk')).then(r => {
-          const s = r && (r[tk] || Object.values(r)[0]);
-          done(s && Array.isArray(s.c) ? s.c.filter(v => valFin(v) && v > 0) : null);
-        }).catch(() => done(null));
+        if (typeof fetchRealYahooFinanceData !== 'function') { done(null); return; }
+        Promise.resolve(fetchRealYahooFinanceData(tk, '5y', '1wk')).then(r => done(r && r.history)).catch(() => done(null));
       }
 
       window.valCalcRender = function (el, ctx) {
@@ -19477,7 +19538,7 @@ ${digest}`;
         const all = loadAll();
         VS.c = c; VS.all = all; VS.el = el; VS.st = initState(c, all[c.ticker]); VS.notes = valSmartDefaults(c).notes;
         if (isBlank(VS.st)) { applySmart(); persist(); } // 처음 보는 종목: 입력 없이도 결과가 보이게 자동값을 채운다
-        VS.hist = null; VS.histState = 'loading'; VS.noise = null; VS.seedN = 0;
+        VS.hist = null; VS.tech = null; VS.histState = 'loading'; VS.seedN = 0;
         el.innerHTML = build();
         el.oninput = onInput; el.onchange = onInput; el.onclick = onClick;
         syncUi(); updateOutputs();
