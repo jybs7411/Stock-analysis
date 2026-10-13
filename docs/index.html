@@ -2195,7 +2195,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.33.3';
+    const APP_VERSION = '1.34.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2317,6 +2317,20 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       if (btn) btn.innerHTML = on ? '<i class="fa-solid fa-minimize mr-1"></i>전체화면 종료' : '<i class="fa-solid fa-maximize mr-1"></i>전체화면';
       setTimeout(() => { try { redraw(); } catch (e) { /* 아직 그릴 데이터 없음 */ } }, 30);
     }
+    // Esc = 뒤로가기 버튼(#backBtn). 단, Esc 가 이미 다른 용도(입력 중, 팝업·전체화면·상세 닫기)로 쓰이는 순간에는 쓰지 않는다.
+    // 각 모듈은 ESC_BUSY.push(() => 닫을 게 있으면 true) 로 자기 상태를 알린다.
+    const ESC_BUSY = [() => CHART_FS.bdw || CHART_FS.pd];
+    function escShouldGoBack(e) {
+      if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return false;
+      const t = e.target;
+      if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return false;
+      if (!TAB_HIST.length) return false;
+      if (Array.from(document.querySelectorAll('.fixed.inset-0')).some(el => !el.classList.contains('hidden') && getComputedStyle(el).display !== 'none')) return false;
+      return !ESC_BUSY.some(f => { try { return f(); } catch (err) { return false; } });
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && escShouldGoBack(e)) { e.preventDefault(); appGoBack(); return; }
+    });
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
       if (CHART_FS.bdw && typeof window.bdwSchedule === 'function') chartFsToggle('bdw', window.bdwSchedule, false);
@@ -8340,6 +8354,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     const CHM_KEY = 'pentanalyst_chart_split';
     const CHM_FRAMES = { 1: ['D'], 2: ['D', '60m'], 4: ['W', 'D', '60m', '15m'], 6: ['M', 'W', 'D', '60m', '15m', '5m'] };
     const CHM = { n: 1, cells: [], grid: null, ph: null, full: false };
+    ESC_BUSY.push(() => activeAppTab === 'analysis' && (CHM.full || CH.draft || CH.measure || CH.sel >= 0 || CH.tool !== 'cursor'));   // Esc 가 전체화면 종료·그리기 취소에 쓰인다
     function chResizeAll(force) { CH_ALL.slice().forEach(inst => chWith(inst, () => chResize(force))); }
     function chmCellHtml(no) {
       const ib = (k, t) => `<button type="button" id="iv-${k}" onclick="chSetInterval('${k}')"${t ? ` title="${t}"` : ''}>${CH_IV[k].label}</button>`;
@@ -18100,6 +18115,7 @@ ${digest}`;
           vis().forEach(loadPanel);
           save();
         });
+        ESC_BUSY.push(() => activeAppTab === 'multi' && (S.focus >= 0 || S.full));
         document.addEventListener('keydown', e => {
           if (e.key !== 'Escape' || activeAppTab !== 'multi') return;
           if (S.focus >= 0) { S.focus = -1; applyFocus(); }
@@ -23693,6 +23709,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           if (!e.target.closest('#wlSug') && !e.target.closest('#wlAddInput')) { const s = $('wlSug'); if (s) s.classList.add('hidden'); }
           if (!e.target.closest('#wlMenu') && !e.target.closest('[data-act=menu]')) closeMenu();
         });
+        ESC_BUSY.push(() => { if (activeAppTab !== 'watch') return false; const m = $('wlMenu'); return !!((m && !m.classList.contains('hidden')) || RT.sel); });
         document.addEventListener('keydown', e => {
           if (e.key !== 'Escape' || activeAppTab !== 'watch') return;
           const m = $('wlMenu');
