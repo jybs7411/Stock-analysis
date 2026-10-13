@@ -2195,7 +2195,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.34.0';
+    const APP_VERSION = '1.35.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -18934,7 +18934,44 @@ ${digest}`;
       }
       // 보조 통화 단위(GBp, ZAc, ILA …): EPS 와 가격 단위가 어긋나기 쉬움
       function valSubunit(cur) { return !!cur && (/^[A-Z]{2}[a-z]$/.test(cur) || /^(GBX|ILA|ZAC)$/i.test(cur)); }
-      window.valCalcPure = { valNum, valEpsFair, valScenario, valPeg, valGrowth, valBarPos, valSubunit, valSmartDefaults };
+      // ---- 시나리오 가격 경로(차트용) ----
+      // 도착점(5년 뒤 목표가)은 시나리오 계산값 그대로, 중간 출렁임은 이 종목 과거 주간 수익률을 블록 단위로 다시 뽑아(부트스트랩) 만든다.
+      // 출렁임의 합을 0으로 맞춰(브라운 다리) 경로가 정확히 목표가에 도착한다. 한 가지 '예시 경로'일 뿐 예측이 아니다.
+      const VAL_WEEKS = 260, VAL_BLOCK = 6, VAL_FALLBACK_VOL = 0.35; // 5년=260주, 블록 6주(변동성 군집 보존), 데이터 없을 때 연 변동성 35%
+      function valHash(s) { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+      function valRng(seed) {
+        let a = seed >>> 0;
+        return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+      }
+      function valLogRets(closes) {
+        const r = [];
+        for (let i = 1; i < closes.length; i++) if (valFin(closes[i]) && valFin(closes[i - 1]) && closes[i] > 0 && closes[i - 1] > 0) r.push(Math.log(closes[i] / closes[i - 1]));
+        return r;
+      }
+      // n 주 분량의 출렁임(합=0). closes 가 충분하면 과거 수익률 블록 부트스트랩, 아니면 정규분포(연 35%)
+      function valNoise(n, closes, rng) {
+        const rets = closes ? valLogRets(closes) : [];
+        const out = [];
+        if (rets.length >= 40) {
+          const m = rets.reduce((a, b) => a + b, 0) / rets.length, d = rets.map(x => x - m);
+          while (out.length < n) { const s = Math.floor(rng() * (d.length - VAL_BLOCK + 1)); for (let k = 0; k < VAL_BLOCK && out.length < n; k++) out.push(d[s + k]); }
+        } else {
+          const sg = VAL_FALLBACK_VOL / Math.sqrt(52);
+          while (out.length < n) { const u = Math.max(rng(), 1e-12), v = rng(); out.push(sg * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)); }
+        }
+        const mean = out.reduce((a, b) => a + b, 0) / n;
+        return out.map(x => x - mean);
+      }
+      // 현재가에서 시작해 target 에 도착하는 주간 가격 경로(길이 n+1). 직선(로그) 추세 + 출렁임
+      function valPath(price, target, noise) {
+        if (!valFin(price) || !valFin(target) || price <= 0 || target <= 0 || !noise || !noise.length) return null;
+        const n = noise.length, lp = Math.log(price), lt = Math.log(target), out = [price];
+        let cum = 0;
+        for (let i = 1; i <= n; i++) { cum += noise[i - 1]; out.push(Math.exp(lp + (lt - lp) * i / n + cum)); }
+        out[n] = target;
+        return out;
+      }
+      window.valCalcPure = { valNum, valEpsFair, valScenario, valPeg, valGrowth, valBarPos, valSubunit, valSmartDefaults, valHash, valRng, valLogRets, valNoise, valPath };
 
       // ---------- 표시 보조 ----------
       const esc = s => (typeof escapeHtml === 'function' ? escapeHtml(s) : String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
@@ -19006,6 +19043,41 @@ ${digest}`;
         </div>`;
       }
 
+      // 시나리오 경로 차트(SVG, 세로축 로그). o: { hist:[과거 종가…현재가], paths:{bear,base,bull:[현재가…]}, nFut, xt:[[주,라벨]], band:{lo,hi}|null, cur }
+      const VAL_SC = { bear: { ko: '약세', col: '#fb7185' }, base: { ko: '기준', col: '#22d3ee' }, bull: { ko: '강세', col: '#34d399' } };
+      function svgPathChart(o) {
+        const W = 720, H = 300, L = 64, R = 92, T = 14, B = 26, nh = o.hist.length - 1;
+        const x = w => L + (w + nh) / (nh + o.nFut) * (W - L - R);
+        const keys = Object.keys(o.paths).filter(k => o.paths[k]);
+        const all = o.hist.slice(); keys.forEach(k => o.paths[k].slice(0, o.nFut + 1).forEach(v => all.push(v)));
+        if (o.band) all.push(o.band.lo, o.band.hi);
+        const lmn = Math.log(Math.min(...all)) - 0.05, lmx = Math.log(Math.max(...all)) + 0.05;
+        const y = v => T + (1 - (Math.log(v) - lmn) / (lmx - lmn)) * (H - T - B);
+        let s = `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="${esc(o.aria)}" font-family="inherit">`;
+        for (let i = 0; i <= 4; i++) { // 가로 눈금(로그 등간격)
+          const v = Math.exp(lmn + (lmx - lmn) * i / 4), yy = y(v);
+          s += `<line x1="${L}" x2="${W - R}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="#1e293b"/><text x="${L - 6}" y="${(yy + 4).toFixed(1)}" font-size="11" fill="#64748b" text-anchor="end">${esc(px(v, o.cur))}</text>`;
+        }
+        if (o.band) {
+          const yh = y(o.band.hi), yl = y(o.band.lo);
+          s += `<rect x="${L}" y="${yh.toFixed(1)}" width="${W - L - R}" height="${(yl - yh).toFixed(1)}" fill="#475569" opacity=".18"/>`
+            + `<line x1="${L}" x2="${W - R}" y1="${yh.toFixed(1)}" y2="${yh.toFixed(1)}" stroke="#94a3b8" stroke-dasharray="4 4"/><text x="${L + 4}" y="${(yh - 4).toFixed(1)}" font-size="11" fill="#94a3b8">52주 최고 ${esc(px(o.band.hi, o.cur))}</text>`
+            + `<line x1="${L}" x2="${W - R}" y1="${yl.toFixed(1)}" y2="${yl.toFixed(1)}" stroke="#94a3b8" stroke-dasharray="4 4"/><text x="${L + 4}" y="${(yl + 12).toFixed(1)}" font-size="11" fill="#94a3b8">52주 최저 ${esc(px(o.band.lo, o.cur))}</text>`;
+        }
+        o.xt.forEach(([w, lb]) => { const xx = x(w); s += `<line x1="${xx.toFixed(1)}" x2="${xx.toFixed(1)}" y1="${T}" y2="${H - B}" stroke="${w === 0 ? '#64748b' : '#1e293b'}" ${w === 0 ? 'stroke-dasharray="3 3"' : ''}/><text x="${xx.toFixed(1)}" y="${H - 8}" font-size="11" fill="#94a3b8" text-anchor="middle">${esc(lb)}</text>`; });
+        s += `<polyline fill="none" stroke="#cbd5e1" stroke-width="1.8" stroke-linejoin="round" points="${o.hist.map((v, i) => `${x(i - nh).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/>`;
+        const ends = [];
+        keys.forEach(k => {
+          const p = o.paths[k].slice(0, o.nFut + 1), col = VAL_SC[k].col;
+          s += `<polyline fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round" points="${p.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/>`;
+          ends.push({ k, v: p[p.length - 1], yy: y(p[p.length - 1]), col });
+        });
+        ends.sort((a, b) => a.yy - b.yy); // 끝점 라벨이 겹치지 않게 최소 14px 간격
+        for (let i = 1; i < ends.length; i++) if (ends[i].yy - ends[i - 1].yy < 14) ends[i].yy = ends[i - 1].yy + 14;
+        ends.forEach(e => { s += `<circle cx="${x(o.nFut).toFixed(1)}" cy="${y(e.v).toFixed(1)}" r="3.5" fill="${e.col}"/><text x="${W - R + 6}" y="${(e.yy + 4).toFixed(1)}" font-size="12" font-weight="700" fill="${e.col}">${VAL_SC[e.k].ko} ${esc(px(e.v, o.cur))}</text>`; });
+        return s + '</svg>';
+      }
+
       // ---------- 컨텍스트 해석 ----------
       function readCtx(ctx) {
         const d = ctx.data || {}, inp = ctx.inputs || {};
@@ -19037,7 +19109,7 @@ ${digest}`;
       }
 
       // ---------- 렌더러 ----------
-      const VS = { c: null, st: null, el: null, all: null, notes: null };
+      const VS = { c: null, st: null, el: null, all: null, notes: null, hist: null, histState: 'loading', noise: null, seedN: 0 };
 
       function epsInfo() {
         const { c, st } = VS;
@@ -19100,6 +19172,40 @@ ${digest}`;
         return row(`${VAL_YEARS}년 뒤 예상 주가`, `<span class="text-white">${esc(px(r.target, cur))}</span>`)
           + row('1년 평균 수익률', `<span class="${tone(r.annPct)}">${esc(pct(r.annPct))}</span>`)
           + row('5년 합계 수익률', `<span class="${tone(r.totalPct)}">${esc(pct(r.totalPct))}</span>`);
+      }
+
+      // ---------- 시나리오 경로 차트 ----------
+      function buildNoise() {
+        const base = valHash(VS.c.ticker) + VS.seedN * 7919, closes = VS.hist && VS.hist.length >= 41 ? VS.hist : null;
+        VS.noise = {};
+        ['bear', 'base', 'bull'].forEach((k, i) => { VS.noise[k] = valNoise(VAL_WEEKS, closes, valRng(base + i * 104729)); });
+      }
+      function calcPaths() {
+        const paths = {}; let n = 0;
+        ['bear', 'base', 'bull'].forEach(k => { const r = calcScenario(k); if (r.ok) { paths[k] = valPath(VS.c.price, r.target, VS.noise[k]); n++; } });
+        return n ? paths : null;
+      }
+      function outCharts() {
+        const { c } = VS, cur = c.cur;
+        if (!VS.noise) buildNoise();
+        const paths = calcPaths();
+        if (!paths) return { info: hint('③ 시나리오의 성장률·P/E를 채우면 경로 그래프를 그려요.'), c5: '', c1: '' };
+        const hs = VS.hist && VS.hist.length >= 30 ? VS.hist.slice(-105) : [];
+        const hist5 = hs.length ? hs.slice(0, -1).concat([c.price]) : [c.price]; // 마지막 종가는 현재가로 이어 붙임
+        const hist1 = hist5.slice(-53);
+        const xt5 = []; for (let w = -104; w <= 260; w += 52) if (-w <= hist5.length - 1) xt5.push([w, w === 0 ? '오늘' : (w < 0 ? `${-w / 52}년 전` : `+${w / 52}년`)]);
+        const xt1 = [[-52, '1년 전'], [-26, '6개월 전'], [0, '오늘'], [26, '+6개월'], [52, '+1년']].filter(a => -a[0] <= hist1.length - 1);
+        let info = '';
+        if (VS.histState === 'loading') info = hint('과거 5년 주가를 불러오는 중이에요… (도착하면 이 종목의 실제 출렁임 패턴으로 다시 그려요)');
+        else if (!VS.hist || VS.hist.length < 41) info = warn('과거 주가를 못 받아 연 변동성 35%의 일반적인 출렁임으로 그렸어요. 이 종목의 실제 패턴이 아닙니다.');
+        const mk = (k) => { const p = paths[k]; if (!p) return ''; const r = calcScenario(k); return `<div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 min-w-0"><div class="text-xs font-bold" style="color:${VAL_SC[k].col}">${VAL_SC[k].ko}</div>${row('1년 뒤 (경로 예시)', `<span class="text-white">${esc(px(p[52], cur))}</span>`)}${row('5년 뒤', `<span class="text-white">${esc(px(p[VAL_WEEKS], cur))}</span>`)}${row('연 평균', `<span class="${tone(r.annPct)}">${esc(pct(r.annPct))}</span>`)}</div>`; };
+        info += `<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">${['bear', 'base', 'bull'].map(mk).join('')}</div>`;
+        const band = c.hasRange ? { lo: c.low52, hi: c.high52 } : null;
+        return {
+          info,
+          c5: svgPathChart({ hist: hist5, paths, nFut: VAL_WEEKS, xt: xt5, band: null, cur, aria: '최근 2년 실제 주가와 앞으로 5년 약세·기준·강세 시나리오 경로' }),
+          c1: svgPathChart({ hist: hist1, paths, nFut: 52, xt: xt1, band, cur, aria: '최근 1년 실제 주가와 52주 최고·최저 범위, 앞으로 1년 시나리오 경로' })
+        };
       }
 
       function outPeg() {
@@ -19179,6 +19285,7 @@ ${digest}`;
         set('peg', outPeg());
         set('analyst', outAnalyst());
         set('r52', out52());
+        try { const ch = outCharts(); set('pathsInfo', ch.info); set('chart5', ch.c5); set('chart1', ch.c1); } catch (e) { console.warn('경로 차트 실패:', e); }
         const box = el.querySelector('[data-out="smartNote"]');
         if (box) box.innerHTML = VS.notes ? `<details class="bg-cyan-950/30 border border-cyan-900/60 rounded-xl p-3"><summary class="text-xs font-bold text-cyan-200 cursor-pointer min-h-11 flex items-center">자동으로 채운 숫자는 이렇게 정했어요 (추정일 뿐, 예측 아님)</summary><ul class="text-xs text-slate-300 space-y-1 list-disc pl-4 mt-1">${VS.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></details>` : '';
       }
@@ -19249,6 +19356,17 @@ ${digest}`;
                   <div><div class="text-xs font-bold text-slate-200 mb-1">애널리스트 목표가</div><div data-out="analyst"></div></div>
                   <div><div class="text-xs font-bold text-slate-200 mb-1">최근 52주(1년) 최저 – 최고</div><div data-out="r52"></div></div>
                 </div>`, 'md:col-span-2')}
+              ${section('⑤', '앞으로 5년 · 1년 주가는 어떻게 움직일까? (그래프)', '③의 3가지 경우가 "어디에 도착하는지"에 이 종목 과거의 출렁임을 입힌 예시 경로예요', `
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="text-xs text-slate-300">회색 = 실제 주가, 색 선 = 약세·기준·강세 예시 경로</p>
+                  <button type="button" data-act="reroll" class="min-h-11 px-3 rounded-lg border border-slate-700 bg-slate-900 hover:border-cyan-500 text-xs text-slate-200"><i class="fa-solid fa-shuffle mr-1.5"></i>출렁임 다시 뽑기</button>
+                </div>
+                <div data-out="pathsInfo"></div>
+                <div class="text-xs font-bold text-slate-200 mt-4 mb-1">앞으로 5년 (최근 2년 실제 + 3가지 경로)</div>
+                <div data-out="chart5"></div>
+                <div class="text-xs font-bold text-slate-200 mt-4 mb-1">앞으로 1년 확대 (최근 1년 실제 + 52주 범위 띠 + 3가지 경로)</div>
+                <div data-out="chart1"></div>
+                <p class="text-xs text-slate-300 mt-3">끝점(5년 뒤 가격)만 ③의 계산값이고, 중간의 오르내림은 이 종목의 과거 주간 등락을 섞어 만든 <b>무작위 한 가지 예시</b>예요. 실제로는 같은 도착점이라도 길이 매우 다양하고, 예측이 아닙니다. 세로축은 로그(같은 간격 = 같은 비율)예요.</p>`, 'md:col-span-2')}
             </div>
 
             <details class="border-t border-slate-800 pt-3">
@@ -19315,6 +19433,8 @@ ${digest}`;
           VS.st.pe = b.dataset.v; persist(); syncUi(); updateOutputs();
         } else if (a === 'mos-fill') {
           VS.st.mosReq = b.dataset.v; persist(); syncUi(); updateOutputs();
+        } else if (a === 'reroll') {
+          VS.seedN++; buildNoise(); updateOutputs();
         } else if (a === 'smart') {
           const eps = VS.st.eps, man = VS.st.epsManual;
           VS.st = initState(VS.c, null); VS.st.eps = eps; VS.st.epsManual = man; // 기준 EPS 선택은 유지
@@ -19336,6 +19456,20 @@ ${digest}`;
         return st;
       }
 
+      // 과거 5년 주간 종가(경로 출렁임의 재료). 프록시가 없거나 실패하면 일반 변동성으로 대체
+      function loadHist(tk) {
+        const done = (arr) => {
+          if (!VS.c || VS.c.ticker !== tk) return; // 그 사이 다른 종목으로 바뀜
+          VS.hist = arr; VS.histState = arr && arr.length >= 41 ? 'ok' : 'none';
+          buildNoise(); updateOutputs();
+        };
+        if (typeof fetchSpark !== 'function') { done(null); return; }
+        Promise.resolve(fetchSpark([tk], '5y', '1wk')).then(r => {
+          const s = r && (r[tk] || Object.values(r)[0]);
+          done(s && Array.isArray(s.c) ? s.c.filter(v => valFin(v) && v > 0) : null);
+        }).catch(() => done(null));
+      }
+
       window.valCalcRender = function (el, ctx) {
         if (!el || !ctx) return false;
         const c = readCtx(ctx);
@@ -19343,9 +19477,11 @@ ${digest}`;
         const all = loadAll();
         VS.c = c; VS.all = all; VS.el = el; VS.st = initState(c, all[c.ticker]); VS.notes = valSmartDefaults(c).notes;
         if (isBlank(VS.st)) { applySmart(); persist(); } // 처음 보는 종목: 입력 없이도 결과가 보이게 자동값을 채운다
+        VS.hist = null; VS.histState = 'loading'; VS.noise = null; VS.seedN = 0;
         el.innerHTML = build();
         el.oninput = onInput; el.onchange = onInput; el.onclick = onClick;
         syncUi(); updateOutputs();
+        loadHist(c.ticker);
         return true;
       };
     })();
