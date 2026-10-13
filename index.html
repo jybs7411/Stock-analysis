@@ -2213,7 +2213,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.33.1';
+    const APP_VERSION = '1.33.2';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -23529,7 +23529,15 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         return true;
       }
       function onClick(e) {
-        if (e.detail === 2 && rootEl.contains(e.target)) { const w = e.target.closest('[data-sym]'); if (w && onDblClick(e)) return; }
+        // 같은 종목 행을 0.6초 안에 두 번 누르면 더블클릭 (브라우저 detail/dblclick 은 첫 클릭의 목록 재렌더·레이아웃 변화로 끊기므로 직접 센다)
+        if (rootEl.contains(e.target)) {
+          const w = e.target.closest('[data-sym]');
+          if (w && !e.target.closest('input,select,textarea,label,a,#wlMenu,[data-act=star],[data-act=menu]')) {
+            const now = Date.now(), prev = RT.lastClk;
+            RT.lastClk = { sym: w.dataset.sym, t: now };
+            if (e.detail === 2 || (prev && prev.sym === w.dataset.sym && now - prev.t < 600)) { RT.lastClk = null; if (onDblClick(e)) return; }
+          } else RT.lastClk = null;
+        }
         const t = e.target.closest('[data-act]');
         if (t && rootEl.contains(t)) { act(t, e); return; }
         if (!e.target.closest('#wlMenu')) closeMenu();
