@@ -1029,6 +1029,14 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
             <input type="checkbox" id="autoAiInput" class="mt-0.5 accent-cyan-500">
             <span class="text-[11px] text-slate-400"><strong class="text-slate-200">종목을 검색하면 AI 분석도 자동 실행</strong> — 데이터가 뜨면 이어서 AI 분석(종목 분석·불단왕·전일 복기)이 자동으로 채워집니다. <span class="text-emerald-400">무료 키로만</span> 호출하며, 유료 키(검색 Grounding)를 켜 둔 경우 종목 분석 탭은 과금 방지를 위해 자동 실행하지 않고 버튼으로만 실행합니다. 끄면 버튼을 눌렀을 때만 호출합니다.</span>
           </label>
+          <label class="block font-semibold text-white mt-3 mb-1">관심종목 더블클릭 이동</label>
+          <select id="watchDblInput" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white outline-none focus:border-cyan-400">
+            <option value="analyze">분석 (종목 분석 탭)</option>
+            <option value="multi">멀티 차트</option>
+            <option value="bdw">불단왕</option>
+            <option value="prev">전일 복기</option>
+          </select>
+          <p class="text-[11px] text-slate-500 mt-1">관심종목 탭에서 종목을 더블클릭(모바일은 두 번 탭)하면 여기서 고른 화면으로 바로 이동합니다. 한 번 클릭은 그대로 상세 보기입니다.</p>
           <label class="mt-3 flex items-start gap-2 cursor-pointer select-none">
             <input type="checkbox" id="geminiGroundingInput" class="mt-0.5 accent-cyan-500">
             <span class="text-[11px] text-slate-400"><strong class="text-slate-200">구글 검색 Grounding 사용</strong> <span class="text-amber-400">(유료 · 기본 꺼짐)</span> — 켜면 최신 뉴스·실적을 검색해 반영하지만, 무료 키로는 막히거나 한도가 매우 작을 수 있습니다. 막히면 자동으로 검색 없이 다시 시도합니다.</span>
@@ -2205,7 +2213,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.32.1';
+    const APP_VERSION = '1.33.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3451,12 +3459,19 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       return v;
     }
 
+    // 관심종목 더블클릭 시 이동할 화면 (analyze | multi | bdw | prev)
+    function watchDblTarget() {
+      let v = ''; try { v = localStorage.getItem('pentanalyst_watch_dbl') || ''; } catch (e) { /* 저장소 사용 불가 */ }
+      return ['analyze', 'multi', 'bdw', 'prev'].includes(v) ? v : 'analyze';
+    }
+
     function openApiSettingsModal() {
       document.getElementById('geminiApiKeyInput').value = getStoredApiKey('gemini_key');
       document.getElementById('geminiPaidKeyInput').value = getStoredApiKey('gemini_key_paid');
       document.getElementById('geminiModelInput').value = getStoredApiKey('gemini_model');
       document.getElementById('btCostInput').value = getStoredApiKey('bt_cost');
       document.getElementById('autoAiInput').checked = autoAiOn();
+      document.getElementById('watchDblInput').value = watchDblTarget();
       document.getElementById('geminiGroundingInput').checked = geminiGroundingOn();
       document.getElementById('proxyUrlInput').value = getStoredApiKey('proxy_url') || DEFAULT_PROXY_URL;
       const gCidEl = document.getElementById('gdriveClientIdInput');
@@ -3483,6 +3498,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       const btRaw = parseFloat(document.getElementById('btCostInput').value);
       setStoredApiKey('bt_cost', Number.isFinite(btRaw) && btRaw >= 0 && btRaw <= 5 ? String(btRaw) : '');
       localStorage.setItem('pentanalyst_auto_ai', document.getElementById('autoAiInput').checked ? '1' : '0');
+      localStorage.setItem('pentanalyst_watch_dbl', document.getElementById('watchDblInput').value);
       setStoredApiKey('gemini_grounding', document.getElementById('geminiGroundingInput').checked ? '1' : '');
       setStoredApiKey('proxy_url', proxy);
       const gCidEl = document.getElementById('gdriveClientIdInput');
@@ -23503,6 +23519,13 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (!silent) notify('저장했어요', `${sym} 가격 계획을 저장했어요.`, 'success');
         return true;
       }
+      // 더블클릭 → 설정('관심종목 더블클릭 이동')에서 고른 화면으로 바로 이동
+      function onDblClick(e) {
+        const row = e.target.closest('[data-sym]');
+        if (!row || !rootEl.contains(row) || e.target.closest('input,select,textarea,label,a,#wlMenu,[data-act=star],[data-act=menu]')) return;
+        const sym = row.dataset.sym, k = typeof watchDblTarget === 'function' ? watchDblTarget() : 'analyze';
+        if (k === 'multi') sendMulti(multiFrom(sym)); else goTo(k, sym);
+      }
       function onClick(e) {
         const t = e.target.closest('[data-act]');
         if (t && rootEl.contains(t)) { act(t, e); return; }
@@ -23664,6 +23687,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       }
       function wireRoot() {
         rootEl.addEventListener('click', onClick);
+        rootEl.addEventListener('dblclick', onDblClick);
         rootEl.addEventListener('submit', onSubmit);
         rootEl.addEventListener('input', onInput);
         rootEl.addEventListener('change', onChange);
