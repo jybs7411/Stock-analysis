@@ -2213,7 +2213,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.42.0';
+    const APP_VERSION = '1.43.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2660,10 +2660,23 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       "SAP": "SAP"
     };
 
+    // 지수 별칭: 'S&P500'·'나스닥' 같은 이름 → 야후 지수 심볼. 'DOW'·'SPX' 처럼 실제 종목 티커와 겹치는 영문 약어는 일부러 뺐다(지수는 ^DJI 처럼 ^ 를 붙여 입력).
+    const INDEX_ALIASES = {
+      'S&P500': '^GSPC', 'S&P': '^GSPC', 'SP500': '^GSPC', 'GSPC': '^GSPC', '에스앤피500': '^GSPC', '에스앤피': '^GSPC', '스탠다드앤푸어스': '^GSPC',
+      '나스닥': '^IXIC', '나스닥종합': '^IXIC', '나스닥지수': '^IXIC', 'NASDAQ': '^IXIC', 'NASDAQCOMPOSITE': '^IXIC', 'IXIC': '^IXIC',
+      '나스닥100': '^NDX', 'NASDAQ100': '^NDX',
+      '다우': '^DJI', '다우존스': '^DJI', '다우지수': '^DJI', 'DOWJONES': '^DJI', 'DJI': '^DJI',
+      '러셀2000': '^RUT', 'RUSSELL2000': '^RUT', '필라델피아반도체': '^SOX', 'SOX': '^SOX',
+      'VIX': '^VIX', '변동성지수': '^VIX', '공포지수': '^VIX',
+      '코스피': '^KS11', 'KOSPI': '^KS11', '코스닥': '^KQ11', 'KOSDAQ': '^KQ11', '니케이': '^N225', 'NIKKEI': '^N225', '닛케이': '^N225'
+    };
     function resolveTickerInput(input) {
       if (!input) return "JVA";
       const clean = input.trim();
       const upper = clean.toUpperCase();
+      const idxKey = upper.replace(/\s+/g, '');
+      if (INDEX_ALIASES[idxKey]) return INDEX_ALIASES[idxKey];
+      if (/^\^[A-Z0-9.\-]{1,14}$/.test(idxKey)) return idxKey;   // ^GSPC, ^IXIC 처럼 직접 입력한 지수
 
       if (NAME_TO_TICKER_MAP[clean]) return NAME_TO_TICKER_MAP[clean];
       if (NAME_TO_TICKER_MAP[upper]) return NAME_TO_TICKER_MAP[upper];
@@ -2678,7 +2691,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (byName) return byName.ticker;
       }
 
-      return upper.replace(/[^A-Z0-9.\-]/g, '');
+      return upper.replace(/[^A-Z0-9.\-=]/g, '');   // '=' 은 선물·환율(ES=F, KRW=X)용
     }
 
     // ===== 검색 기록 (localStorage) =====
@@ -4277,7 +4290,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         analysisInputs = { upperTicker, market, fundamentals, deep, history, ind, tech };
         currentAnalysisData = composeAnalysis(analysisInputs, null);
         // 검색한 종목은 스크리너에도 바로 등록(이미 있으면 실시간 값 갱신)
-        if (activeCurrency === 'USD') upsertScreenerEntry(upperTicker, market, fundamentals); // 스크리너는 미국(USD) 종목 기준
+        if (activeCurrency === 'USD' && !/^\^|=/.test(upperTicker)) upsertScreenerEntry(upperTicker, market, fundamentals); // 스크리너는 미국(USD) 종목 기준
         renderAnalysisResult(currentAnalysisData);
         renderDeepAnalysis(deep);
         renderValCalcCard();
@@ -17253,10 +17266,42 @@ ${pdFactsText(d)}`;
     }
     function mkRefresh() { mkLoad({ force: true }); }
     function mkRetry() { mkLoad({ missingOnly: true }); }
+    // 자동 새로고침(5분): 설정이 없으면 '장중·장전'(REGULAR/PRE)에만 켜지고, 마감 후·휴장 중에는 불필요한 요청을 하지 않는다.
+    const MK_AUTO_KEY = 'pentanalyst_mk_auto', MK_PANE_KEY = 'pentanalyst_mk_pane';
+    function mkAutoWanted() {
+        let v = null; try { v = localStorage.getItem(MK_AUTO_KEY); } catch (e) { /* 무시 */ }
+        if (v === '1') return true;
+        if (v === '0') return false;
+        const st = mkMarketState();
+        return st === 'REGULAR' || st === 'PRE' || st === 'PREPRE';
+    }
+    function mkMarketState() { const r = MK.stats['^GSPC'] && MK.stats['^GSPC'].marketState ? MK.stats['^GSPC'] : MK.stats['SPY']; return r && r.marketState || null; }
+    function mkEnsureTimer() {
+        if (MK.timer) return;
+        MK.timer = setInterval(() => {
+            if (activeAppTab === 'market' && document.visibilityState !== 'hidden' && mkAutoWanted() && !MK.loading && Date.now() - MK.loadTs >= MK_CACHE_MS) mkLoad({ force: true });
+        }, 30000);
+    }
     function mkToggleAuto(on) {
-        MK.auto = !!on;
-        if (MK.timer) { clearInterval(MK.timer); MK.timer = null; }
-        if (MK.auto) MK.timer = setInterval(() => { if (activeAppTab === 'market' && document.visibilityState !== 'hidden') mkLoad({ force: true }); }, MK_CACHE_MS);
+        try { localStorage.setItem(MK_AUTO_KEY, on ? '1' : '0'); } catch (e) { /* 무시 */ }
+        mkEnsureTimer(); mkRenderHeader();
+    }
+    // 화면 분리: 브리핑(장전 예측·장후 복기·공식 매크로) ↔ 장중 시장(스냅샷·히트맵·산업·매크로·시장 폭)
+    function mkPane() {
+        let v = null; try { v = localStorage.getItem(MK_PANE_KEY); } catch (e) { /* 무시 */ }
+        if (v === 'brief' || v === 'live') return v;
+        return mkMarketState() === 'REGULAR' ? 'live' : 'brief';
+    }
+    function mkSetPane(p) {
+        try { localStorage.setItem(MK_PANE_KEY, p); } catch (e) { /* 무시 */ }
+        mkIdxHoverHide(true); MK.treeW = 0;
+        mkApplyPane(); mkRenderHeader(); mkRenderAll();
+    }
+    function mkApplyPane() {
+        const p = mkPane();
+        [['mkSecBrief', 'brief'], ['mkSecFred', 'brief'], ['mkSecSnap', 'live'], ['mkSecHeat', 'live'], ['mkSecInd', 'live'], ['mkSecMacro', 'live'], ['mkSecBreadth', 'live'], ['mkSecAi', 'live']].forEach(([id, pane]) => {
+            const e = document.getElementById(id); if (e) e.style.display = pane === p ? '' : 'none';
+        });
     }
 
     // ---------- 파생 데이터 (캐시: 데이터 버전 + 산업 그룹) ----------
@@ -17437,7 +17482,7 @@ ${pdFactsText(d)}`;
             MK.inited = mkBuildSkeleton(); MK.treeW = 0;
             if (!MK.inited) return;
         }
-        mkRenderHeader();
+        mkRenderHeader(); mkApplyPane(); mkEnsureTimer();
         const guard = (name, fn) => { try { fn(); } catch (e) { console.error(`시장 탭(${name}) 렌더 실패`, e); } };
         guard('brief', mkRenderBrief);
         guard('snapshot', mkRenderSnapshot);
@@ -17472,12 +17517,13 @@ ${pdFactsText(d)}`;
 <div class="flex flex-wrap items-center justify-between gap-3">
   <div>
     <h2 class="text-xl font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-earth-americas text-sky-400"></i>시장 · 매크로</h2>
-    <p class="text-[11px] text-slate-500 mt-0.5">지금 시장이 어떤 상태인지 한눈에: 스냅샷 · 히트맵 · 산업 로테이션 · 매크로 · 시장 폭</p>
+    <p class="text-[11px] text-slate-500 mt-0.5">${mkPane() === 'brief' ? '장 시작 전 준비·마감 후 복기: 데일리 브리핑 · 공식 매크로(FRED)' : '장중 실시간 흐름: 스냅샷 · 히트맵 · 산업 로테이션 · 매크로 · 시장 폭'}</p>
+    <div class="inline-flex bg-slate-900 border border-slate-800 rounded-xl p-1 mt-2 text-xs font-bold" role="tablist">${[['brief', 'fa-newspaper', '데일리 브리핑 (장전·장후)'], ['live', 'fa-chart-line', '장중 시장']].map(([k, ic, l]) => `<button type="button" role="tab" aria-selected="${mkPane() === k}" onclick="mkSetPane('${k}')" class="px-3 py-1.5 rounded-lg ${mkPane() === k ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}"><i class="fa-solid ${ic} mr-1.5"></i>${l}</button>`).join('')}</div>
   </div>
   <div class="flex flex-wrap items-center gap-2 text-[11px]">
     ${state ? `<span class="px-2 py-1 rounded-lg border ${open ? 'bg-emerald-950 border-emerald-700 text-emerald-300' : 'bg-slate-900 border-slate-700 text-slate-300'}"><i class="fa-solid fa-circle text-[7px] mr-1 ${open ? 'text-emerald-400' : 'text-slate-500'}"></i>${escapeHtml(MK_STATE_KO[state] || state)}</span>` : ''}
     ${ref && ref.time ? `<span class="text-slate-500" title="시세 기준 시각(내 기기 시간대)">기준 ${escapeHtml(mkFmtTime(ref.time))}</span>` : ''}
-    <label class="flex items-center gap-1 text-slate-400 cursor-pointer select-none"><input type="checkbox" ${MK.auto ? 'checked' : ''} onchange="mkToggleAuto(this.checked)" class="accent-sky-500"/>60초 자동 새로고침</label>
+    <label class="flex items-center gap-1 text-slate-400 cursor-pointer select-none"><input type="checkbox" ${mkAutoWanted() ? 'checked' : ''} onchange="mkToggleAuto(this.checked)" class="accent-sky-500"/><span title="기본값: 장중·장전에만 5분마다 자동 갱신, 마감 후에는 멈춤">5분 자동 새로고침</span></label>
     <button type="button" onclick="mkRefresh()" ${MK.loading ? 'disabled' : ''} class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-100 font-semibold rounded-lg border border-slate-700 inline-flex items-center gap-1.5"><i class="fa-solid fa-rotate ${MK.loading ? 'fa-spin' : ''}"></i>새로고침</button>
   </div>
 </div>
@@ -17521,7 +17567,7 @@ ${!MK.loading && (MK.failQ || MK.failS || missing > 5) && Object.keys(MK.stats).
             const recent = sp ? sp.c.slice(-63) : [];
             const up = recent.length > 1 ? ((recent[recent.length - 1] >= recent[0]) !== !!def.inv) : undefined;
             const chip = (lab, v) => `<div class="text-center"><div class="text-[9px] text-slate-500">${lab}</div><div class="text-[11px]">${mkPctHtml(v, { inv: def.inv, d: 1 })}</div></div>`;
-            return `<div role="button" tabindex="0" title="클릭하면 확대 차트 팝업" onclick="mkOpenIdx('${def.sym}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mkOpenIdx('${def.sym}')}" class="bg-slate-900/60 border border-slate-800 hover:border-sky-500 cursor-pointer rounded-xl p-3 flex flex-col gap-1.5 transition">
+            return `<div role="button" tabindex="0" title="올리면 미리보기, 클릭하면 확대 차트" onmouseenter="mkIdxHover('${def.sym}',this)" onmouseleave="mkIdxHoverHide(false)" onfocus="mkIdxHover('${def.sym}',this)" onblur="mkIdxHoverHide(false)" onclick="mkOpenIdx('${def.sym}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mkOpenIdx('${def.sym}')}" class="bg-slate-900/60 border border-slate-800 hover:border-sky-500 cursor-pointer rounded-xl p-3 flex flex-col gap-1.5 transition">
               <div class="flex items-start justify-between gap-1"><div class="min-w-0"><div class="text-xs font-bold text-slate-200 truncate">${escapeHtml(def.ko)}</div><div class="text-[10px] text-slate-600 font-mono-numbers">${escapeHtml(def.sym)}</div></div><div class="text-[11px] font-bold">${mkPctHtml(st.r['1D'], { inv: def.inv })}</div></div>
               <div class="text-lg font-bold text-white font-mono-numbers leading-none">${st.price !== null ? mkFmtPrice(st.price) : ''}</div>
               ${mkSparkSvg(recent, up)}
@@ -17531,14 +17577,14 @@ ${!MK.loading && (MK.failQ || MK.failS || missing > 5) && Object.keys(MK.stats).
     }
 
     // 지수 카드 팝업: 확대 차트 + 5인 분석 탭으로 이동
-    function mkIdxChartSvg(vals, up) {
+    function mkIdxChartSvg(vals, up, hpx = 220) {
         const v = vals.filter(mkFin);
         if (v.length < 2) return '<div class="text-xs text-slate-500 py-10 text-center">차트 데이터 없음</div>';
         const w = 600, h = 220, pad = 6, mn = Math.min(...v), mx = Math.max(...v), rng = mx - mn || 1;
         const X = i => (i / (v.length - 1) * (w - pad * 2) + pad).toFixed(1), Y = x => (h - pad - (x - mn) / rng * (h - pad * 2)).toFixed(1);
         const pts = v.map((x, i) => `${X(i)},${Y(x)}`).join(' ');
         const col = up ? '#34d399' : '#fb7185';
-        return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="w-full block" style="height:220px" role="img" aria-label="종가 추이"><polygon points="${pad},${h - pad} ${pts} ${w - pad},${h - pad}" fill="${col}" fill-opacity="0.12"/><polyline fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke" points="${pts}"/></svg>
+        return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="w-full block" style="height:${hpx}px" role="img" aria-label="종가 추이"><polygon points="${pad},${h - pad} ${pts} ${w - pad},${h - pad}" fill="${col}" fill-opacity="0.12"/><polyline fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke" points="${pts}"/></svg>
           <div class="flex justify-between text-[10px] text-slate-500 font-mono-numbers mt-1"><span>저 ${mkFmtPrice(mn)}</span><span>고 ${mkFmtPrice(mx)}</span></div>`;
     }
     function mkIdxRange(sym, n) {
@@ -17553,6 +17599,37 @@ ${!MK.loading && (MK.failQ || MK.failS || missing > 5) && Object.keys(MK.stats).
             b.className = 'px-2.5 py-1 text-[11px] font-bold ' + (on ? 'bg-sky-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white');
         });
     }
+    // 호버 팝오버(마우스 환경): 카드에 올리면 작은 차트·등락·5인 분석 버튼이 뜬다. 클릭하면 기존 확대 팝업.
+    let mkHoverShowT = null, mkHoverHideT = null;
+    function mkIdxHoverHide(now) {
+        clearTimeout(mkHoverShowT); clearTimeout(mkHoverHideT);
+        const rm = () => { const e = document.getElementById('mkIdxPop'); if (e) e.remove(); };
+        if (now) rm(); else mkHoverHideT = setTimeout(rm, 220);
+    }
+    function mkIdxHover(sym, card) {
+        if (!window.matchMedia || !window.matchMedia('(hover: hover)').matches) return;
+        clearTimeout(mkHoverHideT); clearTimeout(mkHoverShowT);
+        mkHoverShowT = setTimeout(() => {
+            const def = MK_INDICES.find(d => d.sym === sym), st = MK.stats[sym], sp = MK.spark[sym];
+            if (!def || !st || document.getElementById('mkIdxModal')) return;
+            const old = document.getElementById('mkIdxPop'); if (old) old.remove();
+            const rec = sp && sp.c ? sp.c.slice(-63) : [], up = rec.length > 1 ? ((rec[rec.length - 1] >= rec[0]) !== !!def.inv) : true;
+            const chip = (lab, v) => `<div class="text-center"><div class="text-[9px] text-slate-500">${lab}</div><div class="text-[11px]">${mkPctHtml(v, { inv: def.inv, d: 1 })}</div></div>`;
+            const pop = document.createElement('div');
+            pop.id = 'mkIdxPop';
+            pop.className = 'fixed z-[90] w-[320px] bg-slate-950 border border-slate-600 rounded-xl p-3 space-y-2 shadow-2xl';
+            pop.onmouseenter = () => clearTimeout(mkHoverHideT);
+            pop.onmouseleave = () => mkIdxHoverHide(false);
+            pop.innerHTML = `<div class="flex items-baseline justify-between gap-2"><div class="min-w-0"><div class="text-sm font-extrabold text-white truncate">${escapeHtml(def.ko)}</div><div class="text-[10px] text-slate-500 font-mono-numbers">${escapeHtml(sym)} · 최근 3개월</div></div><div class="text-right"><div class="text-base font-bold text-white font-mono-numbers">${st.price !== null ? mkFmtPrice(st.price) : ''}</div><div class="text-xs font-bold">${mkPctHtml(st.r['1D'], { inv: def.inv })}</div></div></div>
+              ${mkIdxChartSvg(rec, up, 90)}
+              <div class="grid grid-cols-4 gap-1 border-t border-slate-800 pt-1.5">${chip('1일', st.r['1D'])}${chip('1주', st.r['1W'])}${chip('1개월', st.r['1M'])}${chip('연초', st.r['YTD'])}</div>
+              <div class="flex gap-1.5"><button type="button" onclick="mkGoIdxAnalysis('${sym}')" class="flex-1 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold"><i class="fa-solid fa-users-viewfinder mr-1"></i>5인 분석</button><button type="button" onclick="mkIdxHoverHide(true);mkOpenIdx('${sym}')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-bold">크게 보기</button></div>`;
+            document.body.appendChild(pop);
+            const r = card.getBoundingClientRect(), h = pop.offsetHeight;
+            pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 328)) + 'px';
+            pop.style.top = (r.bottom + 6 + h > window.innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6) + 'px';
+        }, 220);
+    }
     function mkCloseIdx() {
         const m = document.getElementById('mkIdxModal');
         if (m) m.remove();
@@ -17566,7 +17643,7 @@ ${!MK.loading && (MK.failQ || MK.failS || missing > 5) && Object.keys(MK.stats).
     function mkOpenIdx(sym) {
         const def = MK_INDICES.find(d => d.sym === sym), st = MK.stats[sym];
         if (!def || !st) return;
-        mkCloseIdx();
+        mkCloseIdx(); mkIdxHoverHide(true);
         const chip = (lab, v) => `<div class="text-center"><div class="text-[10px] text-slate-500">${lab}</div><div class="text-sm">${mkPctHtml(v, { inv: def.inv, d: 1 })}</div></div>`;
         const m = document.createElement('div');
         m.id = 'mkIdxModal';
@@ -18083,7 +18160,7 @@ ${digest}`;
         miss: { ko: '빗나감', cls: 'bg-rose-500/15 text-rose-300 border-rose-500/40' }
     };
     const MKB_TYPE_CLS = { positive: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', negative: 'bg-rose-500/15 text-rose-300 border-rose-500/30', neutral: 'bg-amber-500/15 text-amber-300 border-amber-500/30' };
-    const MKB = { mode: null, view: 'today', journal: null, sel: null, range: 90, rv: 'cal', cal: null, lastVer: -1, inited: false, tl: null, tlBusy: false, driveTimer: null, sync: { busy: false, last: 0, err: '' } };
+    const MKB = { open: {}, mode: null, view: 'today', journal: null, sel: null, range: 90, rv: 'cal', cal: null, lastVer: -1, inited: false, tl: null, tlBusy: false, driveTimer: null, sync: { busy: false, last: 0, err: '' } };
 
     // ---------- 시간 (미국 동부) ----------
     function mkbEt(ms) {
@@ -18249,7 +18326,7 @@ ${digest}`;
     function mkbNewsHtml(list) {
         if (!list || !list.length) return '';
         const items = list.map(n => `<li class="py-1.5 border-b border-slate-800/60 last:border-0"><a href="${escapeHtml(n.u || '#')}" target="_blank" rel="noopener noreferrer" class="text-[12px] text-slate-200 hover:text-sky-300 leading-snug">${escapeHtml(n.h)}</a><div class="text-[10px] text-slate-500">${escapeHtml(n.s || '')}${mkFin(n.t) ? ' · ' + new Date(n.t * 1000).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</div></li>`).join('');
-        return mkbBox(`${mkbH('fa-newspaper', 'text-sky-400', '오늘의 주요 헤드라인 (Finnhub)', '영문 원문 · 저장 시점 기준')}<ul>${items}</ul><p class="text-[10px] text-slate-500 mt-2">뉴스는 점수에 반영하지 않고, 복기할 때 그날의 맥락을 떠올리는 용도로만 저장합니다.</p>`);
+        return mkbFold('news', 'fa-newspaper', 'text-sky-400', '주요 헤드라인 (Finnhub)', '영문 원문 · 저장 시점 기준', `<ul>${items}</ul><p class="text-[10px] text-slate-500 mt-2">뉴스는 점수에 반영하지 않고, 복기할 때 그날의 맥락을 떠올리는 용도로만 저장합니다.</p>`);
     }
     const MKB_FG_KO = { 'extreme fear': '극단적 공포', fear: '공포', neutral: '중립', greed: '탐욕', 'extreme greed': '극단적 탐욕' };
     function mkbExtHtml(ext) {
@@ -18263,7 +18340,8 @@ ${digest}`;
         if (ext.be) cells.push(cell('10년 기대인플레이션', ext.be.last.toFixed(2) + '%', ext.be.last >= 2.6 ? '높음 — 물가 재상승 우려' : ext.be.last <= 2 ? '낮음 — 디스인플레이션 기대' : '목표(2%) 부근'));
         if (ext.stress) cells.push(cell('금융 스트레스 지수 (STLFSI)', mkbSgn(ext.stress.last), ext.stress.last > 0.5 ? '평균 이상의 스트레스' : ext.stress.last < -1 ? '매우 안정' : '평균 부근 (0 = 장기 평균)', ext.stress.last > 0.5 ? 'text-rose-400' : 'text-white'));
         if (ext.fg) cells.push(cell('CNN 공포·탐욕 지수', ext.fg.score.toFixed(0) + ' / 100', `${MKB_FG_KO[String(ext.fg.rating || '').toLowerCase()] || ext.fg.rating || ''}${mkFin(ext.fg.prevClose) ? ' · 전일 ' + ext.fg.prevClose.toFixed(0) : ''}${mkFin(ext.fg.week) ? ' · 1주 전 ' + ext.fg.week.toFixed(0) : ''}`, ext.fg.score >= 60 ? 'text-emerald-400' : ext.fg.score <= 40 ? 'text-rose-400' : 'text-amber-400'));
-        return mkbBox(`${mkbH('fa-shield-halved', 'text-cyan-400', '공식 데이터 교차검증 (FRED · CNN)', '야후 값과 다른 출처로 점검')}<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">${cells.join('')}</div><p class="text-[10px] text-slate-500 mt-2 leading-relaxed">FRED는 연준(세인트루이스) 일간 확정치라 하루 정도 늦을 수 있고, CNN 지수는 비공식 경로라 중단될 수 있습니다. 점수 계산에는 넣지 않고 참고·경고용으로만 씁니다.</p>`);
+        const sub = [ext.fg ? `CNN ${ext.fg.score.toFixed(0)}` : '', ext.hy && mkFin(ext.hy.pct1y) ? `하이일드 ${ext.hy.pct1y.toFixed(0)}%지점` : '', ext.curve ? `금리차 ${mkbSgn(ext.curve.last)}` : ''].filter(Boolean).join(' · ');
+        return mkbFold('ext', 'fa-shield-halved', 'text-cyan-400', '공식 데이터 교차검증 (FRED · CNN)', escapeHtml(sub || '야후 값과 다른 출처로 점검'), `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">${cells.join('')}</div><p class="text-[10px] text-slate-500 mt-2 leading-relaxed">FRED는 연준(세인트루이스) 일간 확정치라 하루 정도 늦을 수 있고, CNN 지수는 비공식 경로라 중단될 수 있습니다. 점수 계산에는 넣지 않고 참고·경고용으로만 씁니다.</p>`);
     }
     function mkbBuildPre() {
         const D = mkDerived(), S = k => MK.stats[k] || null;
@@ -18508,6 +18586,8 @@ ${digest}`;
     // ---------- 화면 조각 ----------
     const mkbBadge = (t, cls) => `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${cls}">${escapeHtml(t)}</span>`;
     const mkbH = (icon, color, title, sub) => `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div class="flex items-center gap-2"><i class="fa-solid ${icon} ${color}"></i><h4 class="text-sm font-extrabold text-white">${title}</h4></div>${sub ? `<span class="text-[10px] text-slate-500">${sub}</span>` : ''}</div>`;
+    // 접을 수 있는 블록: 열림 상태는 MKB.open 에 저장돼 다시 그려져도 유지된다
+    const mkbFold = (id, icon, color, title, sub, inner) => `<details ${MKB.open[id] ? 'open' : ''} ontoggle="MKB.open['${id}']=this.open" class="bg-slate-900/70 border border-slate-800 rounded-xl"><summary class="cursor-pointer select-none px-4 py-3 flex flex-wrap items-center justify-between gap-2 list-none [&::-webkit-details-marker]:hidden"><span class="flex items-center gap-2 text-sm font-extrabold text-white"><i class="fa-solid ${icon} ${color}"></i>${title}<i class="fa-solid fa-chevron-down text-[10px] text-slate-500"></i></span>${sub ? `<span class="text-[10px] text-slate-500">${sub}</span>` : ''}</summary><div class="px-4 pb-4">${inner}</div></details>`;
     const mkbBox = (inner, extra = '') => `<div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4 ${extra}">${inner}</div>`;
     const mkbFactorCall = sc => sc >= 60 ? 1 : sc <= 40 ? -1 : 0;
     // 장전 신호 신뢰도: 요인 일치도 + 선물↔점수 괴리 (저장된 pre 데이터만 사용)
@@ -18544,13 +18624,14 @@ ${digest}`;
           ${mkFin(pre.score) ? mkbGauge(pre.score) : '<div class="text-xs text-slate-500 text-center py-6">점수를 만들 데이터가 부족합니다.</div>'}
           ${mkFin(pre.score) ? `<div class="text-center mt-2">${mkbBadge(pre.label || '', 'bg-slate-800 text-slate-200 border-slate-700')}</div>` : ''}
           ${mkbConfidence(pre)}
-          <div class="mt-4 space-y-1.5"><div class="text-[10px] font-bold text-slate-400">점수 구성(요인별 0~100점) — 확률 대신 근거를 보여줍니다</div>${factors}</div>
+          <details ${MKB.open.fac ? 'open' : ''} ontoggle="MKB.open.fac=this.open" class="mt-3"><summary class="cursor-pointer select-none text-[11px] font-bold text-slate-400 hover:text-slate-200">점수 구성 보기 (${pre.factors.length}개 요인) <i class="fa-solid fa-chevron-down text-[9px]"></i></summary><div class="mt-2 space-y-1.5"><div class="text-[10px] text-slate-500">요인별 0~100점 — 확률 대신 근거를 보여줍니다</div>${factors}</div></details>
           <div class="mt-4 pt-3 border-t border-slate-800 text-[12px] text-slate-200 leading-relaxed"><div class="text-[10px] font-bold text-emerald-400 mb-1"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>핵심 한 줄 요약</div>${escapeHtml(pre.summary)}</div>`);
-        const macro = mkbBox(`${mkbH('fa-globe', 'text-sky-400', '밤사이 핵심 매크로 체크리스트', '선물 · 금리 · 달러 · VIX')}<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">${pre.macro.map(m => `<div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="text-[11px] text-slate-400">${escapeHtml(m.name)}</div><div class="flex items-baseline gap-2 flex-wrap"><span class="text-base font-extrabold text-white font-mono-numbers">${escapeHtml(m.value)}</span><span class="text-[11px] font-bold ${m.type === 'positive' ? 'text-emerald-400' : m.type === 'negative' ? 'text-rose-400' : 'text-amber-400'}">${escapeHtml(m.change)}</span></div></div>${mkbBadge(m.impact, MKB_TYPE_CLS[m.type] || MKB_TYPE_CLS.neutral)}</div><p class="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800/60">${escapeHtml(m.detail)}</p></div>`).join('')}</div>`);
-        const chain = mkbBox(`${mkbH('fa-layer-group', 'text-indigo-400', '매크로 인과관계 · 자금 흐름', '원인 → 자금 이동 → 오늘 영향 (일반적 경험칙)')}<div class="space-y-3">${pre.chain.length ? pre.chain.map(c => `<div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="text-xs font-bold text-indigo-300 mb-2">${escapeHtml(c.title)}</div><div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px]"><div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800"><div class="text-[9px] font-bold text-slate-400 mb-1">① 원인</div>${escapeHtml(c.cause)}</div><div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800"><div class="text-[9px] font-bold text-amber-400 mb-1">② 자금 이동</div>${escapeHtml(c.flow)}</div><div class="bg-slate-900/80 p-2 rounded-lg border border-emerald-500/20"><div class="text-[9px] font-bold text-emerald-400 mb-1">③ 오늘 영향</div>${escapeHtml(c.effect)}</div></div></div>`).join('') : '<div class="text-xs text-slate-500">뚜렷하게 움직인 변수가 없습니다.</div>'}</div>`);
-        const watch = mkbBox(`${mkbH('fa-fire', 'text-amber-400', '오늘의 관전 포인트 · 주도 섹터 / 주의 섹터', '직전 거래일 섹터 흐름 기준')}<div class="grid grid-cols-1 md:grid-cols-3 gap-3">${pre.watch.map(w => `<div class="rounded-xl p-3 border ${w.risk ? 'bg-rose-950/15 border-rose-500/30' : 'bg-slate-950/70 border-slate-800'}"><div class="flex items-center justify-between gap-2 mb-2">${mkbBadge(w.risk ? '주의 섹터' : '강세 섹터', w.risk ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30')}<span class="text-xs font-extrabold ${w.risk ? 'text-rose-400' : 'text-emerald-400'}">${escapeHtml(w.momentum)}</span></div><div class="text-[13px] font-bold text-white leading-snug mb-1">${escapeHtml(w.headline)}</div><p class="text-[11px] text-slate-400 leading-relaxed mb-2">${escapeHtml(w.summary)}</p><div class="flex flex-wrap gap-1">${w.tickers.map(t => `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700">${escapeHtml(t)}</span>`).join('')}</div></div>`).join('') || '<div class="text-xs text-slate-500">섹터 데이터가 부족합니다.</div>'}</div>`);
+        const macro = mkbBox(`${mkbH('fa-globe', 'text-sky-400', '밤사이 핵심 지표', '선물 · 금리 · 달러 · VIX (칸에 올리면 설명)')}<div class="grid grid-cols-2 gap-2">${pre.macro.map((m, ix) => `<div title="${escapeHtml(m.detail)}" class="${ix === 0 ? 'col-span-2 ' : ''}bg-slate-950/70 border border-slate-800 rounded-lg p-2.5"><div class="text-[10px] text-slate-400 truncate">${escapeHtml(m.name)}</div><div class="text-sm font-extrabold text-white font-mono-numbers truncate">${escapeHtml(m.value)}</div><div class="flex items-center justify-between gap-1 mt-1"><span class="text-[10px] font-bold ${m.type === 'positive' ? 'text-emerald-400' : m.type === 'negative' ? 'text-rose-400' : 'text-amber-400'}">${escapeHtml(m.change)}</span>${mkbBadge(m.impact, MKB_TYPE_CLS[m.type] || MKB_TYPE_CLS.neutral)}</div></div>`).join('')}</div>`);
+        const chain = mkbFold('chain', 'fa-layer-group', 'text-indigo-400', '매크로 인과관계 · 자금 흐름', '원인 → 자금 이동 → 오늘 영향 (일반적 경험칙)', `<div class="space-y-3">${pre.chain.length ? pre.chain.map(c => `<div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="text-xs font-bold text-indigo-300 mb-2">${escapeHtml(c.title)}</div><div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px]"><div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800"><div class="text-[9px] font-bold text-slate-400 mb-1">① 원인</div>${escapeHtml(c.cause)}</div><div class="bg-slate-900/80 p-2 rounded-lg border border-slate-800"><div class="text-[9px] font-bold text-amber-400 mb-1">② 자금 이동</div>${escapeHtml(c.flow)}</div><div class="bg-slate-900/80 p-2 rounded-lg border border-emerald-500/20"><div class="text-[9px] font-bold text-emerald-400 mb-1">③ 오늘 영향</div>${escapeHtml(c.effect)}</div></div></div>`).join('') : '<div class="text-xs text-slate-500">뚜렷하게 움직인 변수가 없습니다.</div>'}</div>`);
+        const watch = mkbFold('watch', 'fa-fire', 'text-amber-400', '관전 포인트 · 주도 / 주의 섹터', '직전 거래일 섹터 흐름 기준', `<div class="grid grid-cols-1 md:grid-cols-3 gap-3">${pre.watch.map(w => `<div class="rounded-xl p-3 border ${w.risk ? 'bg-rose-950/15 border-rose-500/30' : 'bg-slate-950/70 border-slate-800'}"><div class="flex items-center justify-between gap-2 mb-2">${mkbBadge(w.risk ? '주의 섹터' : '강세 섹터', w.risk ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30')}<span class="text-xs font-extrabold ${w.risk ? 'text-rose-400' : 'text-emerald-400'}">${escapeHtml(w.momentum)}</span></div><div class="text-[13px] font-bold text-white leading-snug mb-1">${escapeHtml(w.headline)}</div><p class="text-[11px] text-slate-400 leading-relaxed mb-2">${escapeHtml(w.summary)}</p><div class="flex flex-wrap gap-1">${w.tickers.map(t => `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700">${escapeHtml(t)}</span>`).join('')}</div></div>`).join('') || '<div class="text-xs text-slate-500">섹터 데이터가 부족합니다.</div>'}</div>`);
         const scen = mkbBox(`${mkbH('fa-bullseye', 'text-emerald-400', '장중 시나리오 · 가격 레벨 기반 대응 가이드', 'SPY 20일 고·저점, 50·200일선, 금리, VIX 로 계산')}<div class="grid grid-cols-1 md:grid-cols-3 gap-3">${pre.scen.map(s => { const c = { emerald: 'border-emerald-500/40 bg-emerald-950/10', amber: 'border-amber-500/40 bg-amber-950/10', rose: 'border-rose-500/40 bg-rose-950/10' }[s.color]; return `<div class="rounded-xl p-3 border ${c}"><div class="text-sm font-extrabold text-white mb-2">${escapeHtml(s.type)}</div><div class="bg-slate-950/70 border border-slate-800 rounded-lg p-2 mb-2"><div class="text-[9px] font-bold text-slate-400 mb-0.5">발동 조건 (Trigger)</div><div class="text-[11px] font-semibold text-slate-200">${escapeHtml(s.condition)}</div></div><div class="text-[9px] font-bold text-emerald-400 mb-0.5">대응 아이디어</div><p class="text-[11px] text-slate-300 leading-relaxed">${escapeHtml(s.strategy)}</p></div>`; }).join('') || '<div class="text-xs text-slate-500">SPY 일봉이 부족해 시나리오를 만들 수 없습니다.</div>'}</div>`);
-        return `<div class="space-y-4"><div class="grid grid-cols-1 lg:grid-cols-12 gap-4"><div class="lg:col-span-5">${compass}</div><div class="lg:col-span-7 space-y-4">${macro}${mkbExtHtml(pre.ext)}${chain}</div></div>${watch}${mkbNewsHtml(pre.news)}${scen}</div>`;
+        const more = [chain, watch, mkbExtHtml(pre.ext), mkbNewsHtml(pre.news)].filter(Boolean);
+        return `<div class="space-y-4"><div class="grid grid-cols-1 lg:grid-cols-12 gap-4"><div class="lg:col-span-5">${compass}</div><div class="lg:col-span-7">${macro}</div></div>${scen}<div><div class="text-[11px] font-bold text-slate-400 mb-2"><i class="fa-solid fa-layer-group mr-1"></i>더 보기 — 필요할 때만 펼치세요</div><div class="space-y-2">${more.join('')}</div></div></div>`;
     }
 
     function mkbTodoHtml(date, post) {
