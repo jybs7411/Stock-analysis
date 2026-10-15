@@ -14,11 +14,16 @@
  *   GET /api/revisions?symbol=NVDA               -> EPS 추정치 변화(7/30/60/90일 전)·상향/하향 건수·최근 서프라이즈·업종 (리비전 랭크용)
  *   GET /api/deep?symbol=NVDA                    -> 실적·재무·애널리스트·수급·배당·뉴스 (심층 분석용)
  *   GET /api/calendar?type=earnings|economic|ipo|splits&from=YYYY-MM-DD&to=YYYY-MM-DD -> 야후 금융 달력 {type,from,to,items[]} (기간 최대 70일)
+ *   GET /api/fred?ids=DGS10,DGS2,T10Y2Y,BAMLH0A0HYM2 -> (키 불필요) FRED 공식 금리·스프레드 시리즈 {series:{ID:{last,prev,d1,d5,d21,pct1y,t,v}}}
+ *   GET /api/feargreed                           -> (키 불필요) CNN 공포·탐욕 지수 (비공식)
+ *   GET /api/finnhub?kind=reco|insider&symbol=AAPL -> (FINNHUB_KEY 필요) 애널리스트 추천 추이 / 내부자 심리
+ *   야후 장애 시 /api/chart·/api/spark 는 Stooq, /api/quotes 는 Finnhub→Stooq, /api/calendar(실적·IPO)는 Finnhub 로 자동 대체 (X-Source 헤더)
  *
  * 응답 헤더: X-Fetched-At(데이터를 받아 온 시각, ISO) · X-Cache(HIT|MISS|STALE — STALE 이면 야후 장애로 마지막 성공본을 돌려준 것)
  *
  * 환경 변수 (wrangler.toml [vars] 또는 대시보드)
  *   ALLOWED_ORIGIN  허용할 Origin (예: https://jybs7411.github.io). 비우면 "*" 허용.
+ *   FINNHUB_KEY     (선택, Secret) Finnhub 무료 키. 없으면 Finnhub 보강만 건너뜀.
  */
 
 const YAHOO = 'https://query1.finance.yahoo.com';
@@ -41,7 +46,7 @@ function corsHeaders(request, env) {
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     // 프런트가 '데이터 기준 시각·캐시 상태'를 표시할 수 있게 노출
-    'Access-Control-Expose-Headers': 'X-Fetched-At, X-Cache',
+    'Access-Control-Expose-Headers': 'X-Fetched-At, X-Cache, X-Source',
     'Vary': 'Origin'
   };
 }
@@ -428,6 +433,16 @@ async function fetchSparkAll(symbols, range, interval) {
       if (resp.ok) { const m = chartToSpark(await resp.json()); if (m) out[sym] = m; }
     } catch (e) { /* 이 종목은 비워 둠 */ }
   }));
+  // 그래도 없는 종목은 Stooq 일봉으로 보충 (일/주/월봉만, 최대 15개 — 서브요청 한도 고려)
+  if (DAILY_IV[interval]) {
+    const still = symbols.filter(s => !out[s] && stooqSymbol(s)).slice(0, 15);
+    await Promise.all(still.map(async sym => {
+      try {
+        const rows = await stooqRows(sym, interval, range);
+        if (rows) out[sym] = { t: rows.map(r => r.t), c: rows.map(r => r.c), prev: rows.length > 1 ? rows[rows.length - 2].c : null, price: rows[rows.length - 1].c, currency: 'USD' };
+      } catch (e) { /* 이 종목은 비워 둠 */ }
+    }));
+  }
   return out;
 }
 
@@ -591,6 +606,160 @@ async function fetchCalendar(type, from, to) {
   return [];
 }
 
+// ---- 보조 데이터 소스 (야후 장애·보완용) ----
+// 키 없이: Stooq(일봉 백업) · FRED CSV(공식 금리·신용 스프레드) · CNN Fear & Greed(비공식)
+// 키 있으면: Finnhub (환경 변수 FINNHUB_KEY — 시세 백업 · 애널리스트 추천 · 내부자 심리 · 실적/IPO 캘린더 백업)
+// 모두 실패해도 야후 경로는 영향받지 않으며, 응답에 X-Source 헤더(stooq|finnhub)가 붙는다.
+const STOOQ = 'https://stooq.com';
+const STOOQ_INDEX = { '^GSPC': '^spx', '^DJI': '^dji', '^IXIC': '^ndq', '^NDX': '^ndx' };
+const RANGE_DAYS = { '1d': 7, '5d': 10, '1mo': 31, '3mo': 93, '6mo': 186, '1y': 366, '2y': 731, '5y': 1830, '10y': 3660, ytd: 366, max: 1e9 };
+const DAILY_IV = { '1d': 'd', '1wk': 'w', '1mo': 'm' };
+const SRC_UA = { 'User-Agent': UA, 'Accept': '*/*' };
+
+function stooqSymbol(sym) {
+  if (STOOQ_INDEX[sym]) return STOOQ_INDEX[sym];
+  if (/^[A-Z]{1,5}(-[A-Z])?$/.test(sym)) return sym.toLowerCase() + '.us';
+  return null; // 선물·환율·VIX 등은 Stooq 심볼로 안전하게 바꿀 수 없어 건너뜀
+}
+
+export function parseStooqCsv(text) {
+  const lines = String(text || '').trim().split(/\r?\n/);
+  if (lines.length < 2 || !/^date,open,high,low,close/i.test(lines[0])) return null;
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const f = lines[i].split(',');
+    const t = Date.parse(f[0] + 'T21:00:00Z') / 1000, o = +f[1], h = +f[2], l = +f[3], c = +f[4], v = +f[5];
+    if (!Number.isFinite(t) || !Number.isFinite(c)) continue;
+    rows.push({ t, o: Number.isFinite(o) ? o : c, h: Number.isFinite(h) ? h : c, l: Number.isFinite(l) ? l : c, c, v: Number.isFinite(v) ? v : 0 });
+  }
+  return rows.length ? rows : null;
+}
+
+async function stooqRows(sym, interval, range) {
+  const code = stooqSymbol(sym), ivc = DAILY_IV[interval];
+  if (!code || !ivc) return null;
+  const resp = await fetch(`${STOOQ}/q/d/l/?s=${encodeURIComponent(code)}&i=${ivc}`, { headers: SRC_UA });
+  if (!resp.ok) return null;
+  let rows = parseStooqCsv(await resp.text());
+  if (!rows) return null;
+  const days = range === 'ytd' ? Math.max(1, (Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 1)) / 86400000 + 5) : (RANGE_DAYS[range] || 366);
+  const cut = Date.now() / 1000 - days * 86400;
+  const sliced = rows.filter(r => r.t >= cut);
+  return sliced.length >= 2 ? sliced : rows.slice(-2);
+}
+
+// Stooq 일봉 → Yahoo v8 chart 호환 JSON (프런트 parseYahooChart 가 그대로 읽는다)
+export function stooqToChart(sym, rows, interval) {
+  const last = rows[rows.length - 1], prev = rows.length > 1 ? rows[rows.length - 2] : null;
+  return { chart: { result: [{
+    meta: { symbol: sym, currency: 'USD', exchangeName: 'Stooq', dataGranularity: interval, regularMarketPrice: last.c, chartPreviousClose: prev ? prev.c : null, previousClose: prev ? prev.c : null, regularMarketTime: last.t, source: 'stooq' },
+    timestamp: rows.map(r => r.t),
+    indicators: { quote: [{ open: rows.map(r => r.o), high: rows.map(r => r.h), low: rows.map(r => r.l), close: rows.map(r => r.c), volume: rows.map(r => r.v) }] }
+  }], error: null } };
+}
+
+async function stooqChart(sym, range, interval) {
+  const rows = await stooqRows(sym, interval, range);
+  return rows ? stooqToChart(sym, rows, interval) : null;
+}
+
+// Finnhub (키 있을 때만)
+async function finnhub(env, path, params) {
+  if (!env || !env.FINNHUB_KEY) return null;
+  const qs = new URLSearchParams({ ...params, token: env.FINNHUB_KEY });
+  const resp = await fetch(`https://finnhub.io/api/v1/${path}?${qs}`, { headers: { 'User-Agent': UA } });
+  if (!resp.ok) throw new Error(`finnhub ${path} ${resp.status}`);
+  return resp.json();
+}
+
+// 야후 시세 실패 시 대체: Finnhub quote(키 있으면) → Stooq 최근 2개 일봉. 시총·52주 등은 비워 둠.
+async function fetchQuotesFallback(symbols, env) {
+  const out = [];
+  await Promise.all(symbols.slice(0, 20).map(async sym => {
+    try {
+      const fh = await finnhub(env, 'quote', { symbol: sym });
+      if (fh && num(fh.c) && num(fh.c) > 0) {
+        out.push({ symbol: sym, name: null, price: num(fh.c), change: num(fh.d), changePct: num(fh.dp), prevClose: num(fh.pc), open: num(fh.o), high: num(fh.h), low: num(fh.l), volume: null, avgVolume: null, marketCap: null, high52: null, low52: null, ma50: null, ma200: null, pe: null, forwardPe: null, currency: 'USD', exchange: null, type: null, marketState: null, time: num(fh.t) });
+        return;
+      }
+    } catch (e) { /* Stooq 로 */ }
+    try {
+      const rows = await stooqRows(sym, '1d', '5d');
+      if (rows && rows.length >= 2) {
+        const a = rows[rows.length - 1], b = rows[rows.length - 2];
+        out.push({ symbol: sym, name: null, price: a.c, change: a.c - b.c, changePct: (a.c / b.c - 1) * 100, prevClose: b.c, open: a.o, high: a.h, low: a.l, volume: a.v, avgVolume: null, marketCap: null, high52: null, low52: null, ma50: null, ma200: null, pe: null, forwardPe: null, currency: 'USD', exchange: null, type: null, marketState: null, time: a.t });
+      }
+    } catch (e) { /* 이 종목은 비워 둠 */ }
+  }));
+  return out;
+}
+
+// FRED — 키 없이 읽을 수 있는 공개 CSV (fredgraph.csv). 허용 시리즈만 중계한다.
+const FRED_IDS = {
+  DGS10: '미 10년물 국채금리(%)', DGS2: '미 2년물 국채금리(%)', DGS3MO: '미 3개월 국채금리(%)',
+  T10Y2Y: '장단기 금리차 10Y-2Y(%p)', T10Y3M: '장단기 금리차 10Y-3M(%p)',
+  BAMLH0A0HYM2: '하이일드 스프레드(OAS, %p)', BAMLC0A0CM: '투자등급 회사채 스프레드(OAS, %p)',
+  DFII10: '10년 실질금리(%)', T10YIE: '10년 기대인플레이션(%)', VIXCLS: 'VIX 종가'
+};
+export function parseFredCsv(text, id) {
+  const lines = String(text || '').trim().split(/\r?\n/);
+  if (lines.length < 2 || !/^(date|observation_date)\s*,/i.test(lines[0])) return null;
+  const t = [], v = [];
+  for (let i = 1; i < lines.length; i++) {
+    const f = lines[i].split(',');
+    const x = f[1] === undefined || f[1] === '' || f[1] === '.' ? NaN : +f[1];
+    if (!Number.isFinite(x) || !/^\d{4}-\d{2}-\d{2}$/.test(f[0])) continue;
+    t.push(f[0]); v.push(x);
+  }
+  if (!v.length) return null;
+  const n = v.length, last = v[n - 1], at = k => (n > k ? v[n - 1 - k] : null);
+  const win = v.slice(-252), below = win.filter(x => x <= last).length;
+  return { id, label: FRED_IDS[id] || id, date: t[n - 1], last, prev: at(1), d1: n > 1 ? last - v[n - 2] : null, d5: at(5) !== null ? last - at(5) : null, d21: at(21) !== null ? last - at(21) : null,
+    pct1y: win.length >= 60 ? below / win.length * 100 : null, t: t.slice(-120), v: v.slice(-120) };
+}
+async function fetchFred(ids) {
+  const cosd = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
+  const out = {};
+  await Promise.all(ids.map(async id => {
+    try {
+      const resp = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${id}&cosd=${cosd}`, { headers: SRC_UA });
+      if (!resp.ok) return;
+      const m = parseFredCsv(await resp.text(), id);
+      if (m) out[id] = m;
+    } catch (e) { /* 이 시리즈만 생략 */ }
+  }));
+  return out;
+}
+
+// CNN Fear & Greed — 비공식 엔드포인트라 형식이 바뀌거나 막힐 수 있다(실패하면 502).
+export function mapFearGreed(j) {
+  const fg = j && j.fear_and_greed;
+  if (!fg || !Number.isFinite(+fg.score)) return null;
+  const hist = ((j.fear_and_greed_historical && j.fear_and_greed_historical.data) || []).slice(-30).map(p => ({ t: p.x, v: Math.round(p.y * 10) / 10 })).filter(p => Number.isFinite(p.v));
+  return { score: Math.round(+fg.score * 10) / 10, rating: fg.rating || null, prevClose: num(fg.previous_close), week: num(fg.previous_1_week), month: num(fg.previous_1_month), year: num(fg.previous_1_year), timestamp: fg.timestamp || null, history: hist };
+}
+async function fetchFearGreed() {
+  const resp = await fetch('https://production.dataviz.cnn.io/index/fearandgreed/graph/data', { headers: { 'User-Agent': UA, Accept: 'application/json', Origin: 'https://edition.cnn.com', Referer: 'https://edition.cnn.com/' } });
+  if (!resp.ok) throw new Error(`cnn ${resp.status}`);
+  const m = mapFearGreed(await resp.json());
+  if (!m) throw new Error('cnn format');
+  return m;
+}
+
+// Finnhub 캘린더 → 야후 캘린더와 같은 항목 형식 (실적·IPO 만)
+export function mapFinnhubCalendar(type, j) {
+  const ts = d => (d ? new Date(d + 'T13:00:00Z').toISOString() : null);
+  if (type === 'earnings') {
+    return ((j && j.earningsCalendar) || []).filter(r => r.symbol && !NON_COMMON_RE.test(r.symbol)).slice(0, 200).map(r => ({
+      sym: r.symbol, name: r.symbol, event: '', ts: ts(r.date), tt: ({ bmo: 'BMO', amc: 'AMC', dmh: 'TNS' })[r.hour] || '',
+      epsEst: num(r.epsEstimate), epsAct: num(r.epsActual), surp: (num(r.epsEstimate) && num(r.epsActual) !== null) ? (r.epsActual / r.epsEstimate - 1) * 100 : null, mcap: null }));
+  }
+  if (type === 'ipo') {
+    return ((j && j.ipoCalendar) || []).map(r => ({ sym: r.symbol || '', name: r.name || r.symbol || '', exch: r.exchange || '', ts: ts(r.date), from: null, to: null, offer: num(r.price), cur: 'USD', shares: num(r.numberOfShares), deal: r.status || '' }));
+  }
+  return [];
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
@@ -601,7 +770,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/health') {
-      return json({ ok: true, service: 'pentanalyst-proxy' }, 200, request, env);
+      return json({ ok: true, service: 'pentanalyst-proxy', sources: { yahoo: true, stooq: true, fred: true, feargreed: true, finnhub: !!(env && env.FINNHUB_KEY) } }, 200, request, env);
     }
 
     if (url.pathname === '/api/search') {
@@ -628,7 +797,19 @@ export default {
             return json(data, 200, request, env, 60);
           });
         }
-        return await cached(request, ctx, 30, async () => json({ quotes: await fetchQuotes(symbols) }, 200, request, env, 30));
+        return await cached(request, ctx, 30, async () => {
+          try {
+            const quotes = await fetchQuotes(symbols);
+            if (quotes.length) return json({ quotes }, 200, request, env, 30);
+            throw new Error('yahoo quotes empty');
+          } catch (err) {
+            const quotes = await fetchQuotesFallback(symbols, env); // Finnhub → Stooq
+            if (!quotes.length) throw err;
+            const res = json({ quotes, degraded: true }, 200, request, env, 30);
+            res.headers.set('X-Source', (env && env.FINNHUB_KEY) ? 'finnhub' : 'stooq');
+            return res;
+          }
+        });
       } catch (err) {
         return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
       }
@@ -641,7 +822,61 @@ export default {
         return json({ error: 'invalid params' }, 400, request, env);
       }
       try {
-        return await cached(request, ctx, 1800, async () => json({ type, from, to, items: await fetchCalendar(type, from, to) }, 200, request, env, 1800));
+        return await cached(request, ctx, 1800, async () => {
+          try {
+            return json({ type, from, to, items: await fetchCalendar(type, from, to) }, 200, request, env, 1800);
+          } catch (err) {
+            // 야후 실패 시 Finnhub 로 실적·IPO 만 대체 (키 있을 때)
+            const path = type === 'earnings' ? 'calendar/earnings' : type === 'ipo' ? 'calendar/ipo' : null;
+            const fh = path ? await finnhub(env, path, { from, to }).catch(() => null) : null;
+            if (!fh) throw err;
+            const res = json({ type, from, to, items: mapFinnhubCalendar(type, fh), degraded: true }, 200, request, env, 600);
+            res.headers.set('X-Source', 'finnhub');
+            return res;
+          }
+        });
+      } catch (err) {
+        return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
+      }
+    }
+
+    if (url.pathname === '/api/fred') {
+      const ids = [...new Set((url.searchParams.get('ids') || 'DGS10,DGS2,DGS3MO,T10Y2Y,BAMLH0A0HYM2').split(',').map(x => x.trim().toUpperCase()))].filter(x => FRED_IDS[x]);
+      if (!ids.length || ids.length > 10) return json({ error: 'invalid ids' }, 400, request, env);
+      try {
+        return await cached(request, ctx, 3600, async () => {
+          const series = await fetchFred(ids);
+          if (!Object.keys(series).length) throw new Error('fred empty');
+          return json({ series }, 200, request, env, 3600);
+        });
+      } catch (err) {
+        return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
+      }
+    }
+
+    if (url.pathname === '/api/feargreed') {
+      try {
+        return await cached(request, ctx, 1800, async () => json(await fetchFearGreed(), 200, request, env, 1800));
+      } catch (err) {
+        return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
+      }
+    }
+
+    if (url.pathname === '/api/finnhub') {
+      if (!env || !env.FINNHUB_KEY) return json({ error: 'finnhub key not configured' }, 501, request, env);
+      const kind = url.searchParams.get('kind') || '';
+      const sym = (url.searchParams.get('symbol') || '').trim().toUpperCase();
+      if (!['reco', 'insider'].includes(kind) || !SYMBOL_RE.test(sym)) return json({ error: 'invalid params' }, 400, request, env);
+      try {
+        return await cached(request, ctx, 6 * 3600, async () => {
+          if (kind === 'reco') {
+            const arr = await finnhub(env, 'stock/recommendation', { symbol: sym });
+            return json({ symbol: sym, trend: (Array.isArray(arr) ? arr : []).slice(0, 4).map(r => ({ period: r.period, strongBuy: num(r.strongBuy), buy: num(r.buy), hold: num(r.hold), sell: num(r.sell), strongSell: num(r.strongSell) })) }, 200, request, env, 6 * 3600);
+          }
+          const to = new Date().toISOString().slice(0, 10), from = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+          const j = await finnhub(env, 'stock/insider-sentiment', { symbol: sym, from, to });
+          return json({ symbol: sym, months: ((j && j.data) || []).slice(-12).map(r => ({ year: r.year, month: r.month, change: num(r.change), mspr: num(r.mspr) })) }, 200, request, env, 6 * 3600);
+        });
       } catch (err) {
         return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
       }
@@ -657,15 +892,27 @@ export default {
         const range = RANGES.has(url.searchParams.get('range')) ? url.searchParams.get('range') : '1y';
         const interval = INTERVALS.has(url.searchParams.get('interval')) ? url.searchParams.get('interval') : '1d';
         return await cached(request, ctx, 60, async () => {
+          // 야후가 실패(네트워크·4xx·5xx)하면 일/주/월봉에 한해 Stooq 로 대체한다
+          const fallback = async () => {
+            const data = DAILY_IV[interval] ? await stooqChart(symbol, range, interval).catch(() => null) : null;
+            if (!data) return null;
+            const res = json(data, 200, request, env, 60);
+            res.headers.set('X-Source', 'stooq');
+            return res;
+          };
           const upstream = await fetch(
             `${YAHOO}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includePrePost=false`,
             { headers: { 'User-Agent': UA } }
-          );
-          if (upstream.status === 404) return json({ error: 'not found' }, 404, request, env);
-          if (!upstream.ok) return json({ error: `upstream ${upstream.status}` }, 502, request, env);
+          ).catch(() => null);
+          if (!upstream || !upstream.ok) {
+            const fb = await fallback();
+            if (fb) return fb;
+            if (upstream && upstream.status === 404) return json({ error: 'not found' }, 404, request, env);
+            return json({ error: `upstream ${upstream ? upstream.status : 'unreachable'}` }, 502, request, env);
+          }
           const data = await upstream.json();
           if (data?.chart?.error?.code === 'Not Found' || !data?.chart?.result) {
-            return json({ error: 'not found' }, 404, request, env);
+            return (await fallback()) || json({ error: 'not found' }, 404, request, env);
           }
           return json(data, 200, request, env, 60);
         });
