@@ -2218,7 +2218,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.45.0';
+    const APP_VERSION = '1.45.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3656,6 +3656,11 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (!el) return;
         const stale = headers.get('X-Cache') === 'STALE';
         const d = new Date(at);
+        // 요청이 동시에 여러 개 오가고 캐시 응답은 옛 수신 시각을 달고 오므로, 이미 표시한 시각보다 오래된 응답은 무시한다(시각이 뒤로 튀지 않게).
+        if (!isNaN(d)) {
+          if (d.getTime() < (noteDataFreshness._last || 0)) return;
+          noteDataFreshness._last = d.getTime();
+        }
         const hm = isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         el.textContent = stale
           ? `⚠ 야후 응답 실패 — ${hm} 에 받아 둔 이전 데이터를 보여주는 중입니다`
