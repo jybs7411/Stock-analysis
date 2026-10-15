@@ -1011,13 +1011,13 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           <textarea
             id="geminiModelInput"
             rows="3"
-            placeholder="gemini-3.5-flash&#10;gemini-3.5-flash-lite"
+            placeholder="gemini-3.8-flash&#10;gemini-3.6-flash&#10;gemini-3.5-flash-lite"
             autocomplete="off" spellcheck="false"
             class="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono-numbers text-sm outline-none focus:border-cyan-400"
           ></textarea>
           <p class="text-[11px] text-slate-500 mt-1">
             맨 위 모델부터 쓰다가 <strong>무료 사용량(분당·일일 한도)이 소진되면 자동으로 아래 모델</strong>로 내려가고, 한도가 풀리면 <strong>다시 위 모델로 올라옵니다</strong>.
-            AI Studio 모델 목록의 이름 그대로 입력하세요. 비우면 기본 목록(<code>gemini-3.5-flash</code> → <code>gemini-3.5-flash-lite</code>)을 씁니다. 없는 모델 이름은 자동으로 건너뜁니다.
+            AI Studio 모델 목록의 이름 그대로 입력하세요. 비우면 기본 목록(<code>gemini-3.8-flash</code> → <code>gemini-3.6-flash</code> → <code>gemini-3.5-flash-lite</code>)을 씁니다. 없는 모델 이름은 자동으로 건너뜁니다.
           </p>
           <div id="geminiModelStatus" class="mt-2 text-[11px] bg-slate-950/70 border border-slate-800 rounded-lg p-2.5 space-y-1"></div>
           <button type="button" onclick="geminiResetCooldowns()" class="mt-1.5 text-[11px] text-sky-300 hover:text-sky-200 underline">한도 상태 초기화 (모두 다시 시도)</button>
@@ -2218,7 +2218,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.44.0';
+    const APP_VERSION = '1.44.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3476,7 +3476,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       return Number.isFinite(v) && v >= 0 && v <= 5 ? v : BT_COST_DEFAULT;
     }
     // 모델 우선순위: 위에서부터 쓰고, 무료 한도(429)가 소진되면 아래로 내려갔다가 쿨다운이 끝나면 다시 위로 올라온다.
-    const GEMINI_DEFAULT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+    const GEMINI_DEFAULT_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite']; // 2026-10 공식 문서 기준 무료 티어가 있는 모델 중 높은 순 (gemini-4-argon 은 무료 티어 없음)
     const GEMINI_COOL_KEY = 'pentanalyst_gemini_cool';
     function geminiModels() {
       const raw = getStoredApiKey('gemini_model').split(/[\n,;]+/).map(x => x.trim().replace(/[^A-Za-z0-9._-]/g, '')).filter(Boolean);
