@@ -14,9 +14,9 @@
 | `GET /api/search?q=basf` | 회사명·티커 검색 (전 세계 거래소, 주식·ETF·지수·코인). `[{symbol, name, exchange, type}]` (1시간 캐시) |
 | `GET /api/deep?symbol=NVDA` | 심층 분석용: 실적(EPS 서프라이즈·전망·다음 발표일), 재무(성장률·마진·부채·FCF·연/분기 매출), 애널리스트(의견 분포·상향/하향), 수급(기관·내부자 보유·거래), 배당, 최신 뉴스 (1시간 캐시) |
 | `GET /api/fundamentals?symbol=NVDA` | P/E, Forward P/E, PEG, P/S, P/B, ROE, Short Float, 애널리스트 목표가(평균/최저/최고), 컨센서스, 섹터·업종, 사업 개요 + 스크리너 필터용 값: 베타, 배당(수익률·배당금·배당성향), ROA, 매출총이익률·영업이익률·순이익률, 매출/이익 성장률, 부채비율(%), 유동·당좌비율, FCF, 총매출, 애널리스트 평균 점수·수, 내부자/기관 보유율, 유통주식수, 평균 거래량, 국가·거래소·통화, EPS(실적/예상). 값이 없으면 `null`, 비율은 12.3 = 12.3% (6시간 캐시, 추가 업스트림 요청 없음) |
-| `GET /api/fred?ids=DGS10,DGS2,T10Y2Y,BAMLH0A0HYM2` | **(키 불필요)** FRED 공식 일간 시리즈(국채금리·장단기 금리차·하이일드/회사채 스프레드·실질금리·VIX). 마지막 값·전일/5일/21일 변화·1년 백분위·최근 120개 (1시간 캐시) |
+| `GET /api/fred?ids=DGS10,DGS2,T10Y2Y,BAMLH0A0HYM2` | **(키 불필요)** FRED 공식 시리즈(국채금리·장단기 금리차·하이일드/회사채 스프레드·실질금리·기대인플레이션·금융 스트레스·연방기금금리·CPI·근원 PCE·실업률·실업수당 청구 등 허용 목록만). 마지막 값·전일/5일/21일 변화·1년 백분위·최근 120개 (1시간 캐시) |
 | `GET /api/feargreed` | **(키 불필요)** CNN 공포·탐욕 지수와 최근 30일 추이. 비공식 경로라 막히면 502 (30분 캐시) |
-| `GET /api/finnhub?kind=reco\|insider&symbol=AAPL` | **(Finnhub 키 필요)** 애널리스트 투자의견 추이 / 내부자 매수 심리(MSPR). 키가 없으면 501 |
+| `GET /api/finnhub?kind=reco\|insider\|peers\|surprise&symbol=AAPL` · `?kind=news` | **(Finnhub 키 필요)** 애널리스트 투자의견 추이 / 내부자 매수 심리(MSPR) / 동종 종목 / EPS 서프라이즈 / 시장 헤드라인(15분 캐시). 키가 없으면 501 |
 
 ### 야후 장애 시 자동 백업
 - `/api/chart`·`/api/spark` : 야후가 실패하면 **Stooq 일/주/월봉**으로 대체 (응답 헤더 `X-Source: stooq`). 분봉·선물·환율·VIX는 대체하지 않음.

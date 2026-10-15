@@ -16,7 +16,7 @@
  *   GET /api/calendar?type=earnings|economic|ipo|splits&from=YYYY-MM-DD&to=YYYY-MM-DD -> 야후 금융 달력 {type,from,to,items[]} (기간 최대 70일)
  *   GET /api/fred?ids=DGS10,DGS2,T10Y2Y,BAMLH0A0HYM2 -> (키 불필요) FRED 공식 금리·스프레드 시리즈 {series:{ID:{last,prev,d1,d5,d21,pct1y,t,v}}}
  *   GET /api/feargreed                           -> (키 불필요) CNN 공포·탐욕 지수 (비공식)
- *   GET /api/finnhub?kind=reco|insider&symbol=AAPL -> (FINNHUB_KEY 필요) 애널리스트 추천 추이 / 내부자 심리
+ *   GET /api/finnhub?kind=reco|insider|peers|surprise&symbol=AAPL, ?kind=news -> (FINNHUB_KEY 필요) 추천 추이 / 내부자 심리 / 동종 종목 / EPS 서프라이즈 / 시장 헤드라인
  *   야후 장애 시 /api/chart·/api/spark 는 Stooq, /api/quotes 는 Finnhub→Stooq, /api/calendar(실적·IPO)는 Finnhub 로 자동 대체 (X-Source 헤더)
  *
  * 응답 헤더: X-Fetched-At(데이터를 받아 온 시각, ISO) · X-Cache(HIT|MISS|STALE — STALE 이면 야후 장애로 마지막 성공본을 돌려준 것)
@@ -700,7 +700,9 @@ const FRED_IDS = {
   DGS10: '미 10년물 국채금리(%)', DGS2: '미 2년물 국채금리(%)', DGS3MO: '미 3개월 국채금리(%)',
   T10Y2Y: '장단기 금리차 10Y-2Y(%p)', T10Y3M: '장단기 금리차 10Y-3M(%p)',
   BAMLH0A0HYM2: '하이일드 스프레드(OAS, %p)', BAMLC0A0CM: '투자등급 회사채 스프레드(OAS, %p)',
-  DFII10: '10년 실질금리(%)', T10YIE: '10년 기대인플레이션(%)', VIXCLS: 'VIX 종가'
+  DFII10: '10년 실질금리(%)', T10YIE: '10년 기대인플레이션(%)', VIXCLS: 'VIX 종가',
+  DFF: '연방기금금리 실효(%)', UNRATE: '실업률(%)', CPIAUCSL: '소비자물가지수(CPI, 지수)', PCEPILFE: '근원 PCE 물가지수(지수)',
+  ICSA: '신규 실업수당 청구(건, 주간)', STLFSI4: '금융 스트레스 지수(0=평균, 주간)', DTWEXBGS: '달러 광의 지수(일간)'
 };
 export function parseFredCsv(text, id) {
   const lines = String(text || '').trim().split(/\r?\n/);
@@ -731,7 +733,7 @@ export function parseFredObs(j, id) {
   return fredStats(id, t, v);
 }
 async function fetchFred(ids, env) {
-  const cosd = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
+  const cosd = new Date(Date.now() - 470 * 86400000).toISOString().slice(0, 10);
   const out = {};
   await Promise.all(ids.map(async id => {
     if (env && env.FRED_KEY) { // 공식 API 우선, 실패하면 아래 공개 CSV 로
@@ -763,6 +765,12 @@ async function fetchFearGreed() {
   const m = mapFearGreed(await resp.json());
   if (!m) throw new Error('cnn format');
   return m;
+}
+
+// Finnhub 시장 뉴스 → 헤드라인 (링크는 http(s) 만 허용)
+export function mapFinnhubNews(arr) {
+  return (Array.isArray(arr) ? arr : []).filter(a => a && a.headline && /^https?:\/\//i.test(a.url || '')).slice(0, 12).map(a => ({
+    headline: String(a.headline).slice(0, 200), source: String(a.source || '').slice(0, 40), time: num(a.datetime), url: a.url, summary: String(a.summary || '').slice(0, 240) }));
 }
 
 // Finnhub 캘린더 → 야후 캘린더와 같은 항목 형식 (실적·IPO 만)
@@ -861,7 +869,7 @@ export default {
 
     if (url.pathname === '/api/fred') {
       const ids = [...new Set((url.searchParams.get('ids') || 'DGS10,DGS2,DGS3MO,T10Y2Y,BAMLH0A0HYM2').split(',').map(x => x.trim().toUpperCase()))].filter(x => FRED_IDS[x]);
-      if (!ids.length || ids.length > 10) return json({ error: 'invalid ids' }, 400, request, env);
+      if (!ids.length || ids.length > 16) return json({ error: 'invalid ids' }, 400, request, env);
       try {
         return await cached(request, ctx, 3600, async () => {
           const series = await fetchFred(ids, env);
@@ -885,9 +893,27 @@ export default {
       if (!env || !env.FINNHUB_KEY) return json({ error: 'finnhub key not configured' }, 501, request, env);
       const kind = url.searchParams.get('kind') || '';
       const sym = (url.searchParams.get('symbol') || '').trim().toUpperCase();
-      if (!['reco', 'insider'].includes(kind) || !SYMBOL_RE.test(sym)) return json({ error: 'invalid params' }, 400, request, env);
+      if (kind === 'news') { // 시장 전체 헤드라인 (종목 불필요)
+        try {
+          return await cached(request, ctx, 900, async () => {
+            const arr = await finnhub(env, 'news', { category: 'general' });
+            return json({ items: mapFinnhubNews(arr) }, 200, request, env, 900);
+          });
+        } catch (err) {
+          return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
+        }
+      }
+      if (!['reco', 'insider', 'peers', 'surprise'].includes(kind) || !SYMBOL_RE.test(sym)) return json({ error: 'invalid params' }, 400, request, env);
       try {
         return await cached(request, ctx, 6 * 3600, async () => {
+          if (kind === 'peers') {
+            const arr = await finnhub(env, 'stock/peers', { symbol: sym });
+            return json({ symbol: sym, peers: (Array.isArray(arr) ? arr : []).filter(x => typeof x === 'string' && SYMBOL_RE.test(x) && x !== sym).slice(0, 10) }, 200, request, env, 6 * 3600);
+          }
+          if (kind === 'surprise') {
+            const arr = await finnhub(env, 'stock/earnings', { symbol: sym, limit: 4 });
+            return json({ symbol: sym, items: (Array.isArray(arr) ? arr : []).slice(0, 4).map(r => ({ period: r.period, actual: num(r.actual), estimate: num(r.estimate), surprisePct: num(r.surprisePercent) })) }, 200, request, env, 6 * 3600);
+          }
           if (kind === 'reco') {
             const arr = await finnhub(env, 'stock/recommendation', { symbol: sym });
             return json({ symbol: sym, trend: (Array.isArray(arr) ? arr : []).slice(0, 4).map(r => ({ period: r.period, strongBuy: num(r.strongBuy), buy: num(r.buy), hold: num(r.hold), sell: num(r.sell), strongSell: num(r.strongSell) })) }, 200, request, env, 6 * 3600);
