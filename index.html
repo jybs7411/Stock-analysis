@@ -2213,7 +2213,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.40.2';
+    const APP_VERSION = '1.41.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -17505,13 +17505,71 @@ ${!MK.loading && (MK.failQ || MK.failS || missing > 5) && Object.keys(MK.stats).
             const recent = sp ? sp.c.slice(-63) : [];
             const up = recent.length > 1 ? ((recent[recent.length - 1] >= recent[0]) !== !!def.inv) : undefined;
             const chip = (lab, v) => `<div class="text-center"><div class="text-[9px] text-slate-500">${lab}</div><div class="text-[11px]">${mkPctHtml(v, { inv: def.inv, d: 1 })}</div></div>`;
-            return `<div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex flex-col gap-1.5">
+            return `<div role="button" tabindex="0" title="클릭하면 확대 차트 팝업" onclick="mkOpenIdx('${def.sym}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mkOpenIdx('${def.sym}')}" class="bg-slate-900/60 border border-slate-800 hover:border-sky-500 cursor-pointer rounded-xl p-3 flex flex-col gap-1.5 transition">
               <div class="flex items-start justify-between gap-1"><div class="min-w-0"><div class="text-xs font-bold text-slate-200 truncate">${escapeHtml(def.ko)}</div><div class="text-[10px] text-slate-600 font-mono-numbers">${escapeHtml(def.sym)}</div></div><div class="text-[11px] font-bold">${mkPctHtml(st.r['1D'], { inv: def.inv })}</div></div>
               <div class="text-lg font-bold text-white font-mono-numbers leading-none">${st.price !== null ? mkFmtPrice(st.price) : ''}</div>
               ${mkSparkSvg(recent, up)}
               <div class="grid grid-cols-3 gap-1 border-t border-slate-800 pt-1.5">${chip('1주', st.r['1W'])}${chip('1개월', st.r['1M'])}${chip('연초 대비', st.r['YTD'])}</div>
             </div>`;
-        }).join('') + `<div class="col-span-full text-[10px] text-slate-600">VIX 카드는 상승(공포 증가)을 적색, 하락을 녹색으로 표시합니다. 스파크라인은 최근 약 3개월 종가입니다.</div>`;
+        }).join('') + `<div class="col-span-full text-[10px] text-slate-600">VIX 카드는 상승(공포 증가)을 적색, 하락을 녹색으로 표시합니다. 스파크라인은 최근 약 3개월 종가입니다. 카드를 클릭하면 확대 차트 팝업이 열립니다.</div>`;
+    }
+
+    // 지수 카드 팝업: 확대 차트 + 5인 분석 탭으로 이동
+    function mkIdxChartSvg(vals, up) {
+        const v = vals.filter(mkFin);
+        if (v.length < 2) return '<div class="text-xs text-slate-500 py-10 text-center">차트 데이터 없음</div>';
+        const w = 600, h = 220, pad = 6, mn = Math.min(...v), mx = Math.max(...v), rng = mx - mn || 1;
+        const X = i => (i / (v.length - 1) * (w - pad * 2) + pad).toFixed(1), Y = x => (h - pad - (x - mn) / rng * (h - pad * 2)).toFixed(1);
+        const pts = v.map((x, i) => `${X(i)},${Y(x)}`).join(' ');
+        const col = up ? '#34d399' : '#fb7185';
+        return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="w-full block" style="height:220px" role="img" aria-label="종가 추이"><polygon points="${pad},${h - pad} ${pts} ${w - pad},${h - pad}" fill="${col}" fill-opacity="0.12"/><polyline fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke" points="${pts}"/></svg>
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono-numbers mt-1"><span>저 ${mkFmtPrice(mn)}</span><span>고 ${mkFmtPrice(mx)}</span></div>`;
+    }
+    function mkIdxRange(sym, n) {
+        const def = MK_INDICES.find(d => d.sym === sym), sp = MK.spark[sym], body = document.getElementById('mkIdxChart');
+        if (!def || !sp || !body) return;
+        const rec = n ? sp.c.slice(-n) : sp.c;
+        const up = rec.length > 1 ? ((rec[rec.length - 1] >= rec[0]) !== !!def.inv) : true;
+        body.innerHTML = mkIdxChartSvg(rec, up);
+        document.querySelectorAll('#mkIdxModal [data-mkr]').forEach(b => {
+            const on = +b.dataset.mkr === n;
+            b.setAttribute('aria-pressed', on);
+            b.className = 'px-2.5 py-1 text-[11px] font-bold ' + (on ? 'bg-sky-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white');
+        });
+    }
+    function mkCloseIdx() {
+        const m = document.getElementById('mkIdxModal');
+        if (m) m.remove();
+        document.removeEventListener('keydown', mkIdxKey);
+    }
+    function mkIdxKey(e) { if (e.key === 'Escape') mkCloseIdx(); }
+    function mkGoIdxAnalysis(sym) {
+        mkCloseIdx();
+        quickSearch(sym);   // appSetSymbol + 5인 분석 탭 전환 + 분석 실행
+    }
+    function mkOpenIdx(sym) {
+        const def = MK_INDICES.find(d => d.sym === sym), st = MK.stats[sym];
+        if (!def || !st) return;
+        mkCloseIdx();
+        const chip = (lab, v) => `<div class="text-center"><div class="text-[10px] text-slate-500">${lab}</div><div class="text-sm">${mkPctHtml(v, { inv: def.inv, d: 1 })}</div></div>`;
+        const m = document.createElement('div');
+        m.id = 'mkIdxModal';
+        m.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70';
+        m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+        m.onclick = e => { if (e.target === m) mkCloseIdx(); };
+        m.innerHTML = `<div class="w-full max-w-2xl max-h-full overflow-y-auto bg-slate-950 border border-slate-700 rounded-2xl p-4 space-y-3">
+          <div class="flex items-start justify-between gap-3"><div><div class="text-base font-extrabold text-white">${escapeHtml(def.ko)}</div><div class="text-[11px] text-slate-500 font-mono-numbers">${escapeHtml(sym)}</div></div>
+            <button type="button" onclick="mkCloseIdx()" aria-label="닫기" class="text-slate-400 hover:text-white text-lg leading-none px-2">&times;</button></div>
+          <div class="flex items-baseline gap-3"><div class="text-2xl font-bold text-white font-mono-numbers">${st.price !== null ? mkFmtPrice(st.price) : ''}</div><div class="text-sm font-bold">${mkPctHtml(st.r['1D'], { inv: def.inv })}</div></div>
+          <div class="flex rounded-lg overflow-hidden border border-slate-700 w-max" role="group" aria-label="차트 기간">${[[21, '1개월'], [63, '3개월'], [126, '6개월'], [0, '전체']].map(([n, l]) => `<button type="button" data-mkr="${n}" onclick="mkIdxRange('${sym}',${n})">${l}</button>`).join('')}</div>
+          <div id="mkIdxChart"></div>
+          <div class="grid grid-cols-4 gap-2 border-t border-slate-800 pt-2">${chip('1일', st.r['1D'])}${chip('1주', st.r['1W'])}${chip('1개월', st.r['1M'])}${chip('연초 대비', st.r['YTD'])}</div>
+          <button type="button" onclick="mkGoIdxAnalysis('${sym}')" class="w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold"><i class="fa-solid fa-users-viewfinder mr-1.5"></i>5인 분석 탭에서 보기</button>
+          ${sym.charAt(0) === '^' ? '<p class="text-[10px] text-slate-600">* 지수(^)는 종목 분석 데이터가 제한될 수 있습니다. 필요하면 아래 ETF 카드(SPY·QQQ 등)로 분석하세요.</p>' : ''}
+        </div>`;
+        document.body.appendChild(m);
+        document.addEventListener('keydown', mkIdxKey);
+        mkIdxRange(sym, 63);
     }
 
     // 2) 히트맵
