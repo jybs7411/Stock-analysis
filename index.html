@@ -2218,7 +2218,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.44.1';
+    const APP_VERSION = '1.45.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -9494,6 +9494,79 @@ STAG|STAG Industrial|E
 NNN|NNN REIT Inc.|E
 KRC|Kilroy Realty Corp.|E
 EPRT|Essential Properties Realty Trust|E
+SSNLF|Samsung Electronics (OTC)|S
+SSNHZ|Samsung Electronics GDR (OTC)|S
+HXSCL|SK Hynix ADR (OTC)|S
+SKM|SK Telecom ADR|M
+KB|KB Financial Group ADR|F
+SHG|Shinhan Financial Group ADR|F
+WF|Woori Financial Group ADR|F
+KEP|Korea Electric Power ADR|E
+PKX|POSCO Holdings ADR|E
+LPL|LG Display ADR|T
+GSK|GSK plc ADR|H
+TTE|TotalEnergies SE ADR|E
+BTI|British American Tobacco ADR|C
+VALE|Vale S.A. ADR|E
+HSBC|HSBC Holdings ADR|F
+UBS|UBS Group AG|F
+BCS|Barclays PLC ADR|F
+DB|Deutsche Bank AG|F
+ING|ING Groep ADR|F
+SAN|Banco Santander ADR|F
+BBVA|Banco Bilbao Vizcaya Argentaria ADR|F
+LYG|Lloyds Banking Group ADR|F
+HMC|Honda Motor ADR|A
+MUFG|Mitsubishi UFJ Financial ADR|F
+SMFG|Sumitomo Mitsui Financial ADR|F
+MFG|Mizuho Financial Group ADR|F
+NTDOY|Nintendo Co. ADR (OTC)|T
+TOELY|Tokyo Electron ADR (OTC)|S
+NTES|NetEase ADR|T
+TCEHY|Tencent Holdings ADR (OTC)|T
+BYDDY|BYD Company ADR (OTC)|A
+TME|Tencent Music ADR|M
+BEKE|KE Holdings ADR|F
+YUMC|Yum China Holdings|C
+ZTO|ZTO Express ADR|C
+INFY|Infosys ADR|T
+WIT|Wipro ADR|T
+HDB|HDFC Bank ADR|F
+IBN|ICICI Bank ADR|F
+GRAB|Grab Holdings|T
+PBR|Petrobras ADR|E
+ITUB|Itau Unibanco ADR|F
+RY|Royal Bank of Canada|F
+TD|Toronto-Dominion Bank|F
+BNS|Bank of Nova Scotia|F
+BMO|Bank of Montreal|F
+CM|Canadian Imperial Bank of Commerce|F
+ENB|Enbridge Inc.|E
+CNQ|Canadian Natural Resources|E
+SU|Suncor Energy|E
+TRP|TC Energy|E
+CP|Canadian Pacific Kansas City|E
+CNI|Canadian National Railway|E
+BAM|Brookfield Asset Management|F
+NTR|Nutrien Ltd.|E
+GOLD|Barrick Gold|E
+WPM|Wheaton Precious Metals|E
+FNV|Franco-Nevada|E
+STLA|Stellantis N.V.|A
+RACE|Ferrari N.V.|A
+ARGX|argenx SE ADR|H
+STM|STMicroelectronics|S
+ERIC|Ericsson ADR|T
+NOK|Nokia ADR|T
+LOGI|Logitech International|T
+CHKP|Check Point Software|T
+CYBR|CyberArk Software|T
+WIX|Wix.com|T
+TEVA|Teva Pharmaceutical ADR|H
+TSEM|Tower Semiconductor|S
+ASX|ASE Technology Holding ADR|S
+UMC|United Microelectronics ADR|S
+CHT|Chunghwa Telecom ADR|M
 `;
     const SECTOR_CODES = { T: 'Tech', S: 'Semiconductors', A: 'Automotive', H: 'Healthcare', F: 'Finance', C: 'Consumer', E: 'Energy', M: 'Communication' };
     SCREENER_EXTRA_UNIVERSE.trim().split('\n').forEach(line => {
