@@ -2195,7 +2195,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.38.0';
+    const APP_VERSION = '1.39.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -18284,14 +18284,29 @@ ${digest}`;
     const mkbBadge = (t, cls) => `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${cls}">${escapeHtml(t)}</span>`;
     const mkbH = (icon, color, title, sub) => `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div class="flex items-center gap-2"><i class="fa-solid ${icon} ${color}"></i><h4 class="text-sm font-extrabold text-white">${title}</h4></div>${sub ? `<span class="text-[10px] text-slate-500">${sub}</span>` : ''}</div>`;
     const mkbBox = (inner, extra = '') => `<div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4 ${extra}">${inner}</div>`;
+    const mkbFactorCall = sc => sc >= 60 ? 1 : sc <= 40 ? -1 : 0;
+    // 장전 신호 신뢰도: 요인 일치도 + 선물↔점수 괴리 (저장된 pre 데이터만 사용)
+    function mkbConfidence(pre) {
+        const f = (pre.factors || []).filter(x => mkFin(x.score));
+        if (!f.length) return '';
+        const bull = f.filter(x => mkbFactorCall(x.score) > 0).length, bear = f.filter(x => mkbFactorCall(x.score) < 0).length, mid = f.length - bull - bear;
+        const db = mkbBucket(pre.dirKey), maj = Math.max(bull, bear), warns = [];
+        if (mkFin(pre.score) && ((db > 0 && pre.score < 40) || (db < 0 && pre.score > 60))) warns.push('선물 방향과 위험 선호 점수가 엇갈립니다');
+        if (!pre.hasFut) warns.push('선물 시세가 없어 점수 기반 추정입니다');
+        if (bull && bear && Math.min(bull, bear) >= 2) warns.push(`강세 요인 ${bull}개 vs 약세 요인 ${bear}개로 신호가 갈립니다`);
+        const lv = warns.length >= 2 || (maj / f.length < 0.4) ? '낮음' : warns.length === 1 || maj / f.length < 0.6 ? '보통' : '높음';
+        const cls = { '높음': 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', '보통': 'bg-amber-500/15 text-amber-300 border-amber-500/30', '낮음': 'bg-rose-500/15 text-rose-300 border-rose-500/30' }[lv];
+        const tip = lv === '낮음' ? '신호가 엇갈리는 날은 개장 직후 30분 관망하고 비중을 줄이는 편이 안전합니다.' : lv === '보통' ? '일부 요인이 엇갈립니다. 선물 방향 유지 여부를 장 초반에 확인하세요.' : '대부분의 요인이 같은 방향을 가리킵니다. 그래도 확률이 아닌 참고 신호입니다.';
+        return `<div class="mt-3 bg-slate-950/60 border border-slate-800 rounded-lg p-2.5"><div class="flex items-center justify-between gap-2 mb-1"><span class="text-[10px] font-bold text-slate-400">신호 일치도 · 신뢰도</span>${mkbBadge('신뢰도 ' + lv, cls)}</div><div class="text-[11px] text-slate-300">요인 ${f.length}개 중 <b class="text-emerald-400">위험 선호 ${bull}</b> · <b class="text-amber-400">중립 ${mid}</b> · <b class="text-rose-400">위험 회피 ${bear}</b></div>${warns.map(w => `<div class="text-[11px] text-amber-300/90 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${escapeHtml(w)}</div>`).join('')}<div class="text-[10px] text-slate-500 mt-1">${tip}</div></div>`;
+    }
     function mkbGauge(score) {
         const s = Math.max(0, Math.min(100, score)), ang = -90 + s / 100 * 180, circ = Math.PI * 82, col = s >= 60 ? '#34d399' : s <= 40 ? '#fb7185' : '#fbbf24';
-        return `<div class="flex flex-col items-center"><svg viewBox="0 0 200 112" class="w-56 max-w-full" role="img" aria-label="위험 선호 점수 ${s.toFixed(0)}"><defs><linearGradient id="mkbGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#f43f5e"/><stop offset="50%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#10b981"/></linearGradient></defs>
+        return `<div class="flex flex-col items-center"><svg viewBox="0 0 200 110" class="w-52 max-w-full" role="img" aria-label="위험 선호 점수 ${s.toFixed(0)}"><defs><linearGradient id="mkbGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#f43f5e"/><stop offset="50%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#10b981"/></linearGradient></defs>
 <path d="M 18 100 A 82 82 0 0 1 182 100" fill="none" stroke="#1e293b" stroke-width="16" stroke-linecap="round"/>
 <path d="M 18 100 A 82 82 0 0 1 182 100" fill="none" stroke="url(#mkbGrad)" stroke-width="16" stroke-linecap="round" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${(circ - s / 100 * circ).toFixed(1)}"/>
 <g transform="translate(100,100) rotate(${ang.toFixed(1)})"><polygon points="-4,0 0,-68 4,0" fill="#f8fafc"/><circle r="7" fill="#0f172a" stroke="#f8fafc" stroke-width="3"/></g></svg>
-<div class="-mt-6 text-center"><span class="text-3xl font-extrabold" style="color:${col}">${s.toFixed(0)}</span><span class="text-xs text-slate-400"> / 100점</span></div>
-<div class="w-full flex justify-between text-[10px] text-slate-500 px-3 mt-1"><span>0 위험 회피</span><span>50</span><span>100 위험 선호</span></div></div>`;
+<div class="mt-1 text-center leading-none"><span class="text-2xl font-extrabold" style="color:${col}">${s.toFixed(0)}</span><span class="text-[11px] text-slate-400"> / 100점</span></div>
+<div class="w-full flex justify-between text-[10px] text-slate-500 px-3 mt-2"><span>0 위험 회피</span><span>50</span><span>100 위험 선호</span></div></div>`;
     }
     function mkbPreHtml(pre, o = {}) {
         const dcls = mkbBucket(pre.dirKey) > 0 ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : mkbBucket(pre.dirKey) < 0 ? 'bg-rose-500/15 text-rose-300 border-rose-500/30' : 'bg-amber-500/15 text-amber-300 border-amber-500/30';
@@ -18300,6 +18315,7 @@ ${digest}`;
           <div class="flex items-center justify-between gap-2 mb-3 bg-slate-950/70 border border-slate-800 rounded-lg p-2.5"><span class="text-[11px] text-slate-400">예상 시초가 흐름</span>${mkbBadge(pre.dirText, dcls)}</div>
           ${mkFin(pre.score) ? mkbGauge(pre.score) : '<div class="text-xs text-slate-500 text-center py-6">점수를 만들 데이터가 부족합니다.</div>'}
           ${mkFin(pre.score) ? `<div class="text-center mt-2">${mkbBadge(pre.label || '', 'bg-slate-800 text-slate-200 border-slate-700')}</div>` : ''}
+          ${mkbConfidence(pre)}
           <div class="mt-4 space-y-1.5"><div class="text-[10px] font-bold text-slate-400">점수 구성(요인별 0~100점) — 확률 대신 근거를 보여줍니다</div>${factors}</div>
           <div class="mt-4 pt-3 border-t border-slate-800 text-[12px] text-slate-200 leading-relaxed"><div class="text-[10px] font-bold text-emerald-400 mb-1"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>핵심 한 줄 요약</div>${escapeHtml(pre.summary)}</div>`);
         const macro = mkbBox(`${mkbH('fa-globe', 'text-sky-400', '밤사이 핵심 매크로 체크리스트', '선물 · 금리 · 달러 · VIX')}<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">${pre.macro.map(m => `<div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="text-[11px] text-slate-400">${escapeHtml(m.name)}</div><div class="flex items-baseline gap-2 flex-wrap"><span class="text-base font-extrabold text-white font-mono-numbers">${escapeHtml(m.value)}</span><span class="text-[11px] font-bold ${m.type === 'positive' ? 'text-emerald-400' : m.type === 'negative' ? 'text-rose-400' : 'text-amber-400'}">${escapeHtml(m.change)}</span></div></div>${mkbBadge(m.impact, MKB_TYPE_CLS[m.type] || MKB_TYPE_CLS.neutral)}</div><p class="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800/60">${escapeHtml(m.detail)}</p></div>`).join('')}</div>`);
@@ -18322,6 +18338,19 @@ ${digest}`;
         const nxt = Object.keys(mkbLoad().days).filter(d => d > date && mkbLoad().days[d].pre).sort()[0];
         return nxt ? `<p class="text-[11px] text-amber-300/90 mt-2"><i class="fa-solid fa-circle-info mr-1"></i>${nxt}(${mkbWk(nxt)})용 예측은 저장되어 있습니다. 마감 후에 저장한 예측은 그 다음 거래일 몫이라 ${date}과는 비교되지 않습니다.</p>` : '';
     }
+    // 장후: 예측 요인별 채점 + 예측 기울기(선물/점수 환산) 오차
+    function mkbAuditHtml(pre, spx) {
+        if (!pre || !mkFin(spx)) return '';
+        const ab = mkbActualBucket(spx), abTxt = ab > 0 ? '상승' : ab < 0 ? '하락' : '보합(±0.25% 이내)';
+        const rows = (pre.factors || []).filter(f => mkFin(f.score)).map(f => {
+            const c = mkbFactorCall(f.score), ok = c !== 0 && c === ab;
+            const st = c === 0 ? ['중립 판단', 'text-slate-400'] : ok ? ['적중', 'text-emerald-400'] : ['빗나감', 'text-rose-400'];
+            return `<div class="flex items-center justify-between gap-2 text-[11px] bg-slate-950/60 border border-slate-800 rounded-lg px-2.5 py-1.5"><span class="text-slate-300 truncate">${escapeHtml(f.label)}</span><span class="shrink-0 font-mono-numbers text-slate-500">${f.score.toFixed(0)}점 · ${c > 0 ? '선호' : c < 0 ? '회피' : '중립'}</span><span class="shrink-0 font-bold ${st[1]}">${st[0]}</span></div>`;
+        }).join('');
+        const err = mkFin(pre.tilt) ? spx - pre.tilt : null;
+        const errTxt = mkFin(err) ? `예측 기울기 ${mkbPct(pre.tilt)} → 실제 ${mkbPct(spx)}, 오차 ${mkbSgn(err)}%p (${Math.abs(err) < 0.3 ? '근접' : Math.abs(err) < 0.8 ? '보통' : '크게 어긋남'}${err > 0.3 ? ' · 예상보다 강했음' : err < -0.3 ? ' · 예상보다 약했음' : ''})` : '';
+        return mkbBox(`${mkbH('fa-list-check', 'text-sky-400', '요인별 채점 · 예측 오차 분석', `실제 S&P 500: ${abTxt}`)}${errTxt ? `<div class="text-xs text-slate-200 mb-2.5">${escapeHtml(errTxt)}</div>` : ''}<div class="grid grid-cols-1 md:grid-cols-2 gap-1.5">${rows}</div><p class="text-[10px] text-slate-500 mt-2 leading-relaxed">요인 점수 60 이상=위험 선호(상승 신호), 40 이하=위험 회피(하락 신호)로 보고 그날 방향과 비교합니다. 자주 빗나가는 요인은 되돌아보기 탭의 요인별 적중률에서 확인하세요.</p>`);
+    }
     function mkbPostHtml(post, pre, o = {}) {
         const acc = mkbAcc(pre, post.idx.spx);
         const idxCell = (n, v) => `<div class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-center"><div class="text-[10px] text-slate-400">${n}</div><div class="text-sm font-extrabold ${mkFin(v) ? (v >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-500'}">${mkbPct(v)}</div></div>`;
@@ -18338,7 +18367,7 @@ ${digest}`;
           ${o.canLoad && !(tl && tl.rows && tl.rows.length) ? `<button type="button" onclick="mkbLoadTimeline()" ${MKB.tlBusy ? 'disabled' : ''} class="mt-3 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 border border-slate-700 text-slate-100 text-xs font-bold rounded-lg"><i class="fa-solid ${MKB.tlBusy ? 'fa-spinner fa-spin' : 'fa-clock-rotate-left'} mr-1"></i>장중 변곡점 불러오기</button>` : ''}`);
         const feat = mkbBox(`${mkbH('fa-chart-line', 'text-emerald-400', '오늘의 특징주 · 추세 vs 일회성 판별', '시총 상위 150 중 변동·거래량 큰 종목, 이동평균·신고가로 판정')}<div class="space-y-2">${post.featured.length ? post.featured.map(f => `<div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="flex flex-wrap items-center justify-between gap-2 mb-1"><div class="flex items-center gap-2"><span class="text-sm font-extrabold text-white">${escapeHtml(f.name)}</span><span class="text-[11px] text-slate-500 font-mono">${escapeHtml(f.sym)}</span><span class="text-sm font-black ${f.up ? 'text-emerald-400' : 'text-rose-400'}">${mkbPct(f.pct)}</span></div>${mkbBadge(f.verdict, /추세적/.test(f.verdict) ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border-amber-500/30')}</div><div class="text-[11px] text-slate-400">${escapeHtml(f.reason)}</div></div>`).join('') : '<div class="text-xs text-slate-500">특징주를 고를 데이터가 부족합니다.</div>'}</div>`);
         const todo = mkbBox(`${mkbH('fa-bookmark', 'text-indigo-400', '다음 거래일을 위한 선제 체크리스트', '체크 상태는 기록과 함께 저장됩니다')}${mkbTodoHtml(post.date, post)}`);
-        return `<div class="space-y-4">${review}<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${money}${timeline}</div>${feat}${todo}</div>`;
+        return `<div class="space-y-4">${review}${mkbAuditHtml(pre, post.idx.spx)}<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${money}${timeline}</div>${feat}${todo}</div>`;
     }
 
     // ---------- 오늘 브리핑 화면 ----------
@@ -18452,6 +18481,37 @@ ${digest}`;
           <div class="grid grid-cols-7 gap-1">${cells}</div>
           <p class="text-[10px] text-slate-500 mt-2">날짜(미국 동부 기준)를 누르면 그날의 예측·복기·메모를 볼 수 있습니다. 기록 없는 날도 눌러 메모를 남길 수 있습니다.</p></div>`;
     }
+    function mkbDiag(days) {
+        const cmp = days.filter(d => d.pre && d.post && d.post.idx && mkFin(d.post.idx.spx)).sort((a, b) => a.date < b.date ? 1 : -1);
+        if (!cmp.length) return null;
+        const hit = d => { const a = mkbAcc(d.pre, d.post.idx.spx); return a === 'exact' || a === 'dir'; };
+        let streak = 0; const kind = hit(cmp[0]);
+        for (const d of cmp) { if (hit(d) !== kind) break; streak++; }
+        const er = cmp.filter(d => mkFin(d.pre.tilt)).map(d => d.post.idx.spx - d.pre.tilt);
+        const mae = er.length ? er.reduce((a, b) => a + Math.abs(b), 0) / er.length : null, bias = er.length ? er.reduce((a, b) => a + b, 0) / er.length : null;
+        const fac = {}, wd = {};
+        cmp.forEach(d => {
+            const a = mkbActualBucket(d.post.idx.spx), w = mkbWk(d.date), o = wd[w] || (wd[w] = { n: 0, h: 0 }); o.n++; if (hit(d)) o.h++;
+            (d.pre.factors || []).forEach(f => { const c = mkbFactorCall(f.score); if (!c) return; const x = fac[f.label] || (fac[f.label] = { n: 0, h: 0 }); x.n++; if (c === a) x.h++; });
+        });
+        return { n: cmp.length, streak, kind, mae, bias, nErr: er.length, fac: Object.entries(fac).map(([k, v]) => ({ k, n: v.n, r: v.h / v.n * 100 })).sort((a, b) => b.r - a.r), wd };
+    }
+    function mkbDiagHtml(days) {
+        const g = mkbDiag(days);
+        if (!g) return '';
+        const few = g.n < 20 ? `<p class="text-[10px] text-amber-300/80 mt-2"><i class="fa-solid fa-circle-info mr-1"></i>표본이 ${g.n}일뿐이라 우연일 수 있습니다. 20일 이상 쌓인 뒤에 참고하세요.</p>` : '';
+        const bar = (l, r, n) => `<div><div class="flex justify-between text-[10px] text-slate-400"><span class="truncate pr-2">${escapeHtml(l)}</span><span class="font-mono-numbers shrink-0">${r.toFixed(0)}% (${n}일)</span></div><div class="h-1.5 bg-slate-950 rounded-full overflow-hidden"><div class="h-full rounded-full ${r >= 55 ? 'bg-emerald-500' : r >= 45 ? 'bg-amber-500' : 'bg-rose-500'}" style="width:${r.toFixed(0)}%"></div></div></div>`;
+        const facBars = g.fac.filter(f => f.n >= 3).map(f => bar(f.k, f.r, f.n)).join('') || '<div class="text-[11px] text-slate-500">요인별 표본이 3일 이상 쌓이면 표시됩니다.</div>';
+        const wdBars = ['월', '화', '수', '목', '금'].filter(w => g.wd[w]).map(w => bar(w + '요일', g.wd[w].h / g.wd[w].n * 100, g.wd[w].n)).join('') || '<div class="text-[11px] text-slate-500">표본 없음</div>';
+        const biasTxt = mkFin(g.bias) ? (Math.abs(g.bias) < 0.15 ? '뚜렷한 쏠림 없음' : g.bias > 0 ? '실제가 예측보다 평균적으로 강했음(너무 보수적으로 예측)' : '실제가 예측보다 평균적으로 약했음(너무 낙관적으로 예측)') : '';
+        return `<div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4">${mkbH('fa-stethoscope', 'text-emerald-400', '예측 품질 진단', `비교 ${g.n}일 기준`)}
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-3"><div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 text-center"><div class="text-[10px] text-slate-400">현재 ${g.kind ? '연속 적중' : '연속 빗나감(부분 포함)'}</div><div class="text-lg font-extrabold ${g.kind ? 'text-emerald-400' : 'text-rose-400'}">${g.streak}일</div></div>
+            <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 text-center"><div class="text-[10px] text-slate-400">평균 오차(절대)</div><div class="text-lg font-extrabold text-white font-mono-numbers">${mkFin(g.mae) ? g.mae.toFixed(2) + '%p' : '–'}</div></div>
+            <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 text-center"><div class="text-[10px] text-slate-400">편향(실제−예측)</div><div class="text-lg font-extrabold font-mono-numbers ${mkFin(g.bias) ? (g.bias >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-500'}">${mkFin(g.bias) ? mkbSgn(g.bias) + '%p' : '–'}</div></div></div>
+          ${biasTxt ? `<p class="text-[11px] text-slate-300 mb-3">${biasTxt}</p>` : ''}
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><div><div class="text-[10px] font-bold text-slate-400 mb-1.5">요인별 방향 적중률 <span class="font-normal text-slate-500">(60↑/40↓ 판단일만)</span></div><div class="space-y-1.5">${facBars}</div></div><div><div class="text-[10px] font-bold text-slate-400 mb-1.5">요일별 방향 적중률</div><div class="space-y-1.5">${wdBars}</div></div></div>${few}</div>`;
+    }
+    function mkbSetRf(v) { MKB.rf = v; mkbRender(true); }
     function mkbReviewHtml() {
         const J = mkbLoad(), now = Date.now(), cutoff = MKB.range ? new Date(now - MKB.range * 86400000).toISOString().slice(0, 10) : '';
         const days = Object.values(J.days).filter(d => !cutoff || d.date >= cutoff).sort((a, b) => a.date < b.date ? 1 : -1);
@@ -18459,7 +18519,7 @@ ${digest}`;
         const chip = (n, l) => `<button type="button" onclick="mkbSetRange(${n})" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border ${MKB.range === n ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'}">${l}</button>`;
         const card = (l, v, sub) => `<div class="bg-slate-900/70 border border-slate-800 rounded-xl p-3 text-center"><div class="text-[10px] text-slate-400">${l}</div><div class="text-xl font-extrabold text-white font-mono-numbers">${v}</div>${sub ? `<div class="text-[10px] text-slate-500">${sub}</div>` : ''}</div>`;
         const bucket = st.buckets.map(b => { const a = b.v.length ? b.v.reduce((x, y) => x + y, 0) / b.v.length : null; return `<div class="flex justify-between text-xs bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-1.5"><span class="text-slate-300">${b.k}</span><span class="font-mono-numbers ${mkFin(a) ? (a >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-500'}">${mkFin(a) ? 'S&P 평균 ' + mkbPct(a) + ` (${b.v.length}일)` : '표본 없음'}</span></div>`; }).join('');
-        const rows = days.map(d => { const a = d.pre && d.post ? mkbAcc(d.pre, d.post.idx.spx) : null, on = MKB.sel === d.date;
+        const rows = days.filter(d => MKB.rf !== 'miss' || (d.pre && d.post && mkbAcc(d.pre, d.post.idx.spx) === 'miss')).map(d => { const a = d.pre && d.post ? mkbAcc(d.pre, d.post.idx.spx) : null, on = MKB.sel === d.date;
             return `<tr onclick="mkbOpenDay('${d.date}')" class="cursor-pointer border-t border-slate-800 hover:bg-slate-800/50 ${on ? 'bg-sky-950/40' : ''}"><td class="py-2 px-2 whitespace-nowrap text-white font-semibold">${d.date.slice(5)} (${mkbWk(d.date)})</td><td class="px-2 text-slate-300">${d.pre ? escapeHtml(MKB_DIR_KO[d.pre.dirKey].replace(' 출발 예상', '').replace(' 예상', '')) + (mkFin(d.pre.score) ? ` <span class="text-slate-500">${d.pre.score.toFixed(0)}점</span>` : '') : '<span class="text-slate-600">–</span>'}</td><td class="px-2 font-mono-numbers font-bold ${d.post ? (d.post.idx.spx >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-600'}">${d.post ? mkbPct(d.post.idx.spx) : '–'}</td><td class="px-2">${a ? mkbBadge(MKB_ACC[a].ko, MKB_ACC[a].cls) : '<span class="text-slate-600">–</span>'}</td><td class="px-2 text-center text-slate-500">${d.note && d.note.text ? '<i class="fa-solid fa-note-sticky text-amber-300" title="메모 있음"></i>' : ''}</td></tr>`; }).join('');
         return `<div class="space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-2"><div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] text-slate-400 mr-1">기간</span>${chip(30, '30일')}${chip(90, '90일')}${chip(365, '1년')}${chip(0, '전체')}</div>
@@ -18467,7 +18527,8 @@ ${digest}`;
           <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5">${card('기록된 날', st.n + '일', `예측 ${st.nPre} · 복기 ${st.nPost}`)}${card('비교 가능한 날', st.nCmp + '일', '예측과 마감이 모두 있음')}${card('방향 적중률', hit === null ? '–' : hit.toFixed(0) + '%', '정확히+방향 일치')}${card('부분 일치', st.acc.part + '일', '보합 ↔ 방향')}${card('빗나감', st.acc.miss + '일', '반대 방향')}</div>
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4">${mkbH('fa-chart-column', 'text-sky-400', '일별 S&P 500 등락 · 예측 적중', '최근 40일')}${mkbChart(days)}</div>
             <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4">${mkbH('fa-scale-balanced', 'text-amber-400', '위험 선호 점수는 맞았나? (점수 구간별 실제 수익률)', '예측과 마감이 모두 있는 날 기준')}<div class="space-y-1.5">${bucket}</div><p class="text-[10px] text-slate-500 mt-2 leading-relaxed">점수가 높은 구간의 평균이 더 높게 나오면 점수가 유용하다는 신호입니다. 표본이 적을 때(수십 일 미만)는 우연일 수 있습니다.</p></div></div>
-          <div class="inline-flex bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs font-bold">${['cal', 'list'].map(v => `<button type="button" onclick="mkbSetRv('${v}')" class="px-3 py-1.5 rounded-lg ${MKB.rv === v ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}"><i class="fa-solid ${v === 'cal' ? 'fa-calendar-days' : 'fa-list'} mr-1"></i>${v === 'cal' ? '달력' : '목록'}</button>`).join('')}</div>
+          ${mkbDiagHtml(days)}
+          <div class="flex flex-wrap items-center gap-2"><div class="inline-flex bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs font-bold">${['cal', 'list'].map(v => `<button type="button" onclick="mkbSetRv('${v}')" class="px-3 py-1.5 rounded-lg ${MKB.rv === v ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}"><i class="fa-solid ${v === 'cal' ? 'fa-calendar-days' : 'fa-list'} mr-1"></i>${v === 'cal' ? '달력' : '목록'}</button>`).join('')}</div>${MKB.rv === 'list' ? `<div class="flex items-center gap-1.5">${[['all', '전체'], ['miss', '빗나간 날만(오답노트)']].map(([k, l]) => `<button type="button" onclick="mkbSetRf('${k}')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border ${(MKB.rf || 'all') === k ? 'bg-rose-700 border-rose-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'}">${l}</button>`).join('')}</div>` : ''}</div>
           ${MKB.rv === 'cal' ? mkbCalHtml() : ''}${MKB.sel ? mkbDayDetailHtml(MKB.sel) : ''}
           <div class="${MKB.rv === 'list' ? '' : 'hidden'} bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-[10px] text-slate-400 text-left"><th class="py-2 px-2">날짜(미국)</th><th class="px-2">장전 예측</th><th class="px-2">실제 S&P 500</th><th class="px-2">적중도</th><th class="px-2 text-center">메모</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="py-8 text-center text-slate-500">기록이 아직 없습니다. 미국 장 시작 전·마감 후에 이 탭을 열면 자동으로 쌓입니다.</td></tr>'}</tbody></table></div></div>
         </div>`;
