@@ -23,6 +23,14 @@
 - `/api/quotes` : 야후가 실패하면 **Finnhub 시세(키 있을 때) → Stooq 최근 2개 일봉**으로 대체 (`degraded: true`, 시총·52주 등은 비어 있음).
 - `/api/calendar` : 야후가 실패하면 Finnhub 로 **실적·IPO** 만 대체 (키 있을 때).
 
+### FRED 키 등록 (선택, 무료)
+키가 없어도 공개 CSV 로 동작하지만, 키를 등록하면 공식 API 를 먼저 쓰고 실패 시 CSV 로 되돌아갑니다(더 안정적).
+```bash
+cd worker
+npx wrangler secret put FRED_KEY
+wrangler deploy
+```
+
 ### Finnhub 키 등록 (선택, 무료)
 ```bash
 cd worker

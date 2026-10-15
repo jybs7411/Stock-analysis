@@ -23,6 +23,7 @@
  *
  * 환경 변수 (wrangler.toml [vars] 또는 대시보드)
  *   ALLOWED_ORIGIN  허용할 Origin (예: https://jybs7411.github.io). 비우면 "*" 허용.
+ *   FRED_KEY        (선택, Secret) FRED 공식 API 키. 없으면 공개 CSV 사용.
  *   FINNHUB_KEY     (선택, Secret) Finnhub 무료 키. 없으면 Finnhub 보강만 건너뜀.
  */
 
@@ -711,16 +712,34 @@ export function parseFredCsv(text, id) {
     if (!Number.isFinite(x) || !/^\d{4}-\d{2}-\d{2}$/.test(f[0])) continue;
     t.push(f[0]); v.push(x);
   }
+  return fredStats(id, t, v);
+}
+function fredStats(id, t, v) {
   if (!v.length) return null;
   const n = v.length, last = v[n - 1], at = k => (n > k ? v[n - 1 - k] : null);
   const win = v.slice(-252), below = win.filter(x => x <= last).length;
   return { id, label: FRED_IDS[id] || id, date: t[n - 1], last, prev: at(1), d1: n > 1 ? last - v[n - 2] : null, d5: at(5) !== null ? last - at(5) : null, d21: at(21) !== null ? last - at(21) : null,
     pct1y: win.length >= 60 ? below / win.length * 100 : null, t: t.slice(-120), v: v.slice(-120) };
 }
-async function fetchFred(ids) {
+// 공식 API(FRED_KEY 있을 때) 응답 → 같은 통계 형식
+export function parseFredObs(j, id) {
+  const t = [], v = [];
+  ((j && j.observations) || []).forEach(o => {
+    const x = o.value === '.' || o.value === '' || o.value == null ? NaN : +o.value;
+    if (Number.isFinite(x) && /^\d{4}-\d{2}-\d{2}$/.test(o.date)) { t.push(o.date); v.push(x); }
+  });
+  return fredStats(id, t, v);
+}
+async function fetchFred(ids, env) {
   const cosd = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
   const out = {};
   await Promise.all(ids.map(async id => {
+    if (env && env.FRED_KEY) { // 공식 API 우선, 실패하면 아래 공개 CSV 로
+      try {
+        const r = await fetch(`https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${encodeURIComponent(env.FRED_KEY)}&file_type=json&observation_start=${cosd}`, { headers: SRC_UA });
+        if (r.ok) { const m = parseFredObs(await r.json(), id); if (m) { out[id] = m; return; } }
+      } catch (e) { /* CSV 로 */ }
+    }
     try {
       const resp = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${id}&cosd=${cosd}`, { headers: SRC_UA });
       if (!resp.ok) return;
@@ -770,7 +789,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/health') {
-      return json({ ok: true, service: 'pentanalyst-proxy', sources: { yahoo: true, stooq: true, fred: true, feargreed: true, finnhub: !!(env && env.FINNHUB_KEY) } }, 200, request, env);
+      return json({ ok: true, service: 'pentanalyst-proxy', sources: { yahoo: true, stooq: true, fred: true, feargreed: true, fredKey: !!(env && env.FRED_KEY), finnhub: !!(env && env.FINNHUB_KEY) } }, 200, request, env);
     }
 
     if (url.pathname === '/api/search') {
@@ -845,7 +864,7 @@ export default {
       if (!ids.length || ids.length > 10) return json({ error: 'invalid ids' }, 400, request, env);
       try {
         return await cached(request, ctx, 3600, async () => {
-          const series = await fetchFred(ids);
+          const series = await fetchFred(ids, env);
           if (!Object.keys(series).length) throw new Error('fred empty');
           return json({ series }, 200, request, env, 3600);
         });
