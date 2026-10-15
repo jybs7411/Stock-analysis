@@ -46,4 +46,4 @@
 
 ### Worker(시세 프록시)를 GitHub 푸시로 자동 배포하기 (선택)
 
-저장소 루트의 `wrangler.jsonc`가 `worker/index.js`를 `pentanalyst-proxy`로 배포하도록 설정되어 있습니다. Cloudflare에서 Workers & Pages → `pentanalyst-proxy` → Settings → Builds 에서 이 저장소를 **Root directory = 저장소 루트(`/`)**, 배포 명령 `npx wrangler deploy`(기본값)로 연결하면, 지정한 브랜치에 푸시할 때마다 Worker가 자동으로 새로 배포되어 대시보드에 코드를 붙여 넣을 필요가 없습니다. (연결하지 않고 대시보드에서 직접 붙여 넣는 방식도 그대로 쓸 수 있습니다.)
+저장소 루트의 `wrangler.jsonc`가 `worker/index.js`를 `stock-analysis`로 배포하도록 설정되어 있습니다. Cloudflare에서 Workers & Pages → `stock-analysis` → Settings → Builds 에서 이 저장소를 **Root directory = 저장소 루트(`/`)**, 배포 명령 `npx wrangler deploy`(기본값)로 연결하면, 지정한 브랜치에 푸시할 때마다 Worker가 자동으로 새로 배포되어 대시보드에 코드를 붙여 넣을 필요가 없습니다. (연결하지 않고 대시보드에서 직접 붙여 넣는 방식도 그대로 쓸 수 있습니다.)

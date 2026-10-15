@@ -26,34 +26,36 @@
 ### FRED 키 등록 (선택, 무료)
 키가 없어도 공개 CSV 로 동작하지만, 키를 등록하면 공식 API 를 먼저 쓰고 실패 시 CSV 로 되돌아갑니다(더 안정적).
 ```bash
-cd worker
-npx wrangler secret put FRED_KEY
-wrangler deploy
+# 저장소 루트에서 (배포 Worker 이름: stock-analysis)
+npx wrangler secret put FRED_KEY --name stock-analysis
 ```
+(또는 Cloudflare 대시보드 → Workers & Pages → `stock-analysis` → Settings → Variables and Secrets → Secret 추가)
 
 ### Finnhub 키 등록 (선택, 무료)
 ```bash
-cd worker
-npx wrangler secret put FINNHUB_KEY   # finnhub.io 에서 무료 발급한 키를 붙여 넣기
-wrangler deploy
+# 저장소 루트에서 (배포 Worker 이름: stock-analysis)
+npx wrangler secret put FINNHUB_KEY --name stock-analysis   # finnhub.io 에서 무료 발급한 키를 붙여 넣기
 ```
+(또는 대시보드 → `stock-analysis` → Settings → Variables and Secrets)
+Secret 은 코드 재배포 없이도 바로 적용됩니다. 단, 이 Worker 코드(`worker/index.js`)가 최신 버전으로 배포돼 있어야 합니다.
 키가 없어도 모든 기능은 기존처럼 동작하고 Finnhub 보강만 건너뜁니다. 키는 Worker 에만 저장되어 브라우저에 노출되지 않습니다.
 
-## 배포 (5분)
+## 배포
+
+화면(`docs/`)과 이 프록시가 **하나의 Worker `stock-analysis`** 로 함께 배포됩니다(저장소 루트 `wrangler.jsonc`).
+Cloudflare 에서 이 저장소를 Git 연결해 두었다면 `main` 에 푸시할 때마다 자동 배포됩니다. 수동 배포는 **저장소 루트**에서:
 
 ```bash
-cd worker
-npm install -g wrangler        # 또는 npx wrangler ...
-wrangler login                 # 브라우저로 Cloudflare 로그인 (무료 계정)
-wrangler deploy                # 배포 완료 시 https://pentanalyst-proxy.<계정>.workers.dev 출력
-curl https://pentanalyst-proxy.<계정>.workers.dev/api/health
+npx wrangler deploy            # worker/ 폴더가 아니라 루트에서 실행
+curl https://stock-analysis.<계정>.workers.dev/api/health
 ```
+
+> `worker/wrangler.toml`(이름 `pentanalyst-proxy`)은 예전 별도 프록시용 설정으로, 지금은 쓰지 않습니다.
 
 ## 프론트엔드 연결
 
-1. `index.html`을 열고 우측 상단 **API 키 & 구글 검색 설정**을 클릭
-2. **자체 프록시 주소**에 위 Worker URL 입력 → **설정 저장**
-   (`index.html`의 `DEFAULT_PROXY_URL` 상수에 고정해 둘 수도 있습니다)
+화면과 API 가 같은 `*.workers.dev` 주소이므로 별도 입력이 필요 없습니다(같은 주소의 `/api` 를 자동 사용).
+`index.html` 을 파일로 직접 열 때만 **API 키 & 구글 검색 설정 → 자체 프록시 주소**에 `https://stock-analysis.<계정>.workers.dev` 를 입력하세요.
 
 ## 보안
 
