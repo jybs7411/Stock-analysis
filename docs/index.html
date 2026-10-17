@@ -2200,7 +2200,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.46.0';
+    const APP_VERSION = '1.46.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -18864,12 +18864,12 @@ ${digest}`;
         return mkbBox(`${mkbH('fa-list-check', 'text-sky-400', '요인별 채점 · 예측 오차 분석', `실제 S&P 500: ${abTxt}`)}${errTxt ? `<div class="text-xs text-slate-200 mb-2.5">${escapeHtml(errTxt)}</div>` : ''}<div class="grid grid-cols-1 md:grid-cols-2 gap-1.5">${rows}</div><p class="text-[10px] text-slate-500 mt-2 leading-relaxed">요인 점수 60 이상=위험 선호(상승 신호), 40 이하=위험 회피(하락 신호)로 보고 그날 방향과 비교합니다. 자주 빗나가는 요인은 되돌아보기 탭의 요인별 적중률에서 확인하세요.</p>`);
     }
     function mkbPostHtml(post, pre, o = {}) {
-        const acc = mkbAcc(pre, post.idx.spx);
+        const acc = mkbAcc(pre, post.idx.spx), fb = !pre && o.preFallback, pv = pre || fb || null;
         const idxCell = (n, v, sym) => `<div${a5Attr(sym)} class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-center cursor-pointer hover:border-sky-500/60"><div class="text-[10px] text-slate-400">${n}</div><div class="text-sm font-extrabold ${mkFin(v) ? (v >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-500'}">${mkbPct(v)}</div></div>`;
-        const review = mkbBox(`${mkbH('fa-circle-check', 'text-emerald-400', '장전 예측 vs 실제 마감 (복기 · 오답노트)', acc ? '' : '저장된 장전 예측 없음')}
+        const review = mkbBox(`${mkbH('fa-circle-check', 'text-emerald-400', '장전 예측 vs 실제 마감 (복기 · 오답노트)', acc ? '' : fb ? '저장된 예측 없음 · 현재 데이터로 재구성(참고용)' : '저장된 장전 예측 없음')}
           ${acc ? `<div class="mb-3">${mkbBadge('예측 적중도: ' + MKB_ACC[acc].ko, MKB_ACC[acc].cls)}</div>` : ''}
           <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">${idxCell('S&P 500', post.idx.spx, '^GSPC')}${idxCell('나스닥', post.idx.ndx, '^IXIC')}${idxCell('다우', post.idx.dji, '^DJI')}${idxCell('러셀 2000', post.idx.rut, '^RUT')}${idxCell('반도체(SMH)', post.idx.smh, 'SMH')}</div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-3"><div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="text-[10px] font-bold text-amber-400 mb-1">장전 예측</div><div class="text-xs text-slate-200">${pre ? escapeHtml(pre.dirText) + (mkFin(pre.score) ? ` · 위험 선호 ${pre.score.toFixed(0)}점` : '') : '–'}</div>${pre ? `<div class="text-[11px] text-slate-400 mt-1">${a5Text(pre.summary)}</div>` : ''}</div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-3"><div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="text-[10px] font-bold text-amber-400 mb-1">장전 예측${!pre && fb ? ' <span class="text-slate-500 font-normal">(저장 기록 없음 — 지금 데이터로 계산, 적중도 미반영)</span>' : ''}</div><div class="text-xs text-slate-200">${pv ? escapeHtml(pv.dirText) + (mkFin(pv.score) ? ` · 위험 선호 ${pv.score.toFixed(0)}점` : '') : '–'}</div>${pv ? `<div class="text-[11px] text-slate-400 mt-1">${a5Text(pv.summary)}</div>` : ''}</div>
             <div class="bg-slate-950/70 border border-indigo-500/30 rounded-lg p-3"><div class="text-[10px] font-bold text-indigo-300 mb-1">실제 마감</div><div class="text-xs text-slate-200">${a5Wrap('S&P 500', '^GSPC')} ${mkbPct(post.idx.spx)}${mkFin(post.spxPx) ? ` (${mkFmtPrice(post.spxPx)})` : ''}</div><div class="text-[11px] text-slate-400 mt-1">${post.vix && mkFin(post.vix.price) ? `${a5Wrap('VIX', '^VIX')} ${post.vix.price.toFixed(1)} (${mkbPct(post.vix.pct)})` : ''}${post.y10 ? ` · 10년물 ${post.y10.last.toFixed(2)}% (${mkbSgn(post.y10.d1, 1)}bp)` : ''}${post.breadth && mkFin(post.breadth.advPct) ? ` · 상승 종목 ${post.breadth.advPct.toFixed(0)}%` : ''}</div></div></div>
           <div class="space-y-2.5"><div><div class="text-[10px] font-bold text-indigo-300 mb-0.5"><i class="fa-solid fa-bolt mr-1"></i>결정적 변곡점</div><p class="text-xs text-slate-200 leading-relaxed">${a5Text(post.trigger)}</p></div><div class="pt-2.5 border-t border-slate-800"><div class="text-[10px] font-bold text-emerald-400 mb-0.5"><i class="fa-solid fa-pen mr-1"></i>복기 총평</div><p class="text-xs text-slate-300 leading-relaxed">${a5Text(pre ? mkbLesson(pre, acc, post.idx.spx) : post.lesson)}</p>${pre ? '' : mkbNoPreHint(post.date)}</div></div>`);
         const secList = (arr, cold) => arr.map(s => `<div class="rounded-lg p-2.5 border ${cold ? 'bg-rose-950/15 border-rose-500/30' : 'bg-emerald-950/15 border-emerald-500/30'}"><div class="flex justify-between text-xs"><span class="font-bold text-white">${escapeHtml(s.sector)}</span><span class="font-extrabold ${cold ? 'text-rose-400' : 'text-emerald-400'}">${mkbPct(s.avg)}</span></div><div class="text-[10px] text-slate-400 mt-0.5 truncate">${a5Text(s.leaders.join(' / ') || '–')}</div></div>`).join('');
@@ -18897,7 +18897,7 @@ ${digest}`;
         } else {
             const post = mkbBuildPost();
             banner = post ? `<div class="text-[11px] text-indigo-200 bg-indigo-950/30 border border-indigo-800/50 rounded-lg px-3 py-2">POST-MARKET REVIEW · 거래일 ${post.date}(${mkbWk(post.date)}) · ${escapeHtml(MK_STATE_KO[post.state] || post.state || '')} — 마감 후 이 화면을 열면 자동 저장됩니다</div>` : '';
-            body = post ? mkbPostHtml(post, (mkbDay(post.date) || {}).pre, { canLoad: !!getProxyUrl() }) : '<div class="text-xs text-slate-500 py-6 text-center">마감 데이터를 아직 받지 못했습니다.</div>';
+            body = post ? mkbPostHtml(post, (mkbDay(post.date) || {}).pre, { canLoad: !!getProxyUrl(), preFallback: (mkbDay(post.date) || {}).pre ? null : mkbBuildPre() }) : '<div class="text-xs text-slate-500 py-6 text-center">마감 데이터를 아직 받지 못했습니다.</div>';
             if (post && !MKB.tl && !MKB.tlBusy && !(post.timeline && post.timeline.rows) && getProxyUrl() && !MKB.tlTried) { MKB.tlTried = true; setTimeout(mkbLoadTimeline, 300); }
         }
         const tools = `<div class="flex flex-wrap items-center gap-2"><button type="button" onclick="mkbSaveNow()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 text-[11px] font-bold rounded-lg"><i class="fa-solid fa-floppy-disk mr-1"></i>지금 상태 기록에 저장</button><button type="button" onclick="mkbCopyPrompt('${mode}')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 text-[11px] font-bold rounded-lg"><i class="fa-solid fa-copy mr-1"></i>AI용 프롬프트 복사</button></div>`;
