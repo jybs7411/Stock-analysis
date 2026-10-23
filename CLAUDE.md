@@ -16,6 +16,10 @@
 - 충돌 시 `docs/`·`i18n/ko_keys.json`·`i18n/*.js` 는 생성물이므로 수동 병합하지 말고 아무 쪽이나 취한 뒤 `build.py`/`i18n-extract`/`i18n-build`로 재생성한다. 실제 소스 충돌(주로 `APP_VERSION` 줄)만 직접 해결한다.
 - 기본 배포 브랜치는 `main`. 푸시·커밋은 사용자가 요청할 때만 한다.
 
+## Google Drive 동기화 (통합)
+- 모든 저장 데이터(`pentanalyst_*` localStorage 키)는 메인 스크립트의 `GSYNC`(GAUTH 바로 아래)가 Drive 파일 하나(`pentanalyst_sync.json`)로 저장·복원한다. 모듈별 개별 Drive 동기화를 새로 만들지 말 것.
+- 새 데이터 키는 자동 포함된다. 제외할 키(캐시·화면 배치·기기 고유값)는 `GSYNC`의 `EXCLUDE` 정규식에, 항목 단위로 합쳐야 하는 키는 `MERGERS`에 추가한다.
+
 ## 버전 규칙
 - 앱 버전은 `index.html`의 `const APP_VERSION`(메인 스크립트, `switchAppTab` 위)이 단일 출처이며 화면 맨 아래 푸터(`#appVersion`)에 표시된다.
 - **앱을 수정(업데이트)할 때마다 `APP_VERSION`을 올린다.** 기능 추가·동작 변경은 minor(1.1.0→1.2.0), 버그 수정·문구 수정은 patch(1.1.0→1.1.1).

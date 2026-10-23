@@ -2205,7 +2205,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.53.0';
+    const APP_VERSION = '1.54.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3141,7 +3141,6 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       const CLIENT_ID_KEY = 'pentanalyst_gdrive_client_id'; // 관심종목 Drive 백업과 공용
       const USER_KEY = 'pentanalyst_gauth_user';
       const SCOPE = 'https://www.googleapis.com/auth/drive.appdata openid email profile';
-      const FILE_NAME = 'pentanalyst_settings.json';  // 관심종목은 같은 appDataFolder의 pentanalyst_watchlist_backup.json 에 저장
       let currentUser = null;
       let accessToken = null;
       let tokenExpiresAt = 0;
@@ -3218,86 +3217,9 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         return { name: p.name || '', email: p.email || '', picture: p.picture || '' };
       }
 
-      async function findFile(token) {
-        const q = encodeURIComponent(`name = '${FILE_NAME}'`);
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id,modifiedTime)`, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j.error?.message || `Drive 조회 실패 (${res.status})`);
-        }
-        const d = await res.json();
-        return (d.files && d.files[0]) || null;
-      }
-
-      function collectSettings() {
-        return {
-          gemini_key: getStoredApiKey('gemini_key'),
-          gemini_key_paid: getStoredApiKey('gemini_key_paid'),
-          gemini_model: getStoredApiKey('gemini_model'),
-          bt_cost: getStoredApiKey('bt_cost'),
-          proxy_url: getStoredApiKey('proxy_url'),
-          auto_ai: localStorage.getItem('pentanalyst_auto_ai') || '1',
-          gemini_grounding: getStoredApiKey('gemini_grounding'),
-          updatedAt: new Date().toISOString()
-        };
-      }
-
-      async function syncToCloud(silent) {
-        if (!currentUser) return;
-        try {
-          const token = await getToken(!silent);
-          const content = JSON.stringify(collectSettings());
-          const file = await findFile(token);
-          let res;
-          if (file) {
-            res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=media`, {
-              method: 'PATCH',
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' },
-              body: content
-            });
-          } else {
-            const boundary = 'PentAnalystSettings' + Math.random().toString(36).slice(2);
-            const meta = JSON.stringify({ name: FILE_NAME, parents: ['appDataFolder'], mimeType: 'application/json' });
-            res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
-              body: [`--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', meta,
-                `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`].join('\r\n')
-            });
-          }
-          if (!res.ok) throw new Error(`저장 실패 (${res.status})`);
-          if (!silent) showToast('클라우드 저장 완료', '설정이 내 Google Drive 앱 전용 폴더에 저장되었습니다.', 'success');
-        } catch (e) {
-          if (!silent) showToast('클라우드 저장 실패', e.message || '동기화 중 오류가 발생했습니다.', 'error');
-        }
-      }
-
-      async function loadFromCloud(silent) {
-        if (!currentUser) return;
-        try {
-          const token = await getToken(!silent);
-          const file = await findFile(token);
-          if (!file) {
-            // 원격에 저장된 값이 없는데 로컬에 키가 있다면 최초 업로드
-            if (getStoredApiKey('gemini_key') || getStoredApiKey('proxy_url')) await syncToCloud(true);
-            return;
-          }
-          const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, { headers: { Authorization: `Bearer ${token}` } });
-          if (!res.ok) throw new Error(`불러오기 실패 (${res.status})`);
-          const d = await res.json();
-          let changed = false;
-          ['gemini_key', 'gemini_key_paid', 'gemini_model', 'bt_cost', 'proxy_url', 'gemini_grounding'].forEach(k => {
-            if (d[k] !== undefined && d[k] !== getStoredApiKey(k)) { setStoredApiKey(k, d[k]); changed = true; }
-          });
-          if (d.auto_ai !== undefined && d.auto_ai !== localStorage.getItem('pentanalyst_auto_ai')) { localStorage.setItem('pentanalyst_auto_ai', d.auto_ai); changed = true; }
-          const modal = document.getElementById('apiSettingsModal');
-          if (modal && !modal.classList.contains('hidden')) openApiSettingsModal();
-          if (!silent) showToast('동기화 완료', 'Google 계정에서 설정을 불러왔습니다.', 'success');
-          else if (changed) showToast('자동 등록 완료', `${currentUser.name || currentUser.email} 계정의 설정을 불러와 등록했습니다!`, 'success');
-        } catch (e) {
-          if (!silent) showToast('불러오기 실패', e.message || '클라우드 데이터를 가져오지 못했습니다.', 'error');
-        }
-      }
+      // 저장·불러오기는 통합 동기화(GSYNC) 하나로 처리한다 (설정·API 키뿐 아니라 앱의 모든 데이터)
+      function syncToCloud(silent) { return currentUser ? GSYNC.saveNow(silent) : Promise.resolve(false); }
+      function loadFromCloud(silent) { return currentUser ? GSYNC.loadNow(silent) : Promise.resolve(false); }
 
       async function login() {
         if (!isConfigured()) {
@@ -3314,8 +3236,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           currentUser = await fetchProfile(token);
           try { localStorage.setItem(USER_KEY, JSON.stringify(currentUser)); } catch (e) {}
           renderAuthUI(); notifyChange();
-          showToast('로그인 성공', `${currentUser.name || currentUser.email}님 환영합니다!`, 'success');
-          await loadFromCloud(true);
+          showToast('로그인 성공', `${currentUser.name || currentUser.email}님 환영합니다! 클라우드 데이터를 확인하는 중…`, 'success');
         } catch (err) {
           showToast('로그인 실패', err.message || 'Google 로그인 중 오류가 발생했습니다.', 'error');
         } finally {
@@ -3342,7 +3263,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         } catch (e) {}
         renderAuthUI();
         // 이전에 로그인했다면 조용히 토큰을 갱신해 최신 설정을 불러온다(실패해도 무시, 버튼으로 수동 동기화 가능)
-        if (currentUser && isConfigured()) { loadFromCloud(true); notifyChange(); }
+        if (currentUser && isConfigured()) notifyChange();   // 통합 동기화(GSYNC)가 이 이벤트를 받아 불러오기를 시작한다
       }
       function notifyChange() { try { window.dispatchEvent(new CustomEvent('gauth-changed', { detail: { user: currentUser } })); } catch (e) {} }
 
@@ -3399,14 +3320,14 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
               </div>
               <div class="flex items-center gap-2 pt-1 border-t border-slate-800/80">
                 <button type="button" onclick="GAUTH.syncToCloud(false)" class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium flex items-center justify-center gap-1.5 transition">
-                  <i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i>클라우드에 저장
+                  <i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i>모든 데이터 저장
                 </button>
                 <button type="button" onclick="GAUTH.loadFromCloud(false)" class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium flex items-center justify-center gap-1.5 transition">
-                  <i class="fa-solid fa-cloud-arrow-down text-emerald-400"></i>클라우드에서 불러오기
+                  <i class="fa-solid fa-cloud-arrow-down text-emerald-400"></i>모든 데이터 불러오기
                 </button>
               </div>
               <p class="text-[11px] text-slate-400 leading-relaxed">
-                설정을 저장하면 내 Google Drive의 앱 전용 숨김 폴더에 자동 백업되며, 다른 기기에서 같은 계정으로 로그인만 하면 키가 자동으로 등록됩니다.
+                <span data-gsync-status></span><br>설정·API 키·관심종목·모의투자·장부·불단왕 일지·브리핑 기록·AI 일정 분석 등 <b>앱의 모든 데이터</b>를 내 Google Drive의 앱 전용 숨김 폴더 파일 하나로 동기화합니다. 변경 후 잠시 뒤, 앱을 닫거나 화면이 숨겨질 때 자동 저장되고, 앱을 열 때 자동으로 불러옵니다. 다른 기기의 새 데이터를 받으면 화면 반영을 위해 한 번 새로고침합니다.
               </p>
             </div>` : `
             <div class="p-3.5 rounded-xl bg-gradient-to-r from-slate-950 via-[#0b0e13] to-slate-950 border border-cyan-800/60 space-y-3">
@@ -3414,7 +3335,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
                 <span class="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400 shrink-0"><i class="fa-brands fa-google"></i></span>
                 <div>
                   <strong class="text-white text-xs block">Google 계정으로 모든 기기 자동 동기화</strong>
-                  <p class="text-[11px] text-slate-400 mt-0.5">로그인하면 다른 기기나 모바일에서도 API 키를 다시 넣을 필요 없이 자동 등록됩니다.</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">로그인하면 다른 기기에서도 API 키·관심종목·모의투자 등 모든 데이터가 자동으로 맞춰집니다.</p>
                 </div>
               </div>
               <div class="flex flex-wrap items-center gap-2">
@@ -3432,10 +3353,251 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
       function getUser() { return currentUser; }
 
-      return { init, login, logout, syncToCloud, loadFromCloud, renderAuthUI, getUser, isConfigured, getToken };
+      const hasToken = () => !!accessToken && Date.now() < tokenExpiresAt - 30000, tokenLeft = () => accessToken ? tokenExpiresAt - Date.now() : 0;
+      return { init, login, logout, syncToCloud, loadFromCloud, renderAuthUI, getUser, isConfigured, getToken, hasToken, tokenLeft };
     })();
 
-    // ===== 모바일 1초 전송 (QR Code Instant Sync) =====
+    // ===== 통합 Google Drive 동기화 (GSYNC) =====
+    // 앱의 모든 저장 데이터(설정·API 키·관심종목·모의투자·장부·불단왕 일지·브리핑 기록·AI 일정 분석·스크리너 노트 등 'pentanalyst_' 키)를
+    // 앱 전용 숨김 폴더(appDataFolder)의 파일 하나(pentanalyst_sync.json)로 모은다. 저장도 불러오기도 이 모듈 하나가 전부 처리한다.
+    //  - 저장: 변경이 생기면 잠시 뒤 자동 + 앱을 닫거나 화면이 숨겨질 때(visibilitychange/pagehide) + 수동 '저장'
+    //  - 불러오기: 앱을 열 때(로그인돼 있으면) 자동 + 수동 '불러오기'. 다른 기기의 새 데이터를 받으면 화면에 반영하려고 한 번 새로고침한다.
+    //  - 합치기: 키별로 '더 최근에 바꾼 쪽' 채택. 관심종목·장부·일지·브리핑·일정 분석은 항목 단위로 합치고, 모의투자는 최근 거래가 있는 쪽을 채택한다.
+    //    덮어쓰이는 쪽 값은 'pentanalyst_sync_backup_v1' 에 남겨 둔다. 삭제는 동기화하지 않는다(지운 항목이 다른 기기에서 되살아날 수 있음).
+    const GSYNC = (function () {
+      const FILE = 'pentanalyst_sync.json';
+      const META_KEY = 'pentanalyst_sync_meta_v1', BAK_KEY = 'pentanalyst_sync_backup_v1', LAST_KEY = 'pentanalyst_sync_last', FID_KEY = 'pentanalyst_sync_fid', DIRTY_KEY = 'pentanalyst_sync_dirty';
+      // 동기화에서 뺄 키: 로그인·기기 고유값, 다시 받아오면 되는 캐시, 화면 배치
+      const EXCLUDE = /^pentanalyst_(gauth_user|gdrive_client_id|gdrive_last_backup|cal_sync_last|sync_.*|watch_cache_v1|cal_yf_v1|hub_last_v1|gemini_cool|scr_snap|scr_earn|rev_snap_v1|dock_v1|chart_split|multi_side)$/;
+      const inScope = k => typeof k === 'string' && k.indexOf('pentanalyst_') === 0 && !EXCLUDE.test(k);
+      const rawGet = Storage.prototype.getItem, rawSet = Storage.prototype.setItem;
+      const ls = { get: k => { try { return rawGet.call(localStorage, k); } catch (e) { return null; } }, set: (k, v) => { try { rawSet.call(localStorage, k, v); return true; } catch (e) { return false; } } };
+      const jparse = s => { try { return JSON.parse(s); } catch (e) { return null; } };
+      const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+      let meta = jparse(ls.get(META_KEY)) || {}, dirty = ls.get(DIRTY_KEY) === '1', busy = false, applying = false, timer = null, metaTimer = null, frozen = false, fileId = ls.get(FID_KEY) || '', lastErr = '', pending = false;
+      const S = { last: +ls.get(LAST_KEY) || 0 };
+
+      const auth = () => (typeof GAUTH !== 'undefined' ? GAUTH : null);
+      const user = () => { const a = auth(); return a && a.getUser ? a.getUser() : null; };
+      const emit = () => { try { window.dispatchEvent(new CustomEvent('gsync-changed')); } catch (e) { /* 무시 */ } renderBadges(); };
+      function saveMeta() { clearTimeout(metaTimer); metaTimer = setTimeout(() => { ls.set(META_KEY, JSON.stringify(meta)); }, 400); }
+      function setDirty(v) { dirty = v; ls.set(DIRTY_KEY, v ? '1' : '0'); }
+      function touch(k) { meta[k] = Date.now(); saveMeta(); if (!dirty) setDirty(true); schedule(); }
+
+      // localStorage 쓰기를 가로채 '무엇이 언제 바뀌었는지' 기록한다 (값이 같으면 무시)
+      Storage.prototype.setItem = function (k, v) {
+        if (this !== localStorage) return rawSet.call(this, k, v);
+        if (frozen && inScope(k)) return;   // 클라우드 데이터를 받은 뒤 새로고침 전까지, 메모리에 남은 옛 상태가 받은 값을 덮어쓰지 못하게 막는다
+        if (applying || !inScope(k)) return rawSet.call(this, k, v);
+        let prev = null; try { prev = rawGet.call(this, k); } catch (e) { /* 무시 */ }
+        rawSet.call(this, k, v);
+        if (prev !== String(v)) touch(k);
+      };
+
+      // ---------- 항목 단위 합치기 ----------
+      const byId = (a, b, idf) => { const out = a.slice(), seen = new Set(a.map(idf)); b.forEach(x => { const id = idf(x); if (!seen.has(id)) { seen.add(id); out.push(x); } }); return out; };
+      const MERGERS = {
+        pentanalyst_watch_v1(l, r) {
+          const A = jparse(l), B = jparse(r); if (!isObj(A) || !isObj(B)) return null;
+          const out = Object.assign({}, B, A);
+          out.lists = byId(Array.isArray(A.lists) ? A.lists : [], Array.isArray(B.lists) ? B.lists : [], x => x && x.id);
+          out.items = Object.assign({}, B.items || {}, A.items || {});
+          return JSON.stringify(out);
+        },
+        pentanalyst_ledger_v1(l, r) {
+          const A = jparse(l), B = jparse(r); if (!isObj(A) || !isObj(B) || !Array.isArray(A.trades) || !Array.isArray(B.trades)) return null;
+          return JSON.stringify(Object.assign({}, B, A, { trades: byId(A.trades, B.trades, x => x && x.id != null ? x.id : JSON.stringify(x)) }));
+        },
+        pentanalyst_bdw_journal(l, r) {
+          const A = jparse(l), B = jparse(r); if (!Array.isArray(A) || !Array.isArray(B)) return null;
+          return JSON.stringify(byId(A, B, x => x && x.id != null ? x.id : JSON.stringify(x)));
+        },
+        pentanalyst_brief_journal_v1(l, r) {
+          const A = jparse(l), B = jparse(r); if (!isObj(A) || !isObj(B) || !A.days || !B.days) return null;
+          try { loadLazyMod('mod-market'); } catch (e) { /* 무시 */ }
+          return typeof mkbMerge === 'function' ? JSON.stringify(mkbMerge(A, B)) : null;
+        },
+        pentanalyst_cal_v1(l, r) {   // 일정 검색(month)·AI 분석(ai)을 항목별로 더 최근(ts) 것으로
+          const A = jparse(l), B = jparse(r); if (!isObj(A) || !isObj(B)) return null;
+          const out = Object.assign({}, B, A);
+          ['month', 'ai'].forEach(f => { const x = A[f] || {}, y = B[f] || {}, o = {}; new Set([...Object.keys(x), ...Object.keys(y)]).forEach(k => { o[k] = x[k] && y[k] ? ((y[k].ts || 0) > (x[k].ts || 0) ? y[k] : x[k]) : (x[k] || y[k]); }); out[f] = o; });
+          return JSON.stringify(out);
+        },
+        pentanalyst_sim_v1(l, r) {   // 모의투자: 계좌 하나라서 섞지 않고 '최근 거래가 있는 쪽'(같으면 주문이 많은 쪽, 그래도 같으면 로컬)을 채택
+          const A = jparse(l), B = jparse(r); if (!isObj(A) || !isObj(B) || !Array.isArray(A.orders) || !Array.isArray(B.orders)) return null;
+          const last = s => s.orders.reduce((m, o) => Math.max(m, o.t1 || o.t0 || 0), 0);
+          const la = last(A), lb = last(B);
+          return (lb > la || (lb === la && B.orders.length > A.orders.length)) ? r : l;
+        },
+        pentanalyst_scr_notes: unionJson, pentanalyst_scr_analyzed: unionJson, pentanalyst_screener_presets: unionJson
+      };
+      function unionJson(l, r) {
+        const A = jparse(l), B = jparse(r);
+        if (Array.isArray(A) && Array.isArray(B)) return JSON.stringify(byId(A, B, x => JSON.stringify(x)));
+        if (isObj(A) && isObj(B)) return JSON.stringify(Object.assign({}, B, A));
+        return null;
+      }
+
+      // ---------- Drive 입출력 ----------
+      const AUTH_H = t => ({ Authorization: `Bearer ${t}` });
+      async function findFile(token, name) {
+        const q = encodeURIComponent(`name = '${name}'`);
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id,modifiedTime)`, { headers: AUTH_H(token) });
+        if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error((j.error && j.error.message) || `Drive 조회 실패 (${res.status})`); }
+        const d = await res.json(); return (d.files && d.files[0]) || null;
+      }
+      async function readFile(token, id) {
+        const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, { headers: AUTH_H(token) });
+        if (!r.ok) throw new Error(`불러오기 실패 (${r.status})`);
+        return r.json().catch(() => null);
+      }
+      // 예전 방식(설정·관심종목·브리핑·일정 파일 4개)에서 한 번 가져온다
+      async function readLegacy(token) {
+        const keys = {}, put = (k, v, t) => { keys[k] = { v: typeof v === 'string' ? v : JSON.stringify(v), t: t || 1 }; };
+        try {
+          const f = await findFile(token, 'pentanalyst_settings.json');
+          if (f) { const d = await readFile(token, f.id); if (d) { ['gemini_key', 'gemini_key_paid', 'gemini_model', 'bt_cost', 'proxy_url', 'gemini_grounding'].forEach(k => { if (d[k]) put('pentanalyst_' + k, d[k]); }); if (d.auto_ai !== undefined) put('pentanalyst_auto_ai', d.auto_ai); } }
+        } catch (e) { /* 없으면 건너뜀 */ }
+        try { const f = await findFile(token, 'pentanalyst_watchlist_backup.json'); if (f) { const d = await readFile(token, f.id); if (isObj(d) && d.items) { delete d.app; delete d.kind; delete d.exportedAt; put('pentanalyst_watch_v1', d); } } } catch (e) { /* 건너뜀 */ }
+        try { const f = await findFile(token, 'pentanalyst_briefing_journal.json'); if (f) { const d = await readFile(token, f.id); if (isObj(d) && d.days) put('pentanalyst_brief_journal_v1', d); } } catch (e) { /* 건너뜀 */ }
+        try { const f = await findFile(token, 'pentanalyst_calendar_cache.json'); if (f) { const d = await readFile(token, f.id); if (isObj(d) && (d.ai || d.month)) put('pentanalyst_cal_v1', { ai: d.ai || {}, month: d.month || {} }); } } catch (e) { /* 건너뜀 */ }
+        return Object.keys(keys).length ? { v: 2, keys, legacy: true } : null;
+      }
+      async function fetchRemote(token) {
+        let f = fileId ? { id: fileId } : null;
+        if (!f) f = await findFile(token, FILE);
+        if (f) {
+          fileId = f.id; ls.set(FID_KEY, fileId);
+          try { const d = await readFile(token, f.id); if (d && isObj(d.keys)) return d; }
+          catch (e) { if (!/\(404\)/.test((e && e.message) || '')) throw e; fileId = ''; ls.set(FID_KEY, ''); const f2 = await findFile(token, FILE); if (f2) { fileId = f2.id; ls.set(FID_KEY, fileId); const d = await readFile(token, f2.id); if (d && isObj(d.keys)) return d; } }
+        }
+        return null;
+      }
+      async function writeRemote(token, payload, keepalive) {
+        const content = JSON.stringify(payload);
+        const ka = keepalive && content.length < 60000;
+        let res;
+        if (fileId) {
+          res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, { method: 'PATCH', keepalive: ka, headers: Object.assign({ 'Content-Type': 'application/json; charset=UTF-8' }, AUTH_H(token)), body: content });
+          if (res.status === 404) { fileId = ''; ls.set(FID_KEY, ''); }
+        }
+        if (!fileId) {
+          const bd = 'PentSync' + Math.random().toString(36).slice(2);
+          const m = JSON.stringify({ name: FILE, parents: ['appDataFolder'], mimeType: 'application/json' });
+          res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: Object.assign({ 'Content-Type': `multipart/related; boundary=${bd}` }, AUTH_H(token)),
+            body: [`--${bd}`, 'Content-Type: application/json; charset=UTF-8', '', m, `--${bd}`, 'Content-Type: application/json', '', content, `--${bd}--`].join('\r\n') });
+          if (res.ok) { const j = await res.json().catch(() => ({})); if (j.id) { fileId = j.id; ls.set(FID_KEY, fileId); } }
+        }
+        if (!res.ok) throw new Error(`저장 실패 (${res.status})`);
+      }
+
+      // ---------- 합치기·내보내기 ----------
+      function localPayload(remote, applyRemote) {
+        const keys = {};
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i); if (!inScope(k)) continue;
+          const v = ls.get(k); if (v == null) continue;
+          if (!meta[k]) meta[k] = remote && remote.keys[k] && remote.keys[k].v === v ? remote.keys[k].t : Date.now();
+          keys[k] = { v, t: meta[k] };
+        }
+        // 이 기기가 받지 않은(백그라운드 저장 시) 클라우드의 더 최근 값은 지우지 않고 그대로 둔다
+        if (remote && !applyRemote) Object.keys(remote.keys).forEach(k => { const r = remote.keys[k]; if (!inScope(k)) return; if (!keys[k] || ((r.t || 0) > keys[k].t && r.v !== keys[k].v)) keys[k] = r; });
+        return { v: 2, app: 'PentAnalyst', savedAt: Date.now(), keys };
+      }
+      // 클라우드 값을 로컬에 반영(불러오기). 바뀐 키 목록을 돌려준다.
+      function applyRemote(remote) {
+        const changed = [], bak = jparse(ls.get(BAK_KEY)) || {};
+        applying = true;
+        try {
+          Object.keys(remote.keys).forEach(k => {
+            if (!inScope(k)) return;
+            const r = remote.keys[k], rv = r && r.v; if (typeof rv !== 'string') return;
+            const lv = ls.get(k), lt = meta[k] || 0, rt = r.t || 0;
+            if (lv === rv) { if (!meta[k]) meta[k] = rt; return; }
+            let out = null;
+            if (lv != null && MERGERS[k]) { try { out = MERGERS[k](lv, rv); } catch (e) { out = null; } }
+            if (out == null) out = (lv == null || rt > lt) ? rv : lv;   // 합치기 규칙이 없으면 더 최근 쪽
+            if (out === lv) return;
+            if (lv != null) bak[k] = { v: lv, at: Date.now() };
+            ls.set(k, out); meta[k] = out === rv ? rt : Date.now(); changed.push(k);
+          });
+        } finally { applying = false; }
+        if (changed.length) { ls.set(BAK_KEY, JSON.stringify(bak)); saveMeta(); }
+        return changed;
+      }
+
+      function toast(a, b, c) { try { showToast(a, b, c || 'info'); } catch (e) { /* 무시 */ } }
+      function canReload() { let last = 0; try { last = +sessionStorage.getItem('pa_sync_reload') || 0; } catch (e) { /* 무시 */ } return Date.now() - last >= 60000; }   // 새로고침 반복 방지
+      function reloadSoon() {
+        try { sessionStorage.setItem('pa_sync_reload', String(Date.now())); } catch (e) { /* 무시 */ }
+        toast('다른 기기의 최신 데이터 적용', '화면에 반영하려고 잠시 후 새로고침합니다.', 'success');
+        setTimeout(() => location.reload(), 1600);
+      }
+
+      // opt: { apply: 클라우드 데이터를 이 기기에 반영할지, interactive: 로그인 창 허용, quiet: 알림 생략, keepalive: 앱 종료 중 }
+      async function run(opt) {
+        opt = opt || {};
+        if (!user() || busy) return false;
+        busy = true; lastErr = ''; emit();
+        let ok = false;
+        try {
+          const token = await auth().getToken(!!opt.interactive);
+          let remote = await fetchRemote(token), migrated = false;
+          if (!remote && !fileId) { remote = await readLegacy(token); migrated = !!remote; }
+          let changed = [];
+          if (remote && opt.apply) { changed = applyRemote(remote); if (changed.length && canReload()) frozen = true; }
+          const payload = localPayload(remote, !!opt.apply);
+          const same = remote && !migrated && JSON.stringify(remote.keys) === JSON.stringify(payload.keys);
+          if (!same) await writeRemote(token, payload, !!opt.keepalive);
+          ls.set(META_KEY, JSON.stringify(meta));
+          S.last = Date.now(); ls.set(LAST_KEY, String(S.last)); setDirty(false); pending = false; ok = true;
+          if (!opt.quiet) toast(opt.apply ? '불러오기 완료' : '저장 완료', `${Object.keys(payload.keys).length}개 항목을 내 Google Drive와 맞췄어요.`, 'success');
+          if (migrated) toast('동기화 통합', '예전 방식으로 나뉘어 저장돼 있던 설정·관심종목·브리핑·일정을 하나로 합쳤어요.', 'info');
+        } catch (e) {
+          const msg = (e && e.message) || '';
+          if (!/silent_skipped|no_client_id/.test(msg)) { lastErr = msg || '동기화 실패'; if (!opt.quiet) toast('동기화 실패', lastErr, 'error'); }
+          pending = true;
+        } finally { busy = false; emit(); if (frozen) reloadSoon(); }
+        return ok;
+      }
+
+      function schedule() { clearTimeout(timer); if (!user()) return; timer = setTimeout(() => run({ quiet: true }), 90000); }
+      // 앱을 닫거나 화면이 숨겨질 때: 아직 못 올린 변경이 있고 로그인 토큰이 살아 있으면 마지막으로 한 번 올린다
+      function flush() {
+        if (!dirty || busy || !user()) return;
+        const a = auth(); if (!(a && a.hasToken && a.hasToken())) return;   // 종료 중에는 로그인 창을 띄울 수 없다 — 못 올리면 다음 실행 때 올린다
+        run({ quiet: true, keepalive: true });
+      }
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+      window.addEventListener('pagehide', flush);
+      // 토큰이 곧 만료되면 보이는 동안 미리 조용히 갱신해 둔다(종료 시점엔 갱신이 불가능하므로)
+      setInterval(() => { const a = auth(); if (document.visibilityState === 'visible' && user() && a && a.tokenLeft && a.tokenLeft() < 15 * 60000) a.getToken(false).catch(() => { /* 쿨다운·건너뜀 */ }); }, 5 * 60000);
+
+      let started = false;
+      function startup() { if (!user()) return Promise.resolve(false); return run({ apply: true, quiet: true }).then(ok => { if (ok) started = true; return ok; }); }
+      // 앱을 연 직후 조용한 로그인 갱신이 막혔으면(쿨다운·백그라운드) 보이는 동안 다시 시도한다
+      setInterval(() => { if (!started && !busy && user() && document.visibilityState === 'visible') startup(); }, 10 * 60000);
+
+      // ---------- 상태 표시 (설정 창·관심종목·브리핑·달력의 동기화 자리) ----------
+      const timeTxt = t => t ? new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+      function statusHtml() {
+        if (!user()) return '<span class="text-slate-400"><i class="fa-brands fa-google-drive mr-1"></i>Google 로그인하면 모든 데이터가 Drive로 한 번에 동기화돼요.</span>';
+        if (busy) return '<span class="text-sky-300"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Drive 동기화 중…</span>';
+        if (lastErr) return `<span class="text-rose-300" title="${escapeHtml(lastErr)}"><i class="fa-solid fa-triangle-exclamation mr-1"></i>동기화 실패 — 설정에서 다시 시도</span>`;
+        return `<span class="text-emerald-300"><i class="fa-brands fa-google-drive mr-1"></i>통합 동기화 켜짐${S.last ? ' · ' + timeTxt(S.last) : ''}${dirty ? ' · 변경 대기' : ''}</span>`;
+      }
+      function renderBadges() { document.querySelectorAll('[data-gsync-status]').forEach(el => { el.innerHTML = statusHtml(); }); }
+      try { window.addEventListener('gauth-changed', e => { if (e && e.detail && e.detail.user) startup(); renderBadges(); }); } catch (e) { /* 무시 */ }
+
+      return {
+        saveNow: silent => run({ quiet: !!silent, interactive: !silent }),
+        loadNow: silent => run({ apply: true, quiet: !!silent, interactive: !silent }),
+        startup, flush, statusHtml, renderBadges, isOn: () => !!user(), last: () => S.last, lastText: () => timeTxt(S.last), isDirty: () => dirty,
+        backups: () => jparse(ls.get(BAK_KEY)) || {}
+      };
+    })();
+
+    // ===== 모바일 1초 전송 (QR Code Instant Sync) =====    // ===== 모바일 1초 전송 (QR Code Instant Sync) =====
     function openQrSyncModal() {
       const cfg = {
         gemini_key: getStoredApiKey('gemini_key'),
@@ -18444,72 +18606,11 @@ ${digest}`;
 
     // ---------- Google Drive 동기화 (설정 창의 Google 로그인과 같은 계정·토큰) ----------
     const mkbAuth = () => (typeof GAUTH !== 'undefined' ? GAUTH : null);
-    function mkbScheduleDrive() {
-        const A = mkbAuth();
-        if (!A || !A.getUser()) return;
-        clearTimeout(MKB.driveTimer);
-        MKB.driveTimer = setTimeout(() => mkbDriveSync(false), 4000);
-    }
-    async function mkbDriveFind(token) {
-        const q = encodeURIComponent(`name = '${MKB_FILE}'`);
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id,modifiedTime)`, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error((j.error && j.error.message) || `Drive 조회 실패 (${res.status})`); }
-        const d = await res.json();
-        return (d.files && d.files[0]) || null;
-    }
-    async function mkbDriveSync(interactive) {
-        const A = mkbAuth();
-        if (!A || !A.getUser()) { if (interactive && A) A.login(); return; }
-        if (MKB.sync.busy) return;
-        MKB.sync.busy = true; MKB.sync.err = ''; mkbRenderSync();
-        try {
-            const token = await A.getToken(!!interactive);
-            const file = await mkbDriveFind(token);
-            let remote = null;
-            if (file) {
-                const r = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, { headers: { Authorization: `Bearer ${token}` } });
-                if (!r.ok) throw new Error(`불러오기 실패 (${r.status})`);
-                remote = await r.json().catch(() => null);
-            }
-            const local = mkbLoad();
-            const merged = remote && remote.days ? mkbMerge(local, remote) : local;
-            MKB.journal = merged; mkbStore();
-            const body = JSON.stringify(merged);
-            if (!remote || JSON.stringify(remote) !== body) {
-                let res;
-                if (file) {
-                    res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=media`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' }, body });
-                } else {
-                    const boundary = 'PentBrief' + Math.random().toString(36).slice(2);
-                    const meta = JSON.stringify({ name: MKB_FILE, parents: ['appDataFolder'], mimeType: 'application/json' });
-                    res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
-                        body: [`--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', meta, `--${boundary}`, 'Content-Type: application/json', '', body, `--${boundary}--`].join('\r\n') });
-                }
-                if (!res.ok) throw new Error(`저장 실패 (${res.status})`);
-            }
-            MKB.sync.last = Date.now();
-            try { localStorage.setItem(MKB_KEY + '_sync', String(MKB.sync.last)); } catch (e) { /* 무시 */ }
-            if (interactive) showToast('Drive 동기화 완료', `브리핑 기록 ${Object.keys(merged.days).length}일치를 내 Google Drive와 맞췄습니다.`, 'success');
-        } catch (e) {
-            const msg = (e && e.message) || '';
-            if (!/silent_skipped|no_client_id/.test(msg)) { MKB.sync.err = msg || '동기화 실패'; if (interactive) showToast('Drive 동기화 실패', MKB.sync.err, 'error'); }
-        } finally {
-            MKB.sync.busy = false; mkbRenderSync();
-            const be = document.getElementById('mkBriefBody'), ae = document.activeElement;
-            if (be && !(ae && be.contains(ae) && /^(TEXTAREA|INPUT)$/.test(ae.tagName))) mkbRender(true); // 입력 중이면 화면을 다시 그리지 않는다
-        }
-    }
-    function mkbSyncNow() { mkbDriveSync(true); }
-    function mkbRenderSync() {
-        const el = document.getElementById('mkbSync');
-        if (!el) return;
-        const A = mkbAuth(), on = !!(A && A.getUser());
-        const t = MKB.sync.last ? new Date(MKB.sync.last).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-        el.innerHTML = MKB.sync.busy ? '<span class="text-sky-300"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Drive 동기화 중…</span>'
-            : MKB.sync.err ? `<span class="text-rose-300" title="${escapeHtml(MKB.sync.err)}"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Drive 동기화 실패</span>`
-            : on ? `<span class="text-emerald-300"><i class="fa-brands fa-google-drive mr-1"></i>Drive 연결됨${t ? ' · ' + t : ''}</span>`
-            : '<span class="text-slate-500"><i class="fa-solid fa-cloud-slash mr-1"></i>이 기기에만 저장 (Google 로그인하면 다른 기기와 동기화)</span>';
-    }
+    // Drive 동기화는 통합 동기화(GSYNC) 하나로 처리한다 (브리핑 기록도 그 안에 포함, 합치기는 mkbMerge 사용)
+    function mkbScheduleDrive() { /* GSYNC 가 변경을 감지한다 */ }
+    function mkbDriveSync() { return Promise.resolve(); }
+    function mkbSyncNow() { GSYNC.saveNow(false); }
+    function mkbRenderSync() { const el = document.getElementById('mkbSync'); if (el) { el.setAttribute('data-gsync-status', ''); el.innerHTML = GSYNC.statusHtml(); } }
 
     // ---------- 장전 브리핑 생성 ----------
     function mkbSectorTickers(D, id, dir, n) {
@@ -19312,7 +19413,7 @@ ${digest}`;
         try { inner = MKB.view === 'review' ? mkbReviewHtml() : mkbTodayHtml(); }
         catch (e) { console.error('브리핑 렌더 실패', e); inner = '<div class="text-xs text-rose-300 bg-rose-950/40 border border-rose-900 rounded-lg px-3 py-2">브리핑을 그리는 중 오류가 발생했습니다. 새로고침 후 다시 시도하세요.</div>'; }
         el.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-4"><div class="inline-flex bg-slate-900 border border-slate-800 rounded-xl p-1">${tab('today', 'fa-newspaper', '오늘 브리핑')}${tab('review', 'fa-clock-rotate-left', `되돌아보기 (${nDays})`)}</div>
-          <div class="flex flex-wrap items-center gap-3 text-[11px]"><span id="mkbSync"></span><button type="button" onclick="mkbSyncNow()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 font-bold rounded-lg"><i class="fa-brands fa-google-drive mr-1"></i>Drive 동기화</button>
+          <div class="flex flex-wrap items-center gap-3 text-[11px]"><span id="mkbSync"></span>
           <label class="flex items-center gap-1 text-slate-400 cursor-pointer select-none"><input type="checkbox" ${start ? 'checked' : ''} onchange="mkbSetStart(this.checked)" class="accent-sky-500"/>앱 시작 시 시장 탭 먼저</label></div></div>${inner}`;
         mkbRenderSync();
     }
@@ -21428,63 +21529,9 @@ ${digest}`;
       // ---------- 구글 드라이브 동기화 ----------
       // 설정 창의 Google 로그인(GAUTH)과 같은 계정·토큰을 쓰고, 앱 전용 숨김 폴더(appDataFolder)의 pentanalyst_calendar_cache.json 에 저장한다.
       // 월별 일정 검색 결과(month)와 이벤트별 AI 분석(ai)을 항목별로 '더 최근(ts) 것'을 채택해 합친다. 한 기기에서 검색하면 다른 기기는 열 때 자동으로 받는다.
-      const SYNC_FILE = 'pentanalyst_calendar_cache.json', SYNC_LAST = 'pentanalyst_cal_sync_last';
-      const SYNC = {
-        busy: false, synced: false, timer: null, msg: '',
-        auth: () => (typeof GAUTH !== 'undefined' ? GAUTH : null),
-        user() { const a = this.auth(); return a && a.getUser ? a.getUser() : null; },
-        last() { try { return localStorage.getItem(SYNC_LAST) || ''; } catch (e) { return ''; } },
-        merge(a, b) {   // a=로컬, b=클라우드 → { out, gotNew(로컬이 새로 받은 것 있음), hasExtra(클라우드에 없거나 더 새로운 로컬 항목 있음) }
-          const out = { ai: {}, month: {} }; let gotNew = false, hasExtra = false;
-          ['month', 'ai'].forEach(f => {
-            const A = a[f] || {}, B = (b && b[f]) || {};
-            new Set([...Object.keys(A), ...Object.keys(B)]).forEach(k => {
-              const x = A[k], y = B[k];
-              if (x && y) { if ((y.ts || 0) > (x.ts || 0)) { out[f][k] = y; gotNew = true; } else { out[f][k] = x; if ((x.ts || 0) > (y.ts || 0)) hasExtra = true; } }
-              else if (x) { out[f][k] = x; hasExtra = true; } else { out[f][k] = y; gotNew = true; }
-            });
-          });
-          return { out, gotNew, hasExtra };
-        },
-        async find(token) {
-          const q = encodeURIComponent(`name = '${SYNC_FILE}'`);
-          const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)&spaces=appDataFolder`, { headers: { Authorization: `Bearer ${token}` } });
-          if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error((j.error && j.error.message) || `드라이브 조회 실패 (${res.status})`); }
-          const d = await res.json(); return (d.files && d.files[0]) || null;
-        },
-        async upload(token, file, data) {
-          const content = JSON.stringify({ app: 'PentAnalyst', kind: 'calendar', updatedAt: new Date().toISOString(), ai: data.ai, month: data.month });
-          let r;
-          if (file && file.id) {
-            r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=media`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' }, body: content });
-          } else {
-            const bd = 'PentAnalystCal' + Math.random().toString(36).slice(2);
-            const meta = JSON.stringify({ name: SYNC_FILE, parents: ['appDataFolder'], mimeType: 'application/json' });
-            r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${bd}` },
-              body: [`--${bd}`, 'Content-Type: application/json; charset=UTF-8', '', meta, `--${bd}`, 'Content-Type: application/json', '', content, `--${bd}--`].join('\r\n') });
-          }
-          if (!r.ok) throw new Error(`저장 실패 (${r.status})`);
-        },
-        async run(silent) {   // 클라우드 → 로컬 병합 후, 클라우드에 없는 것이 있으면 업로드
-          if (this.busy || !this.user()) return;
-          this.busy = true; this.msg = '';
-          try {
-            const token = await this.auth().getToken(!silent), file = await this.find(token), local = store();
-            let cloud = null;
-            if (file) { const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, { headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) throw new Error(`불러오기 실패 (${res.status})`); cloud = await res.json(); }
-            const m = this.merge(local, cloud);
-            if (m.gotNew) rawSave(m.out);
-            if (!file ? (Object.keys(m.out.month).length || Object.keys(m.out.ai).length) : m.hasExtra) await this.upload(token, file, m.out);
-            try { localStorage.setItem(SYNC_LAST, new Date().toISOString()); } catch (e) { /* 무시 */ }
-            this.synced = true;
-            if (m.gotNew) this.msg = '다른 기기에서 저장한 일정·분석을 불러왔어요.';
-          } catch (e) { this.msg = silent ? '자동 동기화에 실패했어요. "지금 동기화"를 눌러 다시 시도해 주세요.' : `동기화 실패: ${e.message || e}`; }
-          this.busy = false;
-          if (typeof activeAppTab !== 'undefined' && activeAppTab === 'calendar' && C.inited) render();
-        },
-        schedule() { if (!this.user()) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.run(true), 3000); }
-      };
-      try { window.addEventListener('gauth-changed', e => { SYNC.synced = false; if (e && e.detail && e.detail.user) SYNC.run(true); }); } catch (e) { /* 무시 */ }
+      // 일정 검색·AI 분석 결과(pentanalyst_cal_v1)는 통합 동기화(GSYNC)가 항목별 최신(ts)으로 합쳐 저장·복원한다.
+      const SYNC = { busy: false, synced: true, msg: '', user: () => (typeof GSYNC !== 'undefined' && GSYNC.isOn() ? {} : null), last: () => '', run() {}, schedule() {} };
+      /* gauth-changed 처리는 GSYNC 가 한다 */
 
       const C = { y: 0, m: 0, sel: null, cats: new Set(Object.keys(CATS)), cc: new Set(['US', 'KR']), onlyHigh: false, agendaAll: false, detail: [], aiState: {}, monthBusy: false, monthMsg: '', inited: false };
       const lvOf = e => e.lvl || TYPES[e.type].level;
@@ -21664,10 +21711,7 @@ ${digest}`;
         const root = document.getElementById('calRoot'); if (!root) return;
         const cnt = Object.keys(CATS);
         const sm = store().month[`${C.y}-${pad(C.m + 1)}`], searched = !!sm;
-        const su = SYNC.user(), lastSync = SYNC.last() ? new Date(SYNC.last()).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-        const syncRow = `<div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] ${su ? 'text-emerald-300' : 'text-slate-400'}"><i class="fa-brands fa-google-drive"></i>${su
-          ? `<span>구글 드라이브 자동 동기화 켜짐${lastSync ? ` · 마지막 ${esc(lastSync)}` : ''}</span><button type="button" onclick="calSyncNow()" ${SYNC.busy ? 'disabled' : ''} class="px-2 py-0.5 rounded border border-emerald-700/60 hover:bg-emerald-950/50 disabled:opacity-60">${SYNC.busy ? '동기화 중...' : '지금 동기화'}</button>`
-          : `<span>Google 로그인하면 AI 검색·분석 결과가 모든 기기에 자동 동기화돼요.</span><button type="button" onclick="GAUTH.login()" class="px-2 py-0.5 rounded border border-slate-600 hover:bg-slate-800 text-slate-200">Google 로그인</button>`}${SYNC.msg ? `<span class="text-violet-300">${esc(SYNC.msg)}</span>` : ''}</div>`;
+        const syncRow = `<div class="mt-2 text-[11px]"><span data-gsync-status>${GSYNC.statusHtml()}</span></div>`;
         const savedNote = searched && !C.monthMsg ? `<div class="text-[11px] text-emerald-300">✓ ${C.m + 1}월 일정은 ${new Date(sm.ts).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}에 AI로 검색해 저장된 결과가 반영돼 있어요.</div>` : '';
         const missingFomc = !CAL_FOMC[C.y] ? `<div class="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-800/50 rounded-lg px-3 py-2 mb-2">${C.y}년 FOMC 일정은 앱에 내장되어 있지 않아요. "AI 일정 검색"으로 확인할 수 있습니다.</div>` : '';
         root.innerHTML = `<div class="space-y-4">
@@ -24881,14 +24925,11 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
               timeText = `${m}/${d} ${h}:${min}`;
             } catch (e) {}
           }
-          slot.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-medium text-[11px]"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Google 계정 자동 동기화 켜짐</span>` +
-            (timeText ? `<span class="text-slate-400 text-[11px]" title="${esc(lastBackup)}">백업됨: ${timeText}</span>` : '') +
-            `<button type="button" data-act="gdriveBackup" class="${BTN}" title="Google Drive에 즉시 백업"><i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i>지금 백업</button>` +
-            `<button type="button" data-act="gdriveRestore" class="${BTN}" title="Google Drive에서 백업 가져오기"><i class="fa-solid fa-cloud-arrow-down text-emerald-400"></i>드라이브에서 복원</button>` +
-            `<button type="button" data-act="gdriveSettings" class="${BTN} text-slate-400 hover:text-white" title="설정 (로그아웃·계정 관리)"><i class="fa-solid fa-gear"></i>설정</button>`;
+          slot.innerHTML = `<span data-gsync-status class="text-[11px]">${GSYNC.statusHtml()}</span>` +
+            `<button type="button" data-act="gdriveSettings" class="${BTN} text-slate-400 hover:text-white" title="동기화 저장·불러오기·로그아웃은 설정에서"><i class="fa-solid fa-gear"></i>동기화 설정</button>`;
         } else {
           slot.innerHTML = `<button type="button" data-act="gdriveConnect" class="${BTN} text-cyan-300 border-cyan-800/60 hover:bg-cyan-950/40"><i class="fa-brands fa-google"></i>Google 로그인</button>` +
-            `<span class="text-slate-300">로그인하면 관심종목이 설정과 함께 Google Drive에 자동 동기화돼요.</span>`;
+            `<span class="text-slate-300">로그인하면 관심종목을 포함한 모든 데이터가 Google Drive에 자동 동기화돼요.</span>`;
         }
       }
       function renderFoot() {
@@ -25088,121 +25129,13 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       function newGroupId() { return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
 
       // ---------- 구글 드라이브 자동 백업 연동 ----------
-      const GDRIVE = (function () {
-        // 설정 창의 Google 로그인(GAUTH)과 같은 계정·토큰을 쓰고, 앱 전용 숨김 폴더(appDataFolder)에 저장한다.
-        const LAST_BACKUP_KEY = 'pentanalyst_gdrive_last_backup';
-        const FILE_NAME = 'pentanalyst_watchlist_backup.json';
-        let backupTimer = null;
-        let busy = false;
-        let synced = false;
-
-        const auth = () => (typeof GAUTH !== 'undefined' ? GAUTH : null);
-        function isEnabled() { const a = auth(); return !!(a && a.getUser()); }
-        function getLastBackup() {
-          try { return localStorage.getItem(LAST_BACKUP_KEY) || null; } catch (e) { return null; }
-        }
-        function getToken(interactive) { return auth().getToken(interactive); }
-
-        async function findBackupFile(token) {
-          const q = encodeURIComponent(`name = '${FILE_NAME}'`);
-          const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&spaces=appDataFolder`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (!res.ok) {
-            const errJson = await res.json().catch(() => ({}));
-            throw new Error(errJson.error?.message || `드라이브 조회 실패 (${res.status})`);
-          }
-          const data = await res.json();
-          return (data.files && data.files.length) ? data.files[0] : null;
-        }
-
-        async function upload(token, existingFile) {
-          const backupData = Object.assign(
-            { app: 'PentAnalyst', kind: 'watchlist', exportedAt: new Date().toISOString() },
-            JSON.parse(JSON.stringify(ST))
-          );
-          const content = JSON.stringify(backupData, null, 1);
-          if (existingFile && existingFile.id) {
-            const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`, {
-              method: 'PATCH',
-              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' },
-              body: content
-            });
-            if (!r.ok) throw new Error(`백업 갱신 실패 (${r.status})`);
-          } else {
-            const boundary = '-------PentAnalystBoundary' + Math.random().toString(36).slice(2);
-            const metadata = JSON.stringify({ name: FILE_NAME, parents: ['appDataFolder'], mimeType: 'application/json' });
-            const body = [`--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', metadata,
-              `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`].join('\r\n');
-            const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
-              body
-            });
-            if (!r.ok) throw new Error(`백업 생성 실패 (${r.status})`);
-          }
-          try { localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString()); } catch (e) {}
-          renderGDriveSlot();
-        }
-
-        async function backup(silent) {
-          if (busy || !isEnabled()) { if (!silent && !isEnabled()) GAUTH.login(); return; }
-          ensure();
-          busy = true;
-          try {
-            const token = await getToken(!silent);
-            await upload(token, await findBackupFile(token));
-            if (!silent) notify('드라이브 백업 완료', `Google Drive에 ${Object.keys(ST.items).length}개 종목을 백업했어요.`, 'success');
-          } catch (e) {
-            if (!silent) notify('드라이브 백업 실패', e.message || '백업 중 오류가 발생했습니다.', 'error');
-          } finally {
-            busy = false;
-          }
-        }
-
-        async function restore(silent) {
-          if (!isEnabled()) { if (!silent) GAUTH.login(); return; }
-          ensure();
-          try {
-            const token = await getToken(!silent);
-            const file = await findBackupFile(token);
-            if (!file || !file.id) {
-              if (silent) { await upload(token, null); return; }
-              notify('백업 파일 없음', 'Google Drive에 저장된 관심종목 백업 파일이 없어요.', 'warning');
-              return;
-            }
-            const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error(`파일 다운로드 실패 (${res.status})`);
-            importText(await res.text());
-            if (silent) { clearTimeout(backupTimer); backupTimer = setTimeout(() => backup(true), 1500); }
-          } catch (e) {
-            if (!silent) notify('복원 실패', e.message || '백업 복원 중 오류가 발생했습니다.', 'error');
-          }
-        }
-
-        // 로그인되면(이전 로그인 포함) 클라우드의 관심종목을 합치고 다시 올린다.
-        function autoSync() {
-          if (synced || !isEnabled()) return;
-          synced = true;
-          restore(true);
-        }
-        function onAuthChanged(e) {
-          if (e && e.detail && e.detail.user) autoSync(); else synced = false;
-          renderGDriveSlot();
-        }
-
-        function scheduleBackup() {
-          if (!isEnabled()) return;
-          clearTimeout(backupTimer);
-          backupTimer = setTimeout(() => { backup(true); }, 5000);
-        }
-
-        return { getLastBackup, isEnabled, backup, restore, scheduleBackup, autoSync, onAuthChanged };
-      })();
+      // 관심종목만의 별도 백업은 없앴다 — 통합 동기화(GSYNC)가 관심종목을 포함한 모든 데이터를 한 파일로 저장·복원한다.
+        const GDRIVE = (function () {
+          const isEnabled = () => typeof GSYNC !== 'undefined' && GSYNC.isOn();
+          const getLastBackup = () => (typeof GSYNC !== 'undefined' && GSYNC.last()) ? new Date(GSYNC.last()).toISOString() : null;
+          return { getLastBackup, isEnabled, backup: silent => GSYNC.saveNow(silent), restore: silent => GSYNC.loadNow(silent), scheduleBackup() { /* GSYNC 가 변경을 감지한다 */ }, autoSync() {}, onAuthChanged() { renderGDriveSlot(); } };
+        })();
       try { window.addEventListener('gauth-changed', GDRIVE.onAuthChanged); } catch (e) {}
-      try { setTimeout(() => GDRIVE.autoSync(), 0); } catch (e) {}
 
       // ---------- 입력 처리 ----------
       function numField(v) { if (v === '' || v == null) return null; const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : NaN; }
