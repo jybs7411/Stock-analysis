@@ -2218,7 +2218,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.48.0';
+    const APP_VERSION = '1.49.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -18437,13 +18437,14 @@ ${digest}`;
         return J.days[date] || null;
     }
     const mkbT = x => (x && (x.savedAt || x.at)) || 0;
+    // 같은 항목이 양쪽에 있으면 자동 채움(backfill)보다 실제로 저장한 기록을 우선하고, 둘 다 같은 종류면 더 최근 것을 쓴다
     function mkbMerge(a, b) {
         const out = { v: 1, days: {}, deleted: {} };
         [a.deleted, b.deleted].forEach(m => Object.keys(m || {}).forEach(d => { out.deleted[d] = Math.max(out.deleted[d] || 0, m[d] || 0); }));
         const dates = new Set([...Object.keys(a.days || {}), ...Object.keys(b.days || {})]);
         dates.forEach(d => {
             const x = (a.days || {})[d] || {}, y = (b.days || {})[d] || {}, m = { date: d };
-            ['pre', 'post', 'todo', 'note', 'late'].forEach(k => { const p = x[k], q = y[k], w = p && q ? (mkbT(p) >= mkbT(q) ? p : q) : (p || q); if (w) m[k] = w; });
+            ['pre', 'post', 'todo', 'note', 'late'].forEach(k => { const p = x[k], q = y[k], w = p && q ? ((!!p.backfill !== !!q.backfill) ? (p.backfill ? q : p) : mkbT(p) >= mkbT(q) ? p : q) : (p || q); if (w) m[k] = w; });
             m.updatedAt = Math.max(0, ...['pre', 'post', 'todo', 'note', 'late'].map(k => mkbT(m[k])));
             if (!m.pre && !m.post && !m.todo && !m.note && !m.late) return;
             if (out.deleted[d] && out.deleted[d] >= m.updatedAt) return;
@@ -18663,8 +18664,8 @@ ${digest}`;
         if (!pre) return '이 날짜에 저장된 장전 예측이 없어 비교할 수 없습니다. 장전 예측은 미국 장 시작 전(프리마켓·개장 전 시간)에 이 탭을 열어야 그날 몫으로 자동 저장됩니다. 마감 후에 저장한 예측은 다음 거래일 몫이 됩니다.';
         return `장전 예측은 "${pre.dirText}"(위험 선호 ${mkFin(pre.score) ? pre.score.toFixed(0) : 'n/a'}점)였고 실제 S&P 500은 ${mkbPct(spx)}로 ${acc ? ({ exact: '정확히 들어맞았', dir: '방향은 맞았', part: '부분적으로만 맞았', miss: '빗나갔' })[acc] : ''}습니다. 예측 당시 핵심 변수: ${(pre.chain || []).map(c => c.title.replace('핵심 변수: ', '')).join(' / ') || '–'}. ${acc === 'miss' ? '방향이 어긋난 날은 위 변곡점 요인이 예측에 반영돼 있었는지 점검해 보세요.' : acc === 'part' ? '보합과 방향성 사이의 차이였습니다. 임계값(±0.25%) 근처 움직임인지 확인해 보세요.' : '예측 근거가 유효했던 날입니다. 같은 조건의 반복 여부를 기록해 두세요.'}`;
     }
-    function mkbBuildPost() {
-        const D = mkDerived(), ref = mkbRef();
+    function mkbBuildPost(asOf) { // asOf = { closeEpoch }: 과거 날짜 재구성(mkbBuildPostAsOf)에서만 쓴다
+        const D = mkDerived(), ref = asOf ? { time: asOf.closeEpoch, marketState: 'CLOSED' } : mkbRef();
         if (!ref || !mkFin(ref.time)) return null;
         const date = mkbEt(ref.time * 1000).date;
         const g = k => { const s = MK.stats[k]; return s && mkFin(s.r['1D']) ? s.r['1D'] : null; };
@@ -18728,13 +18729,13 @@ ${digest}`;
     function mkbSavePre(pre, force) {
         if (!pre) return false;
         const day = mkbDay(pre.forDate, true), old = day.pre;
-        if (old && !force && (Date.now() - mkbT(old) < 600000 || mkbSignature(old) === mkbSignature(pre))) return false;
+        if (old && !force && !old.backfill && (Date.now() - mkbT(old) < 600000 || mkbSignature(old) === mkbSignature(pre))) return false;
         day.pre = Object.assign({}, pre, { savedAt: Date.now() }); mkbTouch(day); mkbPersist(); return true;
     }
     function mkbSavePost(post, force) {
         if (!post) return false;
         const day = mkbDay(post.date, true), old = day.post;
-        if (old && !force && (Date.now() - mkbT(old) < 600000 || mkbSignature(old) === mkbSignature(post))) return false;
+        if (old && !force && !old.backfill && (Date.now() - mkbT(old) < 600000 || mkbSignature(old) === mkbSignature(post))) return false;
         day.post = Object.assign({}, post, { savedAt: Date.now() }); mkbTouch(day); mkbPersist(); return true;
     }
     // Yahoo가 개장 전 새벽 시간(한국 오후 등)에 PRE/PREPRE 대신 CLOSED를 주는 경우: 평일 미국 동부 9:30 이전이고 오늘 아직 거래가 없었으면 개장 전으로 본다
@@ -18793,58 +18794,83 @@ ${digest}`;
         if (day.late) return;
         day.late = Object.assign({}, late, { savedAt: Date.now() }); mkbTouch(day); mkbPersist();
     }
-    // 개장 30분 전 시점의 장전 예측을 '전일 종가까지의 일봉 + 개장 30분 전 선물'로 다시 계산한다 (저장하지 않음).
-    // 계산하는 동안만 전역 시세(MK.stats·spark·ext)를 전일까지 자른 사본으로 바꿔 끼웠다가 되돌린다. FRED·공포탐욕 지표는 당시 값이 없어 뺀다.
-    function mkbBuildPreAsOf(date, es, nq) {
-        const open = mkbOpenEpoch(date);
-        if (!open || !Object.keys(MK.spark).length) return null;
+    // 전역 시세(MK.stats·spark·ext)를 keepBar(봉 시각[초])를 만족하는 봉까지만 자른 사본으로 바꿔 끼우고 build()를 실행한 뒤 되돌린다 (동기 실행, 저장하지 않음).
+    // FRED·공포탐욕 지표는 당시 값이 없어 뺀다. futs=[[심볼, {pct,px}]...]는 당시 선물 값(없으면 선물 시세 제거).
+    function mkbWithSnapshot(tag, keepBar, futs, build) {
+        if (!Object.keys(MK.spark).length) return null;
         const keep = { stats: MK.stats, spark: MK.spark, ver: MK.ver, d: MK._d, ext: MK.ext };
         try {
             const spark = {}, stats = {};
             Object.keys(keep.spark).forEach(sym => {
                 const sp = keep.spark[sym], t = [], c = [];
-                sp.t.forEach((tt, i) => { if (tt < open - 18 * 3600) { t.push(tt); c.push(sp.c[i]); } }); // 그날 일봉(선물·환율은 전날 저녁 시각 표기)을 제외
+                sp.t.forEach((tt, i) => { if (keepBar(tt)) { t.push(tt); c.push(sp.c[i]); } });
                 if (c.length < 2) return;
                 spark[sym] = { t, c, currency: sp.currency };
                 const q = MK.quotes[sym];
                 stats[sym] = mkComputeStat(sym, spark[sym], q ? { name: q.name, marketCap: q.marketCap, pe: q.pe } : null);
             });
-            [['ES=F', es], ['NQ=F', nq]].forEach(([k, v]) => { if (v) stats[k] = { sym: k, price: v.px, last: v.px, r: { '1D': v.pct }, hasSpark: true, hasQuote: false }; else delete stats[k]; });
-            MK.stats = stats; MK.spark = spark; MK.ver = 'asof-' + date; MK._d = null; MK.ext = { fred: null, fg: null, news: null, ts: 0, busy: false };
+            (futs || []).forEach(([k, v]) => { if (v) stats[k] = { sym: k, price: v.px, last: v.px, r: { '1D': v.pct }, hasSpark: true, hasQuote: false }; else delete stats[k]; });
+            MK.stats = stats; MK.spark = spark; MK.ver = tag; MK._d = null; MK.ext = { fred: null, fg: null, news: null, ts: 0, busy: false };
+            return build();
+        } catch (e) { console.warn('시점 재구성 실패', e); return null; }
+        finally { MK.stats = keep.stats; MK.spark = keep.spark; MK.ver = keep.ver; MK._d = keep.d; MK.ext = keep.ext; }
+    }
+    // 개장 30분 전 시점의 장전 예측을 '전일 종가까지의 일봉 + 개장 30분 전 선물'로 다시 계산한다 (저장하지 않음).
+    function mkbBuildPreAsOf(date, es, nq) {
+        const open = mkbOpenEpoch(date);
+        if (!open) return null;
+        return mkbWithSnapshot('asof-' + date, tt => tt < open - 18 * 3600, [['ES=F', es], ['NQ=F', nq]], () => { // 그날 일봉(선물·환율은 전날 저녁 시각 표기)을 제외
             const pre = mkbBuildPre();
             if (!pre) return null;
             pre.forDate = date; pre.state = 'PRE'; pre.recon = true; pre.savedAt = 0;
             return pre;
-        } catch (e) { console.warn('장전 요인 재구성 실패', e); return null; }
-        finally { MK.stats = keep.stats; MK.spark = keep.spark; MK.ver = keep.ver; MK._d = keep.d; MK.ext = keep.ext; }
+        });
+    }
+    // 그날 마감 기준 장후 복기를 '그날 일봉까지의 시세'로 다시 계산한다 (저장하지 않음). 그날 일봉이 없으면 null.
+    function mkbBuildPostAsOf(date) {
+        const open = mkbOpenEpoch(date);
+        if (!open) return null;
+        const close = open + 23400;
+        return mkbWithSnapshot('asofpost-' + date, tt => tt <= close, null, () => {
+            const sp = MK.spark['SPY'];
+            if (!sp || !sp.t.length || Math.abs(sp.t[sp.t.length - 1] - open) > 6 * 3600) return null; // 마지막 일봉이 그 날짜가 아니면 비교 불가
+            return mkbBuildPost({ closeEpoch: close });
+        });
+    }
+    // 날짜 하나의 장전 재구성: 선물 5분봉 응답(esRes·nqRes = {history})로 {pre, late}를 만든다 (저장하지 않음)
+    function mkbReconBuild(date, esRes, nqRes) {
+        const open = mkbOpenEpoch(date);
+        if (!open) return null;
+        const [es, nq] = [esRes, nqRes].map(r => r && r.history ? mkbFutPreOpen(r.history, open) : null);
+        const got = [es, nq].filter(Boolean);
+        if (!got.length) return null;
+        const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+        const tilt = avg(got.map(x => x.pct));
+        const lates = got.map(x => x.late).filter(Boolean);
+        let late = null;
+        if (lates.length) {
+            const d = avg(lates.map(x => x.d)), same = Math.abs(d) < 0.1 ? 0 : (d > 0) === (tilt >= 0) ? 1 : -1;
+            late = { date, tilt, d, range: avg(lates.map(x => x.range)), endHm: lates[0].endHm,
+                verdict: same === 0 ? '큰 변화 없음' : same > 0 ? '예측 방향을 강화' : Math.abs(tilt + d) < 0.25 ? '예측을 약화(보합권으로 수렴)' : (tilt + d >= 0) !== (tilt >= 0) ? '예측과 반대로 반전' : '예측을 약화' };
+        }
+        const dirKey = tilt >= 0.8 ? 'gapup' : tilt >= 0.25 ? 'up' : tilt > -0.25 ? 'flat' : tilt > -0.8 ? 'down' : 'gapdown', dirText = MKB_DIR_KO[dirKey];
+        let pre = mkbBuildPreAsOf(date, es, nq);
+        const full = !!pre;
+        if (!pre) pre = { v: 1, recon: true, forDate: date, dirKey, dirText, tilt, hasFut: true, score: null, factors: [], chain: [], fut: { es: es ? es.pct : null, nq: nq ? nq.pct : null },
+            summary: `${dirText} (개장 30분 전 ${got[0].hm} ET 선물 기준: S&P ${mkbPct(es && es.pct)} / 나스닥 ${mkbPct(nq && nq.pct)}, 전일 정산가 대비). 일봉 데이터가 없어 위험 선호 점수 등 나머지 요인은 재구성하지 못했습니다.`, savedAt: 0 };
+        pre.reconFull = full;
+        return { pre, late };
     }
     async function mkbLoadRecon(date) {
         MKB.recon = MKB.recon || {}; MKB.reconTried = MKB.reconTried || {};
         if (MKB.recon[date] || MKB.reconTried[date] || !getProxyUrl()) return;
         MKB.reconTried[date] = true;
         try {
-            const open = mkbOpenEpoch(date);
-            if (!open) return;
-            const [es, nq] = await Promise.all(['ES=F', 'NQ=F'].map(async k => { const r = await fetchRealYahooFinanceData(k, '5d', '5m'); return r && r.history ? mkbFutPreOpen(r.history, open) : null; }));
-            const got = [es, nq].filter(Boolean);
-            if (!got.length) return;
-            const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
-            const tilt = avg(got.map(x => x.pct));
-            const lates = got.map(x => x.late).filter(Boolean);
-            let late = null;
-            if (lates.length) {
-                const d = avg(lates.map(x => x.d)), same = Math.abs(d) < 0.1 ? 0 : (d > 0) === (tilt >= 0) ? 1 : -1;
-                late = { date, tilt, d, range: avg(lates.map(x => x.range)), endHm: lates[0].endHm,
-                    verdict: same === 0 ? '큰 변화 없음' : same > 0 ? '예측 방향을 강화' : Math.abs(tilt + d) < 0.25 ? '예측을 약화(보합권으로 수렴)' : (tilt + d >= 0) !== (tilt >= 0) ? '예측과 반대로 반전' : '예측을 약화' };
-            }
-            const dirKey = tilt >= 0.8 ? 'gapup' : tilt >= 0.25 ? 'up' : tilt > -0.25 ? 'flat' : tilt > -0.8 ? 'down' : 'gapdown', dirText = MKB_DIR_KO[dirKey];
-            let pre = mkbBuildPreAsOf(date, es, nq);
-            const full = !!pre;
-            if (!pre) pre = { v: 1, recon: true, forDate: date, dirKey, dirText, tilt, hasFut: true, score: null, factors: [], chain: [], fut: { es: es ? es.pct : null, nq: nq ? nq.pct : null },
-                summary: `${dirText} (개장 30분 전 ${got[0].hm} ET 선물 기준: S&P ${mkbPct(es && es.pct)} / 나스닥 ${mkbPct(nq && nq.pct)}, 전일 정산가 대비). 일봉 데이터가 없어 위험 선호 점수 등 나머지 요인은 재구성하지 못했습니다.`, savedAt: 0 };
-            pre.reconFull = full;
-            MKB.recon[date] = { pre, late };
-            if (late) mkbSaveLate(date, late);
+            const [esR, nqR] = await Promise.all(['ES=F', 'NQ=F'].map(k => fetchRealYahooFinanceData(k, '5d', '5m')));
+            const r = mkbReconBuild(date, esR, nqR);
+            if (!r) return;
+            MKB.recon[date] = r;
+            if (r.late) mkbSaveLate(date, r.late);
         } catch (e) { console.warn('장전 재구성 실패', e); }
         mkbRender(true);
     }
@@ -18878,6 +18904,96 @@ ${digest}`;
             <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-[10px] text-slate-400 text-left"><th class="py-1.5 px-2">직전 30분 판정</th><th class="px-2">일수</th><th class="px-2">09:00 기준 적중</th><th class="px-2">직전 수준 적중</th></tr></thead><tbody>${gRows}</tbody></table></div></div>
           <p class="text-[10px] text-slate-500 leading-relaxed">09:00 기준보다 개장 직전 수준의 적중이 꾸준히 높다면 직전 30분이 정보를 더하고 있다는 뜻입니다. 방향은 S&P 500 일간 등락 ±0.25% 기준(보합 포함)이며, 선물 5분봉이 있는 최근 거래일만 기록됩니다.</p>${few}</div>`;
     }
+
+    // ---------- 백그라운드 자동 저장 · 빠진 날 채우기 (앱이 열려 있으면 탭과 상관없이 동작) ----------
+    // 브라우저 앱이라 앱이 닫혀 있는 동안에는 아무것도 실행되지 않는다. 대신 다음에 열 때 빠진 거래일을 일봉·선물 5분봉으로 되살려 채운다.
+    // 채운 기록에는 backfill 표시가 붙고(장전은 recon 포함), 같은 날 실제로 저장한 기록이 있으면 항상 그쪽이 우선한다.
+    const MKB_BG_MS = 5 * 60 * 1000; // 백그라운드 점검 주기
+    MKB.bg = { busy: false, started: false, loadAt: 0 };
+    const mkbWaitLoaded = async (ms = 120000) => { const t0 = Date.now(); while (MK.loading && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 500)); };
+    async function mkbBgLoad() { // 시장 탭을 열지 않아도 시세를 받는다
+        if (typeof getProxyUrl !== 'function' || !getProxyUrl()) return false;
+        if (MK.loading) await mkbWaitLoaded();
+        else await mkLoad({ force: true });
+        await mkbWaitLoaded();
+        MKB.bg.loadAt = Date.now();
+        return !MK.noProxy && !!Object.keys(MK.spark).length;
+    }
+    function mkbSaveBackfill(date, kind, obj) {
+        const day = mkbDay(date, true);
+        if (day[kind]) return false;
+        day[kind] = Object.assign({}, obj, { savedAt: Date.now(), backfill: true });
+        mkbTouch(day); return true;
+    }
+    // 최근 평일 중 장전·장후 기록이 없는 날을 채운다. 휴장일은 SPY 일봉에 없으므로 건너뛰고, 처리한 날짜는 기억해 다시 시도하지 않는다 (채울 날이 없으면 시세도 받지 않는다)
+    const MKB_BF_KEY = 'pentanalyst_brief_bf_checked_v1';
+    async function mkbBackfill() {
+        if (MKB.bg.busy) return 0;
+        MKB.bg.busy = true;
+        let added = 0;
+        try {
+            let chk = {}; try { chk = JSON.parse(localStorage.getItem(MKB_BF_KEY) || '{}') || {}; } catch (e) { chk = {}; }
+            const now = mkbEt(Date.now()), J = mkbLoad();
+            const done = d => d < now.date || (d === now.date && !mkbWeekend(now) && now.h * 60 + now.m >= 16 * 60 + 5); // 마감이 끝난 날만
+            const cand = [];
+            for (let i = 0; i < 42; i++) { const e = mkbEt(Date.now() - i * 86400000); if (!mkbWeekend(e) && done(e.date) && !cand.includes(e.date)) cand.push(e.date); }
+            const todo = cand.reverse().filter(d => !chk[d] && !J.deleted[d] && (!(mkbDay(d) || {}).pre || !(mkbDay(d) || {}).post));
+            if (!todo.length) return 0;
+            if (!MK.loadTs && !(await mkbBgLoad())) return 0;
+            const sp = MK.spark['SPY'];
+            if (!sp || !sp.t.length) return 0;
+            const trading = new Set(sp.t.map(t => mkbEt(t * 1000).date)), lastBar = mkbEt(sp.t[sp.t.length - 1] * 1000).date;
+            const days = todo.filter(d => { if (trading.has(d)) return true; if (d < lastBar) chk[d] = 1; return false; }); // 일봉에 없는 과거 평일 = 휴장
+            const [esR, nqR] = days.length ? await Promise.all(['ES=F', 'NQ=F'].map(k => fetchRealYahooFinanceData(k, '1mo', '5m').catch(() => null))) : [null, null];
+            for (const d of days) {
+                if (!(mkbDay(d) || {}).pre) {
+                    const r = mkbReconBuild(d, esR, nqR);
+                    if (r && r.pre && mkbSaveBackfill(d, 'pre', r.pre)) added++;
+                    if (r && r.late) mkbSaveLate(d, r.late);
+                }
+                if (!(mkbDay(d) || {}).post) { // 장후 복기는 같은 날 장전 기록(위에서 채운 것 포함)과 비교해 만든다
+                    const post = mkbBuildPostAsOf(d);
+                    if (post && mkbSaveBackfill(d, 'post', post)) added++;
+                }
+                if (d < lastBar || (mkbDay(d) || {}).post) chk[d] = 1;
+                await new Promise(r => setTimeout(r, 0)); // 화면이 멈추지 않게 날짜마다 양보
+            }
+            try { localStorage.setItem(MKB_BF_KEY, JSON.stringify(chk)); } catch (e) { /* 저장 불가 */ }
+            if (added) { mkbPersist(); showToast('브리핑 기록 자동 채움', `빠져 있던 장전·장후 기록 ${added}건을 과거 데이터로 채웠습니다. (되돌아보기에서 확인)`, 'info'); }
+        } catch (e) { console.warn('브리핑 기록 채우기 실패', e); }
+        finally { MKB.bg.busy = false; mkbRender(true); }
+        return added;
+    }
+    // 지금 시각에 있어야 할 기록(장전: 평일 ET 04:00~09:30 / 장후: 평일 마감 5분 뒤~)이 없거나 오래됐으면 시세를 받아 저장한다
+    async function mkbBgTick() {
+        if (MKB.bg.busy || typeof getProxyUrl !== 'function' || !getProxyUrl()) return;
+        const e = mkbEt(Date.now()), mins = e.h * 60 + e.m, J = mkbLoad();
+        if (mkbWeekend(e)) return;
+        let kind = null;
+        if (mins >= 240 && mins < 570) kind = 'pre'; else if (mins >= 16 * 60 + 5) kind = 'post';
+        if (!kind) return;
+        const have = kind === 'pre' ? (J.days[e.date] || {}).pre : (J.days[e.date] || {}).post;
+        const age = Date.now() - MKB.bg.loadAt;
+        if (kind === 'post' ? (have && !have.backfill) : (have && !have.backfill && age < 30 * 60 * 1000)) return; // 장후는 하나 저장하면 끝, 장전은 30분마다 갱신
+        if (kind === 'pre' && MK.loading) return;
+        MKB.bg.busy = true;
+        try {
+            if (!(await mkbBgLoad())) return;
+            MKB.lastVer = -1;
+            mkbAutoSave();
+        } catch (err) { console.warn('브리핑 백그라운드 저장 실패', err); }
+        finally { MKB.bg.busy = false; mkbRender(true); }
+    }
+    function mkbBgStart() {
+        if (MKB.bg.started) return;
+        MKB.bg.started = true;
+        mkbInit();
+        const run = async () => { await mkbBackfill(); await mkbBgTick(); };
+        setTimeout(run, 12000); // Drive 동기화가 끝난 뒤(다른 기기 기록과 합친 뒤) 채운다
+        setInterval(() => { mkbBgTick(); }, MKB_BG_MS);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { run(); } });
+    }
+    setTimeout(mkbBgStart, 3000);
 
     // ---------- 장중 변곡점 (SPY 5분봉) ----------
     function mkbTimelineRows(r) {
