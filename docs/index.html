@@ -2205,7 +2205,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.51.1';
+    const APP_VERSION = '1.52.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -25872,22 +25872,22 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (o.side === 'buy') {
           const fee = amt * feeRate(cur);
           st.cash[cur] -= amt + fee;
-          (st.lots[o.sym] = st.lots[o.sym] || []).push({ qty: o.qty, price, feePer: fee / o.qty, t, tag: o.tag });
+          (st.lots[o.sym] = st.lots[o.sym] || []).push({ qty: o.qty, price, feePer: fee / o.qty, t, tag: o.tag, oid: o.id });
           Object.assign(o, { status: 'filled', price, fee, tax: 0, t1: t });
         } else {
           const fee = amt * feeRate(cur), tax = amt * taxRate(cur);
-          let need = o.qty, cost = 0, dayW = 0, tag = null;
+          let need = o.qty, cost = 0, dayW = 0, tag = null, firstT = null, firstO = null;
           const ls = st.lots[o.sym] || [];
           while (need > 0 && ls.length) {
             const l = ls[0], q = Math.min(l.qty, need);
-            cost += q * (l.price + l.feePer); dayW += q * (t - l.t); if (tag == null) tag = l.tag;
+            cost += q * (l.price + l.feePer); dayW += q * (t - l.t); if (tag == null) { tag = l.tag; firstT = l.t; firstO = l.oid; }
             l.qty -= q; need -= q; if (l.qty <= 0) ls.shift();
           }
           if (!ls.length) delete st.lots[o.sym];
           st.cash[cur] += amt - fee - tax;
           const pnl = amt - fee - tax - cost, pc = (pnl / cost) * 100;
           Object.assign(o, { status: 'filled', price, fee, tax, t1: t, pnl, pct: pc });
-          st.closed.push({ id: o.id, sym: o.sym, name: o.name, cur, qty: o.qty, buy: cost / o.qty, sell: price, pnl, pct: pc, days: dayW / o.qty / 86400000, tag: tag || '기타', t, cost, fees: fee + tax });
+          st.closed.push({ id: o.id, sym: o.sym, name: o.name, cur, qty: o.qty, buy: cost / o.qty, sell: price, pnl, pct: pc, days: dayW / o.qty / 86400000, tag: tag || '기타', firstT, firstO, t, cost, fees: fee + tax });
         }
         snap(true);
       }
@@ -25910,6 +25910,16 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         const marketable = p.type === 'market' || (px != null && (p.side === 'buy' ? px <= o.limit : px >= o.limit));
         if (marketable) { fillOrder(o, px); save(); return { ok: true, filled: true, o }; }
         save(); return { ok: true, filled: false, o };
+      }
+      // 체결된 주문의 이유(태그)·메모를 고친다. 매수 이유를 고치면 보유분(lot)과 그 매수로 청산된 거래의 '진입 이유'도 함께 바뀐다.
+      function editOrder(id, tag, memo) {
+        const st = load(), o = st.orders.find(x => x.id === id && x.status === 'filled'); if (!o) return false;
+        const old = o.tag; o.tag = TAGS.includes(tag) ? tag : o.tag; o.memo = String(memo || '').slice(0, 200);
+        if (o.side === 'buy') {
+          (st.lots[o.sym] || []).forEach(l => { if (l.oid != null ? l.oid === o.id : l.t === o.t1) l.tag = o.tag; });
+          st.closed.forEach(c => { if (c.sym === o.sym && (c.firstO != null ? c.firstO === o.id : c.firstT != null ? c.firstT === o.t1 : (c.tag === old && c.t > o.t1))) c.tag = o.tag; });
+        }
+        save(); return true;
       }
       function cancelOrder(id) {
         const o = load().orders.find(x => x.id === id && x.status === 'open');
@@ -25991,7 +26001,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       }
 
       // ---------- 화면 ----------
-      const V = { sub: 'trade', cur: 'KRW', cfg: false, tkSearch: 0 };
+      const V = { sub: 'trade', cur: 'KRW', cfg: false, tkSearch: 0, editId: null };
       const T = { sym: '', name: '', cur: '', side: 'buy', type: 'market', qty: '', limit: '', tag: TAGS[0], memo: '' };
       let root = null, dock = null, timer = null, busy = false;
       const card = 'rounded-2xl border border-slate-800 bg-slate-900/60 p-4';
@@ -26077,8 +26087,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (!os.length) return `<div class="${card} mt-3 text-center text-sm text-slate-400">아직 거래 기록이 없어요.</div>`;
         const rows = os.map(o => `<tr class="border-t border-slate-800 align-top"><td class="py-2 pr-2 text-slate-400 whitespace-nowrap">${dtStr(o.t1 || o.t0)}</td><td class="pr-2 font-bold ${o.side === 'buy' ? 'text-rose-400' : 'text-blue-400'}">${o.side === 'buy' ? '매수' : '매도'}${o.status === 'cancelled' ? '<span class="text-slate-500 font-normal"> (취소)</span>' : ''}</td>
           <td class="pr-2"><div class="font-bold text-white">${esc(o.sym)}</div><div class="text-[11px] text-slate-400 truncate max-w-[8rem]">${esc(o.name)}</div></td><td class="text-right pr-2">${fmtN(o.qty, 0)}</td><td class="text-right pr-2">${o.status === 'filled' ? price$(o.price, o.cur) : '—'}</td>
-          <td class="text-right pr-2 ${tone(o.pnl)} font-semibold">${o.side === 'sell' && o.status === 'filled' ? money(o.pnl, o.cur, true) + `<div class="text-[11px]">${pct(o.pct)}</div>` : ''}</td><td class="text-slate-300"><span class="text-[11px] text-slate-400">${esc(o.tag)}</span>${o.memo ? `<div>${esc(o.memo)}</div>` : ''}</td></tr>`).join('');
-        return `<div class="${card} mt-3 overflow-x-auto"><table class="w-full text-xs text-slate-200 min-w-[640px]"><thead><tr class="text-[11px] text-slate-400"><th class="text-left font-semibold">일시</th><th class="text-left font-semibold">구분</th><th class="text-left font-semibold">종목</th><th class="text-right font-semibold pr-2">수량</th><th class="text-right font-semibold pr-2">체결가</th><th class="text-right font-semibold pr-2">실현손익</th><th class="text-left font-semibold">이유·메모</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+          <td class="text-right pr-2 ${tone(o.pnl)} font-semibold">${o.side === 'sell' && o.status === 'filled' ? money(o.pnl, o.cur, true) + `<div class="text-[11px]">${pct(o.pct)}</div>` : ''}</td><td class="text-slate-300">${V.editId === o.id ? `<div class="flex flex-wrap gap-1.5 items-center"><select id="simEdTag" class="${inp} !min-h-9 !w-auto">${TAGS.map(t => `<option ${o.tag === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><input id="simEdMemo" type="text" maxlength="200" value="${esc(o.memo)}" placeholder="메모" class="${inp} !min-h-9 !w-44"><button type="button" data-act="editsave" data-id="${o.id}" class="min-h-9 px-3 rounded-lg bg-teal-600 text-white text-xs font-bold">저장</button><button type="button" data-act="editcancel" class="min-h-9 px-3 rounded-lg bg-slate-800 text-slate-200 text-xs">취소</button></div>` : `<span class="text-[11px] text-slate-400">${esc(o.tag)}</span>${o.memo ? `<div>${esc(o.memo)}</div>` : ''}${o.status === 'filled' ? `<button type="button" data-act="editlog" data-id="${o.id}" title="이유·메모 수정" class="ml-1 text-[11px] text-cyan-400 hover:text-cyan-300"><i class="fa-solid fa-pen"></i> 수정</button>` : ''}`}</td></tr>`).join('');
+        return `<div class="${card} mt-3 overflow-x-auto"><table class="w-full text-xs text-slate-200 min-w-[640px]"><thead><tr class="text-[11px] text-slate-400"><th class="text-left font-semibold">일시</th><th class="text-left font-semibold">구분</th><th class="text-left font-semibold">종목</th><th class="text-right font-semibold pr-2">수량</th><th class="text-right font-semibold pr-2">체결가</th><th class="text-right font-semibold pr-2">실현손익</th><th class="text-left font-semibold">이유·메모 <span class="font-normal text-slate-500">(수정 가능)</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
       }
 
       function chartSvg(cur) {
@@ -26208,6 +26218,9 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           toast(r.filled ? '체결 완료' : '주문 접수', r.filled ? `${o.sym} ${fmtN(o.qty, 0)}주 ${o.side === 'buy' ? '매수' : '매도'} @ ${price$(o.price, o.cur)}${o.side === 'sell' ? ` · 실현 ${money(o.pnl, o.cur, true)}` : ''}` : `${o.sym} ${fmtN(o.qty, 0)}주 ${price$(o.limit, o.cur)} 지정가 대기 중`, r.filled ? 'success' : 'info');
           T.qty = ''; T.memo = ''; render();
         }
+        else if (act === 'editlog') { V.editId = +b.dataset.id; renderMain(); }
+        else if (act === 'editcancel') { V.editId = null; renderMain(); }
+        else if (act === 'editsave') { const ok = editOrder(+b.dataset.id, ctx.querySelector('#simEdTag').value, ctx.querySelector('#simEdMemo').value); V.editId = null; if (ok) toast('수정했어요', '거래 이유·메모를 고쳤고 성과 분석에도 반영돼요.', 'success'); renderMain(); }
         else if (act === 'sellall') { T.side = 'sell'; T.type = 'market'; T.qty = String(Math.max(0, held(T.sym) - openSellQty(T.sym))); render(); }
         else if (act === 'gosim') switchAppTab('sim');
         else if (act === 'cancel') { cancelOrder(+b.dataset.id); render(); }
@@ -26245,7 +26258,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.sim = onOpen;
       if (typeof APP_SYM_APPLY !== 'undefined') APP_SYM_APPLY.sim = sym => { if (sym && sym !== T.sym) { T.sym = sym; T.name = ''; T.cur = curOfSym(sym); if (CURS.includes(T.cur)) V.cur = T.cur; pickSymbol(sym, ''); } };
       window.SIM_UI = { mountDock, refresh: () => { init(); return refresh(); }, follow: sym => { if (sym && sym !== T.sym) pickSymbol(sym, ''); } };
-      window.SIM_DEBUG = { load, placeOrder, positions, analyze, insights, fillOrder, Q, T, V, equity, reset: () => { S = fresh(); save(); } };
+      window.SIM_DEBUG = { editOrder, load, placeOrder, positions, analyze, insights, fillOrder, Q, T, V, equity, reset: () => { S = fresh(); save(); } };
     })();
   </script>
 
