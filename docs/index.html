@@ -2205,7 +2205,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.54.0';
+    const APP_VERSION = '1.55.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3326,6 +3326,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
                   <i class="fa-solid fa-cloud-arrow-down text-emerald-400"></i>모든 데이터 불러오기
                 </button>
               </div>
+              <button type="button" onclick="GSYNC.restoreBackup()" class="text-[11px] text-slate-400 hover:text-slate-200 underline">동기화가 덮어쓰거나 지운 내용 되돌리기</button>
               <p class="text-[11px] text-slate-400 leading-relaxed">
                 <span data-gsync-status></span><br>설정·API 키·관심종목·모의투자·장부·불단왕 일지·브리핑 기록·AI 일정 분석 등 <b>앱의 모든 데이터</b>를 내 Google Drive의 앱 전용 숨김 폴더 파일 하나로 동기화합니다. 변경 후 잠시 뒤, 앱을 닫거나 화면이 숨겨질 때 자동 저장되고, 앱을 열 때 자동으로 불러옵니다. 다른 기기의 새 데이터를 받으면 화면 반영을 위해 한 번 새로고침합니다.
               </p>
@@ -3363,10 +3364,12 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     //  - 저장: 변경이 생기면 잠시 뒤 자동 + 앱을 닫거나 화면이 숨겨질 때(visibilitychange/pagehide) + 수동 '저장'
     //  - 불러오기: 앱을 열 때(로그인돼 있으면) 자동 + 수동 '불러오기'. 다른 기기의 새 데이터를 받으면 화면에 반영하려고 한 번 새로고침한다.
     //  - 합치기: 키별로 '더 최근에 바꾼 쪽' 채택. 관심종목·장부·일지·브리핑·일정 분석은 항목 단위로 합치고, 모의투자는 최근 거래가 있는 쪽을 채택한다.
-    //    덮어쓰이는 쪽 값은 'pentanalyst_sync_backup_v1' 에 남겨 둔다. 삭제는 동기화하지 않는다(지운 항목이 다른 기기에서 되살아날 수 있음).
+    //    덮어쓰이는 쪽 값은 'pentanalyst_sync_backup_v1' 에 남겨 둔다.
+    //  - 삭제: 관심종목·장부·불단왕 일지의 항목 삭제는 '삭제 표시(툼스톤)'로 전파한다. 항목마다 마지막 사건(삭제/추가)의 시각을 비교해 더 최근 쪽이 이기므로,
+    //    지운 뒤 다시 추가한 항목은 되살아난다. 안전장치: 60일 지난 표시는 버림 / 다른 기기의 대량 삭제(절반 넘게, 5개 이상)는 이 기기에서 확인 후 반영 / 지워진 값은 백업에 남겨 '되돌리기' 가능.
     const GSYNC = (function () {
       const FILE = 'pentanalyst_sync.json';
-      const META_KEY = 'pentanalyst_sync_meta_v1', BAK_KEY = 'pentanalyst_sync_backup_v1', LAST_KEY = 'pentanalyst_sync_last', FID_KEY = 'pentanalyst_sync_fid', DIRTY_KEY = 'pentanalyst_sync_dirty';
+      const META_KEY = 'pentanalyst_sync_meta_v1', BAK_KEY = 'pentanalyst_sync_backup_v1', LAST_KEY = 'pentanalyst_sync_last', FID_KEY = 'pentanalyst_sync_fid', DIRTY_KEY = 'pentanalyst_sync_dirty', EV_KEY = 'pentanalyst_sync_ev_v1', EV_TTL = 60 * 86400000;
       // 동기화에서 뺄 키: 로그인·기기 고유값, 다시 받아오면 되는 캐시, 화면 배치
       const EXCLUDE = /^pentanalyst_(gauth_user|gdrive_client_id|gdrive_last_backup|cal_sync_last|sync_.*|watch_cache_v1|cal_yf_v1|hub_last_v1|gemini_cool|scr_snap|scr_earn|rev_snap_v1|dock_v1|chart_split|multi_side)$/;
       const inScope = k => typeof k === 'string' && k.indexOf('pentanalyst_') === 0 && !EXCLUDE.test(k);
@@ -3374,7 +3377,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       const ls = { get: k => { try { return rawGet.call(localStorage, k); } catch (e) { return null; } }, set: (k, v) => { try { rawSet.call(localStorage, k, v); return true; } catch (e) { return false; } } };
       const jparse = s => { try { return JSON.parse(s); } catch (e) { return null; } };
       const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
-      let meta = jparse(ls.get(META_KEY)) || {}, dirty = ls.get(DIRTY_KEY) === '1', busy = false, applying = false, timer = null, metaTimer = null, frozen = false, fileId = ls.get(FID_KEY) || '', lastErr = '', pending = false;
+      let ev = jparse(ls.get(EV_KEY)) || {}, evTimer = null, lastApply = { removed: 0, skipped: 0 }, meta = jparse(ls.get(META_KEY)) || {}, dirty = ls.get(DIRTY_KEY) === '1', busy = false, applying = false, timer = null, metaTimer = null, frozen = false, fileId = ls.get(FID_KEY) || '', lastErr = '', pending = false;
       const S = { last: +ls.get(LAST_KEY) || 0 };
 
       const auth = () => (typeof GAUTH !== 'undefined' ? GAUTH : null);
@@ -3391,8 +3394,69 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (applying || !inScope(k)) return rawSet.call(this, k, v);
         let prev = null; try { prev = rawGet.call(this, k); } catch (e) { /* 무시 */ }
         rawSet.call(this, k, v);
-        if (prev !== String(v)) touch(k);
+        if (prev !== String(v)) { if (COLLS[k]) trackDiff(k, prev, String(v)); touch(k); }
       };
+
+      // ---------- 삭제 표시(툼스톤) ----------
+      // 항목 목록을 가진 데이터: path 아래의 map(키가 id) 또는 array(항목의 id 필드)
+      const COLLS = {
+        pentanalyst_watch_v1: [{ path: 'items', kind: 'map' }, { path: 'lists', kind: 'array', id: 'id' }],
+        pentanalyst_ledger_v1: [{ path: 'trades', kind: 'array', id: 'id' }],
+        pentanalyst_bdw_journal: [{ path: '', kind: 'array', id: 'id' }],
+        pentanalyst_scr_notes: [{ path: '', kind: 'map' }]
+      };
+      const container = (o, sp) => sp.path ? (o && o[sp.path]) : o;
+      function idsOf(o, sp) {   // 항목 id 집합 (구조가 다르거나 id 없는 항목이 있으면 null → 그 컬렉션은 삭제 추적 안 함)
+        const c = container(o, sp);
+        if (sp.kind === 'map') return isObj(c) ? new Set(Object.keys(c)) : null;
+        if (!Array.isArray(c)) return null;
+        const set = new Set();
+        for (const x of c) { if (!x || x[sp.id] == null) return null; set.add(String(x[sp.id])); }
+        return set;
+      }
+      const evKey = (k, sp, id) => `${k}|${sp.path}|${id}`;
+      function saveEv() { clearTimeout(evTimer); evTimer = setTimeout(() => { const lim = Date.now() - EV_TTL; Object.keys(ev).forEach(x => { if ((ev[x].at || 0) < lim) delete ev[x]; }); ls.set(EV_KEY, JSON.stringify(ev)); }, 500); }
+      // 이 기기에서 일어난 삭제·추가를 기록한다 (클라우드에서 받은 값을 쓰는 것은 기록하지 않는다)
+      function trackDiff(k, prevRaw, newRaw) {
+        if (prevRaw == null) return;
+        const A = jparse(prevRaw), B = jparse(newRaw); if (!A || !B) return;
+        const now = Date.now();
+        COLLS[k].forEach(sp => {
+          const a = idsOf(A, sp), b = idsOf(B, sp); if (!a || !b) return;
+          a.forEach(id => { if (!b.has(id)) ev[evKey(k, sp, id)] = { at: now, del: true }; });
+          b.forEach(id => { const e = ev[evKey(k, sp, id)]; if (!a.has(id) && (!e || e.del)) ev[evKey(k, sp, id)] = { at: now, del: false }; });
+        });
+        saveEv();
+      }
+      function mergeEv(remoteEv) {   // 항목마다 더 최근 사건이 이긴다
+        if (!isObj(remoteEv)) return;
+        Object.keys(remoteEv).forEach(x => { const r = remoteEv[x]; if (r && typeof r.at === 'number' && (!ev[x] || r.at > ev[x].at)) ev[x] = r; });
+        saveEv();
+      }
+      const COLL_LABEL = { pentanalyst_watch_v1: '관심종목', pentanalyst_ledger_v1: '장부', pentanalyst_bdw_journal: '불단왕 일지', pentanalyst_scr_notes: '스크리너 노트' };
+      // 합쳐진 값에서 '삭제가 가장 최근 사건인' 항목을 뺀다.
+      // 이 기기에 반영할 때(ctx 있음) 한 번에 절반 넘게(5개 이상) 지워지면 사용자에게 확인한다. 거절하면 그 삭제를 '유지(추가)'로 덮어써서 다른 기기에도 알리고, 더는 막지 않는다.
+      // 클라우드에 쓸 값을 만들 때(ctx 없음)는 이 기기 데이터를 건드리지 않으므로 확인 없이 그대로 적용한다.
+      function dropDeleted(k, raw, ctx) {
+        const spec = COLLS[k], o = jparse(raw); if (!spec || !o) return raw;
+        const lim = Date.now() - EV_TTL; let touched = false;
+        spec.forEach(sp => {
+          const ids = idsOf(o, sp); if (!ids) return;
+          const gone = [...ids].filter(id => { const e = ev[evKey(k, sp, id)]; return e && e.del && e.at >= lim; });
+          if (!gone.length) return;
+          if (ctx && gone.length >= 5 && gone.length > ids.size * 0.5) {
+            let ok = false;
+            try { ok = confirm(`다른 기기에서 ${COLL_LABEL[k] || '데이터'} ${gone.length}개(전체 ${ids.size}개 중)를 한꺼번에 지웠어요.\n이 기기에서도 지울까요?\n\n[취소]를 누르면 이 항목들을 유지하고, 다른 기기에도 유지하라고 알려요.`); } catch (e) { ok = false; }
+            if (!ok) { const now = Date.now(); gone.forEach(id => { ev[evKey(k, sp, id)] = { at: now, del: false }; }); ctx.skipped += gone.length; saveEv(); return; }
+          }
+          const set = new Set(gone), c = container(o, sp);
+          if (sp.kind === 'map') gone.forEach(id => { delete c[id]; });
+          else { const kept = c.filter(x => !set.has(String(x[sp.id]))); c.length = 0; kept.forEach(x => c.push(x)); }
+          if (ctx) ctx.removed += gone.length;
+          touched = true;
+        });
+        return touched ? JSON.stringify(o) : raw;
+      }
 
       // ---------- 항목 단위 합치기 ----------
       const byId = (a, b, idf) => { const out = a.slice(), seen = new Set(a.map(idf)); b.forEach(x => { const id = idf(x); if (!seen.has(id)) { seen.add(id); out.push(x); } }); return out; };
@@ -3426,7 +3490,9 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         pentanalyst_sim_v1(l, r) {   // 모의투자: 계좌 하나라서 섞지 않고 '최근 거래가 있는 쪽'(같으면 주문이 많은 쪽, 그래도 같으면 로컬)을 채택
           const A = jparse(l), B = jparse(r); if (!isObj(A) || !isObj(B) || !Array.isArray(A.orders) || !Array.isArray(B.orders)) return null;
           const last = s => s.orders.reduce((m, o) => Math.max(m, o.t1 || o.t0 || 0), 0);
-          const la = last(A), lb = last(B);
+          const la = last(A), lb = last(B), ra = A.resetAt || 0, rb = B.resetAt || 0;
+          if (ra > lb && ra > rb) return l;   // 계좌 초기화가 상대의 마지막 거래보다 나중이면 초기화한 쪽이 이긴다(초기화가 되살아나지 않게)
+          if (rb > la && rb > ra) return r;
           return (lb > la || (lb === la && B.orders.length > A.orders.length)) ? r : l;
         },
         pentanalyst_scr_notes: unionJson, pentanalyst_scr_analyzed: unionJson, pentanalyst_screener_presets: unionJson
@@ -3494,6 +3560,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       // ---------- 합치기·내보내기 ----------
       function localPayload(remote, applyRemote) {
         const keys = {};
+        if (remote) mergeEv(remote.ev);
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i); if (!inScope(k)) continue;
           const v = ls.get(k); if (v == null) continue;
@@ -3501,22 +3568,34 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           keys[k] = { v, t: meta[k] };
         }
         // 이 기기가 받지 않은(백그라운드 저장 시) 클라우드의 더 최근 값은 지우지 않고 그대로 둔다
-        if (remote && !applyRemote) Object.keys(remote.keys).forEach(k => { const r = remote.keys[k]; if (!inScope(k)) return; if (!keys[k] || ((r.t || 0) > keys[k].t && r.v !== keys[k].v)) keys[k] = r; });
-        return { v: 2, app: 'PentAnalyst', savedAt: Date.now(), keys };
+        if (remote && !applyRemote) Object.keys(remote.keys).forEach(k => {
+          const r = remote.keys[k]; if (!inScope(k) || !r || typeof r.v !== 'string') return;
+          if (!keys[k]) { keys[k] = r; return; }
+          if (r.v === keys[k].v) return;
+          let m = null;   // 합치는 규칙이 있는 키는 이 기기 값을 건드리지 않고, 클라우드에 쓸 값만 합쳐서 만든다
+          if (MERGERS[k]) { try { m = MERGERS[k](keys[k].v, r.v); if (m != null && COLLS[k]) m = dropDeleted(k, m, null); } catch (e) { m = null; } }
+          if (m != null) keys[k] = { v: m, t: Math.max(keys[k].t, r.t || 0) };
+          else if ((r.t || 0) > keys[k].t) keys[k] = r;
+        });
+        const lim = Date.now() - EV_TTL, evOut = {}; Object.keys(ev).forEach(x => { if ((ev[x].at || 0) >= lim) evOut[x] = ev[x]; });
+        return { v: 2, app: 'PentAnalyst', savedAt: Date.now(), keys, ev: evOut };
       }
       // 클라우드 값을 로컬에 반영(불러오기). 바뀐 키 목록을 돌려준다.
       function applyRemote(remote) {
         const changed = [], bak = jparse(ls.get(BAK_KEY)) || {};
+        lastApply = { removed: 0, skipped: 0 };
+        mergeEv(remote.ev);
         applying = true;
         try {
           Object.keys(remote.keys).forEach(k => {
             if (!inScope(k)) return;
             const r = remote.keys[k], rv = r && r.v; if (typeof rv !== 'string') return;
             const lv = ls.get(k), lt = meta[k] || 0, rt = r.t || 0;
-            if (lv === rv) { if (!meta[k]) meta[k] = rt; return; }
+            if (lv === rv && !COLLS[k]) { if (!meta[k]) meta[k] = rt; return; }
             let out = null;
             if (lv != null && MERGERS[k]) { try { out = MERGERS[k](lv, rv); } catch (e) { out = null; } }
             if (out == null) out = (lv == null || rt > lt) ? rv : lv;   // 합치기 규칙이 없으면 더 최근 쪽
+            if (COLLS[k]) out = dropDeleted(k, out, lastApply);
             if (out === lv) return;
             if (lv != null) bak[k] = { v: lv, at: Date.now() };
             ls.set(k, out); meta[k] = out === rv ? rt : Date.now(); changed.push(k);
@@ -3530,7 +3609,8 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       function canReload() { let last = 0; try { last = +sessionStorage.getItem('pa_sync_reload') || 0; } catch (e) { /* 무시 */ } return Date.now() - last >= 60000; }   // 새로고침 반복 방지
       function reloadSoon() {
         try { sessionStorage.setItem('pa_sync_reload', String(Date.now())); } catch (e) { /* 무시 */ }
-        toast('다른 기기의 최신 데이터 적용', '화면에 반영하려고 잠시 후 새로고침합니다.', 'success');
+        toast('다른 기기의 최신 데이터 적용', `화면에 반영하려고 잠시 후 새로고침합니다.${lastApply.removed ? ` 다른 기기에서 지운 ${lastApply.removed}개 항목도 반영했어요(설정 창에서 되돌릴 수 있어요).` : ''}`, 'success');
+        if (lastApply.skipped) toast('삭제 항목 유지', `다른 기기의 대량 삭제 ${lastApply.skipped}개는 반영하지 않고 유지했어요.`, 'info');
         setTimeout(() => location.reload(), 1600);
       }
 
@@ -3547,7 +3627,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           let changed = [];
           if (remote && opt.apply) { changed = applyRemote(remote); if (changed.length && canReload()) frozen = true; }
           const payload = localPayload(remote, !!opt.apply);
-          const same = remote && !migrated && JSON.stringify(remote.keys) === JSON.stringify(payload.keys);
+          const same = remote && !migrated && JSON.stringify(remote.keys) === JSON.stringify(payload.keys) && JSON.stringify(remote.ev || {}) === JSON.stringify(payload.ev);
           if (!same) await writeRemote(token, payload, !!opt.keepalive);
           ls.set(META_KEY, JSON.stringify(meta));
           S.last = Date.now(); ls.set(LAST_KEY, String(S.last)); setDirty(false); pending = false; ok = true;
@@ -3573,6 +3653,17 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       // 토큰이 곧 만료되면 보이는 동안 미리 조용히 갱신해 둔다(종료 시점엔 갱신이 불가능하므로)
       setInterval(() => { const a = auth(); if (document.visibilityState === 'visible' && user() && a && a.tokenLeft && a.tokenLeft() < 15 * 60000) a.getToken(false).catch(() => { /* 쿨다운·건너뜀 */ }); }, 5 * 60000);
 
+      // 동기화가 덮어쓰거나 지운 값을 직전 상태로 되돌린다 (덮어쓰기 직전 값을 키마다 하나씩 보관)
+      function restoreBackup() {
+        const bak = jparse(ls.get(BAK_KEY)) || {}, ks = Object.keys(bak);
+        if (!ks.length) { toast('되돌릴 내용이 없어요', '동기화가 덮어쓴 값이 아직 없어요.', 'info'); return; }
+        if (!confirm(`동기화가 덮어쓰거나 지운 ${ks.length}개 항목 묶음을 직전 상태로 되돌릴까요?\n(되돌린 값이 다음 동기화 때 다른 기기에도 반영돼요)`)) return;
+        ks.forEach(k => { const prev = ls.get(k); ls.set(k, bak[k].v); if (COLLS[k]) trackDiff(k, prev, bak[k].v); meta[k] = Date.now(); });
+        ls.set(BAK_KEY, '{}'); ls.set(META_KEY, JSON.stringify(meta)); setDirty(true);
+        toast('되돌렸어요', '새로고침해서 화면에 반영합니다.', 'success');
+        const go = () => location.reload();
+        if (user()) run({ quiet: true }).then(go, go); else setTimeout(go, 800);
+      }
       let started = false;
       function startup() { if (!user()) return Promise.resolve(false); return run({ apply: true, quiet: true }).then(ok => { if (ok) started = true; return ok; }); }
       // 앱을 연 직후 조용한 로그인 갱신이 막혔으면(쿨다운·백그라운드) 보이는 동안 다시 시도한다
@@ -3592,7 +3683,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       return {
         saveNow: silent => run({ quiet: !!silent, interactive: !silent }),
         loadNow: silent => run({ apply: true, quiet: !!silent, interactive: !silent }),
-        startup, flush, statusHtml, renderBadges, isOn: () => !!user(), last: () => S.last, lastText: () => timeTxt(S.last), isDirty: () => dirty,
+        startup, flush, restoreBackup, statusHtml, renderBadges, isOn: () => !!user(), last: () => S.last, lastText: () => timeTxt(S.last), isDirty: () => dirty,
         backups: () => jparse(ls.get(BAK_KEY)) || {}
       };
     })();
@@ -26182,7 +26273,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           });
           save(); V.cfg = false; toast('저장했어요', '계좌 설정을 적용했어요.', 'success'); render();
         }
-        else if (act === 'reset') { if (confirm('모의투자 계좌를 처음 상태로 되돌릴까요?\n모든 주문·거래 기록·자산 곡선이 지워져요.')) { S = fresh(load()); save(); V.cfg = false; render(); } }
+        else if (act === 'reset') { if (confirm('모의투자 계좌를 처음 상태로 되돌릴까요?\n모든 주문·거래 기록·자산 곡선이 지워져요.')) { S = fresh(load()); S.resetAt = Date.now(); save(); V.cfg = false; render(); } }
         else if (act === 'csv') {
           const rows = [['일시', '구분', '상태', '종목', '이름', '통화', '수량', '체결가', '지정가', '수수료', '세금', '실현손익', '수익률%', '이유', '메모']];
           load().orders.forEach(o => rows.push([dtStr(o.t1 || o.t0), o.side === 'buy' ? '매수' : '매도', o.status, o.sym, o.name, o.cur, o.qty, o.price ?? '', o.limit ?? '', o.fee ? o.fee.toFixed(2) : '', o.tax ? o.tax.toFixed(2) : '', o.pnl != null ? o.pnl.toFixed(2) : '', o.pct != null ? o.pct.toFixed(2) : '', o.tag, o.memo]));

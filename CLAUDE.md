@@ -18,6 +18,7 @@
 
 ## Google Drive 동기화 (통합)
 - 모든 저장 데이터(`pentanalyst_*` localStorage 키)는 메인 스크립트의 `GSYNC`(GAUTH 바로 아래)가 Drive 파일 하나(`pentanalyst_sync.json`)로 저장·복원한다. 모듈별 개별 Drive 동기화를 새로 만들지 말 것.
+- 항목 삭제는 `GSYNC`의 `COLLS`에 등록된 컬렉션(관심종목·장부·불단왕 일지·스크리너 노트)만 삭제 표시(툼스톤)로 전파한다. 새 목록형 데이터는 `COLLS`에 경로·id 필드를 추가하면 된다.
 - 새 데이터 키는 자동 포함된다. 제외할 키(캐시·화면 배치·기기 고유값)는 `GSYNC`의 `EXCLUDE` 정규식에, 항목 단위로 합쳐야 하는 키는 `MERGERS`에 추가한다.
 
 ## 버전 규칙
