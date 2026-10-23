@@ -2223,7 +2223,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.52.0';
+    const APP_VERSION = '1.53.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -26053,6 +26053,23 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         return `<div class="flex gap-2 mt-4 overflow-x-auto">${b('trade', '거래', 'fa-right-left')}${b('log', '거래 기록', 'fa-list')}${b('stats', '성과 분석', 'fa-chart-line')}</div>`;
       }
 
+      // 도크(양옆 패널)용 컴팩트 주문창: 글자·여백을 줄이고 유형·지정가, 수량·비율 버튼, 이유·메모를 한 줄씩 묶는다 (id·data-act 는 본 주문창과 같아 같은 핸들러가 동작)
+      function ticketCompactHtml() {
+        const buy = T.side === 'buy', ci = 'w-full min-h-8 px-2 bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-lg text-xs text-white outline-none';
+        const sd = (s, l, on) => `<button type="button" data-act="side" data-v="${s}" class="flex-1 min-h-8 rounded-lg text-xs font-extrabold border ${T.side === s ? on : 'bg-slate-900 text-slate-400 border-slate-800'}">${l}</button>`;
+        return `<div class="space-y-2">
+          <div class="relative"><input id="simSym" type="text" autocomplete="off" spellcheck="false" placeholder="종목 검색 (티커·회사명)" value="${esc(T.sym ? T.sym + (T.name && T.name !== T.sym ? ' · ' + T.name : '') : '')}" class="${ci}"><div id="simSug" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto"></div></div>
+          <div id="simQuote" class="text-xs"></div>
+          <div class="flex gap-1.5">${sd('buy', '매수', 'bg-rose-600/90 text-white border-rose-500')}${sd('sell', '매도', 'bg-blue-600/90 text-white border-blue-500')}</div>
+          <div class="grid grid-cols-2 gap-1.5"><select id="simType" title="주문 유형" class="${ci}"><option value="market" ${T.type === 'market' ? 'selected' : ''}>시장가</option><option value="limit" ${T.type === 'limit' ? 'selected' : ''}>지정가</option></select>
+            <input id="simLimit" type="number" step="any" min="0" inputmode="decimal" value="${esc(T.limit)}" placeholder="지정가" title="지정가" ${T.type === 'limit' ? '' : 'disabled'} class="${ci} ${T.type === 'limit' ? '' : 'opacity-40'}"></div>
+          <div class="flex gap-1"><input id="simQty" type="number" step="1" min="1" inputmode="numeric" value="${esc(T.qty)}" placeholder="수량(주)" title="수량 (주)" class="${ci} !w-0 flex-1 min-w-0">${[10, 25, 50, 100].map(p => `<button type="button" data-act="qpct" data-p="${p}" class="shrink-0 px-1.5 min-h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold">${p === 100 ? '최대' : p + '%'}</button>`).join('')}</div>
+          <details class="group"><summary class="cursor-pointer select-none text-[11px] text-slate-400 hover:text-slate-200 py-0.5">${buy ? '진입' : '청산'} 이유 · 메모 <span class="text-slate-500">(${esc(T.tag || '')})</span></summary>
+            <div class="grid grid-cols-2 gap-1.5 mt-1"><select id="simTag" title="${buy ? '진입' : '청산'} 이유" class="${ci}">${TAGS.map(t => `<option ${T.tag === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+              <input id="simMemo" type="text" maxlength="200" value="${esc(T.memo)}" placeholder="메모 (선택)" class="${ci}"></div></details>
+          <div id="simEst" class="text-[11px] text-slate-400 leading-snug"></div>
+          <button type="button" data-act="submit" id="simSubmit" class="w-full min-h-9 rounded-lg text-white text-sm font-extrabold ${buy ? 'bg-rose-600 hover:bg-rose-500' : 'bg-blue-600 hover:bg-blue-500'}">${buy ? '매수 주문' : '매도 주문'}</button></div>`;
+      }
       function ticketHtml() {
         const buy = T.side === 'buy';
         const sd = (s, l, on) => `<button type="button" data-act="side" data-v="${s}" class="flex-1 min-h-11 rounded-xl text-sm font-extrabold border ${T.side === s ? on : 'bg-slate-900 text-slate-400 border-slate-800'}">${l}</button>`;
@@ -26075,7 +26092,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         const px = T.sym ? lastPrice(T.sym) : null, q = Q[T.sym], cur = T.cur || curOfSym(T.sym || '');
         if (!T.sym) qEl.innerHTML = '<span class="text-slate-500">종목을 검색해서 고르면 현재가가 나와요.</span>';
         else if (px == null) qEl.innerHTML = '<span class="text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-1"></i>현재가를 불러오는 중…</span>';
-        else { const ch = q && num(q.prev) ? (px / q.prev - 1) * 100 : null; qEl.innerHTML = `<span class="text-xl font-extrabold text-white">${price$(px, cur)}</span> <span class="${tone(ch)} font-semibold ml-1">${ch == null ? '' : pct(ch)}</span> ${r === dock ? '' : '<button type="button" data-act="analyze" class="ml-2 text-xs text-cyan-400 underline">차트·분석 보기</button>'}`; }
+        else { const ch = q && num(q.prev) ? (px / q.prev - 1) * 100 : null; qEl.innerHTML = `<span class="${r === dock ? 'text-base' : 'text-xl'} font-extrabold text-white">${price$(px, cur)}</span> <span class="${tone(ch)} font-semibold ml-1">${ch == null ? '' : pct(ch)}</span> ${r === dock ? '' : '<button type="button" data-act="analyze" class="ml-2 text-xs text-cyan-400 underline">차트·분석 보기</button>'}`; }
         const qty = Math.floor(+T.qty) || 0, ref = T.type === 'limit' ? (+T.limit || 0) : (px || 0), amt = qty * ref;
         let t = '';
         if (T.sym && CURS.includes(cur)) {
@@ -26143,16 +26160,16 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
 
       function dockHeadHtml() {
         const cur = CURS.includes(T.cur) ? T.cur : V.cur, eq = equity(cur), ret = (eq / load().start[cur] - 1) * 100;
-        const c = (l, v, x) => `<div class="rounded-lg bg-slate-950/70 border border-slate-800 p-2 min-w-0"><div class="text-[11px] text-slate-400">${l}</div><div class="text-xs font-bold truncate ${x || 'text-white'}">${v}</div></div>`;
+        const c = (l, v, x) => `<div class="rounded-lg bg-slate-950/70 border border-slate-800 px-2 py-1 min-w-0"><div class="text-[10px] text-slate-400">${l}</div><div class="text-[11px] font-bold truncate ${x || 'text-white'}">${v}</div></div>`;
         return `<div class="grid grid-cols-2 gap-2">${c('주문가능', money(buying(cur), cur))}${c('총자산 · 수익률', `${money(eq, cur)} ${pct(ret)}`, tone(ret))}</div>`;
       }
       function dockPosHtml() {
         const p = positions().find(x => x.sym === T.sym); if (!p) return '';
-        return `<div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 text-xs"><div class="text-slate-300">보유 <b class="text-white">${fmtN(p.qty, 0)}주</b> · 평균 ${price$(p.avg, p.cur)}</div><div class="${tone(p.pnl)} font-semibold mt-0.5">${money(p.pnl, p.cur, true)} (${pct(p.pct)})</div><button type="button" data-act="sellall" class="mt-2 w-full min-h-9 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white text-xs font-bold">전량 매도 채우기</button></div>`;
+        return `<div class="rounded-lg bg-slate-950/70 border border-slate-800 p-2 text-[11px]"><div class="text-slate-300">보유 <b class="text-white">${fmtN(p.qty, 0)}주</b> · 평균 ${price$(p.avg, p.cur)}</div><div class="${tone(p.pnl)} font-semibold mt-0.5">${money(p.pnl, p.cur, true)} (${pct(p.pct)})</div><button type="button" data-act="sellall" class="mt-2 w-full min-h-9 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white text-xs font-bold">전량 매도 채우기</button></div>`;
       }
       function renderDock() {
         if (!dock) return;
-        dock.innerHTML = `<div class="space-y-3"><div id="simDockHead">${dockHeadHtml()}</div>${ticketHtml()}${dockPosHtml()}${openOrdersHtml()}<button type="button" data-act="gosim" class="w-full min-h-9 text-xs text-teal-300 underline">모의투자 탭에서 기록·성과 보기</button></div>`;
+        dock.innerHTML = `<div class="space-y-2"><div id="simDockHead">${dockHeadHtml()}</div>${ticketCompactHtml()}${dockPosHtml()}${openOrdersHtml()}<button type="button" data-act="gosim" class="w-full min-h-7 text-[11px] text-teal-300 underline">모의투자 탭에서 기록·성과 보기</button></div>`;
         updateTicketIn(dock);
       }
       function render() { renderMain(); renderDock(); }
@@ -26286,16 +26303,16 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
     //  - 화면이 아주 넓으면(양옆 여백 ≥ 패널 폭) 여백에 놓고, 그보다 좁으면(≥1000px) 가운데 내용을 안쪽으로 밀어 자리를 만들고, 폰·좁은 창에서는 필요할 때 여는 오버레이가 된다.
     // 의존: watchSymbols·fetchQuotes·quickSearch·appSetSymbol·APP_SYM·APP_SYM_APPLY·activeAppTab·switchAppTab (메인/관심종목 모듈), SIM_UI (mod-sim).
     (function () {
-      const KEY = 'pentanalyst_dock_v1', WL = 260, WR = 340, SHOW = { analysis: 1, multi: 1 };
+      const KEY = 'pentanalyst_dock_v1', WL = 208, WR = 284, SHOW = { analysis: 1, multi: 1 };
       const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       const open = { L: true, R: true }, ov = { L: false, R: false };   // open: 넓은 화면 기억값, ov: 오버레이(좁은 화면)
       try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { open.L = o.L !== false; open.R = o.R !== false; } } catch (e) { /* 기본값 */ }
       const saveOpen = () => { try { localStorage.setItem(KEY, JSON.stringify(open)); } catch (e) { /* 저장 불가 */ } };
       const mk = html => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; };
-      const panel = (id, title, icon, body) => mk(`<aside id="${id}" style="display:none;position:fixed;z-index:45;flex-direction:column;overflow:hidden" class="rounded-2xl border border-slate-700 bg-slate-950/95 backdrop-blur shadow-2xl shadow-black/60"><div class="flex items-center gap-2 px-3 py-2 border-b border-slate-800 shrink-0"><i class="fa-solid ${icon}"></i><div class="text-sm font-extrabold text-white mr-auto">${title}</div><button type="button" data-dock-close="${id}" title="접기" class="w-7 h-7 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"><i class="fa-solid fa-xmark"></i></button></div>${body}</aside>`);
+      const panel = (id, title, icon, body) => mk(`<aside id="${id}" style="display:none;position:fixed;z-index:45;flex-direction:column;overflow:hidden" class="rounded-2xl border border-slate-700 bg-slate-950/95 backdrop-blur shadow-2xl shadow-black/60"><div class="flex items-center gap-2 px-2.5 py-1.5 border-b border-slate-800 shrink-0"><i class="fa-solid ${icon} text-xs"></i><div class="text-[13px] font-extrabold text-white mr-auto">${title}</div><button type="button" data-dock-close="${id}" title="접기" class="w-6 h-6 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"><i class="fa-solid fa-xmark"></i></button></div>${body}</aside>`);
       const toggle = (id, label, icon) => mk(`<button type="button" id="${id}" style="display:none;position:fixed;z-index:44" class="px-3 min-h-10 rounded-full bg-slate-900/95 border border-slate-600 text-xs font-bold text-slate-100 shadow-lg items-center"><i class="fa-solid ${icon} mr-1.5"></i>${label}</button>`);
-      const PL = panel('dockL', '내 관심종목', 'fa-star text-yellow-400', '<div id="dockLBody" class="flex-1 overflow-y-auto p-2" style="overscroll-behavior:contain"></div><button type="button" id="dockLGo" class="shrink-0 min-h-9 text-xs text-slate-400 hover:text-white border-t border-slate-800">관심종목 탭에서 관리</button>');
-      const PR = panel('dockR', '모의 주문', 'fa-gamepad text-teal-400', '<div id="simDock" class="flex-1 overflow-y-auto p-3" style="overscroll-behavior:contain"></div>');
+      const PL = panel('dockL', '내 관심종목', 'fa-star text-yellow-400', '<div id="dockLBody" class="flex-1 overflow-y-auto p-1.5" style="overscroll-behavior:contain"></div><button type="button" id="dockLGo" class="shrink-0 min-h-7 text-[11px] text-slate-400 hover:text-white border-t border-slate-800">관심종목 탭에서 관리</button>');
+      const PR = panel('dockR', '모의 주문', 'fa-gamepad text-teal-400', '<div id="simDock" class="flex-1 overflow-y-auto p-2" style="overscroll-behavior:contain"></div>');
       const TL = toggle('dockLT', '관심종목', 'fa-star text-yellow-400'), TR = toggle('dockRT', '모의 주문', 'fa-gamepad text-teal-400');
       [PL, PR, TL, TR].forEach(el => document.body.appendChild(el));
       const A = { L: { p: PL, t: TL, w: WL }, R: { p: PR, t: TR, w: WR } };
@@ -26312,7 +26329,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         body.innerHTML = items.map(i => {
           const q = quotes[i.sym] || {}, wq = q.price == null && typeof window.watchQuote === 'function' ? window.watchQuote(i.sym) : null, px = q.price != null ? q.price : (wq ? wq.price : null);
           const ch = typeof q.chg === 'number' ? q.chg : null, on = i.sym === cur;
-          return `<button type="button" data-dock-sym="${esc(i.sym)}" class="w-full text-left px-2.5 py-2 mb-1 rounded-xl flex items-center gap-2 border ${on ? 'bg-cyan-950/60 border-cyan-800' : 'border-transparent hover:bg-slate-900'}"><span class="min-w-0 flex-1"><span class="block text-sm font-bold text-white truncate">${esc(i.sym)}</span><span class="block text-[11px] text-slate-400 truncate">${esc(i.name || '')}</span></span><span class="text-right shrink-0"><span class="block text-sm text-white">${fmtP(px, i.sym)}</span><span class="block text-[11px] ${ch == null || ch === 0 ? 'text-slate-400' : ch > 0 ? 'text-emerald-400' : 'text-rose-400'}">${ch == null ? '' : (ch > 0 ? '+' : ch < 0 ? '−' : '') + Math.abs(ch).toFixed(2) + '%'}</span></span></button>`;
+          const chTxt = ch == null ? '' : (ch > 0 ? '+' : '') + ch.toFixed(2) + '%';
+          return `<button type="button" data-dock-sym="${esc(i.sym)}" title="${esc(i.name || i.sym)}" class="w-full text-left px-2 py-1 mb-0.5 rounded-lg flex items-center gap-1.5 border ${on ? 'bg-cyan-950/60 border-cyan-800' : 'border-transparent hover:bg-slate-900'}"><span class="min-w-0 flex-1 text-xs font-bold text-white truncate">${esc(i.sym)}</span><span class="shrink-0 text-xs text-slate-100 font-mono-numbers">${fmtP(px, i.sym)}</span><span class="shrink-0 w-[3.6rem] text-right text-[11px] font-mono-numbers ${ch == null || ch === 0 ? 'text-slate-400' : ch > 0 ? 'text-emerald-400' : 'text-rose-400'}">${chTxt}</span></button>`;
         }).join('');
       }
       async function refreshQuotes() {
@@ -26338,14 +26356,23 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         const nav = document.getElementById('tabNav'); let top = 8;
         if (nav && getComputedStyle(nav).display !== 'none') top = Math.max(8, nav.getBoundingClientRect().bottom + 8);
         const MAXW = activeAppTab === 'multi' ? 1880 : 1280;   // 멀티 차트 탭은 본문이 더 넓다 (main:has(#view-multi) max-width)
-        const free = (vw - MAXW) / 2, bottom = side ? 8 : barH + 8, mainEl = document.querySelector('main'), st = {};
+        const free = (vw - MAXW) / 2, bottom = side ? 64 : barH + 8, mainEl = document.querySelector('main'), st = {}, pos = {};
         ['L', 'R'].forEach(k => {
           const a = A[k], w = side ? a.w : Math.min(a.w + 20, vw - 16), isOpen = on && (side ? open[k] : ov[k]), fit = free >= a.w + 16;
           const left = k === 'L' ? (side && fit ? free - w - 12 : 8) : (side && fit ? vw - free + 12 : vw - w - 8);
           const p = a.p; p.style.display = isOpen ? 'flex' : 'none'; p.style.top = top + 'px'; p.style.maxHeight = `calc(100vh - ${top + bottom}px)`; p.style.left = left + 'px'; p.style.width = w + 'px'; p.style.zIndex = side ? 45 : 70;
           const t = a.t; t.style.display = on && !isOpen ? 'inline-flex' : 'none'; t.style.bottom = (barH + 12) + 'px'; t.style[k === 'L' ? 'left' : 'right'] = '10px'; t.style[k === 'L' ? 'right' : 'left'] = 'auto';
           st[k] = isOpen && side && !fit ? a.w + 20 : 0;
+          pos[k] = { open: isOpen, left, w };
         });
+        // 뒤로가기·맨 위로·맨 아래로 버튼은 패널에 가려지므로, 도크가 보일 때는 패널 아래 빈 줄(좌: 뒤로가기, 우: 위·아래)로 옮긴다. 패널이 접혀 있으면 접기 버튼(토글 알약) 위에 쌓는다.
+        const fb = { back: document.getElementById('backBtn'), up: document.getElementById('toTopBtn'), down: document.getElementById('toBottomBtn') };
+        if (on && side) {
+          const lb = pos.L.open ? 10 : 58, rb = pos.R.open ? 10 : 58, rr = pos.R.open ? vw - (pos.R.left + pos.R.w) : 10;
+          if (fb.back) { fb.back.style.left = (pos.L.open ? pos.L.left : 10) + 'px'; fb.back.style.bottom = lb + 'px'; }
+          if (fb.up) { fb.up.style.right = rr + 'px'; fb.up.style.bottom = rb + 'px'; }
+          if (fb.down) { fb.down.style.right = (rr + 52) + 'px'; fb.down.style.bottom = rb + 'px'; }
+        } else Object.values(fb).forEach(b => { if (b) { b.style.left = b.style.right = b.style.bottom = ''; } });
         if (mainEl && on && side && (st.L || st.R)) { const x = Math.max(0, (vw - st.L - st.R - MAXW) / 2); mainEl.style.width = 'auto'; mainEl.style.marginLeft = (st.L + x) + 'px'; mainEl.style.marginRight = (st.R + x) + 'px'; }
         else if (mainEl) { mainEl.style.width = mainEl.style.marginLeft = mainEl.style.marginRight = ''; }
         const key = `${on}|${st.L}|${st.R}|${vw}`;
