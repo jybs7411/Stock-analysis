@@ -2205,7 +2205,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.51.0';
+    const APP_VERSION = '1.51.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -19647,7 +19647,8 @@ ${digest}`;
 
       // 열 수: 화면 폭에 맞춰 정한다 (2분할은 넓은 화면에서 좌우 비교, 좁은 화면에서는 위아래)
       function colsFor(k) {
-        const W = window.innerWidth - (SD.open && window.innerWidth >= 1280 ? 270 : 0);   // 오른쪽 리스트가 차지하는 폭
+        const mr = document.getElementById('multiRoot'), IW = mr && mr.clientWidth ? mr.clientWidth + 64 : window.innerWidth;   // 본문 폭(양옆 도크가 본문을 좁힐 수 있다)
+        const W = IW - (SD.open && IW >= 1280 ? 270 : 0);   // 오른쪽 리스트가 차지하는 폭
         if (k <= 1) return 1;
         if (k === 2) return W >= 640 ? 2 : 1;
         if (k <= 4) return W >= 480 ? 2 : 1;
@@ -26254,7 +26255,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
     //  - 화면이 아주 넓으면(양옆 여백 ≥ 패널 폭) 여백에 놓고, 그보다 좁으면(≥1000px) 가운데 내용을 안쪽으로 밀어 자리를 만들고, 폰·좁은 창에서는 필요할 때 여는 오버레이가 된다.
     // 의존: watchSymbols·fetchQuotes·quickSearch·appSetSymbol·APP_SYM·APP_SYM_APPLY·activeAppTab·switchAppTab (메인/관심종목 모듈), SIM_UI (mod-sim).
     (function () {
-      const KEY = 'pentanalyst_dock_v1', WL = 260, WR = 340, MAXW = 1280, SHOW = { analysis: 1, multi: 1 };
+      const KEY = 'pentanalyst_dock_v1', WL = 260, WR = 340, SHOW = { analysis: 1, multi: 1 };
       const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       const open = { L: true, R: true }, ov = { L: false, R: false };   // open: 넓은 화면 기억값, ov: 오버레이(좁은 화면)
       try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { open.L = o.L !== false; open.R = o.R !== false; } } catch (e) { /* 기본값 */ }
@@ -26305,6 +26306,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         const mob = document.getElementById('mobileTabBar'), barH = mob && getComputedStyle(mob).display !== 'none' ? mob.offsetHeight : 0;
         const nav = document.getElementById('tabNav'); let top = 8;
         if (nav && getComputedStyle(nav).display !== 'none') top = Math.max(8, nav.getBoundingClientRect().bottom + 8);
+        const MAXW = activeAppTab === 'multi' ? 1880 : 1280;   // 멀티 차트 탭은 본문이 더 넓다 (main:has(#view-multi) max-width)
         const free = (vw - MAXW) / 2, bottom = side ? 8 : barH + 8, mainEl = document.querySelector('main'), st = {};
         ['L', 'R'].forEach(k => {
           const a = A[k], w = side ? a.w : Math.min(a.w + 20, vw - 16), isOpen = on && (side ? open[k] : ov[k]), fit = free >= a.w + 16;
@@ -26313,8 +26315,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           const t = a.t; t.style.display = on && !isOpen ? 'inline-flex' : 'none'; t.style.bottom = (barH + 12) + 'px'; t.style[k === 'L' ? 'left' : 'right'] = '10px'; t.style[k === 'L' ? 'right' : 'left'] = 'auto';
           st[k] = isOpen && side && !fit ? a.w + 20 : 0;
         });
-        if (mainEl && on && side && (st.L || st.R)) { const x = Math.max(0, (vw - st.L - st.R - MAXW) / 2); mainEl.style.marginLeft = (st.L + x) + 'px'; mainEl.style.marginRight = (st.R + x) + 'px'; }
-        else if (mainEl) { mainEl.style.marginLeft = mainEl.style.marginRight = ''; }
+        if (mainEl && on && side && (st.L || st.R)) { const x = Math.max(0, (vw - st.L - st.R - MAXW) / 2); mainEl.style.width = 'auto'; mainEl.style.marginLeft = (st.L + x) + 'px'; mainEl.style.marginRight = (st.R + x) + 'px'; }
+        else if (mainEl) { mainEl.style.width = mainEl.style.marginLeft = mainEl.style.marginRight = ''; }
         const key = `${on}|${st.L}|${st.R}|${vw}`;
         if (key !== lastKey) { lastKey = key; if (on) setTimeout(() => window.dispatchEvent(new Event('resize')), 60); }
         if (on && !shown) { shown = true; renderList(); refreshQuotes(); if (window.SIM_UI) window.SIM_UI.refresh(); } else if (!on) shown = false;
