@@ -895,6 +895,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     <div id="subTabRow" role="tablist" aria-label="화면 선택" class="hidden max-w-7xl mx-auto flex items-center gap-1.5 pb-2 overflow-x-auto whitespace-nowrap">
       <button type="button" role="tab" aria-selected="false" aria-controls="view-watch" onclick="switchAppTab('watch')" id="tabBtn-watch" title="관심종목" class="subtab hidden"><i class="fa-solid fa-star text-yellow-400"></i><span>관심종목</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-holdings" onclick="switchAppTab('holdings')" id="tabBtn-holdings" title="내 보유종목 · 산 금액 · 평가손익" class="subtab hidden"><i class="fa-solid fa-wallet text-emerald-400"></i><span>보유종목</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-sim" onclick="switchAppTab('sim')" id="tabBtn-sim" title="모의투자 · 가상 계좌로 사고팔기" class="subtab hidden"><i class="fa-solid fa-gamepad text-teal-400"></i><span>모의투자</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-analysis" onclick="switchAppTab('analysis')" id="tabBtn-analysis" title="5인 전문가 심층 분석" class="subtab hidden"><i class="fa-solid fa-users-viewfinder text-cyan-400"></i><span>5인 분석</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-multi" onclick="switchAppTab('multi')" id="tabBtn-multi" title="멀티 차트 (1·2·4·6분할)" class="subtab hidden"><i class="fa-solid fa-table-cells-large text-fuchsia-400"></i><span>멀티 차트</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-screener" onclick="switchAppTab('screener')" id="tabBtn-screener" title="스마트 스크리너 (Finviz × Fool)" class="subtab hidden"><i class="fa-solid fa-filter text-amber-400"></i><span>스크리너</span></button>
@@ -1109,6 +1110,10 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     <!-- TAB 0: 관심종목 (module: watch) -->
     <div id="view-holdings" class="hidden space-y-4">
       <div id="holdingsRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
+    </div>
+
+    <div id="view-sim" class="hidden space-y-4">
+      <div id="simRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
     </div>
 
     <div id="view-watch" class="hidden space-y-4">
@@ -2203,6 +2208,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     const APP_TABS = {
       watch: { on: 'bg-yellow-950 text-yellow-300 border-yellow-700/80 shadow-md shadow-yellow-950/50' },
       bdwtools: { on: 'bg-orange-950 text-orange-300 border-orange-700/80 shadow-md shadow-orange-950/50' },
+      sim: { on: 'bg-teal-950 text-teal-300 border-teal-700/80 shadow-md shadow-teal-950/50' },
       holdings: { on: 'bg-emerald-950 text-emerald-300 border-emerald-700/80 shadow-md shadow-emerald-950/50' },
       analysis: { on: 'bg-cyan-950 text-cyan-300 border-cyan-700/80 shadow-md shadow-cyan-950/50' },
       revision: { on: 'bg-lime-950 text-lime-300 border-lime-700/80 shadow-md shadow-lime-950/50' },
@@ -2218,7 +2224,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.49.0';
+    const APP_VERSION = '1.50.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2293,7 +2299,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
     // 허브(상단 5개) → 보조 탭(둘째 줄). 탭 id·view-<id>·TAB_HOOKS 는 그대로, 내비게이션만 묶는다.
     const APP_HUBS = [
-      { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch', 'holdings', 'bdwtools'] },
+      { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch', 'holdings', 'sim', 'bdwtools'] },
       { id: 'analyze', label: '분석', short: '분석', icon: 'fa-users-viewfinder text-cyan-400', on: APP_TABS.analysis.on, tabs: ['analysis', 'multi', 'prevday'] },
       { id: 'discover', label: '발굴', short: '발굴', icon: 'fa-filter text-amber-400', on: APP_TABS.screener.on, tabs: ['screener', 'revision'] },
       { id: 'market', label: '시장', short: '시장', icon: 'fa-earth-americas text-sky-400', on: APP_TABS.market.on, tabs: ['market', 'fx', 'calendar'] },
@@ -25799,6 +25805,440 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       init();
       TAB_HOOKS.revision = () => { init(); ST.syms = new Set(universeSyms()); buildRows(); render(); };
       window.REV_DEBUG = { rvAnalyze, cardRender, buildRows, render, saveSnap, snaps, ST };
+    })();
+  </script>
+
+  <script id="mod-sim">
+    // ===== 모의투자 — 가상 계좌로 실제 투자앱처럼 사고팔고, 기록·성과를 분석 =====
+    // 저장: localStorage 'pentanalyst_sim_v1' (계좌·주문·체결 이력·자산 스냅샷). 통화별(KRW·USD) 현금 계좌를 따로 둔다(환전 없음).
+    // 체결: 시장가=현재 시세로 즉시, 지정가=조건이 맞으면 즉시 또는 대기(앱이 열려 있는 동안 30초마다 시세로 확인). 매도는 선입선출(FIFO).
+    // 의존: fetchQuotes·searchSymbols·fetchRealYahooFinanceData·showToast·quickSearch·appSetSymbol·APP_SYM_APPLY·TAB_HOOKS·activeAppTab (메인 스크립트).
+    (function () {
+      const KEY = 'pentanalyst_sim_v1';
+      const CURS = ['KRW', 'USD'];
+      const TAGS = ['추세추종', '눌림매수', '돌파', '역추세 반등', '뉴스·이벤트', '분할매수', '손절·익절', '기타'];
+      const num = v => typeof v === 'number' && Number.isFinite(v);
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const curOfSym = s => /\.(KS|KQ)$/i.test(s) ? 'KRW' : /\.T$/i.test(s) ? 'JPY' : /\.(DE|PA|AS|MI)$/i.test(s) ? 'EUR' : /\.L$/i.test(s) ? 'GBP' : 'USD';
+      const SYMBOL = { KRW: '₩', USD: '$' };
+      const fmtN = (v, d = 2) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+      const money = (v, cur, sign) => {
+        if (!num(v)) return '—';
+        const d = cur === 'KRW' ? 0 : 2, sy = SYMBOL[cur] || '';
+        return `${sign ? (v > 0 ? '+' : v < 0 ? '−' : '') : (v < 0 ? '−' : '')}${sy}${fmtN(Math.abs(v), d)}`;
+      };
+      const price$ = (v, cur) => num(v) ? `${SYMBOL[cur] || ''}${fmtN(v, cur === 'KRW' ? 0 : 2)}` : '—';
+      const pct = (v, sign = true, d = 2) => num(v) ? `${sign && v > 0 ? '+' : v < 0 ? '−' : ''}${fmtN(Math.abs(v), d)}%` : '—';
+      const tone = v => !num(v) || v === 0 ? 'text-slate-300' : v > 0 ? 'text-emerald-400' : 'text-rose-400';
+      const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+      const dayStr = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+      const dtStr = t => { const d = new Date(t); return `${dayStr(t)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+      const toast = (a, b, c) => { if (typeof showToast === 'function') showToast(a, b, c || 'info'); };
+
+      // ---------- 상태 ----------
+      let S = null;
+      const fresh = (prev) => {
+        const start = prev ? { ...prev.start } : { KRW: 100000000, USD: 100000 };
+        const cfg = prev ? JSON.parse(JSON.stringify(prev.cfg)) : { fee: { KRW: 0.015, USD: 0.1 }, tax: { KRW: 0.18, USD: 0 } };
+        return { v: 1, created: Date.now(), start, cash: { ...start }, cfg, orders: [], lots: {}, meta: {}, closed: [], snaps: [] };
+      };
+      function load() {
+        if (S) return S;
+        try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); S = o && Array.isArray(o.orders) && o.start && o.cash ? o : fresh(); } catch (e) { S = fresh(); }
+        return S;
+      }
+      function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('저장 실패', '이 브라우저에서는 모의투자 기록을 저장할 수 없어요.', 'warning'); } }
+      let seq = 0; const newId = () => Date.now() * 1000 + (seq++ % 1000);
+      const feeRate = cur => (load().cfg.fee[cur] || 0) / 100;
+      const taxRate = cur => (load().cfg.tax[cur] || 0) / 100;
+      const held = sym => (load().lots[sym] || []).reduce((a, l) => a + l.qty, 0);
+      const openOrders = () => load().orders.filter(o => o.status === 'open');
+      const openSellQty = sym => openOrders().filter(o => o.side === 'sell' && o.sym === sym).reduce((a, o) => a + o.qty, 0);
+      const reserved = cur => openOrders().filter(o => o.side === 'buy' && o.cur === cur).reduce((a, o) => a + o.qty * o.limit * (1 + feeRate(cur)), 0);
+      const buying = cur => load().cash[cur] - reserved(cur);   // 주문가능 금액
+      const Q = {};                                              // 시세 캐시 { SYM: {price, prev, name} }
+      const lastPrice = sym => Q[sym] && num(Q[sym].price) ? Q[sym].price : null;
+
+      function positions() {
+        const st = load(), out = [];
+        Object.keys(st.lots).forEach(sym => {
+          const ls = st.lots[sym], qty = ls.reduce((a, l) => a + l.qty, 0);
+          if (qty <= 0) return;
+          const cost = ls.reduce((a, l) => a + l.qty * (l.price + l.feePer), 0);
+          const meta = st.meta[sym] || {}, cur = meta.cur || curOfSym(sym);
+          const px = lastPrice(sym), mv = qty * (px == null ? cost / qty : px);
+          out.push({ sym, name: meta.name || sym, cur, qty, avg: cost / qty, cost, px, mv, pnl: mv - cost, pct: (mv / cost - 1) * 100, dayPnl: px != null && Q[sym] && num(Q[sym].prev) ? qty * (px - Q[sym].prev) : null, t: Math.min(...ls.map(l => l.t)) });
+        });
+        return out.sort((a, b) => b.mv - a.mv);
+      }
+      const equity = cur => load().cash[cur] + positions().filter(p => p.cur === cur).reduce((a, p) => a + p.mv, 0);
+
+      // ---------- 체결 ----------
+      function snap(force) {
+        const st = load(), last = st.snaps[st.snaps.length - 1];
+        if (!force && last && Date.now() - last.t < 30 * 60000) return;
+        const eq = {}; CURS.forEach(c => { eq[c] = Math.round(equity(c) * 100) / 100; });
+        st.snaps.push({ t: Date.now(), eq });
+        if (st.snaps.length > 3000) st.snaps = st.snaps.filter((s, i) => i >= 1500 || i % 2 === 0);
+      }
+      // 주문 하나를 price 로 체결한다 (자금·수량 검증은 호출 전에 끝낸 상태)
+      function fillOrder(o, price) {
+        const st = load(), cur = o.cur, t = Date.now();
+        st.meta[o.sym] = { name: o.name, cur };
+        const amt = o.qty * price;
+        if (o.side === 'buy') {
+          const fee = amt * feeRate(cur);
+          st.cash[cur] -= amt + fee;
+          (st.lots[o.sym] = st.lots[o.sym] || []).push({ qty: o.qty, price, feePer: fee / o.qty, t, tag: o.tag });
+          Object.assign(o, { status: 'filled', price, fee, tax: 0, t1: t });
+        } else {
+          const fee = amt * feeRate(cur), tax = amt * taxRate(cur);
+          let need = o.qty, cost = 0, dayW = 0, tag = null;
+          const ls = st.lots[o.sym] || [];
+          while (need > 0 && ls.length) {
+            const l = ls[0], q = Math.min(l.qty, need);
+            cost += q * (l.price + l.feePer); dayW += q * (t - l.t); if (tag == null) tag = l.tag;
+            l.qty -= q; need -= q; if (l.qty <= 0) ls.shift();
+          }
+          if (!ls.length) delete st.lots[o.sym];
+          st.cash[cur] += amt - fee - tax;
+          const pnl = amt - fee - tax - cost, pc = (pnl / cost) * 100;
+          Object.assign(o, { status: 'filled', price, fee, tax, t1: t, pnl, pct: pc });
+          st.closed.push({ id: o.id, sym: o.sym, name: o.name, cur, qty: o.qty, buy: cost / o.qty, sell: price, pnl, pct: pc, days: dayW / o.qty / 86400000, tag: tag || '기타', t, cost, fees: fee + tax });
+        }
+        snap(true);
+      }
+      function placeOrder(p) {
+        const st = load(), cur = p.cur, q = Math.floor(+p.qty);
+        if (!p.sym) return { ok: false, msg: '종목을 먼저 골라 주세요.' };
+        if (!CURS.includes(cur)) return { ok: false, msg: `${cur} 종목은 아직 지원하지 않아요. (원화·달러 종목만 가능)` };
+        if (!(q >= 1)) return { ok: false, msg: '수량은 1주 이상이어야 해요.' };
+        const px = lastPrice(p.sym);
+        if (p.type === 'limit' && !(+p.limit > 0)) return { ok: false, msg: '지정가를 입력해 주세요.' };
+        if (p.type === 'market' && px == null) return { ok: false, msg: '현재가를 아직 받지 못했어요. 잠시 후 다시 시도해 주세요.' };
+        const o = { id: newId(), sym: p.sym, name: p.name || p.sym, cur, side: p.side, type: p.type, qty: q, limit: p.type === 'limit' ? +p.limit : null, tag: p.tag, memo: String(p.memo || '').slice(0, 200), status: 'open', t0: Date.now() };
+        const refPx = p.type === 'limit' ? o.limit : px;
+        if (p.side === 'buy') {
+          if (q * refPx * (1 + feeRate(cur)) > buying(cur) + 1e-6) return { ok: false, msg: `주문가능 금액이 부족해요. (가능: ${money(buying(cur), cur)})` };
+        } else if (q > held(p.sym) - openSellQty(p.sym) + 1e-9) {
+          return { ok: false, msg: `매도 가능 수량이 부족해요. (가능: ${fmtN(held(p.sym) - openSellQty(p.sym), 0)}주)` };
+        }
+        st.orders.push(o);
+        const marketable = p.type === 'market' || (px != null && (p.side === 'buy' ? px <= o.limit : px >= o.limit));
+        if (marketable) { fillOrder(o, px); save(); return { ok: true, filled: true, o }; }
+        save(); return { ok: true, filled: false, o };
+      }
+      function cancelOrder(id) {
+        const o = load().orders.find(x => x.id === id && x.status === 'open');
+        if (!o) return; o.status = 'cancelled'; o.t1 = Date.now(); save();
+      }
+      function checkOpenOrders() {
+        let n = 0;
+        openOrders().forEach(o => {
+          const px = lastPrice(o.sym); if (px == null) return;
+          if (o.side === 'buy' && px <= o.limit) { fillOrder(o, px); n++; }
+          else if (o.side === 'sell' && px >= o.limit && o.qty <= held(o.sym) + 1e-9) { fillOrder(o, px); n++; }
+        });
+        if (n) { save(); toast('지정가 체결', `대기 중이던 주문 ${n}건이 체결됐어요.`, 'success'); }
+        return n;
+      }
+
+      // ---------- 시세 ----------
+      async function getQuotes(syms) {
+        syms = [...new Set(syms.filter(Boolean))]; if (!syms.length) return;
+        let got = {};
+        try { const q = typeof fetchQuotes === 'function' ? await fetchQuotes(syms) : null; if (q) q.forEach(x => { if (x && x.symbol && num(x.price)) got[x.symbol.toUpperCase()] = x; }); } catch (e) { /* 아래 대체 */ }
+        await Promise.all(syms.filter(s => !got[s]).slice(0, 8).map(async s => {
+          try {
+            const r = await fetchRealYahooFinanceData(s, '1mo', '1d'), h = r && r.history ? r.history : [];
+            if (h.length) got[s] = { symbol: s, price: h[h.length - 1].close, prevClose: h.length > 1 ? h[h.length - 2].close : null, name: r.name || null };
+          } catch (e) { /* 시세 없음 */ }
+        }));
+        Object.keys(got).forEach(s => { const x = got[s]; Q[s] = { price: x.price, prev: num(x.prevClose) ? x.prevClose : null, name: x.name || x.shortName || (Q[s] && Q[s].name) || null, cur: x.currency || null, t: Date.now() }; });
+      }
+
+      // ---------- 성과 분석 ----------
+      function analyze(cur) {
+        const st = load(), cl = st.closed.filter(c => c.cur === cur), wins = cl.filter(c => c.pnl > 0), losses = cl.filter(c => c.pnl < 0);
+        const n = cl.length, winRate = n ? wins.length / n * 100 : null;
+        const avgWin = mean(wins.map(c => c.pct)), avgLoss = mean(losses.map(c => -c.pct));
+        const sumW = wins.reduce((a, c) => a + c.pnl, 0), sumL = -losses.reduce((a, c) => a + c.pnl, 0);
+        const fees = st.orders.filter(o => o.status === 'filled' && o.cur === cur).reduce((a, o) => a + (o.fee || 0) + (o.tax || 0), 0);
+        // 최대 낙폭: 자산 스냅샷(+현재)
+        const ser = st.snaps.map(s => s.eq && num(s.eq[cur]) ? s.eq[cur] : null).filter(num); ser.push(equity(cur));
+        let peak = -Infinity, mdd = 0; ser.forEach(v => { peak = Math.max(peak, v); mdd = Math.min(mdd, (v / peak - 1) * 100); });
+        let streak = 0, maxLoss = 0; cl.slice().sort((a, b) => a.t - b.t).forEach(c => { streak = c.pnl < 0 ? streak + 1 : 0; maxLoss = Math.max(maxLoss, streak); });
+        const group = key => {
+          const m = {}; cl.forEach(c => { const k = c[key]; (m[k] = m[k] || []).push(c); });
+          return Object.keys(m).map(k => ({ k, n: m[k].length, win: m[k].filter(c => c.pnl > 0).length / m[k].length * 100, pnl: m[k].reduce((a, c) => a + c.pnl, 0), avg: mean(m[k].map(c => c.pct)), name: m[k][0].name })).sort((a, b) => b.pnl - a.pnl);
+        };
+        const eq = equity(cur), start = st.start[cur];
+        return {
+          n, wins: wins.length, losses: losses.length, winRate, avgWin, avgLoss, payoff: avgWin != null && avgLoss ? avgWin / avgLoss : null,
+          pf: sumL > 0 ? sumW / sumL : (sumW > 0 ? Infinity : null), exp: mean(cl.map(c => c.pct)), daysWin: mean(wins.map(c => c.days)), daysLoss: mean(losses.map(c => c.days)),
+          best: cl.reduce((b, c) => (!b || c.pnl > b.pnl ? c : b), null), worst: cl.reduce((b, c) => (!b || c.pnl < b.pnl ? c : b), null),
+          realized: cl.reduce((a, c) => a + c.pnl, 0), fees, mdd, maxLoss, byTag: group('tag'), bySym: group('sym'), eq, start, ret: (eq / start - 1) * 100,
+          trades: st.orders.filter(o => o.status === 'filled' && o.cur === cur).length
+        };
+      }
+      function insights(cur, A) {
+        const out = [], pos = positions().filter(p => p.cur === cur);
+        const add = (lv, t) => out.push({ lv, t });
+        if (A.trades === 0) return [{ lv: 'info', t: '아직 체결된 거래가 없어요. 첫 주문을 넣으면 여기서 매매 습관을 분석해 드려요.' }];
+        if (A.n < 5) add('info', `청산한 거래가 ${A.n}건뿐이라 아직 경향을 말하기엔 일러요. 최소 20건 이상 쌓이면 승률·손익비가 의미를 가져요.`);
+        if (A.n >= 3) {
+          if (A.winRate >= 50 && A.payoff != null && A.payoff < 1) add('warn', `승률은 ${pct(A.winRate, false, 0)}로 좋지만 평균 이익(${pct(A.avgWin, false)})이 평균 손실(${pct(A.avgLoss, false)})보다 작아요. 이익은 일찍 털고 손실은 오래 끄는 전형적인 패턴이에요 — 손절 폭을 이익 목표보다 좁게 잡아 보세요.`);
+          else if (A.winRate < 40 && A.payoff != null && A.payoff >= 2) add('good', `승률은 ${pct(A.winRate, false, 0)}로 낮지만 손익비가 ${fmtN(A.payoff)}배예요. 추세추종형의 건강한 구조 — 손절 규칙만 흔들리지 않게 지키면 돼요.`);
+          else if (A.pf != null && A.pf >= 1.5) add('good', `손익비·승률이 균형 잡혀 있고 수익 팩터(총이익÷총손실)가 ${fmtN(A.pf)}예요. 지금 방식이 통하고 있어요.`);
+          else if (A.pf != null && A.pf < 1) add('bad', `수익 팩터가 ${fmtN(A.pf)}(1 미만)이에요. 지금 방식대로면 거래할수록 계좌가 줄어드는 구조 — 진입 근거를 좁히거나 손절을 더 엄격히 해 보세요.`);
+        }
+        if (A.daysWin != null && A.daysLoss != null && A.daysLoss > A.daysWin * 1.5 && A.daysLoss >= 1) add('warn', `손실 종목을 평균 ${fmtN(A.daysLoss, 1)}일, 이익 종목은 ${fmtN(A.daysWin, 1)}일 보유했어요. 손실을 오래 들고 가는 '처분효과'가 보여요.`);
+        if (A.worst && A.avgLoss && -A.worst.pct > A.avgLoss * 2.5 && A.losses >= 3) add('warn', `최악의 거래(${esc(A.worst.name)}, ${pct(A.worst.pct)})가 평균 손실의 ${fmtN(-A.worst.pct / A.avgLoss, 1)}배예요. 큰 손실 한 번이 성과를 좌우하고 있어요 — 한 종목 최대 손실 한도를 정해 두세요.`);
+        if (A.maxLoss >= 4) add('warn', `${A.maxLoss}연패를 겪었어요. 연패 중엔 수량을 줄이거나 하루 쉬는 규칙이 도움이 돼요.`);
+        if (A.mdd <= -10) add('warn', `기록상 최대 낙폭이 ${pct(A.mdd)}예요. 이 정도 흔들림을 실전 자금으로 견딜 수 있을지 생각해 보세요.`);
+        const grossP = Math.max(A.realized, 0) + A.fees;
+        if (A.trades >= 6 && A.fees > 0 && A.fees > Math.abs(A.realized) * 0.5 && A.fees > grossP * 0.2) add('warn', `수수료·세금이 ${money(A.fees, cur)}로 실현손익 대비 큰 비중이에요. 잦은 매매가 수익을 갉아먹고 있을 수 있어요.`);
+        const tags = A.byTag.filter(t => t.n >= 2);
+        if (tags.length >= 2) { const b = tags[0], w = tags[tags.length - 1]; if (b.pnl > 0) add('good', `'${esc(b.k)}' 진입이 가장 잘 맞았어요 (${b.n}건, 승률 ${pct(b.win, false, 0)}, ${money(b.pnl, cur, true)}).`); if (w.pnl < 0) add('bad', `'${esc(w.k)}' 진입은 손실이 컸어요 (${w.n}건, ${money(w.pnl, cur, true)}) — 이 유형은 줄이거나 규칙을 다시 세워 보세요.`); }
+        const tot = pos.reduce((a, p) => a + p.mv, 0) + load().cash[cur];
+        if (pos.length) { const top = pos[0]; if (top.mv / tot > 0.4) add('warn', `${esc(top.name)} 한 종목이 총자산의 ${pct(top.mv / tot * 100, false, 0)}예요. 한 종목에 쏠리면 변동성이 커져요.`); }
+        if (pos.length && load().cash[cur] / tot < 0.05) add('info', '현금이 5% 미만이에요. 기회가 와도 추가 매수가 어려워요.');
+        if (!out.length) add('info', '뚜렷한 문제 패턴은 아직 보이지 않아요. 거래를 더 쌓아 보세요.');
+        return out;
+      }
+
+      // ---------- 화면 ----------
+      const V = { sub: 'trade', cur: 'KRW', cfg: false, tkSearch: 0 };
+      const T = { sym: '', name: '', cur: '', side: 'buy', type: 'market', qty: '', limit: '', tag: TAGS[0], memo: '' };
+      let root = null, timer = null, busy = false;
+      const card = 'rounded-2xl border border-slate-800 bg-slate-900/60 p-4';
+      const inp = 'w-full min-h-11 px-3 bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl text-sm text-white outline-none';
+
+      function headHtml() {
+        const cur = V.cur, st = load(), pos = positions().filter(p => p.cur === cur);
+        const eq = equity(cur), start = st.start[cur], ret = (eq / start - 1) * 100;
+        const unreal = pos.reduce((a, p) => a + p.pnl, 0), real = st.closed.filter(c => c.cur === cur).reduce((a, c) => a + c.pnl, 0);
+        const day = pos.reduce((a, p) => a + (p.dayPnl || 0), 0);
+        const cell = (l, v, c) => `<div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 min-w-0"><div class="text-[11px] text-slate-400">${l}</div><div class="text-base font-extrabold ${c || 'text-white'} truncate">${v}</div></div>`;
+        return `<div class="flex flex-wrap items-center gap-2 mb-3"><h2 class="text-lg font-extrabold text-white mr-auto"><i class="fa-solid fa-gamepad text-teal-400 mr-2"></i>모의투자</h2>
+          ${CURS.map(c => `<button type="button" data-act="cur" data-v="${c}" class="min-h-9 px-3 rounded-full text-xs font-bold border ${V.cur === c ? 'bg-teal-950 text-teal-300 border-teal-700' : 'bg-slate-900 text-slate-400 border-slate-800'}">${c === 'KRW' ? '₩ 원화' : '$ 달러'}</button>`).join('')}
+          <button type="button" data-act="cfg" title="설정" class="min-h-9 w-9 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"><i class="fa-solid fa-gear"></i></button></div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            ${cell('총자산', money(eq, cur))}${cell('총 수익률', pct(ret), tone(ret))}${cell('평가손익', money(unreal, cur, true), tone(unreal))}
+            ${cell('오늘 손익', pos.some(p => p.dayPnl != null) ? money(day, cur, true) : '—', tone(day))}${cell('실현손익', money(real, cur, true), tone(real))}${cell('주문가능', money(buying(cur), cur))}</div>`;
+      }
+      function cfgHtml() {
+        const st = load(), lock = st.orders.length > 0;
+        const f = (id, l, v, dis) => `<label class="block text-xs text-slate-400">${l}<input id="${id}" type="number" step="any" min="0" value="${v}" ${dis ? 'disabled' : ''} class="${inp} mt-1 ${dis ? 'opacity-50' : ''}"></label>`;
+        return `<div class="${card} mt-3 space-y-3"><div class="font-bold text-white text-sm">계좌 설정</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${f('simS_KRW', '시작 원금 (₩)', st.start.KRW, lock)}${f('simS_USD', '시작 원금 ($)', st.start.USD, lock)}${f('simF_KRW', '원화 수수료 (%)', st.cfg.fee.KRW)}${f('simT_KRW', '원화 매도세 (%)', st.cfg.tax.KRW)}${f('simF_USD', '달러 수수료 (%)', st.cfg.fee.USD)}${f('simT_USD', '달러 매도세 (%)', st.cfg.tax.USD)}</div>
+          <div class="text-[11px] text-slate-500">${lock ? '거래가 있으면 시작 원금은 바꿀 수 없어요(초기화 후 변경). ' : ''}수수료·세금은 이후 체결부터 적용돼요. 원화·달러 계좌는 따로 굴러가며 환전은 없어요.</div>
+          <div class="flex flex-wrap gap-2"><button type="button" data-act="cfgsave" class="min-h-10 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold">저장</button>
+          <button type="button" data-act="csv" class="min-h-10 px-4 rounded-xl bg-slate-800 text-slate-200 text-sm font-semibold">거래 CSV 내보내기</button>
+          <button type="button" data-act="reset" class="min-h-10 px-4 rounded-xl bg-rose-950 text-rose-300 border border-rose-800 text-sm font-semibold ml-auto">계좌 초기화</button></div></div>`;
+      }
+      function subNav() {
+        const b = (id, l, ic) => `<button type="button" data-act="sub" data-v="${id}" class="min-h-10 px-4 rounded-xl text-sm font-bold border ${V.sub === id ? 'bg-teal-950 text-teal-300 border-teal-700' : 'bg-slate-900 text-slate-400 border-slate-800'}"><i class="fa-solid ${ic} mr-1.5"></i>${l}</button>`;
+        return `<div class="flex gap-2 mt-4 overflow-x-auto">${b('trade', '거래', 'fa-right-left')}${b('log', '거래 기록', 'fa-list')}${b('stats', '성과 분석', 'fa-chart-line')}</div>`;
+      }
+
+      function ticketHtml() {
+        const buy = T.side === 'buy';
+        const sd = (s, l, on) => `<button type="button" data-act="side" data-v="${s}" class="flex-1 min-h-11 rounded-xl text-sm font-extrabold border ${T.side === s ? on : 'bg-slate-900 text-slate-400 border-slate-800'}">${l}</button>`;
+        return `<div class="${card} space-y-3"><div class="font-bold text-white text-sm"><i class="fa-solid fa-bolt text-amber-400 mr-1.5"></i>주문</div>
+          <div class="relative"><input id="simSym" type="text" autocomplete="off" spellcheck="false" placeholder="종목 검색 (티커·회사명, 예: AAPL · 005930.KS · 삼성전자)" value="${esc(T.sym ? T.sym + (T.name && T.name !== T.sym ? ' · ' + T.name : '') : '')}" class="${inp}"><div id="simSug" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto"></div></div>
+          <div id="simQuote" class="text-sm"></div>
+          <div class="flex gap-2">${sd('buy', '매수', 'bg-rose-600/90 text-white border-rose-500')}${sd('sell', '매도', 'bg-blue-600/90 text-white border-blue-500')}</div>
+          <div class="grid grid-cols-2 gap-2"><label class="text-xs text-slate-400">주문 유형<select id="simType" class="${inp} mt-1"><option value="market" ${T.type === 'market' ? 'selected' : ''}>시장가 (즉시)</option><option value="limit" ${T.type === 'limit' ? 'selected' : ''}>지정가</option></select></label>
+            <label class="text-xs text-slate-400">지정가<input id="simLimit" type="number" step="any" min="0" inputmode="decimal" value="${esc(T.limit)}" ${T.type === 'limit' ? '' : 'disabled'} class="${inp} mt-1 ${T.type === 'limit' ? '' : 'opacity-40'}"></label></div>
+          <label class="block text-xs text-slate-400">수량 (주)<input id="simQty" type="number" step="1" min="1" inputmode="numeric" value="${esc(T.qty)}" class="${inp} mt-1"></label>
+          <div class="flex gap-1.5">${[10, 25, 50, 100].map(p => `<button type="button" data-act="qpct" data-p="${p}" class="flex-1 min-h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold">${p === 100 ? '최대' : p + '%'}</button>`).join('')}</div>
+          <div class="grid grid-cols-2 gap-2"><label class="text-xs text-slate-400">${buy ? '진입' : '청산'} 이유<select id="simTag" class="${inp} mt-1">${TAGS.map(t => `<option ${T.tag === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+            <label class="text-xs text-slate-400">메모 (선택)<input id="simMemo" type="text" maxlength="200" value="${esc(T.memo)}" placeholder="왜 샀나 / 팔았나" class="${inp} mt-1"></label></div>
+          <div id="simEst" class="text-xs text-slate-400 leading-relaxed"></div>
+          <button type="button" data-act="submit" id="simSubmit" class="w-full min-h-12 rounded-xl text-white text-base font-extrabold ${buy ? 'bg-rose-600 hover:bg-rose-500' : 'bg-blue-600 hover:bg-blue-500'}">${buy ? '매수 주문' : '매도 주문'}</button></div>`;
+      }
+      function updateTicket() {
+        if (!root) return;
+        const qEl = root.querySelector('#simQuote'), eEl = root.querySelector('#simEst'); if (!qEl || !eEl) return;
+        const px = T.sym ? lastPrice(T.sym) : null, q = Q[T.sym], cur = T.cur || curOfSym(T.sym || '');
+        if (!T.sym) qEl.innerHTML = '<span class="text-slate-500">종목을 검색해서 고르면 현재가가 나와요.</span>';
+        else if (px == null) qEl.innerHTML = '<span class="text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-1"></i>현재가를 불러오는 중…</span>';
+        else { const ch = q && num(q.prev) ? (px / q.prev - 1) * 100 : null; qEl.innerHTML = `<span class="text-xl font-extrabold text-white">${price$(px, cur)}</span> <span class="${tone(ch)} font-semibold ml-1">${ch == null ? '' : pct(ch)}</span> <button type="button" data-act="analyze" class="ml-2 text-xs text-cyan-400 underline">차트·분석 보기</button>`; }
+        const qty = Math.floor(+T.qty) || 0, ref = T.type === 'limit' ? (+T.limit || 0) : (px || 0), amt = qty * ref;
+        let t = '';
+        if (T.sym && CURS.includes(cur)) {
+          const fr = feeRate(cur), tr = T.side === 'sell' ? taxRate(cur) : 0;
+          t = T.side === 'buy' ? `주문가능 ${money(buying(cur), cur)} · 최대 ${fmtN(ref > 0 ? Math.floor(buying(cur) / (ref * (1 + fr))) : 0, 0)}주` : `매도 가능 ${fmtN(Math.max(0, held(T.sym) - openSellQty(T.sym)), 0)}주`;
+          if (amt > 0) t += ` · 예상 ${T.side === 'buy' ? '결제' : '수령'} ${money(T.side === 'buy' ? amt * (1 + fr) : amt * (1 - fr - tr), cur)} (수수료${tr ? '·세금' : ''} ${money(amt * (fr + tr), cur)})`;
+        } else if (T.sym) t = `<span class="text-amber-400">${esc(cur)} 종목은 아직 지원하지 않아요 (원화·달러만).</span>`;
+        eEl.innerHTML = t;
+      }
+      function posHtml() {
+        const pos = positions();
+        if (!pos.length) return `<div class="${card} text-center text-sm text-slate-400">보유 종목이 없어요. 위에서 종목을 골라 첫 주문을 넣어 보세요.</div>`;
+        const rows = pos.map(p => `<tr class="border-t border-slate-800"><td class="py-2 pr-2"><button type="button" data-act="pick" data-sym="${esc(p.sym)}" class="text-left"><div class="font-bold text-white">${esc(p.sym)}</div><div class="text-[11px] text-slate-400 truncate max-w-[9rem]">${esc(p.name)}</div></button></td>
+          <td class="text-right pr-2">${fmtN(p.qty, 0)}</td><td class="text-right pr-2">${price$(p.avg, p.cur)}</td><td class="text-right pr-2">${price$(p.px, p.cur)}</td>
+          <td class="text-right pr-2">${money(p.mv, p.cur)}</td><td class="text-right pr-2 ${tone(p.pnl)} font-semibold">${money(p.pnl, p.cur, true)}<div class="text-[11px]">${pct(p.pct)}</div></td>
+          <td class="text-right"><button type="button" data-act="sellpos" data-sym="${esc(p.sym)}" class="min-h-9 px-3 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white text-xs font-bold">매도</button></td></tr>`).join('');
+        return `<div class="${card} overflow-x-auto"><div class="font-bold text-white text-sm mb-2">보유 종목</div><table class="w-full text-xs text-slate-200 min-w-[560px]"><thead><tr class="text-[11px] text-slate-400"><th class="text-left font-semibold">종목</th><th class="text-right font-semibold pr-2">수량</th><th class="text-right font-semibold pr-2">평균가</th><th class="text-right font-semibold pr-2">현재가</th><th class="text-right font-semibold pr-2">평가금액</th><th class="text-right font-semibold pr-2">평가손익</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      }
+      function openOrdersHtml() {
+        const os = openOrders(); if (!os.length) return '';
+        return `<div class="${card}"><div class="font-bold text-white text-sm mb-2">체결 대기 주문 <span class="text-[11px] font-normal text-slate-400">· 앱이 열려 있는 동안 30초마다 확인해요</span></div>` + os.map(o => `<div class="flex items-center gap-2 py-1.5 border-t border-slate-800 text-xs"><span class="font-bold ${o.side === 'buy' ? 'text-rose-400' : 'text-blue-400'}">${o.side === 'buy' ? '매수' : '매도'}</span><span class="text-white font-semibold">${esc(o.sym)}</span><span class="text-slate-300">${fmtN(o.qty, 0)}주 @ ${price$(o.limit, o.cur)}</span><span class="text-slate-500 ml-auto">현재 ${price$(lastPrice(o.sym), o.cur)}</span><button type="button" data-act="cancel" data-id="${o.id}" class="min-h-8 px-2.5 rounded-lg bg-slate-800 text-slate-200">취소</button></div>`).join('') + '</div>';
+      }
+      function tradeHtml() { return `<div class="grid lg:grid-cols-[22rem_1fr] gap-4 mt-3"><div>${ticketHtml()}</div><div class="space-y-4 min-w-0"><div id="simOpen">${openOrdersHtml()}</div><div id="simPos">${posHtml()}</div></div></div>`; }
+
+      function logHtml() {
+        const os = load().orders.filter(o => o.status !== 'open').slice().sort((a, b) => (b.t1 || b.t0) - (a.t1 || a.t0));
+        if (!os.length) return `<div class="${card} mt-3 text-center text-sm text-slate-400">아직 거래 기록이 없어요.</div>`;
+        const rows = os.map(o => `<tr class="border-t border-slate-800 align-top"><td class="py-2 pr-2 text-slate-400 whitespace-nowrap">${dtStr(o.t1 || o.t0)}</td><td class="pr-2 font-bold ${o.side === 'buy' ? 'text-rose-400' : 'text-blue-400'}">${o.side === 'buy' ? '매수' : '매도'}${o.status === 'cancelled' ? '<span class="text-slate-500 font-normal"> (취소)</span>' : ''}</td>
+          <td class="pr-2"><div class="font-bold text-white">${esc(o.sym)}</div><div class="text-[11px] text-slate-400 truncate max-w-[8rem]">${esc(o.name)}</div></td><td class="text-right pr-2">${fmtN(o.qty, 0)}</td><td class="text-right pr-2">${o.status === 'filled' ? price$(o.price, o.cur) : '—'}</td>
+          <td class="text-right pr-2 ${tone(o.pnl)} font-semibold">${o.side === 'sell' && o.status === 'filled' ? money(o.pnl, o.cur, true) + `<div class="text-[11px]">${pct(o.pct)}</div>` : ''}</td><td class="text-slate-300"><span class="text-[11px] text-slate-400">${esc(o.tag)}</span>${o.memo ? `<div>${esc(o.memo)}</div>` : ''}</td></tr>`).join('');
+        return `<div class="${card} mt-3 overflow-x-auto"><table class="w-full text-xs text-slate-200 min-w-[640px]"><thead><tr class="text-[11px] text-slate-400"><th class="text-left font-semibold">일시</th><th class="text-left font-semibold">구분</th><th class="text-left font-semibold">종목</th><th class="text-right font-semibold pr-2">수량</th><th class="text-right font-semibold pr-2">체결가</th><th class="text-right font-semibold pr-2">실현손익</th><th class="text-left font-semibold">이유·메모</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      }
+
+      function chartSvg(cur) {
+        const st = load(), pts = st.snaps.filter(s => s.eq && num(s.eq[cur])).map(s => ({ t: s.t, v: (s.eq[cur] / st.start[cur] - 1) * 100 }));
+        pts.push({ t: Date.now(), v: (equity(cur) / st.start[cur] - 1) * 100 });
+        if (pts.length < 2) return '<div class="text-xs text-slate-500 py-6 text-center">거래가 쌓이면 자산 곡선이 그려져요.</div>';
+        const W = 640, H = 170, P = 8, t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1;
+        const lo = Math.min(0, ...pts.map(p => p.v)), hi = Math.max(0, ...pts.map(p => p.v)), rng = hi - lo || 1;
+        const X = t => P + (t1 === t0 ? 0 : (t - t0) / (t1 - t0)) * (W - 2 * P), Y = v => P + (1 - (v - lo) / rng) * (H - 2 * P);
+        const line = pts.map(p => `${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' '), last = pts[pts.length - 1].v, col = last >= 0 ? '#34d399' : '#fb7185';
+        return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-44" role="img" aria-label="자산 곡선"><line x1="${P}" x2="${W - P}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="#475569" stroke-dasharray="4 4"/><polygon points="${P},${Y(0).toFixed(1)} ${line} ${X(t1).toFixed(1)},${Y(0).toFixed(1)}" fill="${col}" fill-opacity=".12"/><polyline points="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/></svg>
+          <div class="flex justify-between text-[11px] text-slate-500"><span>${dayStr(t0)}</span><span>기준선 0% = 시작 원금 · 현재 ${pct(last)}</span><span>${dayStr(t1)}</span></div>`;
+      }
+      function statsHtml() {
+        const cur = V.cur, A = analyze(cur), ins = insights(cur, A);
+        const k = (l, v, c, sub) => `<div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 min-w-0"><div class="text-[11px] text-slate-400">${l}</div><div class="text-base font-extrabold ${c || 'text-white'} truncate">${v}</div>${sub ? `<div class="text-[11px] text-slate-500 truncate">${sub}</div>` : ''}</div>`;
+        const lvC = { good: 'border-emerald-700/60 bg-emerald-950/30 text-emerald-200', warn: 'border-amber-700/60 bg-amber-950/30 text-amber-200', bad: 'border-rose-700/60 bg-rose-950/30 text-rose-200', info: 'border-slate-700 bg-slate-900 text-slate-300' };
+        const lvI = { good: 'fa-circle-check', warn: 'fa-triangle-exclamation', bad: 'fa-circle-xmark', info: 'fa-circle-info' };
+        const tbl = (title, list, label) => list.length ? `<div class="${card} overflow-x-auto"><div class="font-bold text-white text-sm mb-2">${title}</div><table class="w-full text-xs text-slate-200 min-w-[360px]"><thead><tr class="text-[11px] text-slate-400"><th class="text-left font-semibold">${label}</th><th class="text-right font-semibold">건수</th><th class="text-right font-semibold">승률</th><th class="text-right font-semibold">평균 수익률</th><th class="text-right font-semibold">손익</th></tr></thead><tbody>${list.slice(0, 8).map(r => `<tr class="border-t border-slate-800"><td class="py-1.5 font-semibold text-white">${esc(r.k)}</td><td class="text-right">${r.n}</td><td class="text-right">${pct(r.win, false, 0)}</td><td class="text-right ${tone(r.avg)}">${pct(r.avg)}</td><td class="text-right font-semibold ${tone(r.pnl)}">${money(r.pnl, cur, true)}</td></tr>`).join('')}</tbody></table></div>` : '';
+        const tr = A.worst;
+        return `<div class="space-y-4 mt-3">
+          <div class="${card}"><div class="font-bold text-white text-sm mb-1">자산 곡선 <span class="text-[11px] font-normal text-slate-400">(${cur === 'KRW' ? '원화' : '달러'} 계좌)</span></div>${chartSvg(cur)}</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            ${k('총 수익률', pct(A.ret), tone(A.ret), `${money(A.eq - A.start, cur, true)}`)}${k('승률', A.winRate == null ? '—' : pct(A.winRate, false, 0), '', `${A.wins}승 ${A.losses}패 (청산 ${A.n}건)`)}
+            ${k('손익비', A.payoff == null ? '—' : fmtN(A.payoff) + '배', '', `평균 +${A.avgWin == null ? '—' : fmtN(A.avgWin)}% / −${A.avgLoss == null ? '—' : fmtN(A.avgLoss)}%`)}${k('수익 팩터', A.pf == null ? '—' : A.pf === Infinity ? '∞' : fmtN(A.pf), A.pf != null && A.pf < 1 ? 'text-rose-400' : '', '총이익 ÷ 총손실')}
+            ${k('거래당 기대수익', pct(A.exp), tone(A.exp), '청산 건 평균')}${k('최대 낙폭', pct(A.mdd, false), A.mdd < -10 ? 'text-rose-400' : '', `최대 ${A.maxLoss}연패`)}
+            ${k('평균 보유일', A.daysWin == null && A.daysLoss == null ? '—' : `${A.daysWin == null ? '—' : fmtN(A.daysWin, 1)} / ${A.daysLoss == null ? '—' : fmtN(A.daysLoss, 1)}일`, '', '이익 / 손실 거래')}${k('수수료·세금', money(A.fees, cur), '', `체결 ${A.trades}건`)}</div>
+          <div class="${card} space-y-2"><div class="font-bold text-white text-sm"><i class="fa-solid fa-user-doctor text-teal-400 mr-1.5"></i>내 매매 진단</div>${ins.map(i => `<div class="rounded-xl border px-3 py-2 text-sm leading-relaxed ${lvC[i.lv]}"><i class="fa-solid ${lvI[i.lv]} mr-1.5"></i>${i.t}</div>`).join('')}
+            <div class="text-[11px] text-slate-500">규칙 기반 자동 진단이며 투자 권유가 아니에요. 표본이 적을수록 우연일 수 있어요.</div></div>
+          ${A.best ? `<div class="grid sm:grid-cols-2 gap-2"><div class="${card}"><div class="text-[11px] text-slate-400">최고의 거래</div><div class="font-bold text-white">${esc(A.best.name)} <span class="${tone(A.best.pnl)}">${pct(A.best.pct)}</span></div><div class="text-xs text-slate-400">${money(A.best.pnl, cur, true)} · ${fmtN(A.best.days, 1)}일 보유 · ${esc(A.best.tag)}</div></div>
+            <div class="${card}"><div class="text-[11px] text-slate-400">최악의 거래</div><div class="font-bold text-white">${esc(tr.name)} <span class="${tone(tr.pnl)}">${pct(tr.pct)}</span></div><div class="text-xs text-slate-400">${money(tr.pnl, cur, true)} · ${fmtN(tr.days, 1)}일 보유 · ${esc(tr.tag)}</div></div></div>` : ''}
+          <div class="grid lg:grid-cols-2 gap-4">${tbl('진입 이유별 성과', A.byTag, '이유')}${tbl('종목별 성과', A.bySym, '종목')}</div></div>`;
+      }
+
+      function render() {
+        if (!root) return;
+        const body = V.sub === 'trade' ? tradeHtml() : V.sub === 'log' ? logHtml() : statsHtml();
+        root.innerHTML = `<div id="simHead">${headHtml()}</div>${V.cfg ? cfgHtml() : ''}${subNav()}${body}`;
+        if (V.sub === 'trade') updateTicket();
+      }
+      function renderLive() {   // 입력 중인 주문창은 건드리지 않고 숫자만 갱신
+        if (!root) return;
+        const h = root.querySelector('#simHead'); if (h) h.innerHTML = headHtml();
+        if (V.sub === 'trade') { const p = root.querySelector('#simPos'), o = root.querySelector('#simOpen'); if (p) p.innerHTML = posHtml(); if (o) o.innerHTML = openOrdersHtml(); updateTicket(); }
+        else if (V.sub === 'stats') render();
+      }
+
+      async function refresh() {
+        if (busy) return; busy = true;
+        try {
+          const syms = positions().map(p => p.sym).concat(openOrders().map(o => o.sym), T.sym ? [T.sym] : []);
+          await getQuotes(syms);
+          const n = checkOpenOrders(); snap(false); save();
+          if (n) render(); else renderLive();
+        } finally { busy = false; }
+      }
+      async function pickSymbol(sym, name) {
+        T.sym = String(sym).toUpperCase(); T.name = name || ''; T.cur = curOfSym(T.sym);
+        if (CURS.includes(T.cur)) V.cur = T.cur;
+        if (typeof appSetSymbol === 'function') appSetSymbol(T.sym, 'sim');
+        render(); await getQuotes([T.sym]);
+        const q = Q[T.sym]; if (q) { if (!T.name || T.name === T.sym) T.name = q.name || T.sym; if (q.cur && CURS.includes(q.cur)) { T.cur = q.cur; V.cur = q.cur; } }
+        render();
+      }
+
+      // ---------- 이벤트 ----------
+      let sugTimer = null;
+      function onInput(e) {
+        const id = e.target.id;
+        if (id === 'simSym') {
+          clearTimeout(sugTimer); const v = e.target.value.trim(), box = root.querySelector('#simSug');
+          if (!v) { box.classList.add('hidden'); return; }
+          sugTimer = setTimeout(async () => {
+            const mine = ++V.tkSearch; let list = []; try { list = await searchSymbols(v); } catch (er) { /* 결과 없음 */ }
+            if (mine !== V.tkSearch || !box.isConnected) return;
+            box.innerHTML = list.length ? list.slice(0, 8).map(r => `<button type="button" data-act="sug" data-sym="${esc(r.symbol)}" data-name="${esc(r.name)}" class="w-full text-left px-3 py-2 hover:bg-slate-800 border-b border-slate-800 last:border-0"><span class="font-bold text-white">${esc(r.symbol)}</span> <span class="text-xs text-slate-400">${esc(r.name)} · ${esc(r.exchange)}</span></button>`).join('') : `<div class="px-3 py-2 text-xs text-slate-400">검색 결과가 없어요. 티커를 직접 입력하고 Enter 를 눌러 보세요.</div>`;
+            box.classList.remove('hidden');
+          }, 300);
+        } else if (id === 'simQty') { T.qty = e.target.value; updateTicket(); }
+        else if (id === 'simLimit') { T.limit = e.target.value; updateTicket(); }
+        else if (id === 'simMemo') T.memo = e.target.value;
+      }
+      function onChange(e) {
+        const id = e.target.id;
+        if (id === 'simType') { T.type = e.target.value; if (T.type === 'limit' && !T.limit && lastPrice(T.sym) != null) T.limit = String(lastPrice(T.sym)); render(); }
+        else if (id === 'simTag') T.tag = e.target.value;
+      }
+      function onClick(e) {
+        const b = e.target.closest('[data-act]'); if (!b) { const bx = root.querySelector('#simSug'); if (bx && !e.target.closest('#simSym')) bx.classList.add('hidden'); return; }
+        const act = b.dataset.act, st = load();
+        if (act === 'sub') { V.sub = b.dataset.v; render(); }
+        else if (act === 'cur') { V.cur = b.dataset.v; render(); }
+        else if (act === 'cfg') { V.cfg = !V.cfg; render(); }
+        else if (act === 'side') { T.side = b.dataset.v; render(); }
+        else if (act === 'sug') pickSymbol(b.dataset.sym, b.dataset.name);
+        else if (act === 'pick') pickSymbol(b.dataset.sym, (st.meta[b.dataset.sym] || {}).name);
+        else if (act === 'analyze') { if (T.sym && typeof quickSearch === 'function') quickSearch(T.sym); }
+        else if (act === 'sellpos') { const s = b.dataset.sym; T.side = 'sell'; T.type = 'market'; T.qty = String(Math.max(0, held(s) - openSellQty(s))); pickSymbol(s, (st.meta[s] || {}).name).then(() => { const t = root.querySelector('#simSym'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' }); }); }
+        else if (act === 'qpct') {
+          const p = +b.dataset.p / 100, cur = T.cur || curOfSym(T.sym), ref = T.type === 'limit' ? (+T.limit || lastPrice(T.sym) || 0) : (lastPrice(T.sym) || 0);
+          const mx = T.side === 'buy' ? (ref > 0 ? Math.floor(buying(cur) / (ref * (1 + feeRate(cur)))) : 0) : Math.max(0, held(T.sym) - openSellQty(T.sym));
+          T.qty = String(Math.max(mx ? 1 : 0, Math.floor(mx * p))); const el = root.querySelector('#simQty'); if (el) el.value = T.qty; updateTicket();
+        }
+        else if (act === 'submit') {
+          const r = placeOrder({ sym: T.sym, name: T.name, cur: T.cur || curOfSym(T.sym), side: T.side, type: T.type, qty: T.qty, limit: T.limit, tag: T.tag, memo: T.memo });
+          if (!r.ok) { toast('주문 실패', r.msg, 'warning'); return; }
+          const o = r.o;
+          toast(r.filled ? '체결 완료' : '주문 접수', r.filled ? `${o.sym} ${fmtN(o.qty, 0)}주 ${o.side === 'buy' ? '매수' : '매도'} @ ${price$(o.price, o.cur)}${o.side === 'sell' ? ` · 실현 ${money(o.pnl, o.cur, true)}` : ''}` : `${o.sym} ${fmtN(o.qty, 0)}주 ${price$(o.limit, o.cur)} 지정가 대기 중`, r.filled ? 'success' : 'info');
+          T.qty = ''; T.memo = ''; render();
+        }
+        else if (act === 'cancel') { cancelOrder(+b.dataset.id); render(); }
+        else if (act === 'cfgsave') {
+          const g = id => +root.querySelector('#' + id).value;
+          CURS.forEach(c => {
+            if (!st.orders.length && g('simS_' + c) > 0) { st.start[c] = g('simS_' + c); st.cash[c] = g('simS_' + c); }
+            st.cfg.fee[c] = Math.max(0, g('simF_' + c) || 0); st.cfg.tax[c] = Math.max(0, g('simT_' + c) || 0);
+          });
+          save(); V.cfg = false; toast('저장했어요', '계좌 설정을 적용했어요.', 'success'); render();
+        }
+        else if (act === 'reset') { if (confirm('모의투자 계좌를 처음 상태로 되돌릴까요?\n모든 주문·거래 기록·자산 곡선이 지워져요.')) { S = fresh(load()); save(); V.cfg = false; render(); } }
+        else if (act === 'csv') {
+          const rows = [['일시', '구분', '상태', '종목', '이름', '통화', '수량', '체결가', '지정가', '수수료', '세금', '실현손익', '수익률%', '이유', '메모']];
+          load().orders.forEach(o => rows.push([dtStr(o.t1 || o.t0), o.side === 'buy' ? '매수' : '매도', o.status, o.sym, o.name, o.cur, o.qty, o.price ?? '', o.limit ?? '', o.fee ? o.fee.toFixed(2) : '', o.tax ? o.tax.toFixed(2) : '', o.pnl != null ? o.pnl.toFixed(2) : '', o.pct != null ? o.pct.toFixed(2) : '', o.tag, o.memo]));
+          const csv = '﻿' + rows.map(r => r.map(c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+          const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = `모의투자_${dayStr(Date.now())}.csv`; document.body.appendChild(a); a.click(); a.remove();
+        }
+      }
+      function onKey(e) {
+        if (e.target.id === 'simSym' && e.key === 'Enter') { e.preventDefault(); const v = e.target.value.trim().split(/\s+/)[0].toUpperCase(); if (v) pickSymbol(v, ''); }
+      }
+
+      let inited = false;
+      function init() {
+        if (inited) return; inited = true; load();
+        root = document.getElementById('simRoot'); if (!root) return;
+        root.addEventListener('click', onClick); root.addEventListener('input', onInput); root.addEventListener('change', onChange); root.addEventListener('keydown', onKey);
+        // 대기 주문이 있거나 이 탭이 열려 있으면 주기적으로 시세를 받아 체결·자산을 갱신한다
+        timer = setInterval(() => { if (document.hidden) return; if (activeAppTab === 'sim' || openOrders().length) refresh(); }, 30000);
+      }
+      function onOpen() { init(); if (!root) return; const st = load(); if (!st.orders.length && Object.keys(st.lots).length === 0 && !T.sym) V.sub = 'trade'; render(); refresh(); }
+      if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.sim = onOpen;
+      if (typeof APP_SYM_APPLY !== 'undefined') APP_SYM_APPLY.sim = sym => { if (sym && sym !== T.sym) { T.sym = sym; T.name = ''; T.cur = curOfSym(sym); if (CURS.includes(T.cur)) V.cur = T.cur; pickSymbol(sym, ''); } };
+      window.SIM_DEBUG = { load, placeOrder, positions, analyze, insights, fillOrder, Q, T, V, equity, reset: () => { S = fresh(); save(); } };
     })();
   </script>
 
