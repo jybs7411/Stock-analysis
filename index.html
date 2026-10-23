@@ -895,7 +895,6 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     <div id="subTabRow" role="tablist" aria-label="화면 선택" class="hidden max-w-7xl mx-auto flex items-center gap-1.5 pb-2 overflow-x-auto whitespace-nowrap">
       <button type="button" role="tab" aria-selected="false" aria-controls="view-watch" onclick="switchAppTab('watch')" id="tabBtn-watch" title="관심종목" class="subtab hidden"><i class="fa-solid fa-star text-yellow-400"></i><span>관심종목</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-holdings" onclick="switchAppTab('holdings')" id="tabBtn-holdings" title="내 보유종목 · 산 금액 · 평가손익" class="subtab hidden"><i class="fa-solid fa-wallet text-emerald-400"></i><span>보유종목</span></button>
-      <button type="button" role="tab" aria-selected="false" aria-controls="view-sim" onclick="switchAppTab('sim')" id="tabBtn-sim" title="모의투자 · 가상 계좌로 사고팔기" class="subtab hidden"><i class="fa-solid fa-gamepad text-teal-400"></i><span>모의투자</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-analysis" onclick="switchAppTab('analysis')" id="tabBtn-analysis" title="5인 전문가 심층 분석" class="subtab hidden"><i class="fa-solid fa-users-viewfinder text-cyan-400"></i><span>5인 분석</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-multi" onclick="switchAppTab('multi')" id="tabBtn-multi" title="멀티 차트 (1·2·4·6분할)" class="subtab hidden"><i class="fa-solid fa-table-cells-large text-fuchsia-400"></i><span>멀티 차트</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-screener" onclick="switchAppTab('screener')" id="tabBtn-screener" title="스마트 스크리너 (Finviz × Fool)" class="subtab hidden"><i class="fa-solid fa-filter text-amber-400"></i><span>스크리너</span></button>
@@ -914,7 +913,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
   <!-- 폰 하단 탭바 -->
   <nav id="mobileTabBar" aria-label="메뉴" class="fixed bottom-0 inset-x-0 z-[60] bg-[#000000]/95 backdrop-blur border-t border-slate-800 hidden" style="padding-bottom: env(safe-area-inset-bottom)">
-    <div id="mobileTabGrid" class="grid grid-cols-5"></div>
+    <div id="mobileTabGrid" class="grid grid-cols-6"></div>
   </nav>
 
   <!-- 뒤로가기 (이전에 보던 탭) -->
@@ -2224,7 +2223,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.50.0';
+    const APP_VERSION = '1.51.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2299,8 +2298,9 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
     // 허브(상단 5개) → 보조 탭(둘째 줄). 탭 id·view-<id>·TAB_HOOKS 는 그대로, 내비게이션만 묶는다.
     const APP_HUBS = [
-      { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch', 'holdings', 'sim', 'bdwtools'] },
+      { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch', 'holdings', 'bdwtools'] },
       { id: 'analyze', label: '분석', short: '분석', icon: 'fa-users-viewfinder text-cyan-400', on: APP_TABS.analysis.on, tabs: ['analysis', 'multi', 'prevday'] },
+      { id: 'sim', label: '모의투자', short: '모의', icon: 'fa-gamepad text-teal-400', on: APP_TABS.sim.on, tabs: ['sim'] },
       { id: 'discover', label: '발굴', short: '발굴', icon: 'fa-filter text-amber-400', on: APP_TABS.screener.on, tabs: ['screener', 'revision'] },
       { id: 'market', label: '시장', short: '시장', icon: 'fa-earth-americas text-sky-400', on: APP_TABS.market.on, tabs: ['market', 'fx', 'calendar'] },
       { id: 'method', label: '매매법', short: '매매법', icon: 'fa-book-open text-orange-400', on: APP_TABS.bdw.on, tabs: ['bdw'] }
@@ -26010,7 +26010,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       // ---------- 화면 ----------
       const V = { sub: 'trade', cur: 'KRW', cfg: false, tkSearch: 0 };
       const T = { sym: '', name: '', cur: '', side: 'buy', type: 'market', qty: '', limit: '', tag: TAGS[0], memo: '' };
-      let root = null, timer = null, busy = false;
+      let root = null, dock = null, timer = null, busy = false;
       const card = 'rounded-2xl border border-slate-800 bg-slate-900/60 p-4';
       const inp = 'w-full min-h-11 px-3 bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl text-sm text-white outline-none';
 
@@ -26058,13 +26058,13 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           <div id="simEst" class="text-xs text-slate-400 leading-relaxed"></div>
           <button type="button" data-act="submit" id="simSubmit" class="w-full min-h-12 rounded-xl text-white text-base font-extrabold ${buy ? 'bg-rose-600 hover:bg-rose-500' : 'bg-blue-600 hover:bg-blue-500'}">${buy ? '매수 주문' : '매도 주문'}</button></div>`;
       }
-      function updateTicket() {
-        if (!root) return;
-        const qEl = root.querySelector('#simQuote'), eEl = root.querySelector('#simEst'); if (!qEl || !eEl) return;
+      function updateTicket() { [root, dock].forEach(r => { if (r) updateTicketIn(r); }); }
+      function updateTicketIn(r) {
+        const qEl = r.querySelector('#simQuote'), eEl = r.querySelector('#simEst'); if (!qEl || !eEl) return;
         const px = T.sym ? lastPrice(T.sym) : null, q = Q[T.sym], cur = T.cur || curOfSym(T.sym || '');
         if (!T.sym) qEl.innerHTML = '<span class="text-slate-500">종목을 검색해서 고르면 현재가가 나와요.</span>';
         else if (px == null) qEl.innerHTML = '<span class="text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-1"></i>현재가를 불러오는 중…</span>';
-        else { const ch = q && num(q.prev) ? (px / q.prev - 1) * 100 : null; qEl.innerHTML = `<span class="text-xl font-extrabold text-white">${price$(px, cur)}</span> <span class="${tone(ch)} font-semibold ml-1">${ch == null ? '' : pct(ch)}</span> <button type="button" data-act="analyze" class="ml-2 text-xs text-cyan-400 underline">차트·분석 보기</button>`; }
+        else { const ch = q && num(q.prev) ? (px / q.prev - 1) * 100 : null; qEl.innerHTML = `<span class="text-xl font-extrabold text-white">${price$(px, cur)}</span> <span class="${tone(ch)} font-semibold ml-1">${ch == null ? '' : pct(ch)}</span> ${r === dock ? '' : '<button type="button" data-act="analyze" class="ml-2 text-xs text-cyan-400 underline">차트·분석 보기</button>'}`; }
         const qty = Math.floor(+T.qty) || 0, ref = T.type === 'limit' ? (+T.limit || 0) : (px || 0), amt = qty * ref;
         let t = '';
         if (T.sym && CURS.includes(cur)) {
@@ -26130,17 +26130,35 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           <div class="grid lg:grid-cols-2 gap-4">${tbl('진입 이유별 성과', A.byTag, '이유')}${tbl('종목별 성과', A.bySym, '종목')}</div></div>`;
       }
 
-      function render() {
+      function dockHeadHtml() {
+        const cur = CURS.includes(T.cur) ? T.cur : V.cur, eq = equity(cur), ret = (eq / load().start[cur] - 1) * 100;
+        const c = (l, v, x) => `<div class="rounded-lg bg-slate-950/70 border border-slate-800 p-2 min-w-0"><div class="text-[11px] text-slate-400">${l}</div><div class="text-xs font-bold truncate ${x || 'text-white'}">${v}</div></div>`;
+        return `<div class="grid grid-cols-2 gap-2">${c('주문가능', money(buying(cur), cur))}${c('총자산 · 수익률', `${money(eq, cur)} ${pct(ret)}`, tone(ret))}</div>`;
+      }
+      function dockPosHtml() {
+        const p = positions().find(x => x.sym === T.sym); if (!p) return '';
+        return `<div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 text-xs"><div class="text-slate-300">보유 <b class="text-white">${fmtN(p.qty, 0)}주</b> · 평균 ${price$(p.avg, p.cur)}</div><div class="${tone(p.pnl)} font-semibold mt-0.5">${money(p.pnl, p.cur, true)} (${pct(p.pct)})</div><button type="button" data-act="sellall" class="mt-2 w-full min-h-9 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white text-xs font-bold">전량 매도 채우기</button></div>`;
+      }
+      function renderDock() {
+        if (!dock) return;
+        dock.innerHTML = `<div class="space-y-3"><div id="simDockHead">${dockHeadHtml()}</div>${ticketHtml()}${dockPosHtml()}${openOrdersHtml()}<button type="button" data-act="gosim" class="w-full min-h-9 text-xs text-teal-300 underline">모의투자 탭에서 기록·성과 보기</button></div>`;
+        updateTicketIn(dock);
+      }
+      function render() { renderMain(); renderDock(); }
+      function renderMain() {
         if (!root) return;
         const body = V.sub === 'trade' ? tradeHtml() : V.sub === 'log' ? logHtml() : statsHtml();
         root.innerHTML = `<div id="simHead">${headHtml()}</div>${V.cfg ? cfgHtml() : ''}${subNav()}${body}`;
         if (V.sub === 'trade') updateTicket();
       }
       function renderLive() {   // 입력 중인 주문창은 건드리지 않고 숫자만 갱신
-        if (!root) return;
-        const h = root.querySelector('#simHead'); if (h) h.innerHTML = headHtml();
-        if (V.sub === 'trade') { const p = root.querySelector('#simPos'), o = root.querySelector('#simOpen'); if (p) p.innerHTML = posHtml(); if (o) o.innerHTML = openOrdersHtml(); updateTicket(); }
-        else if (V.sub === 'stats') render();
+        if (root) {
+          const h = root.querySelector('#simHead'); if (h) h.innerHTML = headHtml();
+          if (V.sub === 'trade') { const p = root.querySelector('#simPos'), o = root.querySelector('#simOpen'); if (p) p.innerHTML = posHtml(); if (o) o.innerHTML = openOrdersHtml(); }
+          else if (V.sub === 'stats') renderMain();
+        }
+        if (dock) { const dh = dock.querySelector('#simDockHead'); if (dh) dh.innerHTML = dockHeadHtml(); }
+        updateTicket();
       }
 
       async function refresh() {
@@ -26164,9 +26182,9 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       // ---------- 이벤트 ----------
       let sugTimer = null;
       function onInput(e) {
-        const id = e.target.id;
+        const id = e.target.id, ctx = e.currentTarget;
         if (id === 'simSym') {
-          clearTimeout(sugTimer); const v = e.target.value.trim(), box = root.querySelector('#simSug');
+          clearTimeout(sugTimer); const v = e.target.value.trim(), box = ctx.querySelector('#simSug');
           if (!v) { box.classList.add('hidden'); return; }
           sugTimer = setTimeout(async () => {
             const mine = ++V.tkSearch; let list = []; try { list = await searchSymbols(v); } catch (er) { /* 결과 없음 */ }
@@ -26184,7 +26202,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         else if (id === 'simTag') T.tag = e.target.value;
       }
       function onClick(e) {
-        const b = e.target.closest('[data-act]'); if (!b) { const bx = root.querySelector('#simSug'); if (bx && !e.target.closest('#simSym')) bx.classList.add('hidden'); return; }
+        const ctx = e.currentTarget;
+        const b = e.target.closest('[data-act]'); if (!b) { const bx = ctx.querySelector('#simSug'); if (bx && !e.target.closest('#simSym')) bx.classList.add('hidden'); return; }
         const act = b.dataset.act, st = load();
         if (act === 'sub') { V.sub = b.dataset.v; render(); }
         else if (act === 'cur') { V.cur = b.dataset.v; render(); }
@@ -26193,11 +26212,11 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         else if (act === 'sug') pickSymbol(b.dataset.sym, b.dataset.name);
         else if (act === 'pick') pickSymbol(b.dataset.sym, (st.meta[b.dataset.sym] || {}).name);
         else if (act === 'analyze') { if (T.sym && typeof quickSearch === 'function') quickSearch(T.sym); }
-        else if (act === 'sellpos') { const s = b.dataset.sym; T.side = 'sell'; T.type = 'market'; T.qty = String(Math.max(0, held(s) - openSellQty(s))); pickSymbol(s, (st.meta[s] || {}).name).then(() => { const t = root.querySelector('#simSym'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' }); }); }
+        else if (act === 'sellpos') { const s = b.dataset.sym; T.side = 'sell'; T.type = 'market'; T.qty = String(Math.max(0, held(s) - openSellQty(s))); pickSymbol(s, (st.meta[s] || {}).name).then(() => { const t = ctx.querySelector('#simSym'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' }); }); }
         else if (act === 'qpct') {
           const p = +b.dataset.p / 100, cur = T.cur || curOfSym(T.sym), ref = T.type === 'limit' ? (+T.limit || lastPrice(T.sym) || 0) : (lastPrice(T.sym) || 0);
           const mx = T.side === 'buy' ? (ref > 0 ? Math.floor(buying(cur) / (ref * (1 + feeRate(cur)))) : 0) : Math.max(0, held(T.sym) - openSellQty(T.sym));
-          T.qty = String(Math.max(mx ? 1 : 0, Math.floor(mx * p))); const el = root.querySelector('#simQty'); if (el) el.value = T.qty; updateTicket();
+          T.qty = String(Math.max(mx ? 1 : 0, Math.floor(mx * p))); const el = ctx.querySelector('#simQty'); if (el) el.value = T.qty; updateTicket();
         }
         else if (act === 'submit') {
           const r = placeOrder({ sym: T.sym, name: T.name, cur: T.cur || curOfSym(T.sym), side: T.side, type: T.type, qty: T.qty, limit: T.limit, tag: T.tag, memo: T.memo });
@@ -26206,9 +26225,11 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           toast(r.filled ? '체결 완료' : '주문 접수', r.filled ? `${o.sym} ${fmtN(o.qty, 0)}주 ${o.side === 'buy' ? '매수' : '매도'} @ ${price$(o.price, o.cur)}${o.side === 'sell' ? ` · 실현 ${money(o.pnl, o.cur, true)}` : ''}` : `${o.sym} ${fmtN(o.qty, 0)}주 ${price$(o.limit, o.cur)} 지정가 대기 중`, r.filled ? 'success' : 'info');
           T.qty = ''; T.memo = ''; render();
         }
+        else if (act === 'sellall') { T.side = 'sell'; T.type = 'market'; T.qty = String(Math.max(0, held(T.sym) - openSellQty(T.sym))); render(); }
+        else if (act === 'gosim') switchAppTab('sim');
         else if (act === 'cancel') { cancelOrder(+b.dataset.id); render(); }
         else if (act === 'cfgsave') {
-          const g = id => +root.querySelector('#' + id).value;
+          const g = id => +ctx.querySelector('#' + id).value;
           CURS.forEach(c => {
             if (!st.orders.length && g('simS_' + c) > 0) { st.start[c] = g('simS_' + c); st.cash[c] = g('simS_' + c); }
             st.cfg.fee[c] = Math.max(0, g('simF_' + c) || 0); st.cfg.tax[c] = Math.max(0, g('simT_' + c) || 0);
@@ -26227,18 +26248,115 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (e.target.id === 'simSym' && e.key === 'Enter') { e.preventDefault(); const v = e.target.value.trim().split(/\s+/)[0].toUpperCase(); if (v) pickSymbol(v, ''); }
       }
 
+      const bind = el => { el.addEventListener('click', onClick); el.addEventListener('input', onInput); el.addEventListener('change', onChange); el.addEventListener('keydown', onKey); };
       let inited = false;
+      function mountDock(el) { init(); dock = el; bind(el); renderDock(); }
       function init() {
         if (inited) return; inited = true; load();
         root = document.getElementById('simRoot'); if (!root) return;
-        root.addEventListener('click', onClick); root.addEventListener('input', onInput); root.addEventListener('change', onChange); root.addEventListener('keydown', onKey);
+        bind(root);
         // 대기 주문이 있거나 이 탭이 열려 있으면 주기적으로 시세를 받아 체결·자산을 갱신한다
-        timer = setInterval(() => { if (document.hidden) return; if (activeAppTab === 'sim' || openOrders().length) refresh(); }, 30000);
+        timer = setInterval(() => { if (document.hidden) return; if (activeAppTab === 'sim' || openOrders().length || (dock && dock.getClientRects().length)) refresh(); }, 30000);
       }
       function onOpen() { init(); if (!root) return; const st = load(); if (!st.orders.length && Object.keys(st.lots).length === 0 && !T.sym) V.sub = 'trade'; render(); refresh(); }
       if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.sim = onOpen;
       if (typeof APP_SYM_APPLY !== 'undefined') APP_SYM_APPLY.sim = sym => { if (sym && sym !== T.sym) { T.sym = sym; T.name = ''; T.cur = curOfSym(sym); if (CURS.includes(T.cur)) V.cur = T.cur; pickSymbol(sym, ''); } };
+      window.SIM_UI = { mountDock, refresh: () => { init(); return refresh(); }, follow: sym => { if (sym && sym !== T.sym) pickSymbol(sym, ''); } };
       window.SIM_DEBUG = { load, placeOrder, positions, analyze, insights, fillOrder, Q, T, V, equity, reset: () => { S = fresh(); save(); } };
+    })();
+  </script>
+
+  <script id="mod-dock">
+    // ===== 사이드 도크 — 5인 분석·멀티 차트 탭 양옆에 '관심종목 리스트'(왼쪽)와 '모의투자 주문창'(오른쪽) =====
+    // 두 패널은 position:fixed 라서 가운데 내용을 스크롤해도 따라가지 않고, 각자 안에서만 스크롤된다.
+    //  - 화면이 아주 넓으면(양옆 여백 ≥ 패널 폭) 여백에 놓고, 그보다 좁으면(≥1000px) 가운데 내용을 안쪽으로 밀어 자리를 만들고, 폰·좁은 창에서는 필요할 때 여는 오버레이가 된다.
+    // 의존: watchSymbols·fetchQuotes·quickSearch·appSetSymbol·APP_SYM·APP_SYM_APPLY·activeAppTab·switchAppTab (메인/관심종목 모듈), SIM_UI (mod-sim).
+    (function () {
+      const KEY = 'pentanalyst_dock_v1', WL = 260, WR = 340, MAXW = 1280, SHOW = { analysis: 1, multi: 1 };
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const open = { L: true, R: true }, ov = { L: false, R: false };   // open: 넓은 화면 기억값, ov: 오버레이(좁은 화면)
+      try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { open.L = o.L !== false; open.R = o.R !== false; } } catch (e) { /* 기본값 */ }
+      const saveOpen = () => { try { localStorage.setItem(KEY, JSON.stringify(open)); } catch (e) { /* 저장 불가 */ } };
+      const mk = html => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; };
+      const panel = (id, title, icon, body) => mk(`<aside id="${id}" style="display:none;position:fixed;z-index:45;flex-direction:column;overflow:hidden" class="rounded-2xl border border-slate-700 bg-slate-950/95 backdrop-blur shadow-2xl shadow-black/60"><div class="flex items-center gap-2 px-3 py-2 border-b border-slate-800 shrink-0"><i class="fa-solid ${icon}"></i><div class="text-sm font-extrabold text-white mr-auto">${title}</div><button type="button" data-dock-close="${id}" title="접기" class="w-7 h-7 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"><i class="fa-solid fa-xmark"></i></button></div>${body}</aside>`);
+      const toggle = (id, label, icon) => mk(`<button type="button" id="${id}" style="display:none;position:fixed;z-index:44" class="px-3 min-h-10 rounded-full bg-slate-900/95 border border-slate-600 text-xs font-bold text-slate-100 shadow-lg items-center"><i class="fa-solid ${icon} mr-1.5"></i>${label}</button>`);
+      const PL = panel('dockL', '내 관심종목', 'fa-star text-yellow-400', '<div id="dockLBody" class="flex-1 overflow-y-auto p-2" style="overscroll-behavior:contain"></div><button type="button" id="dockLGo" class="shrink-0 min-h-9 text-xs text-slate-400 hover:text-white border-t border-slate-800">관심종목 탭에서 관리</button>');
+      const PR = panel('dockR', '모의 주문', 'fa-gamepad text-teal-400', '<div id="simDock" class="flex-1 overflow-y-auto p-3" style="overscroll-behavior:contain"></div>');
+      const TL = toggle('dockLT', '관심종목', 'fa-star text-yellow-400'), TR = toggle('dockRT', '모의 주문', 'fa-gamepad text-teal-400');
+      [PL, PR, TL, TR].forEach(el => document.body.appendChild(el));
+      const A = { L: { p: PL, t: TL, w: WL }, R: { p: PR, t: TR, w: WR } };
+
+      // ---------- 관심종목 리스트 ----------
+      const quotes = {}; let lastSig = '', qAt = 0;
+      const list = () => { try { return typeof window.watchSymbols === 'function' ? window.watchSymbols() : []; } catch (e) { return []; } };
+      const fmtP = (v, sym) => { const d = /\.(KS|KQ)$/i.test(sym) ? 0 : 2; return typeof v === 'number' ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—'; };
+      function renderList() {
+        const body = document.getElementById('dockLBody'); if (!body) return;
+        const items = list(), cur = typeof APP_SYM !== 'undefined' ? APP_SYM.sym : '';
+        lastSig = items.map(i => i.sym).join(',') + '|' + cur;
+        if (!items.length) { body.innerHTML = '<div class="p-3 text-xs text-slate-400 leading-relaxed">관심종목이 비어 있어요.<br>종목을 분석한 뒤 ⭐ 로 담으면 여기에 리스트로 떠요.</div>'; return; }
+        body.innerHTML = items.map(i => {
+          const q = quotes[i.sym] || {}, wq = q.price == null && typeof window.watchQuote === 'function' ? window.watchQuote(i.sym) : null, px = q.price != null ? q.price : (wq ? wq.price : null);
+          const ch = typeof q.chg === 'number' ? q.chg : null, on = i.sym === cur;
+          return `<button type="button" data-dock-sym="${esc(i.sym)}" class="w-full text-left px-2.5 py-2 mb-1 rounded-xl flex items-center gap-2 border ${on ? 'bg-cyan-950/60 border-cyan-800' : 'border-transparent hover:bg-slate-900'}"><span class="min-w-0 flex-1"><span class="block text-sm font-bold text-white truncate">${esc(i.sym)}</span><span class="block text-[11px] text-slate-400 truncate">${esc(i.name || '')}</span></span><span class="text-right shrink-0"><span class="block text-sm text-white">${fmtP(px, i.sym)}</span><span class="block text-[11px] ${ch == null || ch === 0 ? 'text-slate-400' : ch > 0 ? 'text-emerald-400' : 'text-rose-400'}">${ch == null ? '' : (ch > 0 ? '+' : ch < 0 ? '−' : '') + Math.abs(ch).toFixed(2) + '%'}</span></span></button>`;
+        }).join('');
+      }
+      async function refreshQuotes() {
+        const syms = list().map(i => i.sym); if (!syms.length || typeof fetchQuotes !== 'function') return; qAt = Date.now();
+        try { const q = await fetchQuotes(syms); if (q) q.forEach(x => { if (x && x.symbol && typeof x.price === 'number') quotes[x.symbol.toUpperCase()] = { price: x.price, chg: typeof x.changePct === 'number' ? x.changePct : null }; }); } catch (e) { /* 다음 주기에 */ }
+        renderList();
+      }
+      PL.addEventListener('click', e => {
+        const b = e.target.closest('[data-dock-sym]'); if (!b) return;
+        const sym = b.dataset.dockSym;
+        if (activeAppTab === 'multi') { appSetSymbol(sym, 'multi'); if (APP_SYM_APPLY.multi) APP_SYM_APPLY.multi(sym); }
+        else quickSearch(sym);
+        renderList(); if (window.SIM_UI) window.SIM_UI.follow(sym);
+        if (document.documentElement.clientWidth < 1000) { ov.L = false; layout(); }
+      });
+      document.getElementById('dockLGo').addEventListener('click', () => switchAppTab('watch'));
+
+      // ---------- 배치 ----------
+      let lastKey = '', shown = false;
+      function layout() {
+        const on = !!SHOW[typeof activeAppTab === 'string' ? activeAppTab : ''], vw = document.documentElement.clientWidth, side = vw >= 1000;
+        const mob = document.getElementById('mobileTabBar'), barH = mob && getComputedStyle(mob).display !== 'none' ? mob.offsetHeight : 0;
+        const nav = document.getElementById('tabNav'); let top = 8;
+        if (nav && getComputedStyle(nav).display !== 'none') top = Math.max(8, nav.getBoundingClientRect().bottom + 8);
+        const free = (vw - MAXW) / 2, bottom = side ? 8 : barH + 8, mainEl = document.querySelector('main'), st = {};
+        ['L', 'R'].forEach(k => {
+          const a = A[k], w = side ? a.w : Math.min(a.w + 20, vw - 16), isOpen = on && (side ? open[k] : ov[k]), fit = free >= a.w + 16;
+          const left = k === 'L' ? (side && fit ? free - w - 12 : 8) : (side && fit ? vw - free + 12 : vw - w - 8);
+          const p = a.p; p.style.display = isOpen ? 'flex' : 'none'; p.style.top = top + 'px'; p.style.maxHeight = `calc(100vh - ${top + bottom}px)`; p.style.left = left + 'px'; p.style.width = w + 'px'; p.style.zIndex = side ? 45 : 70;
+          const t = a.t; t.style.display = on && !isOpen ? 'inline-flex' : 'none'; t.style.bottom = (barH + 12) + 'px'; t.style[k === 'L' ? 'left' : 'right'] = '10px'; t.style[k === 'L' ? 'right' : 'left'] = 'auto';
+          st[k] = isOpen && side && !fit ? a.w + 20 : 0;
+        });
+        if (mainEl && on && side && (st.L || st.R)) { const x = Math.max(0, (vw - st.L - st.R - MAXW) / 2); mainEl.style.marginLeft = (st.L + x) + 'px'; mainEl.style.marginRight = (st.R + x) + 'px'; }
+        else if (mainEl) { mainEl.style.marginLeft = mainEl.style.marginRight = ''; }
+        const key = `${on}|${st.L}|${st.R}|${vw}`;
+        if (key !== lastKey) { lastKey = key; if (on) setTimeout(() => window.dispatchEvent(new Event('resize')), 60); }
+        if (on && !shown) { shown = true; renderList(); refreshQuotes(); if (window.SIM_UI) window.SIM_UI.refresh(); } else if (!on) shown = false;
+      }
+      let raf = 0; const sched = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; layout(); }); };
+      window.addEventListener('scroll', sched, { passive: true }); window.addEventListener('resize', sched);
+      document.addEventListener('click', e => {
+        const c = e.target.closest('[data-dock-close]'), t = e.target.closest('#dockLT,#dockRT'), side = document.documentElement.clientWidth >= 1000;
+        if (c) { const k = c.dataset.dockClose === 'dockL' ? 'L' : 'R'; if (side) { open[k] = false; saveOpen(); } else ov[k] = false; layout(); }
+        else if (t) { const k = t.id === 'dockLT' ? 'L' : 'R'; if (side) { open[k] = true; saveOpen(); } else { ov[k] = true; ov[k === 'L' ? 'R' : 'L'] = false; } layout(); if (k === 'L') { renderList(); refreshQuotes(); } }
+      });
+      // 탭이 바뀌면 다시 배치
+      const origSwitch = window.switchAppTab;
+      window.switchAppTab = function () { const r = origSwitch.apply(this, arguments); layout(); return r; };
+      if (window.SIM_UI) window.SIM_UI.mountDock(document.getElementById('simDock'));
+      // 가끔 확인: 관심종목·현재 종목이 바뀌면 리스트·주문창을 맞춘다 / 시세는 1분마다
+      setInterval(() => {
+        if (!shown || document.hidden) return;
+        const cur = typeof APP_SYM !== 'undefined' ? APP_SYM.sym : '';
+        if (list().map(i => i.sym).join(',') + '|' + cur !== lastSig) renderList();
+        if (cur && window.SIM_UI) window.SIM_UI.follow(cur);
+        if (Date.now() - qAt > 60000) refreshQuotes();
+      }, 2000);
+      layout();
     })();
   </script>
 
