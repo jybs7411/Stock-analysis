@@ -2223,7 +2223,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.55.0';
+    const APP_VERSION = '1.56.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -18640,6 +18640,7 @@ ${digest}`;
         miss: { ko: '빗나감', cls: 'bg-rose-500/15 text-rose-300 border-rose-500/40' }
     };
     const MKB_TYPE_CLS = { positive: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', negative: 'bg-rose-500/15 text-rose-300 border-rose-500/30', neutral: 'bg-amber-500/15 text-amber-300 border-amber-500/30' };
+    const MKB_PARTS = ['pre', 'post', 'todo', 'note', 'late', 'aip', 'ais']; // 날짜별 기록 항목 (aip = AI 장중 예측·일반 자동, ais = AI 장중 예측·검색 버튼)
     const MKB = { open: {}, mode: null, view: 'today', journal: null, sel: null, range: 90, rv: 'cal', cal: null, lastVer: -1, inited: false, tl: null, tlBusy: false, driveTimer: null, sync: { busy: false, last: 0, err: '' } };
 
     // ---------- 시간 (미국 동부) ----------
@@ -18703,15 +18704,15 @@ ${digest}`;
         const dates = new Set([...Object.keys(a.days || {}), ...Object.keys(b.days || {})]);
         dates.forEach(d => {
             const x = (a.days || {})[d] || {}, y = (b.days || {})[d] || {}, m = { date: d };
-            ['pre', 'post', 'todo', 'note', 'late'].forEach(k => { const p = x[k], q = y[k], w = p && q ? ((!!p.backfill !== !!q.backfill) ? (p.backfill ? q : p) : mkbT(p) >= mkbT(q) ? p : q) : (p || q); if (w) m[k] = w; });
-            m.updatedAt = Math.max(0, ...['pre', 'post', 'todo', 'note', 'late'].map(k => mkbT(m[k])));
-            if (!m.pre && !m.post && !m.todo && !m.note && !m.late) return;
+            MKB_PARTS.forEach(k => { const p = x[k], q = y[k], w = p && q ? ((!!p.backfill !== !!q.backfill) ? (p.backfill ? q : p) : mkbT(p) >= mkbT(q) ? p : q) : (p || q); if (w) m[k] = w; });
+            m.updatedAt = Math.max(0, ...MKB_PARTS.map(k => mkbT(m[k])));
+            if (!MKB_PARTS.some(k => m[k])) return;
             if (out.deleted[d] && out.deleted[d] >= m.updatedAt) return;
             out.days[d] = m;
         });
         return out;
     }
-    function mkbTouch(day) { day.updatedAt = Math.max(0, ...['pre', 'post', 'todo', 'note', 'late'].map(k => mkbT(day[k]))); }
+    function mkbTouch(day) { day.updatedAt = Math.max(0, ...MKB_PARTS.map(k => mkbT(day[k]))); }
 
     // ---------- Google Drive 동기화 (설정 창의 Google 로그인과 같은 계정·토큰) ----------
     const mkbAuth = () => (typeof GAUTH !== 'undefined' ? GAUTH : null);
@@ -18763,7 +18764,8 @@ ${digest}`;
         const sub = [ext.fg ? `CNN ${ext.fg.score.toFixed(0)}` : '', ext.hy && mkFin(ext.hy.pct1y) ? `하이일드 ${ext.hy.pct1y.toFixed(0)}%지점` : '', ext.curve ? `금리차 ${mkbSgn(ext.curve.last)}` : ''].filter(Boolean).join(' · ');
         return mkbFold('ext', 'fa-shield-halved', 'text-cyan-400', '공식 데이터 교차검증 (FRED · CNN)', escapeHtml(sub || '야후 값과 다른 출처로 점검'), `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">${cells.join('')}</div><p class="text-[10px] text-slate-500 mt-2 leading-relaxed">FRED는 연준(세인트루이스) 일간 확정치라 하루 정도 늦을 수 있고, CNN 지수는 비공식 경로라 중단될 수 있습니다. 점수 계산에는 넣지 않고 참고·경고용으로만 씁니다.</p>`);
     }
-    function mkbBuildPre() {
+    function mkbBuildPre(forDate) { // forDate: 과거 시점 재구성에서만 넘긴다 (변동폭 ATR을 그 날짜 이전 일봉으로만 계산)
+        const fd = forDate || mkbNextTradingDate(Date.now());
         const D = mkDerived(), S = k => MK.stats[k] || null;
         const d1 = k => { const s = S(k); return s && mkFin(s.r['1D']) ? s.r['1D'] : null; };
         const pr = k => { const s = S(k); return s && mkFin(s.price) ? s.price : null; };
@@ -18849,10 +18851,20 @@ ${digest}`;
             scen.push({ type: 'Worst — 하락 전환', color: 'rose', condition: `SPY가 ${mkFmtPrice(sup)} 이탈${yi ? `, 또는 10년물 ${(yi.last + 0.1).toFixed(2)}% 상회` : ''}, 또는 VIX ${mkFin(vP) ? Math.max(20, Math.ceil(vP + 3)) : 25} 돌파`, strategy: '신규 매수 보류, 손절·비중 기준 재확인, 필수소비재·유틸리티 등 방어 업종 비중 점검.' });
         }
 
+        // 장중(시가→종가) 규칙 예측 — AI와 비교하기 위한 단순 경험칙. 갭은 선물 기울기로 본다.
+        const gapB = hasFut ? mkbActualBucket(tilt) : 0, sB = mkFin(score) ? (score >= 60 ? 1 : score <= 40 ? -1 : 0) : 0;
+        let intra;
+        if (!gapB) intra = { call: sB, why: hasFut ? `선물이 보합권이라 위험 선호 점수(${mkFin(score) ? score.toFixed(0) : 'n/a'}점) 방향을 따름` : '선물 시세가 없어 위험 선호 점수 방향을 따름' };
+        else if (Math.abs(tilt) < 1) intra = { call: -gapB, why: `중간 크기 갭(${mkbPct(tilt)})은 장중에 일부 메워지는 경우가 많다는 경험칙` };
+        else intra = { call: sB === gapB ? gapB : 0, why: sB === gapB ? `큰 갭(${mkbPct(tilt)})을 위험 선호 점수도 지지 → 갭 연장` : `큰 갭(${mkbPct(tilt)})이지만 위험 선호 점수가 받쳐 주지 않아 방향 판단 보류` };
+        // 예상 변동폭(고가−저가, 전일 종가 대비 %): VIX가 말하는 하루 표준편차 × 1.6(일중 범위 기대값) 과 최근 14일 실제 범위 평균
+        const vixR = mkFin(vP) && vP > 0 ? 1.6 * vP / Math.sqrt(252) : null, atr = mkbAtrPct(fd), rp = [vixR, atr].filter(mkFin);
+        const rng = rp.length ? { exp: rp.reduce((a, b) => a + b, 0) / rp.length, vix: vixR, atr } : null;
+
         const ext = mkbExt();
         const dirText = MKB_DIR_KO[dirKey];
         const summary = `${dirText}${hasFut ? ` (선물 평균 ${mkbPct(futAvg)})` : ''}. 위험 선호 점수 ${mkFin(score) ? score.toFixed(0) + '/100(' + D.risk.label + ')' : 'n/a'}.${yi ? ` 10년물 ${yi.last.toFixed(2)}%(${mkbSgn(yi.d1, 1)}bp).` : ''}${mkFin(vP) ? ` VIX ${vP.toFixed(1)}.` : ''}${lead.length ? ` 강세 ${lead.map(s => mkSectorKo(s.sector)).join('·')}` : ''}${lag ? `, 약세 ${mkSectorKo(lag.sector)}.` : ''}`;
-        return { v: 1, forDate: mkbNextTradingDate(Date.now()), state: (mkbRef() || {}).marketState || null, score: mkFin(score) ? score : null, label: D.risk.label, dirKey, dirText, tilt, hasFut, fut: { es: esP, nq: nqP },
+        return { v: 1, forDate: fd, state: (mkbRef() || {}).marketState || null, score: mkFin(score) ? score : null, label: D.risk.label, dirKey, dirText, tilt, hasFut, fut: { es: esP, nq: nqP }, intra, rng,
             factors: D.risk.factors.filter(f => f.score !== null).map(f => ({ label: f.label, score: f.score, value: f.value, unit: f.unit, w: f.wEff })),
             macro, chain, watch, scen, summary, ext, news: mkbNewsSave() };
     }
@@ -18918,7 +18930,8 @@ ${digest}`;
         const timeline = MKB.tl && MKB.tl.date === date ? MKB.tl : (tlSaved || null);
         const acc = mkbAcc(pre, idx.spx);
         const lesson = mkbLesson(pre, acc, idx.spx);
-        return { v: 1, date, state: ref.marketState || null, idx, spxPx, score: D.risk.score, label: D.risk.label, vix: { price: vP, pct: vC }, y10: yi ? { last: yi.last, d1: yi.d1 } : null,
+        const ohlc = mkbOhlcDone(date) && MKB.ohlc ? MKB.ohlc[date] || null : null;
+        return { v: 1, date, state: ref.marketState || null, idx, spxPx, ohlc, score: D.risk.score, label: D.risk.label, vix: { price: vP, pct: vC }, y10: yi ? { last: yi.last, d1: yi.d1 } : null,
             breadth: D.breadth ? { advPct: D.breadth.advPct, above50: D.breadth.above50Pct } : null, ext: mkbExt(), hot, cold: coldS, moneyMove, trigger, lesson, featured, checklist, timeline };
     }
 
@@ -18948,7 +18961,7 @@ ${digest}`;
         MKB.lastVer = MK.ver;
         const ref = mkbRef(), st = ref && ref.marketState;
         if (!st || !mkFin(mkDerived().risk.score)) return;
-        if (st === 'PRE' || st === 'PREPRE' || mkbPreOpenClosed(ref, st)) mkbSavePre(mkbBuildPre(), false);       // 개장 전에만 예측을 갱신하고, 개장하면 고정된다
+        if (st === 'PRE' || st === 'PREPRE' || mkbPreOpenClosed(ref, st)) { mkbSavePre(mkbBuildPre(), false); mkbAiAuto(); }       // 개장 전에만 예측을 갱신하고, 개장하면 고정된다
         else if (st === 'POST' || st === 'POSTPOST' || st === 'CLOSED') mkbSavePost(mkbBuildPost(), false);
     }
     function mkbSaveNow() {
@@ -19018,7 +19031,7 @@ ${digest}`;
         const open = mkbOpenEpoch(date);
         if (!open) return null;
         return mkbWithSnapshot('asof-' + date, tt => tt < open - 18 * 3600, [['ES=F', es], ['NQ=F', nq]], () => { // 그날 일봉(선물·환율은 전날 저녁 시각 표기)을 제외
-            const pre = mkbBuildPre();
+            const pre = mkbBuildPre(date);
             if (!pre) return null;
             pre.forDate = date; pre.state = 'PRE'; pre.recon = true; pre.savedAt = 0;
             return pre;
@@ -19103,6 +19116,285 @@ ${digest}`;
           <p class="text-[10px] text-slate-500 leading-relaxed">09:00 기준보다 개장 직전 수준의 적중이 꾸준히 높다면 직전 30분이 정보를 더하고 있다는 뜻입니다. 방향은 S&P 500 일간 등락 ±0.25% 기준(보합 포함)이며, 선물 5분봉이 있는 최근 거래일만 기록됩니다.</p>${few}</div>`;
     }
 
+    // ---------- 장중 예측 (갭과 분리) · S&P 500 일봉 · AI 예측 ----------
+    // 갭(전일 종가→시가)은 개장 전 선물로 이미 거의 드러나므로 참고로만 두고, 채점은 장중(시가→종가)·변동폭(고가−저가)·날 유형으로 한다.
+    // 예측 주체: 규칙(경험칙) · AI 일반(무료 키, 개장 전 자동) · AI 검색(버튼) · 기준선 2개(항상 상승 / 선물 방향 그대로). 모두 같은 날 같은 기준으로 채점한다.
+    const MKB_DAYTYPE_KO = { trend: '추세일', range: '박스권', reversal: '반전일' };
+    const MKB_AI_KO = { aip: 'AI 일반 (자동)', ais: 'AI 검색 (버튼)' };
+    const MKB_RNG_BAND = [0.7, 1.3]; // 실제 변동폭이 예상의 70~130% 안이면 적중
+    Object.assign(MKB, { ohlc: null, ohlcAt: 0, ohlcTry: 0, ohlcBusy: false, ai: { busy: {}, err: {}, tried: {} } });
+    // 그날 일봉이 확정됐나 (미국 동부 16:10 이후 또는 지난 날짜)
+    function mkbOhlcDone(date) {
+        const e = mkbEt(Date.now());
+        return date < e.date || (date === e.date && !mkbWeekend(e) && e.h * 60 + e.m >= 16 * 60 + 10);
+    }
+    function mkbRenderSoft() { const el = document.getElementById('mkBriefBody'), ae = document.activeElement; if (el && ae && el.contains(ae) && /^(TEXTAREA|INPUT)$/.test(ae.tagName)) return; mkbRender(true); }
+    // S&P 500 일봉(시가·고가·저가·종가·전일 종가)을 날짜별로 받아 둔다. 확정된 날의 장후 기록에는 붙여서 저장한다.
+    async function mkbLoadOhlc(force) {
+        if (MKB.ohlcBusy || typeof getProxyUrl !== 'function' || !getProxyUrl()) return;
+        if (!force && (Date.now() - MKB.ohlcAt < 15 * 60000 || Date.now() - MKB.ohlcTry < 2 * 60000)) return;
+        MKB.ohlcBusy = true; MKB.ohlcTry = Date.now();
+        let ok = false;
+        try {
+            const h = ((await fetchRealYahooFinanceData('^GSPC', '1y', '1d')) || {}).history || [];
+            if (h.length > 20) {
+                const m = {};
+                for (let i = 1; i < h.length; i++) m[h[i].date] = { o: h[i].open, h: h[i].high, l: h[i].low, c: h[i].close, pc: h[i - 1].close };
+                MKB.ohlc = m; MKB.ohlcAt = Date.now(); ok = true;
+                mkbAttachOhlc();
+            }
+        } catch (e) { console.warn('S&P 500 일봉 로딩 실패', e); }
+        MKB.ohlcBusy = false;
+        if (ok) mkbRenderSoft();
+    }
+    function mkbAttachOhlc() {
+        const J = mkbLoad();
+        let n = 0;
+        Object.values(J.days).forEach(d => {
+            const o = MKB.ohlc && MKB.ohlc[d.date];
+            if (!d.post || d.post.ohlc || !o || !mkbOhlcDone(d.date)) return;
+            d.post.ohlc = o; d.post.savedAt = Date.now(); mkbTouch(d); n++;
+        });
+        if (n) mkbPersist();
+    }
+    function mkbOhlcOf(date, post) { return (post && post.ohlc) || (MKB.ohlc && mkbOhlcDone(date) ? MKB.ohlc[date] || null : null); }
+    // 최근 14거래일 실제 일중 범위 평균(전일 종가 대비 %) — before 날짜 이전 일봉만 쓴다
+    function mkbAtrPct(before) {
+        if (!MKB.ohlc) return null;
+        const ds = Object.keys(MKB.ohlc).filter(d => d < before).sort().slice(-14);
+        if (ds.length < 10) return null;
+        return ds.reduce((a, d) => { const o = MKB.ohlc[d]; return a + (o.h - o.l) / o.pc * 100; }, 0) / ds.length;
+    }
+    // 일봉 하나 → 갭·장중·변동폭·날 유형 (5분봉 없이 시가·고가·저가·종가 위치로 근사)
+    function mkbDayStats(o) {
+        if (!o || !(o.pc > 0) || !(o.o > 0) || !(o.h >= o.l)) return null;
+        const R = o.h - o.l, up = o.c >= o.o;
+        let type = 'range';
+        if (R > 0) {
+            const body = Math.abs(o.c - o.o) / R, cl = (o.c - o.l) / R, against = up ? (o.o - o.l) / R : (o.h - o.o) / R;
+            if (body >= 0.6 && (up ? cl >= 0.75 : cl <= 0.25)) type = 'trend';               // 한 방향으로 밀고 끝에서 마감
+            else if (against >= 0.4 && (up ? cl >= 0.7 : cl <= 0.3)) type = 'reversal';    // 반대쪽으로 크게 밀렸다가 되돌려 마감
+        }
+        return { gap: (o.o / o.pc - 1) * 100, intra: (o.c / o.o - 1) * 100, range: R / o.pc * 100, total: (o.c / o.pc - 1) * 100, type };
+    }
+    // 장중 방향 문구 — 갭이 있으면 '갭 메움/연장'으로 읽는다
+    function mkbIntraTxt(call, gap) {
+        if (call === null || call === undefined) return '–';
+        const g = mkFin(gap) ? mkbActualBucket(gap) : 0;
+        if (call === 0) return '시가 부근 횡보';
+        const dir = call > 0 ? '시가보다 높게 마감' : '시가보다 낮게 마감';
+        return g ? `${call === g ? '갭 연장' : '갭 메움'} (${dir})` : dir;
+    }
+    const mkbRngTxt = (exp, act) => { if (!mkFin(exp) || !mkFin(act)) return ''; const r = act / exp; return r < MKB_RNG_BAND[0] ? '예상보다 잔잔' : r > MKB_RNG_BAND[1] ? '예상보다 큼' : '예상 범위 안'; };
+    const mkbRngHit = (exp, act) => mkFin(exp) && mkFin(act) && exp > 0 ? (act / exp >= MKB_RNG_BAND[0] && act / exp <= MKB_RNG_BAND[1]) : null;
+    // 개장(09:30 ET) 뒤에 저장된 AI 예측은 채점하지 않는다
+    const mkbAiValid = (rec, date) => { const op = mkbOpenEpoch(date); return !!(rec && rec.pred && (!op || mkbT(rec) < op * 1000)); };
+
+    // 하루 채점: 예측 주체별 장중 방향·변동폭·날 유형 (일봉이 없으면 null)
+    function mkbScoreDay(d) {
+        const st = d && mkbDayStats(mkbOhlcOf(d.date, d.post));
+        if (!st) return null;
+        const pre = d.pre, ab = mkbActualBucket(st.intra), out = { st, ab, rows: [] };
+        const add = (k, label, call, range, type, prob) => { if (call === null || call === undefined) return; out.rows.push({ k, label, call, hit: call === ab, range: mkFin(range) ? range : null, rHit: mkbRngHit(range, st.range), type: type || null, tHit: type ? type === st.type : null, prob: mkFin(prob) ? prob : null }); };
+        add('rule', '규칙 (경험칙)', pre && pre.intra ? pre.intra.call : null, pre && pre.rng ? pre.rng.exp : null, null);
+        ['aip', 'ais'].forEach(k => { const a = d[k]; if (mkbAiValid(a, d.date)) add(k, MKB_AI_KO[k], a.pred.intra, a.pred.range, a.pred.dayType, a.pred.prob); });
+        if (out.rows.length) {
+            add('up', '기준선: 항상 상승', 1, null, null);
+            if (pre && pre.hasFut && mkFin(pre.tilt)) add('fut', '기준선: 선물 방향 그대로', mkbActualBucket(pre.tilt), null, null);
+        }
+        return out;
+    }
+
+    // ---------- AI 장중 예측 ----------
+    // 그날(미국 날짜) 경제지표·연준·실적 일정 — 금융 달력 모듈에서 가져온다 (모듈이 아직 안 열렸으면 불러온다)
+    async function mkbCalEvents(date) {
+        try { if (typeof window.calDayEvents !== 'function' && typeof loadLazyMod === 'function') loadLazyMod('mod-calendar'); } catch (e) { /* 무시 */ }
+        if (typeof window.calDayEvents !== 'function') return [];
+        try { return await Promise.race([window.calDayEvents(date), new Promise(r => setTimeout(() => r(null), 15000))]) || []; }
+        catch (e) { console.warn('일정 불러오기 실패', e); return []; }
+    }
+    function mkbAiPromptInput(pre, events) {
+        const e = mkbEt(Date.now()), L = [];
+        L.push(`[대상 거래일] ${pre.forDate}(${mkbWk(pre.forDate)}) · 지금 미국 동부 ${String(e.h).padStart(2, '0')}:${String(e.m).padStart(2, '0')} (${e.date})`);
+        L.push(`[개장 전 선물 = 예상 갭] ${pre.hasFut ? `S&P 500 선물 ${mkbPct(pre.fut.es)} / 나스닥 100 선물 ${mkbPct(pre.fut.nq)} (전일 정산가 대비)` : '선물 시세 없음'}`);
+        L.push(`[위험 선호 점수] ${mkFin(pre.score) ? pre.score.toFixed(0) + '/100 (' + (pre.label || '') + ')' : 'n/a'} · 요인: ${(pre.factors || []).map(f => `${f.label} ${f.score.toFixed(0)}점`).join(', ') || '–'}`);
+        L.push(`[밤사이 지표] ${(pre.macro || []).map(m => `${m.name} ${m.value} (${m.change})`).join(' / ') || '–'}`);
+        if (pre.watch && pre.watch.length) L.push(`[직전 거래일 섹터] ${pre.watch.map(w => `${w.sector} ${w.momentum}${w.risk ? '(약세)' : '(강세)'}`).join(', ')}`);
+        const x = pre.ext || {};
+        const ex = [x.curve ? `장단기 금리차 ${mkbSgn(x.curve.last)}%p` : '', x.hy ? `하이일드 스프레드 ${x.hy.last.toFixed(2)}%p` : '', x.real ? `10년 실질금리 ${x.real.last.toFixed(2)}%` : '', x.fg ? `CNN 공포·탐욕 ${x.fg.score.toFixed(0)}` : ''].filter(Boolean);
+        if (ex.length) L.push(`[공식 지표] ${ex.join(' · ')}`);
+        if (MKB.ohlc) {
+            const ds = Object.keys(MKB.ohlc).filter(d => d < pre.forDate).sort().slice(-5);
+            const rows = ds.map(d => { const s = mkbDayStats(MKB.ohlc[d]); return s ? `${d.slice(5)} 갭 ${mkbPct(s.gap)} · 장중 ${mkbPct(s.intra)} · 변동폭 ${s.range.toFixed(2)}% · ${MKB_DAYTYPE_KO[s.type]}` : ''; }).filter(Boolean);
+            if (rows.length) L.push(`[최근 S&P 500 일봉]\n${rows.join('\n')}`);
+        }
+        if (pre.rng) L.push(`[규칙 기반 참고값] 예상 변동폭 ${pre.rng.exp.toFixed(2)}%${mkFin(pre.rng.vix) ? ` (VIX 환산 ${pre.rng.vix.toFixed(2)}%` : ' ('}${mkFin(pre.rng.atr) ? `${mkFin(pre.rng.vix) ? ', ' : ''}최근 14일 평균 ${pre.rng.atr.toFixed(2)}%` : ''}) · 규칙 장중 판단: ${mkbIntraTxt(pre.intra && pre.intra.call, pre.hasFut ? pre.tilt : null)}`);
+        L.push(`[${pre.forDate} 일정 (미국 동부 기준)] ${events.length ? '\n' + events.slice(0, 14).map(v => `- ${v.title}${v.when ? ` · ${v.when}` : ''}${v.approx ? ' · 날짜 추정' : ''}${v.note ? ` · ${String(v.note).slice(0, 140)}` : ''}`).join('\n') : '앱 달력에 등록된 주요 일정 없음'}`);
+        const news = (MK.ext.news || []).slice(0, 10);
+        if (news.length) L.push(`[헤드라인 (Finnhub, 영문)]\n${news.map(n => `- ${mkFin(n.time) ? new Date(n.time * 1000).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' ET ' : ''}${n.headline}${n.source ? ` (${n.source})` : ''}`).join('\n')}`);
+        return L.join('\n');
+    }
+    function mkbAiPrompt(kind, date, input) {
+        const e = mkbEt(Date.now()), now = `${String(e.h).padStart(2, '0')}:${String(e.m).padStart(2, '0')}`;
+        const search = kind === 'ais' ? `\n- 구글 검색으로 ${e.date} 미국 동부 ${now} 이전에 나온 정보만 찾아 [데이터]를 보강하라: 밤사이·프리마켓 주요 뉴스, ${date} 경제지표·연준 인사 발언 일정과(이미 발표됐다면) 실제 결과 vs 예상, 전일 장 마감 후·당일 장 전 대형주 실적. 정규장 개장(09:30) 이후의 정보나 결과를 아는 것처럼 쓰지 마라.\n- 검색으로 확인한 핵심 근거의 출처를 sources 에 "매체 - 제목" 형식으로 최대 4개 적어라.` : '\n- 인터넷 검색 없이 [데이터]만 근거로 판단하라. 데이터에 없는 사실(뉴스·지표 결과·실적)을 지어내지 마라.';
+        return `너는 미국 주식 데이트레이딩 데스크의 장전 분석가다. ${date} 미국 정규장의 "장중" 움직임을 예측하라.
+규칙:
+- 갭(전일 종가→시가)은 개장 전 선물로 이미 드러나 있으므로 예측 대상이 아니다. 예측 대상은 ① S&P 500의 시가→종가 방향 ② 일중 변동폭(고가−저가, 전일 종가 대비 %) ③ 날 유형이다.
+- 경제지표·연준 일정·실적의 발표 시각(미국 동부)이 장중 흐름에 주는 영향(예: 14:00 FOMC 전 관망, 08:30 지표가 이미 선물에 반영됨)을 반드시 따져라.
+- 시가→종가 방향은 원래 맞히기 어렵다. 근거가 약하면 flat 이나 낮은 확률(0.50~0.55)을 써라. prob 는 실제로 그만큼 맞는다는 뜻이니 보수적으로 매겨라.${search}
+- 교육용 분석이다. 매수·매도 권유를 하지 마라. 문장은 한국어로 짧게.
+
+[데이터]
+${input}
+
+출력: 아래 형식의 JSON 객체 하나만 (설명·코드블록 없이).
+{"intraday":"up|down|flat","prob":0.55,"range":1.10,"dayType":"trend|range|reversal","keyEvents":[{"time":"08:30 ET","event":"일정 이름","effect":"장중 흐름에 주는 영향"}],"drivers":["근거1","근거2","근거3"],"invalidate":"이 예측이 틀렸다고 볼 조건","summary":"두 문장 요약"${kind === 'ais' ? ',"sources":["매체 - 제목"]' : ''}}
+- intraday: S&P 500 종가가 시가보다 +0.25% 이상이면 up, −0.25% 이하이면 down, 그 사이면 flat.
+- prob: intraday 판단이 맞을 확률 (0.34~0.90).
+- range: 예상 일중 고가−저가 폭 (전일 종가 대비 %, 숫자만).
+- dayType: trend = 한 방향으로 밀고 그쪽 끝에서 마감, range = 위아래로 오가며 중간에서 마감, reversal = 한쪽으로 크게 갔다가 반대쪽에서 마감.`;
+    }
+    function mkbAiNorm(j) {
+        if (!j || typeof j !== 'object' || Array.isArray(j)) return null;
+        const intra = { up: 1, down: -1, flat: 0 }[String(j.intraday || '').trim().toLowerCase()];
+        if (intra === undefined) return null;
+        const t = (v, n) => String(v == null ? '' : v).trim().slice(0, n), arr = v => Array.isArray(v) ? v : [];
+        let prob = parseFloat(j.prob); if (prob > 1) prob /= 100;
+        const range = parseFloat(j.range), dt = String(j.dayType || '').trim().toLowerCase();
+        return { intra, prob: mkFin(prob) ? Math.min(0.95, Math.max(0.3, prob)) : null, range: mkFin(range) && range > 0 && range < 15 ? range : null, dayType: MKB_DAYTYPE_KO[dt] ? dt : null,
+            keyEvents: arr(j.keyEvents).slice(0, 6).map(v => ({ time: t(v && v.time, 24), event: t(v && v.event, 120), effect: t(v && v.effect, 200) })).filter(v => v.event),
+            drivers: arr(j.drivers).slice(0, 4).map(v => t(v, 220)).filter(Boolean), invalidate: t(j.invalidate, 220), summary: t(j.summary, 400), sources: arr(j.sources).slice(0, 4).map(v => t(v, 160)).filter(Boolean) };
+    }
+    // 입력·응답 원문은 최근 30개 날짜만 보관한다 (기록이 커지지 않게)
+    function mkbAiPrune() {
+        const J = mkbLoad();
+        Object.keys(J.days).sort().reverse().slice(30).forEach(d => ['aip', 'ais'].forEach(k => { const a = J.days[d][k]; if (a) { delete a.input; delete a.raw; } }));
+    }
+    // kind: 'aip' = 일반 Gemini(무료 키, JSON 모드) / 'ais' = 검색 Gemini(유료 키 우선). manual = 버튼으로 실행(알림 표시)
+    async function mkbRunAi(kind, manual) {
+        if (MKB.ai.busy[kind]) return;
+        const date = mkbNextTradingDate(Date.now()), op = mkbOpenEpoch(date), st = (mkbRef() || {}).marketState;
+        const say = (t, m, k) => { if (manual) showToast(t, m, k); };
+        if (st === 'REGULAR' || (op && Date.now() >= op * 1000)) { say('저장 불가', '정규장이 열린 뒤에는 AI 장중 예측을 새로 만들지 않습니다(예측 오염 방지).', 'warning'); return; }
+        if (kind === 'ais' ? !hasAnyGeminiKey() : !geminiFreeKey()) { if (manual) { showToast('Gemini 키 필요', kind === 'ais' ? '설정에서 Gemini API 키를 입력하세요. 검색은 유료 키가 있으면 유료 키로 호출합니다.' : '일반 AI 예측은 무료 Gemini 키로 호출합니다.', 'info'); openApiSettingsModal(); } return; }
+        const pre = mkbBuildPre();
+        if (!pre) { say('데이터 없음', '시장 데이터를 먼저 불러온 뒤 다시 시도하세요.', 'warning'); return; }
+        MKB.ai.busy[kind] = true; MKB.ai.err[kind] = ''; mkbRenderSoft();
+        try {
+            const input = mkbAiPromptInput(pre, await mkbCalEvents(date));
+            const r = await callGemini(mkbAiPrompt(kind, date, input), kind === 'ais' ? { grounding: true, fallbackPrompt: mkbAiPrompt('aip', date, input) } : { json: true });
+            if (!r || r.error || !r.text) throw new Error((r && r.error) || '응답이 없습니다');
+            let pred = mkbAiNorm(extractJson(r.text));
+            if (!pred && kind === 'ais') { // 검색 응답은 JSON 이 깨질 수 있어 검색 없는 변환 호출로 한 번 정리한다
+                const fixPrompt = `아래 초안을 지정한 JSON 형식으로만 바꿔라. 내용을 새로 지어내지 마라.\n형식: {"intraday":"up|down|flat","prob":0.55,"range":1.1,"dayType":"trend|range|reversal","keyEvents":[{"time":"","event":"","effect":""}],"drivers":[""],"invalidate":"","summary":"","sources":[""]}\n\n[초안]\n${String(r.text).slice(0, 6000)}`;
+                const r2 = await callGemini(fixPrompt, { json: true });
+                if (r2 && !r2.error) pred = mkbAiNorm(extractJson(r2.text));
+            }
+            if (!pred) throw new Error('AI 응답 형식을 해석하지 못했습니다');
+            if (op && Date.now() >= op * 1000) throw new Error('응답을 받는 사이 정규장이 열려 저장하지 않았습니다');
+            const day = mkbDay(date, true);
+            day[kind] = { v: 1, forDate: date, savedAt: Date.now(), model: r.model || '', grounded: r.grounded === true, gap: pre.hasFut ? pre.tilt : null, input: input.slice(0, 5000), raw: String(r.text).slice(0, 5000), pred };
+            mkbTouch(day); mkbAiPrune(); mkbPersist();
+            say('AI 장중 예측 저장', `${date}(${mkbWk(date)}) ${MKB_AI_KO[kind]} 예측을 저장했습니다.${kind === 'ais' && r.grounded !== true ? ' 검색을 쓰지 못해 검색 없이 분석했습니다.' : ''}`, 'success');
+        } catch (e) {
+            MKB.ai.err[kind] = (e && e.message) || '오류';
+            say('AI 장중 예측 실패', MKB.ai.err[kind], 'warning');
+        } finally { MKB.ai.busy[kind] = false; mkbRenderSoft(); }
+    }
+    // 개장 전(그날 미국 동부 04:00~09:30)에 무료 키로 한 번, 이후 1시간마다 다시 만든다. 실패하면 20분 뒤 재시도.
+    function mkbAiAuto() {
+        if (typeof geminiFreeKey !== 'function' || !geminiFreeKey() || MKB.ai.busy.aip) return;
+        const e = mkbEt(Date.now()), date = mkbNextTradingDate(Date.now());
+        if (date !== e.date || e.h < 4) return;
+        const old = (mkbDay(date) || {}).aip;
+        if (old && Date.now() - mkbT(old) < 60 * 60000) return;
+        if (Date.now() - (MKB.ai.tried.aip || 0) < 20 * 60000) return;
+        MKB.ai.tried.aip = Date.now();
+        mkbRunAi('aip', false);
+    }
+
+    // ---------- 장중 예측 화면 ----------
+    const mkbCallCls = c => c > 0 ? 'text-emerald-300' : c < 0 ? 'text-rose-300' : 'text-amber-300';
+    const mkbHitTag = h => h === null || h === undefined ? '<span class="text-slate-500">–</span>' : h ? '<span class="text-emerald-400 font-bold">적중</span>' : '<span class="text-rose-400 font-bold">빗나감</span>';
+    function mkbAiCard(kind, rec, gap, o = {}) {
+        const busy = MKB.ai.busy[kind], err = o.live ? MKB.ai.err[kind] : '';
+        const btn = o.live && kind === 'ais' ? `<button type="button" onclick="mkbRunAi('ais', true)" ${busy || o.frozen ? 'disabled' : ''} class="mt-2 w-full px-3 py-1.5 bg-violet-700 hover:bg-violet-600 disabled:opacity-50 border border-violet-500 text-white text-[11px] font-bold rounded-lg"><i class="fa-solid ${busy ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'} mr-1"></i>${rec ? '검색 AI로 다시 분석' : '검색 AI로 분석'}</button>`
+            : o.live && kind === 'aip' && !o.frozen ? `<button type="button" onclick="mkbRunAi('aip', true)" ${busy ? 'disabled' : ''} class="mt-2 text-[10px] text-sky-300 hover:text-sky-200 underline disabled:opacity-50">${busy ? '분석 중…' : '지금 다시 만들기'}</button>` : '';
+        const head = `<div class="flex items-center justify-between gap-2 mb-1.5"><span class="text-[11px] font-bold ${kind === 'ais' ? 'text-violet-300' : 'text-sky-300'}"><i class="fa-solid ${kind === 'ais' ? 'fa-magnifying-glass' : 'fa-robot'} mr-1"></i>${MKB_AI_KO[kind]}</span>${rec ? `<span class="text-[10px] text-slate-500">${new Date(rec.savedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 저장${kind === 'ais' && !rec.grounded ? ' · 검색 없이' : ''}</span>` : ''}</div>`;
+        if (!rec || !rec.pred) {
+            const msg = busy ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>분석 중…' : err ? `<span class="text-rose-300">${escapeHtml(err)}</span>` : kind === 'aip' ? (o.live ? '그날 개장 전(미국 동부 04:00~09:30)에 무료 Gemini 키로 자동 실행하고, 1시간마다 새로 만듭니다.' : '저장된 예측 없음') : (o.live ? '뉴스·일정을 구글 검색으로 보강해 분석합니다. 버튼을 누를 때만 호출합니다(유료 키가 있으면 유료 키 사용).' : '저장된 예측 없음');
+            return `<div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3">${head}<div class="text-[11px] text-slate-400 leading-relaxed">${msg}</div>${btn}</div>`;
+        }
+        const p = rec.pred;
+        const ev = p.keyEvents.length ? `<div class="mt-2 space-y-1">${p.keyEvents.map(v => `<div class="text-[11px] text-slate-300"><span class="font-mono-numbers text-amber-300 mr-1">${escapeHtml(v.time || '–')}</span><b>${escapeHtml(v.event)}</b>${v.effect ? ` — <span class="text-slate-400">${escapeHtml(v.effect)}</span>` : ''}</div>`).join('')}</div>` : '';
+        const more = `${p.drivers.length ? `<ul class="list-disc pl-4 text-[11px] text-slate-300 space-y-0.5">${p.drivers.map(v => `<li>${a5Text(v)}</li>`).join('')}</ul>` : ''}${p.invalidate ? `<div class="text-[11px] text-rose-300/90 mt-1.5"><i class="fa-solid fa-triangle-exclamation mr-1"></i>무효 조건: ${escapeHtml(p.invalidate)}</div>` : ''}${p.sources.length ? `<div class="text-[10px] text-slate-500 mt-1.5">출처: ${p.sources.map(escapeHtml).join(' · ')}</div>` : ''}${rec.model ? `<div class="text-[10px] text-slate-600 mt-1">${escapeHtml(rec.model)}</div>` : ''}`;
+        return `<div class="bg-slate-950/70 border ${kind === 'ais' ? 'border-violet-800/60' : 'border-sky-900/60'} rounded-lg p-3">${head}
+          <div class="text-sm font-extrabold ${mkbCallCls(p.intra)}">${escapeHtml(mkbIntraTxt(p.intra, gap))}${mkFin(p.prob) ? ` <span class="text-[11px] font-bold text-slate-300">${(p.prob * 100).toFixed(0)}%</span>` : ''}</div>
+          <div class="text-[11px] text-slate-400 mt-0.5">${mkFin(p.range) ? `예상 변동폭 ${p.range.toFixed(2)}%` : ''}${p.dayType ? ` · ${MKB_DAYTYPE_KO[p.dayType]}` : ''}</div>
+          ${p.summary ? `<p class="text-[11px] text-slate-200 leading-relaxed mt-1.5">${a5Text(p.summary)}</p>` : ''}${ev}
+          ${more ? `<details class="mt-1.5"><summary class="cursor-pointer select-none text-[10px] font-bold text-slate-400 hover:text-slate-200">근거·무효 조건 보기</summary><div class="mt-1.5">${more}</div></details>` : ''}${btn}</div>`;
+    }
+    // 장전: 장중 예측 카드 (규칙 · AI 일반 · AI 검색). o.live = 오늘 화면(버튼·상태 표시)
+    function mkbForecastHtml(date, pre, o = {}) {
+        const day = mkbDay(date) || {}, gap = pre && pre.hasFut ? pre.tilt : null, op = mkbOpenEpoch(date), frozen = !!(op && Date.now() >= op * 1000);
+        const px = (MK.stats['^GSPC'] && (MK.stats['^GSPC'].last || MK.stats['^GSPC'].price)) || null;
+        const r = pre && pre.rng;
+        const rule = `<div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="text-[11px] font-bold text-amber-300 mb-1.5"><i class="fa-solid fa-ruler mr-1"></i>규칙 (경험칙)</div>
+          ${pre && pre.intra ? `<div class="text-sm font-extrabold ${mkbCallCls(pre.intra.call)}">${escapeHtml(mkbIntraTxt(pre.intra.call, gap))}</div><div class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(pre.intra.why)}</div>` : '<div class="text-[11px] text-slate-500">규칙 판단 없음</div>'}
+          ${r ? `<div class="text-[11px] text-slate-300 mt-2">예상 변동폭 <b class="text-white">${r.exp.toFixed(2)}%</b>${o.live && mkFin(px) ? ` (S&P 약 ${Math.round(px * r.exp / 100)}pt)` : ''}</div><div class="text-[10px] text-slate-500">${[mkFin(r.vix) ? `VIX 환산 ${r.vix.toFixed(2)}%` : '', mkFin(r.atr) ? `최근 14일 평균 ${r.atr.toFixed(2)}%` : ''].filter(Boolean).join(' · ')}</div>` : ''}</div>`;
+        const note = o.live ? (frozen ? '<b class="text-amber-300">정규장이 열려 AI 예측이 고정되었습니다.</b> ' : '') + '갭은 위 선물 값으로 이미 보이므로 채점하지 않습니다. 장 마감 뒤 시가→종가 방향, 고가−저가 변동폭, 날 유형으로 각 예측을 채점해 되돌아보기에서 비교합니다.' : '';
+        return mkbBox(`${mkbH('fa-crosshairs', 'text-violet-400', '오늘 장중 예측 (시가→종가 · 변동폭 · 날 유형)', `대상 ${date}(${mkbWk(date)})`)}
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">${rule}${mkbAiCard('aip', day.aip, gap, { live: o.live, frozen })}${mkbAiCard('ais', day.ais, gap, { live: o.live, frozen })}</div>
+          ${note ? `<p class="text-[10px] text-slate-500 mt-2 leading-relaxed">${note}</p>` : ''}`);
+    }
+    // 장후: 실제 갭·장중·변동폭·날 유형과 예측별 채점
+    function mkbIntraHtml(date, pre) {
+        const d = Object.assign({ date }, mkbDay(date) || {}, pre && !(mkbDay(date) || {}).pre ? { pre } : {});
+        const sc = mkbScoreDay(d);
+        if (!sc) {
+            if (mkbOhlcDone(date)) setTimeout(() => mkbLoadOhlc(false), 0);
+            return mkbBox(`${mkbH('fa-crosshairs', 'text-violet-400', '장중 예측 채점 (시가→종가 · 변동폭 · 날 유형)', '')}<div class="text-xs text-slate-500">${mkbOhlcDone(date) ? (MKB.ohlcBusy ? 'S&P 500 일봉을 불러오는 중…' : 'S&P 500 일봉(시가·고가·저가)을 받지 못했습니다.') : '마감이 확정되면(미국 동부 16:10 이후) 채점합니다.'}</div>`);
+        }
+        const s = sc.st, cell = (l, v, sub, cls) => `<div class="bg-slate-950/70 border border-slate-800 rounded-lg p-2.5 text-center"><div class="text-[10px] text-slate-400">${l}</div><div class="text-sm font-extrabold font-mono-numbers ${cls || 'text-white'}">${v}</div><div class="text-[10px] text-slate-500">${sub}</div></div>`;
+        const pc = v => v >= 0 ? 'text-emerald-400' : 'text-rose-400';
+        const head = `<div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">${cell('갭 (전일 종가→시가)', mkbPct(s.gap), '참고 · 채점 안 함', pc(s.gap))}${cell('장중 (시가→종가)', mkbPct(s.intra), mkbIntraTxt(sc.ab, s.gap), pc(s.intra))}${cell('변동폭 (고가−저가)', s.range.toFixed(2) + '%', '전일 종가 대비')}${cell('날 유형', MKB_DAYTYPE_KO[s.type], '일봉 위치로 판정')}</div>`;
+        const rows = sc.rows.map(r => `<tr class="border-t border-slate-800"><td class="py-1.5 px-2 text-slate-200 whitespace-nowrap">${escapeHtml(r.label)}</td><td class="px-2 ${mkbCallCls(r.call)}">${escapeHtml(mkbIntraTxt(r.call, s.gap))}${mkFin(r.prob) ? ` <span class="text-slate-500">${(r.prob * 100).toFixed(0)}%</span>` : ''}</td><td class="px-2">${mkbHitTag(r.hit)}</td><td class="px-2 font-mono-numbers text-slate-300 whitespace-nowrap">${mkFin(r.range) ? r.range.toFixed(2) + '% · ' + mkbHitTag(r.rHit) : '–'}</td><td class="px-2 whitespace-nowrap">${r.type ? `<span class="text-slate-300">${MKB_DAYTYPE_KO[r.type]}</span> · ${mkbHitTag(r.tHit)}` : '<span class="text-slate-500">–</span>'}</td></tr>`).join('');
+        const ai = ['aip', 'ais'].filter(k => d[k] && d[k].pred).map(k => mkbAiCard(k, d[k], d[k].gap, {})).join('');
+        const late = ['aip', 'ais'].filter(k => d[k] && d[k].pred && !mkbAiValid(d[k], date)).length ? '<p class="text-[10px] text-amber-300/80 mt-1">개장 뒤에 저장된 AI 예측은 채점에서 뺐습니다.</p>' : '';
+        return mkbBox(`${mkbH('fa-crosshairs', 'text-violet-400', '장중 예측 채점 (시가→종가 · 변동폭 · 날 유형)', 'S&P 500 일봉 기준')}${head}
+          ${rows ? `<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-[10px] text-slate-400 text-left"><th class="py-1.5 px-2">예측</th><th class="px-2">장중 판단</th><th class="px-2">방향</th><th class="px-2">변동폭 (±30%)</th><th class="px-2">날 유형</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="text-xs text-slate-500">이 날짜에 저장된 장중 예측이 없습니다.</div>'}${late}
+          ${ai ? `<details class="mt-3"><summary class="cursor-pointer select-none text-[11px] font-bold text-slate-400 hover:text-slate-200">AI 예측 내용 다시 보기</summary><div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2.5">${ai}</div></details>` : ''}
+          <p class="text-[10px] text-slate-500 mt-2 leading-relaxed">방향은 시가 대비 종가 ±0.25% 기준(보합 포함), 변동폭은 실제가 예상의 70~130% 안이면 적중입니다. 날 유형은 5분봉 없이 시가·고가·저가·종가 위치로 근사한 값입니다.</p>`);
+    }
+    // 되돌아보기: 예측 주체별 성적표 + AI 확률 보정
+    function mkbIntraStatsHtml(days) {
+        const sc = days.map(mkbScoreDay).filter(x => x && x.rows.length);
+        if (!sc.length) {
+            if (!MKB.ohlc) setTimeout(() => mkbLoadOhlc(false), 0);
+            return '';
+        }
+        const order = ['rule', 'aip', 'ais', 'up', 'fut'], agg = {};
+        sc.forEach(x => x.rows.forEach(r => {
+            const a = agg[r.k] || (agg[r.k] = { label: r.label, n: 0, h: 0, rn: 0, rh: 0, re: 0, tn: 0, th: 0 });
+            a.n++; if (r.hit) a.h++;
+            if (mkFin(r.range)) { a.rn++; if (r.rHit) a.rh++; a.re += Math.abs(r.range - x.st.range); }
+            if (r.type) { a.tn++; if (r.tHit) a.th++; }
+        }));
+        const pct = (h, n) => n ? `<span class="font-bold ${h / n >= 0.55 ? 'text-emerald-400' : h / n >= 0.45 ? 'text-amber-300' : 'text-rose-400'}">${(h / n * 100).toFixed(0)}%</span> <span class="text-slate-500">(${h}/${n})</span>` : '<span class="text-slate-600">–</span>';
+        const rows = order.filter(k => agg[k]).map(k => { const a = agg[k]; return `<tr class="border-t border-slate-800 ${k === 'up' || k === 'fut' ? 'text-slate-400' : ''}"><td class="py-1.5 px-2 whitespace-nowrap ${k === 'up' || k === 'fut' ? '' : 'text-slate-200 font-semibold'}">${escapeHtml(a.label)}</td><td class="px-2 font-mono-numbers">${pct(a.h, a.n)}</td><td class="px-2 font-mono-numbers">${pct(a.rh, a.rn)}</td><td class="px-2 font-mono-numbers text-slate-300">${a.rn ? (a.re / a.rn).toFixed(2) + '%p' : '–'}</td><td class="px-2 font-mono-numbers">${pct(a.th, a.tn)}</td></tr>`; }).join('');
+        // AI 확률 보정: 말한 확률 구간별 실제 적중률
+        const bins = [['50% 미만', 0, 0.5], ['50~59%', 0.5, 0.6], ['60~69%', 0.6, 0.7], ['70% 이상', 0.7, 2]].map(([l, a, b]) => {
+            const v = []; sc.forEach(x => x.rows.forEach(r => { if ((r.k === 'aip' || r.k === 'ais') && mkFin(r.prob) && r.prob >= a && r.prob < b) v.push(r); }));
+            return { l, n: v.length, h: v.filter(r => r.hit).length, p: v.length ? v.reduce((s, r) => s + r.prob, 0) / v.length : null };
+        }).filter(b => b.n);
+        const cal = bins.length ? `<div class="mt-3"><div class="text-[10px] font-bold text-slate-400 mb-1.5">AI가 말한 확률 vs 실제 적중 (일반·검색 합산)</div><div class="grid grid-cols-2 md:grid-cols-4 gap-2">${bins.map(b => `<div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2 text-center"><div class="text-[10px] text-slate-400">말한 확률 ${b.l}</div><div class="text-sm font-extrabold text-white font-mono-numbers">${(b.h / b.n * 100).toFixed(0)}%</div><div class="text-[10px] text-slate-500">평균 ${(b.p * 100).toFixed(0)}% 라고 함 · ${b.n}일</div></div>`).join('')}</div><p class="text-[10px] text-slate-500 mt-1">실제 적중률이 말한 확률보다 꾸준히 낮으면 AI가 자신감을 과하게 보이는 것입니다.</p></div>` : '';
+        const tc = { trend: 0, range: 0, reversal: 0 }; sc.forEach(x => tc[x.st.type]++);
+        const few = sc.length < 20 ? `<p class="text-[10px] text-amber-300/80 mt-2"><i class="fa-solid fa-circle-info mr-1"></i>표본이 ${sc.length}일뿐이라 우연일 수 있습니다. 20일 이상 쌓인 뒤에 참고하세요.</p>` : '';
+        return `<div class="bg-slate-900/70 border border-violet-900/50 rounded-xl p-4">${mkbH('fa-crosshairs', 'text-violet-400', '장중 예측 성적표 (시가→종가 · 변동폭 · 날 유형)', `채점 ${sc.length}일 · S&P 500 일봉`)}
+          <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-[10px] text-slate-400 text-left"><th class="py-1.5 px-2">예측</th><th class="px-2">장중 방향 적중</th><th class="px-2">변동폭 범위 적중</th><th class="px-2">변동폭 평균 오차</th><th class="px-2">날 유형 적중</th></tr></thead><tbody>${rows}</tbody></table></div>
+          <p class="text-[10px] text-slate-500 mt-2 leading-relaxed">기준선(회색)은 아무 분석 없이 찍은 값입니다. 규칙·AI가 기준선보다 꾸준히 높아야 실제로 쓸모 있는 예측입니다. 각 예측은 자기가 판단한 날만 셉니다. 실제 날 유형 분포: 추세일 ${tc.trend} · 박스권 ${tc.range} · 반전일 ${tc.reversal}.</p>${cal}${few}</div>`;
+    }
+
     // ---------- 백그라운드 자동 저장 · 빠진 날 채우기 (앱이 열려 있으면 탭과 상관없이 동작) ----------
     // 브라우저 앱이라 앱이 닫혀 있는 동안에는 아무것도 실행되지 않는다. 대신 다음에 열 때 빠진 거래일을 일봉·선물 5분봉으로 되살려 채운다.
     // 채운 기록에는 backfill 표시가 붙고(장전은 recon 포함), 같은 날 실제로 저장한 기록이 있으면 항상 그쪽이 우선한다.
@@ -19143,6 +19435,7 @@ ${digest}`;
             const trading = new Set(sp.t.map(t => mkbEt(t * 1000).date)), lastBar = mkbEt(sp.t[sp.t.length - 1] * 1000).date;
             const days = todo.filter(d => { if (trading.has(d)) return true; if (d < lastBar) chk[d] = 1; return false; }); // 일봉에 없는 과거 평일 = 휴장
             const [esR, nqR] = days.length ? await Promise.all(['ES=F', 'NQ=F'].map(k => fetchRealYahooFinanceData(k, '1mo', '5m').catch(() => null))) : [null, null];
+            if (days.length) await mkbLoadOhlc(false); // 장후 복기에 S&P 시가·고가·저가를 붙이고, 장전 재구성의 변동폭(ATR)을 계산한다
             for (const d of days) {
                 if (!(mkbDay(d) || {}).pre) {
                     const r = mkbReconBuild(d, esR, nqR);
@@ -19172,11 +19465,13 @@ ${digest}`;
         if (!kind) return;
         const have = kind === 'pre' ? (J.days[e.date] || {}).pre : (J.days[e.date] || {}).post;
         const age = Date.now() - MKB.bg.loadAt;
+        if (kind === 'post' && have && !have.ohlc && mkbOhlcDone(e.date)) mkbLoadOhlc(false); // 마감 확정 뒤 S&P 시가·고가·저가를 붙인다
         if (kind === 'post' ? (have && !have.backfill) : (have && !have.backfill && age < 30 * 60 * 1000)) return; // 장후는 하나 저장하면 끝, 장전은 30분마다 갱신
         if (kind === 'pre' && MK.loading) return;
         MKB.bg.busy = true;
         try {
             if (!(await mkbBgLoad())) return;
+            await mkbLoadOhlc(false);
             MKB.lastVer = -1;
             mkbAutoSave();
         } catch (err) { console.warn('브리핑 백그라운드 저장 실패', err); }
@@ -19272,7 +19567,7 @@ ${digest}`;
         const dcls = mkbBucket(pre.dirKey) > 0 ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : mkbBucket(pre.dirKey) < 0 ? 'bg-rose-500/15 text-rose-300 border-rose-500/30' : 'bg-amber-500/15 text-amber-300 border-amber-500/30';
         const factors = pre.factors.map(f => `<div><div class="flex justify-between text-[10px] text-slate-400"><span class="truncate pr-2">${escapeHtml(f.label)}</span><span class="font-mono-numbers shrink-0">${f.score.toFixed(0)}점${mkFin(f.value) ? ` (${f.value.toFixed(1)}${escapeHtml(f.unit || '')})` : ''}</span></div><div class="h-1.5 bg-slate-950 rounded-full overflow-hidden"><div class="h-full rounded-full ${f.score >= 60 ? 'bg-emerald-500' : f.score <= 40 ? 'bg-rose-500' : 'bg-amber-500'}" style="width:${f.score.toFixed(0)}%"></div></div></div>`).join('');
         const compass = mkbBox(`${mkbH('fa-compass', 'text-emerald-400', '오늘의 방향성 (Market Compass)', '위험 선호 종합 점수 + 선물')}
-          <div class="flex items-center justify-between gap-2 mb-3 bg-slate-950/70 border border-slate-800 rounded-lg p-2.5"><span class="text-[11px] text-slate-400">예상 시초가 흐름</span>${mkbBadge(pre.dirText, dcls)}</div>
+          <div class="flex items-center justify-between gap-2 mb-3 bg-slate-950/70 border border-slate-800 rounded-lg p-2.5"><span class="text-[11px] text-slate-400">예상 갭 (선물 기준 · 참고)</span>${mkbBadge(pre.dirText, dcls)}</div>
           ${mkFin(pre.score) ? mkbGauge(pre.score) : '<div class="text-xs text-slate-500 text-center py-6">점수를 만들 데이터가 부족합니다.</div>'}
           ${mkFin(pre.score) ? `<div class="text-center mt-2">${mkbBadge(pre.label || '', 'bg-slate-800 text-slate-200 border-slate-700')}</div>` : ''}
           ${mkbConfidence(pre)}
@@ -19315,8 +19610,8 @@ ${digest}`;
     function mkbPostHtml(post, pre, o = {}) {
         const acc = mkbAcc(pre, post.idx.spx);
         const idxCell = (n, v, sym) => `<div${a5Attr(sym)} class="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-center cursor-pointer hover:border-sky-500/60"><div class="text-[10px] text-slate-400">${n}</div><div class="text-sm font-extrabold ${mkFin(v) ? (v >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-500'}">${mkbPct(v)}</div></div>`;
-        const review = mkbBox(`${mkbH('fa-circle-check', 'text-emerald-400', '장전 예측 vs 실제 마감 (복기 · 오답노트)', acc ? '' : '저장된 장전 예측 없음')}
-          ${acc ? `<div class="mb-3">${mkbBadge('예측 적중도: ' + MKB_ACC[acc].ko, MKB_ACC[acc].cls)}</div>` : ''}
+        const review = mkbBox(`${mkbH('fa-circle-check', 'text-emerald-400', '장전 예측 vs 실제 마감 (복기 · 오답노트)', acc ? '갭 방향 예측을 하루 등락(갭 포함)과 비교 · 참고' : '저장된 장전 예측 없음')}
+          ${acc ? `<div class="mb-3">${mkbBadge('선물 방향 → 하루 등락: ' + MKB_ACC[acc].ko, MKB_ACC[acc].cls)}</div>` : ''}
           <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">${idxCell('S&P 500', post.idx.spx, '^GSPC')}${idxCell('나스닥', post.idx.ndx, '^IXIC')}${idxCell('다우', post.idx.dji, '^DJI')}${idxCell('러셀 2000', post.idx.rut, '^RUT')}${idxCell('반도체(SMH)', post.idx.smh, 'SMH')}</div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-3"><div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="text-[10px] font-bold text-amber-400 mb-1">장전 예측${pre && pre.recon ? ` <span class="text-slate-500 font-normal">(저장 기록 없음 — 개장 30분 전 시점으로 재구성${pre.reconFull ? ' · 전일 종가까지의 일봉 + 선물, FRED·공포탐욕 제외' : ' · 선물만'})</span>` : ''}</div><div class="text-xs text-slate-200">${pre ? escapeHtml(pre.dirText) + (mkFin(pre.score) ? ` · 위험 선호 ${pre.score.toFixed(0)}점` : '') : '–'}</div>${pre ? `<div class="text-[11px] text-slate-400 mt-1">${a5Text(pre.summary)}</div>` : ''}</div>
             <div class="bg-slate-950/70 border border-indigo-500/30 rounded-lg p-3"><div class="text-[10px] font-bold text-indigo-300 mb-1">실제 마감</div><div class="text-xs text-slate-200">${a5Wrap('S&P 500', '^GSPC')} ${mkbPct(post.idx.spx)}${mkFin(post.spxPx) ? ` (${mkFmtPrice(post.spxPx)})` : ''}</div><div class="text-[11px] text-slate-400 mt-1">${post.vix && mkFin(post.vix.price) ? `${a5Wrap('VIX', '^VIX')} ${post.vix.price.toFixed(1)} (${mkbPct(post.vix.pct)})` : ''}${post.y10 ? ` · 10년물 ${post.y10.last.toFixed(2)}% (${mkbSgn(post.y10.d1, 1)}bp)` : ''}${post.breadth && mkFin(post.breadth.advPct) ? ` · 상승 종목 ${post.breadth.advPct.toFixed(0)}%` : ''}</div></div></div>
@@ -19328,7 +19623,7 @@ ${digest}`;
           ${o.canLoad && !(tl && tl.rows && tl.rows.length) ? `<button type="button" onclick="mkbLoadTimeline()" ${MKB.tlBusy ? 'disabled' : ''} class="mt-3 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 border border-slate-700 text-slate-100 text-xs font-bold rounded-lg"><i class="fa-solid ${MKB.tlBusy ? 'fa-spinner fa-spin' : 'fa-clock-rotate-left'} mr-1"></i>장중 변곡점 불러오기</button>` : ''}`);
         const feat = mkbBox(`${mkbH('fa-chart-line', 'text-emerald-400', '오늘의 특징주 · 추세 vs 일회성 판별', '시총 상위 150 중 변동·거래량 큰 종목, 이동평균·신고가로 판정')}<div class="space-y-2">${post.featured.length ? post.featured.map(f => `<div class="bg-slate-950/70 border border-slate-800 rounded-lg p-3"><div class="flex flex-wrap items-center justify-between gap-2 mb-1"><div class="flex items-center gap-2 cursor-pointer"${a5Attr(f.sym)}><span class="text-sm font-extrabold text-white hover:text-sky-300">${escapeHtml(f.name)}</span><span class="text-[11px] text-slate-500 font-mono">${escapeHtml(f.sym)}</span><span class="text-sm font-black ${f.up ? 'text-emerald-400' : 'text-rose-400'}">${mkbPct(f.pct)}</span></div>${mkbBadge(f.verdict, /추세적/.test(f.verdict) ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border-amber-500/30')}</div><div class="text-[11px] text-slate-400">${a5Text(f.reason)}</div></div>`).join('') : '<div class="text-xs text-slate-500">특징주를 고를 데이터가 부족합니다.</div>'}</div>`);
         const todo = mkbBox(`${mkbH('fa-bookmark', 'text-indigo-400', '다음 거래일을 위한 선제 체크리스트', '체크 상태는 기록과 함께 저장됩니다')}${mkbTodoHtml(post.date, post)}`);
-        return `<div class="space-y-4">${review}${mkbLateHtml(o.late, post.idx.spx)}${mkbAuditHtml(pre, post.idx.spx)}${mkbExtHtml(post.ext)}<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${money}${timeline}</div>${feat}${todo}</div>`;
+        return `<div class="space-y-4">${mkbIntraHtml(post.date, pre)}${review}${mkbLateHtml(o.late, post.idx.spx)}${mkbAuditHtml(pre, post.idx.spx)}${mkbExtHtml(post.ext)}<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${money}${timeline}</div>${feat}${todo}</div>`;
     }
 
     // ---------- 오늘 브리핑 화면 ----------
@@ -19346,7 +19641,8 @@ ${digest}`;
             if (late) setTimeout(() => mkbLoadRecon(forDate), 0);
             const rc = late ? mkbReconFor(forDate) : null;
             const rcBox = rc ? `<div class="text-xs text-amber-100 bg-amber-950/20 border border-amber-800/40 rounded-lg px-3 py-2 mb-3"><b>장전 기록(재구성 · 개장 30분 전 기준)</b> · ${escapeHtml(rc.summary)}<div class="text-[10px] text-slate-500 mt-1">이 시간에 탭을 열지 않아 저장된 기록이 없어 선물 5분봉으로 되살린 값입니다. ${rc.reconFull ? '아래 상세는 지금 시세로 계산한 것이고, 위 줄은 당시 시점으로 재구성한 값입니다.' : '아래 상세는 지금 시세로 계산한 것입니다.'}</div></div>${mkbLateHtml(mkbLateFor(forDate), null)}` : '';
-            body = rcBox + (pre ? mkbPreHtml(pre) : '<div class="text-xs text-slate-500 py-6 text-center">예측을 만들 시세를 아직 받지 못했습니다. 잠시 후 다시 확인하세요.</div>');
+            if (!MKB.ohlc) setTimeout(() => mkbLoadOhlc(false), 0); // 변동폭(최근 14일 평균) 계산용
+            body = rcBox + (pre ? mkbForecastHtml(forDate, pre, { live: true }) + mkbPreHtml(pre) : '<div class="text-xs text-slate-500 py-6 text-center">예측을 만들 시세를 아직 받지 못했습니다. 잠시 후 다시 확인하세요.</div>');
         } else {
             const post = mkbBuildPost();
             banner = post ? `<div class="text-[11px] text-indigo-200 bg-indigo-950/30 border border-indigo-800/50 rounded-lg px-3 py-2">POST-MARKET REVIEW · 거래일 ${post.date}(${mkbWk(post.date)}) · ${escapeHtml(MK_STATE_KO[post.state] || post.state || '')} — 마감 후 이 화면을 열면 자동 저장됩니다</div>` : '';
@@ -19410,6 +19706,7 @@ ${digest}`;
           <div class="flex flex-wrap items-center justify-between gap-2"><div class="flex items-center gap-2"><span class="text-base font-extrabold text-white">${date} (${mkbWk(date)})</span>${acc ? mkbBadge(MKB_ACC[acc].ko, MKB_ACC[acc].cls) : ''}</div><div class="flex flex-wrap gap-2">${navBtn(prev, '이전 기록', 'fa-chevron-left', false)}${navBtn(next, '다음 기록', 'fa-chevron-right', true)}<button type="button" onclick="mkbCloseDay()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-bold rounded-lg">닫기</button>${exist ? `<button type="button" onclick="mkbDeleteDay('${date}')" class="px-3 py-1.5 bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800 text-rose-200 text-[11px] font-bold rounded-lg"><i class="fa-solid fa-trash mr-1"></i>이 날 기록 삭제</button>` : ''}</div></div>
           ${mkbDaySummary(d)}
           <div><label class="text-[10px] font-bold text-slate-400 block mb-1" for="mkbNote">내 메모 (이날 배운 점 · 매매 복기)</label><textarea id="mkbNote" rows="3" maxlength="2000" onblur="mkbSaveNote('${date}', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500" placeholder="예: 금리 급등일에 반도체를 들고 있다가 손실. 다음엔 선물 −0.8% 이하면 비중 축소.">${escapeHtml(note)}</textarea></div>
+          ${!d.post && (d.pre || d.aip || d.ais) ? mkbForecastHtml(date, d.pre, {}) : ''}
           ${d.pre ? `<details class="group"><summary class="cursor-pointer text-sm font-extrabold text-amber-300 select-none"><i class="fa-solid fa-sun mr-1"></i>장전 예측 보기 <span class="text-[10px] font-normal text-slate-500">(저장 ${new Date(d.pre.savedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })})</span></summary><div class="mt-3">${mkbPreHtml(d.pre)}</div></details>` : '<div class="text-xs text-slate-500">이 날짜의 장전 예측은 저장되어 있지 않습니다.</div>'}
           ${d.post ? `<details open><summary class="cursor-pointer text-sm font-extrabold text-indigo-300 select-none"><i class="fa-solid fa-moon mr-1"></i>장후 복기 보기</summary><div class="mt-3">${mkbPostHtml(d.post, d.pre, { late: d.late })}</div></details>` : '<div class="text-xs text-slate-500">이 날짜의 장후 복기는 저장되어 있지 않습니다.</div>'}</div>`;
     }
@@ -19490,9 +19787,10 @@ ${digest}`;
         return `<div class="space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-2"><div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] text-slate-400 mr-1">기간</span>${chip(30, '30일')}${chip(90, '90일')}${chip(365, '1년')}${chip(0, '전체')}</div>
             <div class="flex flex-wrap gap-2"><button type="button" onclick="mkbExport()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 text-[11px] font-bold rounded-lg"><i class="fa-solid fa-file-export mr-1"></i>내보내기</button><label class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 text-[11px] font-bold rounded-lg cursor-pointer"><i class="fa-solid fa-file-import mr-1"></i>가져오기<input type="file" accept="application/json,.json" class="hidden" onchange="mkbImport(this)"/></label></div></div>
-          <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5">${card('기록된 날', st.n + '일', `예측 ${st.nPre} · 복기 ${st.nPost}`)}${card('비교 가능한 날', st.nCmp + '일', '예측과 마감이 모두 있음')}${card('방향 적중률', hit === null ? '–' : hit.toFixed(0) + '%', '정확히+방향 일치')}${card('부분 일치', st.acc.part + '일', '보합 ↔ 방향')}${card('빗나감', st.acc.miss + '일', '반대 방향')}</div>
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5">${card('기록된 날', st.n + '일', `예측 ${st.nPre} · 복기 ${st.nPost}`)}${card('비교 가능한 날', st.nCmp + '일', '예측과 마감이 모두 있음')}${card('선물 방향→하루 등락', hit === null ? '–' : hit.toFixed(0) + '%', '갭 포함 · 참고용')}${card('부분 일치', st.acc.part + '일', '보합 ↔ 방향')}${card('빗나감', st.acc.miss + '일', '반대 방향')}</div>
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4">${mkbH('fa-chart-column', 'text-sky-400', '일별 S&P 500 등락 · 예측 적중', '최근 40일')}${mkbChart(days)}</div>
             <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-4">${mkbH('fa-scale-balanced', 'text-amber-400', '위험 선호 점수는 맞았나? (점수 구간별 실제 수익률)', '예측과 마감이 모두 있는 날 기준')}<div class="space-y-1.5">${bucket}</div><p class="text-[10px] text-slate-500 mt-2 leading-relaxed">점수가 높은 구간의 평균이 더 높게 나오면 점수가 유용하다는 신호입니다. 표본이 적을 때(수십 일 미만)는 우연일 수 있습니다.</p></div></div>
+          ${mkbIntraStatsHtml(days)}
           ${mkbDiagHtml(days)}
           ${mkbLateStatsHtml(days)}
           <div class="flex flex-wrap items-center gap-2"><div class="inline-flex bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs font-bold">${['cal', 'list'].map(v => `<button type="button" onclick="mkbSetRv('${v}')" class="px-3 py-1.5 rounded-lg ${MKB.rv === v ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}"><i class="fa-solid ${v === 'cal' ? 'fa-calendar-days' : 'fa-list'} mr-1"></i>${v === 'cal' ? '달력' : '목록'}</button>`).join('')}</div>${MKB.rv === 'list' ? `<div class="flex items-center gap-1.5">${[['all', '전체'], ['miss', '빗나간 날만(오답노트)']].map(([k, l]) => `<button type="button" onclick="mkbSetRf('${k}')" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border ${(MKB.rf || 'all') === k ? 'bg-rose-700 border-rose-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'}">${l}</button>`).join('')}</div>` : ''}</div>
@@ -21657,13 +21955,13 @@ ${digest}`;
       const chipOf = e => e.yf ? e.chip : e.type === 'other' ? String(e.title || '일정').slice(0, 7) : TYPES[e.type].chip;
       const evId = e => `${e.date}|${e.type}|${e.title || ''}`;
 
-      function monthEvents(y, m) {
+      function monthEvents(y, m, all) {   // all = 화면 필터(분류·국가·중요 일정만)를 무시하고 미국 일정 전체 (브리핑 AI 예측용)
         const pre = `${y}-${pad(m + 1)}`;
         let ev = baseYear(y).filter(e => e.date.startsWith(pre)).map(e => Object.assign({}, e));
         const yfAll = YF.built(pre), covered = yfAll ? yfCovered(yfAll) : new Set();
         if (yfAll) {   // Yahoo 가 정확한 날짜를 준 유형은 '대략 날짜' 일정을 빼고, Yahoo 일정을 합친다 (경제지표는 선택한 국가만)
           ev = ev.filter(e => !(e.approx && covered.has(e.type)));
-          yfAll.forEach(e => { if (!e.cc || C.cc.has(e.cc)) ev.push(Object.assign({}, e)); });
+          yfAll.forEach(e => { if (!e.cc || (all ? e.cc === 'US' : C.cc.has(e.cc))) ev.push(Object.assign({}, e)); });
         }
         const ai = store().month[pre];
         if (ai && Array.isArray(ai.events)) {
@@ -21678,7 +21976,7 @@ ${digest}`;
             ev.push({ date: a.date, type: 'other', title: a.title, lvl: a.level, note: a.note, src: 'ai' });
           });
         }
-        return ev.filter(e => C.cats.has(TYPES[e.type].cat) && (!C.onlyHigh || lvOf(e) === 'high'))
+        return ev.filter(e => all || (C.cats.has(TYPES[e.type].cat) && (!C.onlyHigh || lvOf(e) === 'high')))
           .sort((a, b) => a.date.localeCompare(b.date) || LV[lvOf(a)].n - LV[lvOf(b)].n);
       }
       function eventsBetween(from, to) {   // from~to (Date, 포함)
@@ -21959,6 +22257,14 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       function autoKeepSel() { if (!C.sel) autoSelect(); }
 
       window.calSyncNow = function () { SYNC.run(false); render(); };
+      // 시장 탭 브리핑의 AI 장중 예측용: 그날(미국 날짜 'YYYY-MM-DD')의 미국 일정. Yahoo 일정이 오래됐으면 받아 온다. 중요도 낮은 Yahoo 일정은 뺀다.
+      window.calDayEvents = async function (k) {
+        const d = parseKey(k);
+        YF.loadLs();
+        try { await YF.ensure(d.getFullYear(), d.getMonth()); } catch (e) { /* 내장 일정만 */ }
+        return monthEvents(d.getFullYear(), d.getMonth(), true).filter(e => e.date === k && e.type !== 'yf_earn_more' && !(e.yf && lvOf(e) === 'low'))
+          .map(e => ({ title: titleOf(e), level: lvOf(e), when: e.when || (e.yf ? '' : TYPES[e.type].time || ''), note: e.note || '', approx: !!e.approx }));
+      };
 
       function onOpen() {
         if (!C.inited) { const t = new Date(); C.y = t.getFullYear(); C.m = t.getMonth(); autoSelect(); C.inited = true; }
