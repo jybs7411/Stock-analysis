@@ -809,7 +809,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
   <!-- Top Navigation Bar -->
   <div id="stickyNav" class="contents">
-  <header id="appBar" class="border-b border-slate-800 bg-[#000000]/95 backdrop-blur px-4 lg:px-8 py-2">
+  <header id="appBar" class="relative z-[60] border-b border-slate-800 bg-[#000000]/95 backdrop-blur px-4 lg:px-8 py-2">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div id="hdrLeft" class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
@@ -2223,7 +2223,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.57.5';
+    const APP_VERSION = '1.57.6';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -25406,8 +25406,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
               timeText = `${m}/${d} ${h}:${min}`;
             } catch (e) {}
           }
-          slot.innerHTML = `<span data-gsync-status class="text-[11px]">${GSYNC.statusHtml()}</span>` +
-            `<button type="button" data-act="gdriveSettings" class="${BTN} text-slate-400 hover:text-white" title="동기화 저장·불러오기·로그아웃은 설정에서"><i class="fa-solid fa-gear"></i>동기화 설정</button>`;
+          slot.innerHTML = '';   // 동기화 상태·설정은 설정 창에서 본다
         } else {
           slot.innerHTML = `<button type="button" data-act="gdriveConnect" class="${BTN} text-cyan-300 border-cyan-800/60 hover:bg-cyan-950/40"><i class="fa-brands fa-google"></i>Google 로그인</button>` +
             `<span class="text-slate-300">로그인하면 관심종목을 포함한 모든 데이터가 Google Drive에 자동 동기화돼요.</span>`;
@@ -25422,7 +25421,6 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             <div class="flex flex-wrap items-center gap-2">
               <button type="button" data-act="exportJson" class="${BTN}"><i class="fa-solid fa-download"></i>JSON 내보내기</button>
               <button type="button" data-act="importJson" class="${BTN}"><i class="fa-solid fa-upload"></i>JSON 가져오기</button>
-              <span class="text-slate-600 hidden sm:inline">|</span>
               <span id="wlGDriveSlot" class="flex flex-wrap items-center gap-2"></span>
             </div>
             <p>교육용 정보이며 투자 권유가 아니에요 · 시세는 지연될 수 있어요 · 앱을 닫거나 이 탭을 벗어나면 알림이 오지 않아요 · 이 브라우저에만 저장돼요 · 신호는 과거 가격을 가공한 값이며 예측이 아니에요.</p></div>`;
