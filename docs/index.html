@@ -808,11 +808,11 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
         <!-- 데이터 연결 상태(초록 점, 마우스를 올리면 상세) · 외부 확인 링크 · API 설정 -->
         <div id="hdrTools" class="flex items-center gap-2 text-xs">
-          <div id="liveFeedStatusBadge" class="relative group flex items-center justify-center w-6 h-6 cursor-help" tabindex="0" aria-label="데이터 연결 상태">
-            <span id="liveFeedDot" role="img" aria-label="데이터 연결 상태" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow shadow-emerald-500/60"></span>
-            <div class="pointer-events-none absolute left-0 top-full mt-2 z-[60] hidden group-hover:block group-focus:block whitespace-nowrap px-3 py-2 rounded-lg bg-slate-900 border border-emerald-700 text-emerald-300 text-[11px] font-mono-numbers shadow-xl">
-              <span class="block text-[10px] text-slate-500 font-sans mb-0.5">데이터 연결 상태</span>
-              <span id="liveFeedSourceLabel">Yahoo Finance Live</span>
+          <div id="liveFeedStatusBadge" class="relative group flex items-center justify-center w-6 h-6 cursor-help" tabindex="0" aria-label="동기화 상태">
+            <span id="liveFeedDot" role="img" aria-label="동기화 상태" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+            <div class="pointer-events-none absolute left-0 top-full mt-2 z-[60] hidden group-hover:block group-focus:block whitespace-nowrap px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-[11px] shadow-xl">
+              <span class="block text-[10px] text-slate-500 mb-0.5">동기화 상태</span>
+              <span data-gsync-status></span>
             </div>
           </div>
           <div class="hidden md:flex items-center gap-1">
@@ -921,6 +921,12 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       <div class="space-y-4 text-xs text-slate-300 overflow-y-auto overscroll-contain pr-1 py-1 flex-1 min-h-0">
         <!-- Auth & Cloud Sync Card Slot -->
         <div id="authModalCard"></div>
+
+        <!-- 데이터 연결 상태 -->
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
+          <span class="font-semibold text-white"><i class="fa-solid fa-satellite-dish text-emerald-400 mr-1.5"></i>데이터 연결 상태</span>
+          <span id="liveFeedSourceLabel" class="text-[11px] text-emerald-300 font-mono-numbers text-right">Yahoo Finance Live</span>
+        </div>
 
         <!-- 언어 -->
         <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
@@ -2205,7 +2211,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.57.6';
+    const APP_VERSION = '1.58.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3107,9 +3113,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         text.innerHTML = '현재 <strong class="text-amber-300">구글 실시간 검색(Search Grounding)</strong> 미연결 상태입니다. (시세·재무 지표 기반 자동 분석으로 작동 중)';
       }
       const feed = proxy ? 'Own Proxy · Yahoo' : 'Public Fallback · Yahoo';
-      sourceLabel.textContent = grounded ? `Google Search + ${feed}` : feed;
-      const dot = document.getElementById('liveFeedDot');
-      if (dot) dot.className = proxy ? 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow shadow-emerald-500/60' : 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow shadow-amber-500/60';
+      if (sourceLabel) sourceLabel.textContent = grounded ? `Google Search + ${feed}` : feed;
     }
 
     function getStoredApiKey(name) {
@@ -3677,7 +3681,14 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (lastErr) return `<span class="text-rose-300" title="${escapeHtml(lastErr)}"><i class="fa-solid fa-triangle-exclamation mr-1"></i>동기화 실패 — 설정에서 다시 시도</span>`;
         return `<span class="text-emerald-300"><i class="fa-brands fa-google-drive mr-1"></i>통합 동기화 켜짐${S.last ? ' · ' + timeTxt(S.last) : ''}${dirty ? ' · 변경 대기' : ''}</span>`;
       }
-      function renderBadges() { document.querySelectorAll('[data-gsync-status]').forEach(el => { el.innerHTML = statusHtml(); }); }
+      // 헤더 불빛: 꺼짐(회색)=로그아웃, 파랑=동기화 중, 빨강=실패, 주황=변경 대기, 초록=최신
+      function renderBadges() {
+        document.querySelectorAll('[data-gsync-status]').forEach(el => { el.innerHTML = statusHtml(); });
+        const dot = document.getElementById('liveFeedDot'); if (!dot) return;
+        const c = !user() ? ['bg-slate-500', ''] : busy ? ['bg-sky-400 animate-pulse', 'shadow-sky-500/60'] : lastErr ? ['bg-rose-400', 'shadow-rose-500/60'] : dirty ? ['bg-amber-400', 'shadow-amber-500/60'] : ['bg-emerald-400', 'shadow-emerald-500/60'];
+        dot.className = `w-2.5 h-2.5 rounded-full ${c[0]}${c[1] ? ' shadow ' + c[1] : ''}`;
+      }
+      setTimeout(renderBadges, 0); setInterval(renderBadges, 20000);   // 첫 표시 + 변경 대기(dirty) 상태 변화 반영
       try { window.addEventListener('gauth-changed', e => { if (e && e.detail && e.detail.user) startup(); renderBadges(); }); } catch (e) { /* 무시 */ }
 
       return {
