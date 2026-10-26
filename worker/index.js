@@ -732,7 +732,8 @@ export function parseFredObs(j, id) {
   });
   return fredStats(id, t, v);
 }
-async function fetchFred(ids, env) {
+async function fetchFred(ids, env, errs) {
+  errs = errs || [];
   const cosd = new Date(Date.now() - 470 * 86400000).toISOString().slice(0, 10);
   const out = {};
   await Promise.all(ids.map(async id => {
@@ -740,14 +741,15 @@ async function fetchFred(ids, env) {
       try {
         const r = await fetch(`https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${encodeURIComponent(env.FRED_KEY)}&file_type=json&observation_start=${cosd}`, { headers: SRC_UA });
         if (r.ok) { const m = parseFredObs(await r.json(), id); if (m) { out[id] = m; return; } }
-      } catch (e) { /* CSV 로 */ }
+        else errs.push(`${id} API: HTTP ${r.status}`);
+      } catch (e) { errs.push(`${id} API: ${String(e && e.message || e)}`); }
     }
     try {
       const resp = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${id}&cosd=${cosd}`, { headers: SRC_UA });
-      if (!resp.ok) return;
+      if (!resp.ok) { errs.push(`${id} CSV: HTTP ${resp.status}`); return; }
       const m = parseFredCsv(await resp.text(), id);
-      if (m) out[id] = m;
-    } catch (e) { /* 이 시리즈만 생략 */ }
+      if (m) out[id] = m; else errs.push(`${id} CSV: 파싱 실패`);
+    } catch (e) { errs.push(`${id} CSV: ${String(e && e.message || e)}`); }
   }));
   return out;
 }
@@ -782,7 +784,7 @@ async function kalshiGet(path, errs, tag) {
 }
 // Kalshi 가 막히면(429 등) Polymarket 공개 검색으로 대체 — 같은 모양(groups)으로 돌려준다
 async function polymarketFallback(errs) {
-  const Q = [{ ko: '연준 금리 (Polymarket)', q: 'Fed rate' }, { ko: '경기침체 (Polymarket)', q: 'recession' }];
+  const Q = [{ ko: '연준 금리 (Polymarket)', q: 'Fed rate' }, { ko: '경기침체 (Polymarket)', q: 'US recession' }];
   const out = [];
   for (const x of Q) {
     try {
@@ -936,8 +938,8 @@ export default {
       if (!ids.length || ids.length > 16) return json({ error: 'invalid ids' }, 400, request, env);
       try {
         return await cached(request, ctx, 3600, async () => {
-          const series = await fetchFred(ids, env);
-          if (!Object.keys(series).length) throw new Error('fred empty');
+          const errs = [], series = await fetchFred(ids, env, errs);
+          if (!Object.keys(series).length) throw new Error('fred empty — ' + errs.slice(0, 4).join('; ') + (env && env.FRED_KEY ? '' : ' (FRED_KEY 미등록)'));
           return json({ series }, 200, request, env, 3600);
         });
       } catch (err) {
