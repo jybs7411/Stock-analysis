@@ -759,6 +759,35 @@ export function mapFearGreed(j) {
   const hist = ((j.fear_and_greed_historical && j.fear_and_greed_historical.data) || []).slice(-30).map(p => ({ t: p.x, v: Math.round(p.y * 10) / 10 })).filter(p => Number.isFinite(p.v));
   return { score: Math.round(+fg.score * 10) / 10, rating: fg.rating || null, prevClose: num(fg.previous_close), week: num(fg.previous_1_week), month: num(fg.previous_1_month), year: num(fg.previous_1_year), timestamp: fg.timestamp || null, history: hist };
 }
+// Kalshi 공개 예측시장(키 불필요) — 매크로 관련 시리즈의 가장 가까운 이벤트만 추려 확률(0~1)로 반환
+const PREDICT_SERIES = [
+  { id: 'KXFEDDECISION', ko: '연준 금리 결정' },
+  { id: 'KXRECSSNBER', ko: '미국 경기침체' },
+  { id: 'KXCPI', ko: '미국 CPI(전월비)' }
+];
+async function fetchPredict() {
+  const out = [];
+  await Promise.all(PREDICT_SERIES.map(async (sr) => {
+    try {
+      const r = await fetch(`https://external-api.kalshi.com/trade-api/v2/markets?series_ticker=${sr.id}&status=open&limit=100`, { headers: { accept: 'application/json' } });
+      if (!r.ok) return;
+      const d = await r.json();
+      const ms = (d.markets || []).filter(m => m.close_time);
+      if (!ms.length) return;
+      const first = ms.map(m => m.close_time).sort()[0];
+      const ev = ms.find(m => m.close_time === first).event_ticker;
+      const items = ms.filter(m => m.event_ticker === ev).map(m => {
+        const bid = parseFloat(m.yes_bid_dollars), ask = parseFloat(m.yes_ask_dollars), last = parseFloat(m.last_price_dollars);
+        const p = (bid > 0 && ask > 0) ? (bid + ask) / 2 : (isFinite(last) && last > 0 ? last : null);
+        return { label: m.yes_sub_title || m.title, p, vol: parseFloat(m.volume_24h_fp) || 0, url: 'https://kalshi.com/markets/' + sr.id.toLowerCase() };
+      }).filter(x => x.p != null);
+      if (items.length) out.push({ id: sr.id, ko: sr.ko, title: ms.find(m => m.event_ticker === ev).title, close: first, items });
+    } catch (e) { /* 한 시리즈 실패는 건너뜀 */ }
+  }));
+  out.sort((a, b) => PREDICT_SERIES.findIndex(x => x.id === a.id) - PREDICT_SERIES.findIndex(x => x.id === b.id));
+  return { source: 'Kalshi', fetchedAt: Date.now(), groups: out };
+}
+
 async function fetchFearGreed() {
   const resp = await fetch('https://production.dataviz.cnn.io/index/fearandgreed/graph/data', { headers: { 'User-Agent': UA, Accept: 'application/json', Origin: 'https://edition.cnn.com', Referer: 'https://edition.cnn.com/' } });
   if (!resp.ok) throw new Error(`cnn ${resp.status}`);
@@ -797,7 +826,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/health') {
-      return json({ ok: true, service: 'pentanalyst-proxy', sources: { yahoo: true, stooq: true, fred: true, feargreed: true, fredKey: !!(env && env.FRED_KEY), finnhub: !!(env && env.FINNHUB_KEY) } }, 200, request, env);
+      return json({ ok: true, service: 'pentanalyst-proxy', sources: { yahoo: true, stooq: true, fred: true, feargreed: true, predict: true, fredKey: !!(env && env.FRED_KEY), finnhub: !!(env && env.FINNHUB_KEY) } }, 200, request, env);
     }
 
     if (url.pathname === '/api/search') {
@@ -876,6 +905,14 @@ export default {
           if (!Object.keys(series).length) throw new Error('fred empty');
           return json({ series }, 200, request, env, 3600);
         });
+      } catch (err) {
+        return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
+      }
+    }
+
+    if (url.pathname === '/api/predict') {
+      try {
+        return await cached(request, ctx, 900, async () => json(await fetchPredict(), 200, request, env, 900));
       } catch (err) {
         return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
       }

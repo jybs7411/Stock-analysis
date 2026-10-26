@@ -2223,7 +2223,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.56.0';
+    const APP_VERSION = '1.57.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -10724,8 +10724,10 @@ CHT|Chunghwa Telecom ADR|M
       if (!c) return `<button type="button" onclick="event.stopPropagation();screenerSigHist('${T}')" class="px-2 py-0.5 rounded border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[10px] text-sky-300 whitespace-nowrap">이력 보기</button>`;
       if (c.busy) return '<span class="text-slate-400 text-[10px]">계산 중…</span>';
       if (c.err) return `<span class="text-amber-400 text-[10px]" title="${escapeHtml(c.err)}">계산 실패</span> <button type="button" onclick="event.stopPropagation();screenerSigHist('${T}')" class="text-sky-300 text-[10px] underline">재시도</button>`;
-      if (!c.items.length) return '<span class="text-slate-500 text-[10px]">켜진 신호 없음</span>';
-      return c.items.map(x => {
+      const vetCls = { PASS: 'text-emerald-300 border-emerald-800 bg-emerald-950', PARTIAL: 'text-amber-300 border-amber-800 bg-amber-950', REJECT: 'text-rose-300 border-rose-800 bg-rose-950' };
+      const vetHtml = c.vet ? `<div class="mb-0.5 whitespace-nowrap"><span class="px-1.5 py-0.5 rounded border text-[10px] font-bold ${vetCls[c.vet.verdict] || ''}" title="${escapeHtml((c.vet.reasons.join(' / ')) || '탈락 사유 없음')}">걸러내기 ${c.vet.verdict}</span>${c.vet.reasons.length ? `<span class="text-[10px] text-slate-500 ml-1">${escapeHtml(c.vet.reasons[0])}</span>` : ''}</div>` : '';
+      if (!c.items.length) return vetHtml + '<span class="text-slate-500 text-[10px]">켜진 신호 없음</span>';
+      return vetHtml + c.items.map(x => {
         if (x.n < 3) return `<div class="text-[10px] text-slate-500 whitespace-nowrap">${escapeHtml(x.label)} · 표본 부족(${x.n}회)</div>`;
         const good = x.bearish ? x.med < 0 : x.med > 0;
         return `<div class="text-[10px] whitespace-nowrap" title="${escapeHtml(x.label)}: 과거 새로 켜진 ${x.n}회, 20봉 뒤 중앙값 ${scrSigned(x.med, 1)} · 평균 ${scrSigned(x.avg, 1)} · ${x.bearish ? '하락' : '수익'} 비율 ${x.hit.toFixed(0)}% (왕복 비용 반영, 같은 기간 아무 날 진입 평균 ${scrSigned(c.base, 1)})"><span class="text-slate-300">${escapeHtml(x.label)}</span> <span class="${good ? 'text-emerald-400' : 'text-rose-400'} font-mono-numbers">${scrSigned(x.med, 1)}</span> <span class="text-slate-500">(${x.n}회·${x.hit.toFixed(0)}%)</span></div>`;
@@ -10746,7 +10748,8 @@ CHT|Chunghwa Telecom ADR|M
         const bt = await window.taSignalBacktest(d.history, scrSpyHist || undefined, { costPct: btCostPct() });
         const items = [];
         now.forEach(ch => { const r = bt.rows.find(x => x.id === ch.id); if (r) items.push({ label: r.label, n: r.n[20], med: r.med[20], avg: r.avg[20], hit: r.hit[20], bearish: r.tone === 'bear' || r.tone === 'warn' }); });
-        SCR_SIGHIST[t] = { items: items.slice(0, 3), base: bt.base ? bt.base[20].avg : null };
+        const vet = typeof window.taVetCheck === 'function' ? window.taVetCheck(d.history, scrSpyHist || undefined) : null;
+        SCR_SIGHIST[t] = { items: items.slice(0, 3), base: bt.base ? bt.base[20].avg : null, vet };
       } catch (e) { SCR_SIGHIST[t] = { err: String(e && e.message || e) }; }
       scrSigHistPaint(t);
     }
@@ -17703,16 +17706,18 @@ ${pdFactsText(d)}`;
         MK.ext.busy = true;
         try {
             const hasFh = typeof proxyHasFinnhub === 'function' ? await proxyHasFinnhub(proxy) : false;
-            const [fr, fg, nw] = await Promise.allSettled([
+            const [fr, fg, nw, pm] = await Promise.allSettled([
                 fetchJsonWithTimeout(`${proxy}/api/fred?ids=${MK_FRED_IDS}`, 20000),
                 fetchJsonWithTimeout(`${proxy}/api/feargreed`, 15000),
-                hasFh ? fetchJsonWithTimeout(`${proxy}/api/finnhub?kind=news`, 15000) : Promise.reject(new Error('no finnhub'))
+                hasFh ? fetchJsonWithTimeout(`${proxy}/api/finnhub?kind=news`, 15000) : Promise.reject(new Error('no finnhub')),
+                fetchJsonWithTimeout(`${proxy}/api/predict`, 15000)
             ]);
+            if (pm.status === 'fulfilled' && pm.value && Array.isArray(pm.value.groups) && pm.value.groups.length) MK.ext.pm = pm.value;
             if (fr.status === 'fulfilled' && fr.value && fr.value.series) MK.ext.fred = fr.value.series;
             if (fg.status === 'fulfilled' && fg.value && mkFin(fg.value.score)) MK.ext.fg = fg.value;
             if (nw.status === 'fulfilled' && nw.value && Array.isArray(nw.value.items) && nw.value.items.length) MK.ext.news = nw.value.items;
             MK.ext.ts = Date.now();
-            if (MK.ext.fred || MK.ext.fg || MK.ext.news) { MK.ver++; mkScheduleRender(); }
+            if (MK.ext.fred || MK.ext.fg || MK.ext.news || MK.ext.pm) { MK.ver++; mkScheduleRender(); }
         } catch (e) { console.warn('보조 데이터 로딩 실패', e); }
         MK.ext.busy = false;
     }
@@ -17913,6 +17918,10 @@ ${pdFactsText(d)}`;
     <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md bg-cyan-950 text-cyan-300 text-xs font-bold flex items-center justify-center border border-cyan-800"><i class="fa-solid fa-landmark text-[10px]"></i></span><div><h3 class="text-base font-extrabold text-white">공식 매크로 대시보드 (FRED)</h3><p class="text-[11px] text-slate-500">연준·미 정부 통계 기반 금리·신용·물가·고용 — 야후 값과 별개의 공식 출처</p></div></div>
     <div id="mkFredBody" class="space-y-4"></div>
   </section>
+  <section id="mkSecPredict" class="mk-card space-y-3">
+    <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md bg-violet-950 text-violet-300 text-xs font-bold flex items-center justify-center border border-violet-800"><i class="fa-solid fa-dice text-[10px]"></i></span><div><h3 class="text-base font-extrabold text-white">예측시장 확률 (Kalshi)</h3><p class="text-[11px] text-slate-500">금리 결정·경기침체·CPI에 실제 돈이 걸린 시장의 가격 = 참여자들이 보는 확률. 전망이 아니라 시장 심리의 한 지표입니다</p></div></div>
+    <div id="mkPredictBody"></div>
+  </section>
   <section id="mkSecBreadth" class="mk-card space-y-4">
     <div class="flex items-center gap-2"><span class="w-6 h-6 rounded-md bg-sky-950 text-sky-300 text-xs font-bold flex items-center justify-center border border-sky-800">5</span><div><h3 class="text-base font-extrabold text-white">시장 폭(Breadth) &amp; 위험 선호 게이지</h3><p class="text-[11px] text-slate-500">분석 유니버스 종목의 일봉 1년치로 계산 · 요인과 가중치를 모두 공개</p></div></div>
     <div id="mkBreadthBody" class="space-y-4"></div>
@@ -17970,6 +17979,7 @@ ${pdFactsText(d)}`;
         guard('industry', mkRenderIndustry);
         guard('macro', mkRenderMacro);
         guard('fred', mkRenderFred);
+        guard('predict', mkRenderPredict);
         guard('breadth', mkRenderBreadth);
         guard('ai', mkRenderAi);
     }
@@ -18477,6 +18487,25 @@ ${!MK.loading && (MK.failQ || MK.failS || missing > 5) && Object.keys(MK.stats).
         return `<svg viewBox="0 0 100 28" preserveAspectRatio="none" class="w-full h-7" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
     }
     function mkFredYoy(f) { const v = f && f.v; return v && v.length >= 13 ? (v[v.length - 1] / v[v.length - 13] - 1) * 100 : null; }
+    function mkRenderPredict() {
+        const el = document.getElementById('mkPredictBody');
+        if (!el) return;
+        const P = MK.ext && MK.ext.pm;
+        if (!P) { el.innerHTML = `<div class="text-xs text-slate-500 leading-relaxed">${MK.ext.busy ? '불러오는 중…' : '예측시장 데이터를 아직 받지 못했습니다. 프록시(Worker)를 최신 버전으로 재배포했는지 확인하세요.'}</div>`; return; }
+        const bar = (p, hot) => `<div class="h-1.5 rounded bg-slate-800 overflow-hidden"><div class="h-full ${hot ? 'bg-violet-400' : 'bg-slate-500'}" style="width:${Math.max(1, Math.min(100, p * 100)).toFixed(0)}%"></div></div>`;
+        const card = g => {
+            const top = Math.max(...g.items.map(x => x.p));
+            const items = g.items.slice().sort((a, b) => b.p - a.p).slice(0, 6);
+            const dt = (g.close || '').slice(0, 10);
+            return `<div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3 space-y-2">
+              <div class="flex items-baseline justify-between gap-2"><div class="text-xs font-bold text-slate-200">${escapeHtml(g.ko)}</div><div class="text-[10px] text-slate-500 font-mono-numbers">마감 ${escapeHtml(dt)}</div></div>
+              ${items.map(x => `<div><div class="flex justify-between text-[11px]"><span class="text-slate-300 truncate pr-2">${escapeHtml(x.label)}</span><span class="font-mono-numbers ${x.p === top ? 'text-violet-300 font-bold' : 'text-slate-400'}">${(x.p * 100).toFixed(x.p < 0.1 ? 1 : 0)}%</span></div>${bar(x.p, x.p === top)}</div>`).join('')}
+            </div>`;
+        };
+        const t = P.fetchedAt ? new Date(P.fetchedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+        el.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-3">${P.groups.map(card).join('')}</div>
+          <div class="text-[10px] text-slate-500 mt-2 leading-relaxed">출처: ${escapeHtml(P.source || 'Kalshi')} 공개 시세(매수·매도 호가 중간값) · ${escapeHtml(t)} 기준 · 거래가 적은 항목은 확률이 부정확할 수 있고 투자 판단의 근거가 아닙니다.</div>`;
+    }
     function mkRenderFred() {
         const el = document.getElementById('mkFredBody');
         if (!el) return;
@@ -22700,9 +22729,44 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             const pos = (last.close - last.low) / (last.high - last.low);
             if (pos >= 0.6) add('volSurge', '거래량 급증', 'bull', 0, `거래량 ${f1(last.volume / vAvg50)}배(직전 50봉 평균 대비, 기준 2배 이상), 종가가 당일 범위의 ${f1(pos * 100)}% 위치(기준 60% 이상).`);
           }
+
+          // ----- ⑬ 거래량 고갈 · ⑭ 거래량 없는 상승 (걸러내기·청산 점검용 경고) -----
+          if (vAvg50 !== null && vAvg50 > 0 && i >= 10) {
+            const r3 = (vols[i] + vols[i - 1] + vols[i - 2]) / 3, r5 = (vols[i] + vols[i - 1] + vols[i - 2] + vols[i - 3] + vols[i - 4]) / 5;
+            if (r3 < vAvg50 * 0.3) add('volDry', '거래량 고갈', 'warn', 0, `최근 3봉 평균 거래량이 직전 50봉 평균의 ${f1(r3 / vAvg50 * 100)}%(기준 30% 미만) — 관심이 빠르게 식고 있어 보유 중이라면 이유를 다시 점검할 구간입니다. (코인용 '6시간 거래량 < 24시간 평균의 20%' 청산 규칙을 일봉 주식에 맞춰 완화한 값)`);
+            const up10 = (last.close / closes[i - 10] - 1) * 100;
+            if (up10 >= 8 && r5 < vAvg50 * 0.7) add('noVolRally', '거래량 없는 상승', 'warn', 0, `최근 10봉 ${f1(up10)}% 올랐지만 최근 5봉 평균 거래량은 직전 50봉 평균의 ${f1(r5 / vAvg50 * 100)}%(기준 70% 미만) — 가격만 오르고 참여자는 늘지 않는 상승입니다.`);
+          }
         } catch (e) {
           if (typeof console !== 'undefined') console.warn('taSignalsLite 실패', e);
         }
+        return out;
+      };
+
+      // ===== 걸러내기(VET) — window.taVetCheck(history, spyHistory) → { verdict:'PASS'|'PARTIAL'|'REJECT', reasons:[], checks:[] } =====
+      // 트레이딩 팀 분업의 'VET' 역할: 좋은 이유를 찾는 게 아니라 탈락 사유를 찾는다. 싼 검사부터 순서대로, 첫 탈락 사유에서 REJECT.
+      // 검사: ① 유동성(20봉 평균 거래대금) ② 거래량 없는 상승 ③ 거래량 고갈 ④ 이미 반영된 급등(SMA50 +25% 초과·RSI>80) ⑤ 상장 이력 부족(PARTIAL)
+      // 임계값은 출발값이다 — 결과가 전부 PASS 로만 나오면 기준이 느슨한 것이니 아래 상수를 올려 조정한다.
+      window.taVetCheck = function (history, spyHistory) {
+        const out = { verdict: 'PARTIAL', reasons: [], checks: [] };
+        try {
+          const h = (Array.isArray(history) ? history : []).filter(c => c && num(c.close));
+          if (h.length < 30) { out.reasons.push('일봉이 30봉 미만이라 판단 불가'); return out; }
+          const sig = window.taSignalsLite(h, spyHistory).chips, ids = new Set(sig.map(c => c.id));
+          const n = h.length, tail = h.slice(-20);
+          const dv = tail.reduce((a, c) => a + c.close * (num(c.volume) ? c.volume : 0), 0) / tail.length;
+          const rej = [];
+          if (dv < 5e6) rej.push(`유동성 부족: 20봉 평균 거래대금 약 ${(dv / 1e6).toFixed(1)}M (기준 5M 이상)`);
+          if (ids.has('noVolRally')) rej.push('거래량 없는 상승: 가격만 오르고 거래량이 따라오지 않음');
+          if (ids.has('volDry')) rej.push('거래량 고갈: 최근 3봉 거래량이 평소의 30% 미만');
+          if (ids.has('overheat')) rej.push('과열 경고가 켜져 있음: 이미 오른 뒤 차익 실현 조짐');
+          const sma50 = TA.sma(h.map(c => c.close), 50)[n - 1];
+          if (sma50 && h[n - 1].close > sma50 * 1.25) rej.push(`이미 반영된 급등: 종가가 50일선의 ${(h[n - 1].close / sma50 * 100).toFixed(0)}% (125% 초과)`);
+          out.checks = ['유동성', '거래량 없는 상승', '거래량 고갈', '과열', '급등 반영'];
+          if (rej.length) { out.verdict = 'REJECT'; out.reasons = rej; return out; }
+          if (n < 120) { out.verdict = 'PARTIAL'; out.reasons.push(`일봉 ${n}봉뿐이라 이력이 짧음`); return out; }
+          out.verdict = 'PASS';
+        } catch (e) { if (typeof console !== 'undefined') console.warn('taVetCheck 실패', e); out.reasons.push('계산 실패'); }
         return out;
       };
 
@@ -22718,6 +22782,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         hi52: { name: '52주 신고가 근접', assume: '신고가 부근에는 매물대가 없고 거래량이 받쳐주면 돌파가 이어지기 쉽다는 전제입니다.', invalid: '거래량 없이 신고가에서 밀리거나 돌파 가격 아래로 종가 마감하면 가짜 돌파입니다.' },
         overheat: { name: '과열 경고', assume: '단기 급등(50일선 +25% 또는 RSI>80) 뒤 거래량이 늘며 음봉이 이어지면 차익 실현이 시작됐다는 전제입니다.', invalid: '다음 봉이 직전 음봉 고점을 넘어 마감하면 경고가 풀립니다. 강한 추세에서는 과열이 오래 갈 수 있습니다.' },
         breakdown: { name: '추세 이탈', assume: '5봉 연속 50일선 위였다가 처음 아래로 마감하면 추세 지지가 깨졌다는 전제입니다.', invalid: '1~2봉 안에 50일선을 되찾으면 일시적 이탈(휩쏘)이었던 것입니다.' },
+        volDry: { name: '거래량 고갈', assume: '거래량이 평소의 30% 아래로 마르면 시장의 관심이 빠져나가는 중이라는 전제입니다.', invalid: '다음 봉에서 거래량이 평균 수준으로 돌아오면 일시적 소강일 수 있습니다.' },
+        noVolRally: { name: '거래량 없는 상승', assume: '참여자(거래량) 증가 없이 가격만 오른 상승은 지속력이 약하다는 전제입니다.', invalid: '거래량이 평균 이상으로 늘며 상승이 이어지면 경고가 풀립니다.' },
         volSurge: { name: '거래량 급증', assume: '평소의 2배 이상 거래량 + 종가가 일중 상단에서 마감하면 큰 자금이 들어왔다는 전제입니다.', invalid: '다음날 거래량이 급감하며 급증 봉의 중간값 아래로 내려오면 일회성입니다. 이유(뉴스·실적)를 확인해야 합니다.' }
       };
 
@@ -26432,14 +26498,38 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         } else if (T.sym) t = `<span class="text-amber-400">${esc(cur)} 종목은 아직 지원하지 않아요 (원화·달러만).</span>`;
         eEl.innerHTML = t;
       }
+      // RISK 점검: 보유 종목의 일봉으로 신호 엔진을 돌려 '청산을 다시 따져 볼' 경고 칩을 붙인다 (자동 매도는 하지 않는다)
+      const RISKCHK = {};
+      const RISK_IDS = ['volDry', 'noVolRally', 'breakdown', 'overheat'];
+      async function riskCheckAll() {
+        const pos = positions(); if (!pos.length) return;
+        if (typeof window.taSignalsLite !== 'function') { toast('신호 엔진 없음', '신호 모듈이 없어 점검할 수 없어요.', 'warning'); return; }
+        pos.forEach(p => { RISKCHK[p.sym] = { busy: true }; }); renderLive();
+        await Promise.all(pos.map(async p => {
+          try {
+            const r = await fetchRealYahooFinanceData(p.sym, '1y', '1d');
+            if (!r || !Array.isArray(r.history) || r.history.length < 30) throw new Error('일봉 부족');
+            const chips = window.taSignalsLite(r.history).chips.filter(c => RISK_IDS.includes(c.id));
+            RISKCHK[p.sym] = { chips, t: Date.now() };
+          } catch (e) { RISKCHK[p.sym] = { err: String(e && e.message || e) }; }
+        }));
+        renderLive();
+      }
+      function riskRowHtml(sym) {
+        const c = RISKCHK[sym]; if (!c) return '';
+        const body = c.busy ? '<span class="text-slate-400">점검 중…</span>' : c.err ? `<span class="text-amber-400">점검 실패: ${esc(c.err)}</span>`
+          : c.chips.length ? c.chips.map(x => `<span class="inline-block mr-1 px-1.5 py-0.5 rounded border border-rose-800 bg-rose-950 text-rose-300 font-semibold" title="${esc(x.detail || '')}">${esc(x.label)}</span>`).join('') + '<span class="text-slate-500">청산 사유가 있는지 다시 따져 보세요 (자동 매도 아님)</span>'
+            : '<span class="text-emerald-400">청산 경고 없음</span>';
+        return `<tr><td colspan="7" class="pb-2 text-[11px]">${body}</td></tr>`;
+      }
       function posHtml() {
         const pos = positions();
         if (!pos.length) return `<div class="${card} text-center text-sm text-slate-400">보유 종목이 없어요. 위에서 종목을 골라 첫 주문을 넣어 보세요.</div>`;
         const rows = pos.map(p => `<tr class="border-t border-slate-800"><td class="py-2 pr-2"><button type="button" data-act="pick" data-sym="${esc(p.sym)}" class="text-left"><div class="font-bold text-white">${esc(p.sym)}</div><div class="text-[11px] text-slate-400 truncate max-w-[9rem]">${esc(p.name)}</div></button></td>
           <td class="text-right pr-2">${fmtN(p.qty, 0)}</td><td class="text-right pr-2">${price$(p.avg, p.cur)}</td><td class="text-right pr-2">${price$(p.px, p.cur)}</td>
           <td class="text-right pr-2">${money(p.mv, p.cur)}</td><td class="text-right pr-2 ${tone(p.pnl)} font-semibold">${money(p.pnl, p.cur, true)}<div class="text-[11px]">${pct(p.pct)}</div></td>
-          <td class="text-right"><button type="button" data-act="sellpos" data-sym="${esc(p.sym)}" class="min-h-9 px-3 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white text-xs font-bold">매도</button></td></tr>`).join('');
-        return `<div class="${card} overflow-x-auto"><div class="font-bold text-white text-sm mb-2">보유 종목</div><table class="w-full text-xs text-slate-200 min-w-[560px]"><thead><tr class="text-[11px] text-slate-400"><th class="text-left font-semibold">종목</th><th class="text-right font-semibold pr-2">수량</th><th class="text-right font-semibold pr-2">평균가</th><th class="text-right font-semibold pr-2">현재가</th><th class="text-right font-semibold pr-2">평가금액</th><th class="text-right font-semibold pr-2">평가손익</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+          <td class="text-right"><button type="button" data-act="sellpos" data-sym="${esc(p.sym)}" class="min-h-9 px-3 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white text-xs font-bold">매도</button></td></tr>${riskRowHtml(p.sym)}`).join('');
+        return `<div class="${card} overflow-x-auto"><div class="flex items-center justify-between mb-2"><div class="font-bold text-white text-sm">보유 종목</div><button type="button" data-act="riskchk" title="거래량 고갈·추세 이탈·과열 신호로 보유 종목을 점검합니다" class="px-2.5 py-1 rounded-lg border border-rose-800 bg-rose-950/60 hover:bg-rose-900 text-[11px] text-rose-200 font-semibold"><i class="fa-solid fa-shield-halved mr-1"></i>청산 점검</button></div><table class="w-full text-xs text-slate-200 min-w-[560px]"><thead><tr class="text-[11px] text-slate-400"><th class="text-left font-semibold">종목</th><th class="text-right font-semibold pr-2">수량</th><th class="text-right font-semibold pr-2">평균가</th><th class="text-right font-semibold pr-2">현재가</th><th class="text-right font-semibold pr-2">평가금액</th><th class="text-right font-semibold pr-2">평가손익</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
       }
       function openOrdersHtml() {
         const os = openOrders(); if (!os.length) return '';
@@ -26570,6 +26660,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         else if (act === 'sug') pickSymbol(b.dataset.sym, b.dataset.name);
         else if (act === 'pick') pickSymbol(b.dataset.sym, (st.meta[b.dataset.sym] || {}).name);
         else if (act === 'analyze') { if (T.sym && typeof quickSearch === 'function') quickSearch(T.sym); }
+        else if (act === 'riskchk') riskCheckAll();
         else if (act === 'sellpos') { const s = b.dataset.sym; T.side = 'sell'; T.type = 'market'; T.qty = String(Math.max(0, held(s) - openSellQty(s))); pickSymbol(s, (st.meta[s] || {}).name).then(() => { const t = ctx.querySelector('#simSym'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' }); }); }
         else if (act === 'qpct') {
           const p = +b.dataset.p / 100, cur = T.cur || curOfSym(T.sym), ref = T.type === 'limit' ? (+T.limit || lastPrice(T.sym) || 0) : (lastPrice(T.sym) || 0);
