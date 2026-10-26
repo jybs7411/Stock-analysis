@@ -784,7 +784,7 @@ async function kalshiGet(path, errs, tag) {
 }
 // Kalshi 가 막히면(429 등) Polymarket 공개 검색으로 대체 — 같은 모양(groups)으로 돌려준다
 async function polymarketFallback(errs) {
-  const Q = [{ ko: '연준 금리 (Polymarket)', q: 'Fed rate' }, { ko: '경기침체 (Polymarket)', q: 'US recession' }];
+  const Q = [{ ko: '연준 금리 (Polymarket)', q: 'Fed rate' }, { ko: '경기침체 (Polymarket)', q: 'US recession' }, { ko: '인플레이션·CPI (Polymarket)', q: 'US CPI inflation' }];
   const out = [];
   for (const x of Q) {
     try {
@@ -817,10 +817,13 @@ async function fetchPredict() {
     if (items.length) out.push({ id: sr.id, ko: sr.ko, title: ms.find(m => m.event_ticker === ev).title, close: first, items });
   }
   let source = 'Kalshi';
-  if (!out.length) {
+  if (out.length < PREDICT_SERIES.length) { // Kalshi 가 일부/전체 막히면 Polymarket 으로 보충한다
     const alt = await polymarketFallback(errs);
-    if (!alt.length) throw new Error('예측시장 응답 없음 — ' + (errs.join('; ') || '열린 시장 없음'));
-    out.push(...alt); source = 'Polymarket';
+    if (!out.length && !alt.length) throw new Error('예측시장 응답 없음 — ' + (errs.join('; ') || '열린 시장 없음'));
+    source = out.length ? 'Kalshi · Polymarket' : 'Polymarket';
+    // Kalshi 에 이미 있는 주제(연준·침체)는 중복해서 붙이지 않는다
+    const have = new Set(out.map(g => g.id));
+    alt.forEach(g => { if (!(g.id === 'PM-Fed rate' && have.has('KXFEDDECISION')) && !(g.id === 'PM-US recession' && have.has('KXRECSSNBER')) && !(g.id === 'PM-US CPI inflation' && have.has('KXCPI'))) out.push(g); });
   }
   return { source, fetchedAt: Date.now(), groups: out };
 }

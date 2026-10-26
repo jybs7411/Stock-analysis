@@ -2205,7 +2205,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.57.3';
+    const APP_VERSION = '1.57.4';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -17692,7 +17692,7 @@ ${pdFactsText(d)}`;
                 fetchJsonWithTimeout(`${proxy}/api/fred?ids=${MK_FRED_IDS}`, 20000),
                 fetchJsonWithTimeout(`${proxy}/api/feargreed`, 15000),
                 hasFh ? fetchJsonWithTimeout(`${proxy}/api/finnhub?kind=news`, 15000) : Promise.reject(new Error('no finnhub')),
-                fetchJsonWithTimeout(`${proxy}/api/predict`, 15000)
+                fetchJsonWithTimeout(`${proxy}/api/predict?v=2`, 15000)
             ]);
             if (pm.status === 'fulfilled' && pm.value && Array.isArray(pm.value.groups) && pm.value.groups.length) MK.ext.pm = pm.value;
             if (fr.status === 'fulfilled' && fr.value && fr.value.series) MK.ext.fred = fr.value.series;
@@ -26763,7 +26763,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         ['L', 'R'].forEach(k => {
           const a = A[k], w = side ? a.w : Math.min(a.w + 20, vw - 16), isOpen = on && (side ? open[k] : ov[k]), fit = free >= a.w + 16;
           const left = k === 'L' ? (side && fit ? free - w - 12 : 8) : (side && fit ? vw - free + 12 : vw - w - 8);
-          const p = a.p; p.style.display = isOpen ? 'flex' : 'none'; p.style.top = top + 'px'; p.style.maxHeight = `calc(100vh - ${top + bottom}px)`; p.style.left = left + 'px'; p.style.width = w + 'px'; p.style.zIndex = side ? 45 : 70;
+          const p = a.p; p.style.display = isOpen ? 'flex' : 'none'; p.style.top = top + 'px'; p.style.maxHeight = `calc(100vh - ${top + bottom}px)`; p.style.height = k === 'L' && side ? `calc(100vh - ${top + bottom}px)` : ''; p.style.left = left + 'px'; p.style.width = w + 'px'; p.style.zIndex = side ? 45 : 70;
           const t = a.t; t.style.display = on && !isOpen ? 'inline-flex' : 'none'; t.style.bottom = (barH + 12) + 'px'; t.style[k === 'L' ? 'left' : 'right'] = '10px'; t.style[k === 'L' ? 'right' : 'left'] = 'auto';
           st[k] = isOpen && side && !fit ? a.w + 20 : 0;
           pos[k] = { open: isOpen, left, w };
