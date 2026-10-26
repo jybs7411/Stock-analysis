@@ -2211,7 +2211,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.58.0';
+    const APP_VERSION = '1.59.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -20027,14 +20027,13 @@ ${input}
                   <option value="300">높이 작게</option><option value="360">높이 보통</option><option value="460">높이 크게</option>
                 </select>
                 <button type="button" class="${btn}" data-mc="refresh" title="보이는 차트 모두 최신 데이터로 다시 불러오기"><i class="fa-solid fa-rotate"></i></button>
-                <button type="button" class="${btn}" data-mc="side" id="mcSideBtn" title="오른쪽 종목 리스트 (내 종목 · 오늘 큰 움직임) 열기/닫기"><i class="fa-solid fa-list mr-1"></i>종목 리스트</button>
+                <button type="button" class="${btn}" data-mc="side" id="mcSideBtn" title="왼쪽 종목 리스트 (내 종목 · 오늘 큰 움직임) 열기/닫기"><i class="fa-solid fa-list mr-1"></i>종목 리스트</button>
               </div>
             </div>
             <div id="mcHelp" class="text-[11px] text-slate-500 leading-relaxed">휠: 확대·축소 · 드래그: 이동 · 더블클릭: 처음 보기로 · 칸 제목의 <i class="fa-solid fa-expand"></i> : 한 칸만 크게 · <i class="fa-solid fa-chart-pie"></i> : 주요 ETF 고르기 (Esc로 복귀). 분봉은 Worker를 최신으로 배포해야 나옵니다. 설정은 이 브라우저에 저장됩니다.</div>
           </div>
           <div id="mcBody" class="flex flex-col xl:flex-row gap-3 items-start">
             <div id="mcGrid" class="grid gap-3 flex-1 min-w-0 w-full"></div>
-            <aside id="mcSide" class="w-full xl:w-64 shrink-0"></aside>
           </div>
           </div>`;
         const grid = document.getElementById('mcGrid');
@@ -20178,7 +20177,7 @@ ${input}
       // 열 수: 화면 폭에 맞춰 정한다 (2분할은 넓은 화면에서 좌우 비교, 좁은 화면에서는 위아래)
       function colsFor(k) {
         const mr = document.getElementById('multiRoot'), IW = mr && mr.clientWidth ? mr.clientWidth + 64 : window.innerWidth;   // 본문 폭(양옆 도크가 본문을 좁힐 수 있다)
-        const W = IW - (SD.open && IW >= 1280 ? 270 : 0);   // 오른쪽 리스트가 차지하는 폭
+        const W = IW - 0;   // 리스트는 왼쪽 도크로 옮겨 차지하는 폭 없음
         if (k <= 1) return 1;
         if (k === 2) return W >= 640 ? 2 : 1;
         if (k <= 4) return W >= 480 ? 2 : 1;
@@ -20195,8 +20194,6 @@ ${input}
         grid.className = 'grid gap-3 flex-1 min-w-0 w-full' + (S.full ? ' min-h-0' : '');
         const body = root.querySelector('#mcBody');
         if (body) body.className = 'flex flex-col xl:flex-row gap-3 ' + (S.full ? 'flex-1 min-h-0 overflow-hidden items-stretch' : 'items-start');
-        const sideEl = root.querySelector('#mcSide');
-        if (sideEl) sideEl.className = 'w-full xl:w-64 shrink-0' + (S.full ? ' overflow-y-auto min-h-0' : '');
         sdRender(); markAct();
         stage.className = S.full ? 'fixed inset-0 z-[80] bg-[#000000] p-2 sm:p-3 flex flex-col gap-2 overflow-hidden' : 'space-y-3';
         const help = root.querySelector('#mcHelp'); if (help) help.classList.toggle('hidden', S.full);
@@ -20218,14 +20215,13 @@ ${input}
       }
 
       // ---------- 오른쪽 종목 리스트 (내 종목 / 오늘 큰 움직임) ----------
+      // 목록은 왼쪽 도크 패널(mod-dock 의 #mcSide)에 뜬다 — 접기·펴기도 도크가 맡는다.
       // 행을 클릭하면 '선택된 칸'에 들어가고 선택이 다음 칸으로 넘어간다. 행을 칸 위로 끌어다 놓아도 된다.
-      const SIDE_KEY = 'pentanalyst_multi_side';
       const MV_UNI = ('AAPL MSFT NVDA GOOGL AMZN META TSLA AVGO AMD NFLX PLTR COIN MSTR SMCI ARM MU INTC QCOM TSM ASML CRM ORCL ADBE NOW SNOW CRWD PANW NET DDOG SHOP UBER ABNB DASH RBLX HOOD SOFI AFRM UPST RIVN LCID NIO XPEV LI '
         + 'JPM BAC GS MS C WFC V MA PYPL SQ BRK-B XOM CVX OXY SLB COP LLY NVO UNH JNJ PFE MRNA ABBV MRK AMGN GILD BA LMT RTX CAT DE GE HON WMT COST TGT HD LOW NKE SBUX MCD KO PEP DIS CMCSA T VZ '
         + 'SPY QQQ IWM DIA SMH SOXL TQQQ SQQQ XLK XLF XLE XLV ARKK GLD SLV USO TLT BITO IBIT MARA RIOT AAL DAL CCL NCLH F GM SNAP PINS ROKU SPOT U AI SOUN IONQ RGTI JOBY RKLB ASTS LUNR HIMS CELH ENPH FSLR').split(' ');
       const SD = { tab: 'watch', open: true, q: {}, qTs: 0, loading: false, mode: 'abs', err: '' };
       let ACT = 0;   // 클릭으로 채울 칸
-      try { SD.open = localStorage.getItem(SIDE_KEY) !== '0'; } catch (e) { /* 기본 열림 */ }
       function sdWatch() {
         try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); return Object.keys((w && w.items) || {}); } catch (e) { return []; }
       }
@@ -20256,9 +20252,6 @@ ${input}
       function sdRender() {
         const side = document.getElementById('mcSide');
         if (!side) return;
-        side.classList.toggle('hidden', !SD.open);
-        const tb = document.getElementById('mcSideBtn'); if (tb) tb.classList.toggle('!text-fuchsia-300', SD.open);
-        if (!SD.open) return;
         const tabB = (k, t) => `<button type="button" data-sdtab="${k}" class="flex-1 px-2 py-1.5 text-[11px] font-semibold ${SD.tab === k ? 'bg-fuchsia-600 text-white' : 'text-slate-400 hover:text-white'}">${t}</button>`;
         const modeB = (k, t) => `<button type="button" data-sdmode="${k}" class="px-1.5 py-0.5 rounded text-[10px] font-semibold border ${SD.mode === k ? 'border-fuchsia-500 text-fuchsia-300' : 'border-slate-700 text-slate-500 hover:text-slate-200'}">${t}</button>`;
         const oldSc = side.querySelector('.overflow-y-auto'), keepTop = oldSc ? oldSc.scrollTop : 0;
@@ -20275,11 +20268,11 @@ ${input}
         const empty = SD.loading ? '<div class="px-3 py-6 text-[11px] text-slate-500 text-center"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i>불러오는 중...</div>'
           : SD.err && !rows.length ? `<div class="px-3 py-6 text-[11px] text-slate-500 text-center leading-relaxed">${SD.err}</div>`
             : !rows.length ? `<div class="px-3 py-6 text-[11px] text-slate-500 text-center leading-relaxed">${SD.tab === 'watch' ? '관심종목 탭에서 추가한 종목이 여기에 나옵니다.' : '표시할 종목이 없습니다.'}</div>` : '';
-        side.innerHTML = `<div class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden flex flex-col max-h-[calc(100vh-7rem)] xl:sticky xl:top-24" id="mcSideBox">
+        side.innerHTML = `<div class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden flex flex-col h-full min-h-0 border-0 rounded-none bg-transparent" id="mcSideBox">
           <div class="flex border-b border-slate-800">${tabB('watch', '<i class="fa-solid fa-star mr-1 text-amber-400"></i>내 종목')}${tabB('movers', '<i class="fa-solid fa-bolt mr-1 text-amber-400"></i>오늘 큰 움직임')}</div>
           ${SD.tab === 'movers' ? `<div class="flex flex-wrap gap-1 px-2 pt-2">${modeB('abs', '등락 큰 순')}${modeB('up', '급등')}${modeB('down', '급락')}${modeB('vol', '거래량↑')}</div>` : ''}
           <div class="flex items-center justify-between px-2.5 py-1.5 text-[10px] text-slate-500"><span>선택된 칸: <b class="text-fuchsia-300">${Math.min(ACT, S.n - 1) + 1}</b>번 · 클릭하면 채워지고 다음 칸으로 이동</span><button type="button" data-sdrefresh class="hover:text-white" title="시세 새로고침"><i class="fa-solid fa-rotate"></i></button></div>
-          <div class="overflow-y-auto px-1.5 pb-2 space-y-0.5">${body}${empty}</div>
+          <div class="overflow-y-auto flex-1 min-h-0 px-1.5 pb-2 space-y-0.5" style="overscroll-behavior:contain">${body}${empty}</div>
         </div>`;
         const nsc = side.querySelector('.overflow-y-auto'); if (nsc) nsc.scrollTop = keepTop;
       }
@@ -20319,12 +20312,7 @@ ${input}
           });
         });
       }
-      function sdToggle() {
-        SD.open = !SD.open;
-        try { localStorage.setItem(SIDE_KEY, SD.open ? '1' : '0'); } catch (e) { /* 저장 불가 */ }
-        sdRender(); if (SD.open) sdFetch(false);
-        applyFocus();
-      }
+      function sdToggle() { if (window.DOCK_UI) window.DOCK_UI.toggleL(); sdFetch(false); }
       setInterval(() => { const v = document.getElementById('view-multi'); if (SD.open && v && !v.classList.contains('hidden') && !document.hidden) sdFetch(true); }, 90000);
 
       // ---------- 종목 입력 / 자동완성 ----------
@@ -26725,7 +26713,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       const mk = html => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; };
       const panel = (id, title, icon, body) => mk(`<aside id="${id}" style="display:none;position:fixed;z-index:45;flex-direction:column;overflow:hidden" class="rounded-2xl border border-slate-700 bg-slate-950/95 backdrop-blur shadow-2xl shadow-black/60"><div class="flex items-center gap-2 px-2.5 py-1.5 border-b border-slate-800 shrink-0"><i class="fa-solid ${icon} text-xs"></i><div class="text-[13px] font-extrabold text-white mr-auto">${title}</div><button type="button" data-dock-close="${id}" title="접기" class="w-6 h-6 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"><i class="fa-solid fa-xmark"></i></button></div>${body}</aside>`);
       const toggle = (id, label, icon) => mk(`<button type="button" id="${id}" style="display:none;position:fixed;z-index:44" class="px-3 min-h-10 rounded-full bg-slate-900/95 border border-slate-600 text-xs font-bold text-slate-100 shadow-lg items-center"><i class="fa-solid ${icon} mr-1.5"></i>${label}</button>`);
-      const PL = panel('dockL', '내 관심종목', 'fa-star text-yellow-400', '<div id="dockLBody" class="flex-1 overflow-y-auto p-1.5" style="overscroll-behavior:contain"></div><button type="button" id="dockLGo" class="shrink-0 min-h-7 text-[11px] text-slate-400 hover:text-white border-t border-slate-800">관심종목 탭에서 관리</button>');
+      const PL = panel('dockL', '내 관심종목', 'fa-star text-yellow-400', '<div id="dockLMulti" class="hidden flex-1 min-h-0"><div id="mcSide" class="h-full"></div></div><div id="dockLBody" class="flex-1 overflow-y-auto p-1.5" style="overscroll-behavior:contain"></div><button type="button" id="dockLGo" class="shrink-0 min-h-7 text-[11px] text-slate-400 hover:text-white border-t border-slate-800">관심종목 탭에서 관리</button>');
       const PR = panel('dockR', '모의 주문', 'fa-gamepad text-teal-400', '<div id="simDock" class="flex-1 overflow-y-auto p-2" style="overscroll-behavior:contain"></div>');
       const TL = toggle('dockLT', '관심종목', 'fa-star text-yellow-400'), TR = toggle('dockRT', '모의 주문', 'fa-gamepad text-teal-400');
       [PL, PR, TL, TR].forEach(el => document.body.appendChild(el));
@@ -26789,6 +26777,10 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         } else Object.values(fb).forEach(b => { if (b) { b.style.left = b.style.right = b.style.bottom = ''; } });
         if (mainEl && on && side && (st.L || st.R)) { const x = Math.max(0, (vw - st.L - st.R - MAXW) / 2); mainEl.style.width = 'auto'; mainEl.style.marginLeft = (st.L + x) + 'px'; mainEl.style.marginRight = (st.R + x) + 'px'; }
         else if (mainEl) { mainEl.style.width = mainEl.style.marginLeft = mainEl.style.marginRight = ''; }
+        // 멀티 차트 탭에서는 왼쪽 패널이 '관심종목 리스트' 대신 멀티 차트의 종목 리스트(내 종목 · 오늘 큰 움직임)가 된다
+        const multi = activeAppTab === 'multi';
+        document.getElementById('dockLMulti').classList.toggle('hidden', !multi); document.getElementById('dockLBody').classList.toggle('hidden', multi); document.getElementById('dockLGo').classList.toggle('hidden', multi);
+        PL.children[0].children[1].textContent = multi ? '종목 리스트' : '내 관심종목'; TL.lastChild.textContent = multi ? '종목 리스트' : '관심종목';
         const key = `${on}|${st.L}|${st.R}|${vw}`;
         if (key !== lastKey) { lastKey = key; if (on) setTimeout(() => window.dispatchEvent(new Event('resize')), 60); }
         if (on && !shown) { shown = true; renderList(); refreshQuotes(); if (window.SIM_UI) window.SIM_UI.refresh(); } else if (!on) shown = false;
@@ -26800,6 +26792,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (c) { const k = c.dataset.dockClose === 'dockL' ? 'L' : 'R'; if (side) { open[k] = false; saveOpen(); } else ov[k] = false; layout(); }
         else if (t) { const k = t.id === 'dockLT' ? 'L' : 'R'; if (side) { open[k] = true; saveOpen(); } else { ov[k] = true; ov[k === 'L' ? 'R' : 'L'] = false; } layout(); if (k === 'L') { renderList(); refreshQuotes(); } }
       });
+      window.DOCK_UI = { toggleL() { if (document.documentElement.clientWidth >= 1000) { open.L = !open.L; saveOpen(); } else { ov.L = !ov.L; ov.R = false; } layout(); } };
       // 탭이 바뀌면 다시 배치
       const origSwitch = window.switchAppTab;
       window.switchAppTab = function () { const r = origSwitch.apply(this, arguments); layout(); return r; };
