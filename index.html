@@ -1637,7 +1637,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
             <p class="text-xs sm:text-sm text-slate-400">실적·재무 건전성·애널리스트·수급·배당·뉴스. 제공되지 않는 항목은 표시하지 않습니다. (출처: Yahoo Finance, 자체 프록시)</p>
           </div>
         </div>
-        <div id="deepGrid" class="grid grid-cols-1 lg:grid-cols-2 lg:grid-flow-dense gap-5"></div>
+        <div id="deepGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-5"></div>
       </section>
 
       <!-- 5 Experts In-Depth Analysis Grid -->
@@ -2229,7 +2229,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.61.0';
+    const APP_VERSION = '1.62.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -4874,8 +4874,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     function barsSvg(cats, series, title) {
       cats = cats.filter(c => c.vals.some(v => Number.isFinite(v)));
       if (!cats.length) return '';
-      const n = cats.length, k = series.length, bw = k > 1 ? 22 : 26, gw = k * bw + (k - 1) * 3;
-      const slot = Math.max(64, gw + 28), W = n * slot, top = 20, H = 96, bot = 34, pad = cats.some(c => c.vals.some(v => v < 0)) ? 10 : 0;
+      const W = 340, n = cats.length, k = series.length, bw = Math.min(k > 1 ? 24 : 38, (W / n) * (k > 1 ? 0.34 : 0.5)), gw = k * bw + (k - 1) * 3;
+      const slot = W / n, top = 20, H = 84, bot = 34, pad = cats.some(c => c.vals.some(v => v < 0)) ? 10 : 0;
       const all = cats.flatMap(c => c.vals).filter(Number.isFinite);
       const mx = Math.max(0, ...all), mn = Math.min(0, ...all), span = (mx - mn) || 1;
       const zero = top + H * (mx / span), sc = H / span;
@@ -4894,7 +4894,16 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         if (c.note) g += `<text x="${i * slot + slot / 2}" y="${top + H + pad + 26}" text-anchor="middle" font-size="9" font-weight="600" fill="${c.note.color || '#94a3b8'}" font-family="monospace">${escapeHtml(c.note.text)}</text>`;
       });
       const legend = k > 1 ? `<div class="flex gap-3 text-[10px] text-slate-400 mb-0.5">${series.map(s => `<span><i class="inline-block w-2 h-2 rounded-sm mr-1" style="background:${s.color}"></i>${escapeHtml(s.name)}</span>`).join('')}</div>` : '';
-      return `<div class="min-w-0"><div class="text-[11px] text-slate-400 mb-0.5">${escapeHtml(title)}</div>${legend}<svg viewBox="0 0 ${W} ${top + H + bot + pad}" class="w-full h-auto max-h-44" style="max-width:${Math.max(W, 220) * 1.6}px" role="img" aria-label="${escapeHtml(title)}">${g}</svg></div>`;
+      return `<div class="min-w-0"><div class="text-[11px] text-slate-400 mb-0.5">${escapeHtml(title)}</div>${legend}<svg viewBox="0 0 ${W} ${top + H + bot + pad}" class="w-full h-auto" style="max-width:520px" role="img" aria-label="${escapeHtml(title)}">${g}</svg></div>`;
+    }
+    // 지표 타일: rows = metricRows와 같은 형식 [라벨, 값, 색상, rateMetric]. compact면 게이지·설명 생략
+    function metricTiles(rows, compact) {
+      return rows.filter(([, v]) => hasVal(v) && v !== '').map(([label, v, cls, r]) => `
+        <div class="rounded-lg border border-slate-800 bg-slate-900/40 p-2.5 min-w-0">
+          <div class="flex items-start justify-between gap-1"><span class="text-[11px] text-slate-400 leading-tight">${escapeHtml(label)}</span>${ratingBadge(r)}</div>
+          <div class="font-mono-numbers text-base font-bold ${cls || (r ? r.meta.text : 'text-white')} mt-0.5 truncate" title="${escapeHtml(v)}">${escapeHtml(v)}</div>
+          ${r && !compact ? `${gaugeHtml(r.key, r.value)}<div class="text-[10px] ${r.meta.text} leading-snug">${escapeHtml(r.text)}</div>` : ''}
+        </div>`).join('');
     }
     // 가로 막대 목록: rows [{label, v, text, color}]
     function hBars(rows, title) {
@@ -4920,20 +4929,20 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     function stackColsSvg(rows, colors, names, title) {
       rows = rows.filter(r => r.vals.some(v => v > 0));
       if (!rows.length) return '';
-      const slot = 44, W = rows.length * slot, H = 90, top = 6;
+      const W = 340, slot = W / rows.length, H = 84, top = 6;
       const mx = Math.max(...rows.map(r => r.vals.reduce((a, v) => a + v, 0))) || 1;
       let g = '';
       rows.forEach((r, i) => {
-        let y = top + H; const x = i * slot + 8, w = slot - 16;
+        let y = top + H; const x = i * slot + slot * 0.18, w = slot * 0.64;
         r.vals.forEach((v, j) => {
           if (!(v > 0)) return;
           const h = v / mx * H; y -= h;
           g += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${colors[j]}"><title>${escapeHtml(names[j])} ${v}</title></rect>`;
-          if (h >= 10) g += `<text x="${x + w / 2}" y="${y + h / 2 + 3}" text-anchor="middle" font-size="8" fill="#0b0e13" font-weight="700" font-family="monospace">${v}</text>`;
+          if (h >= 10) g += `<text x="${x + w / 2}" y="${y + h / 2 + 3}" text-anchor="middle" font-size="9" fill="#0b0e13" font-weight="700" font-family="monospace">${v}</text>`;
         });
         g += `<text x="${i * slot + slot / 2}" y="${top + H + 12}" text-anchor="middle" font-size="9" fill="#94a3b8">${escapeHtml(r.label)}</text>`;
       });
-      return `<div class="min-w-0"><div class="text-[11px] text-slate-400 mb-1">${escapeHtml(title)}</div><svg viewBox="0 0 ${W} ${top + H + 18}" class="w-full h-auto max-h-44" style="max-width:${W * 1.8}px" role="img" aria-label="${escapeHtml(title)}">${g}</svg><div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400">${names.map((n, j) => `<span><i class="inline-block w-2 h-2 rounded-sm mr-1" style="background:${colors[j]}"></i>${escapeHtml(n)}</span>`).join('')}</div></div>`;
+      return `<div class="min-w-0"><div class="text-[11px] text-slate-400 mb-1">${escapeHtml(title)}</div><svg viewBox="0 0 ${W} ${top + H + 18}" class="w-full h-auto" style="max-width:520px" role="img" aria-label="${escapeHtml(title)}">${g}</svg><div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400">${names.map((n, j) => `<span><i class="inline-block w-2 h-2 rounded-sm mr-1" style="background:${colors[j]}"></i>${escapeHtml(n)}</span>`).join('')}</div></div>`;
     }
     const pctNote = v => hasVal(v) ? { text: `${v >= 0 ? '+' : ''}${v}%`, color: v >= 0 ? '#34d399' : '#fb7185' } : null;
 
@@ -4990,8 +4999,6 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         return;
       }
       const e = deep.earnings || {}, fin = deep.financials || {}, an = deep.analysts || {}, ow = deep.ownership || {}, dv = deep.dividends || {};
-      const cards = [];
-
       // 1. 실적
       let body = '';
       if (e.nextDate) body += `<div class="text-xs text-slate-400 mb-1">다음 실적 발표 예정: <strong class="text-cyan-300 font-mono-numbers">${escapeHtml(e.nextDate)}</strong></div>`;
@@ -5008,11 +5015,11 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           + barsSvg(trend.map(x => ({ ...tc(x), vals: [hasVal(x.revenueAvg) ? Number(x.revenueAvg) : NaN], texts: [hasVal(x.revenueAvg) ? fmtBig(x.revenueAvg) : ''], note: pctNote(x.revenueGrowth) })), [{ name: '매출', color: '#22d3ee' }], '매출 전망 (아래 %는 성장률)')
           + '</div>';
       }
-      cards.push(deepCard('실적 (Earnings)', 'fa-calendar-check', 'bg-amber-950 text-amber-400', body));
+      const cEarn = deepCard('실적 (Earnings)', 'fa-calendar-check', 'bg-amber-950 text-amber-400', body);
 
       // 2. 재무 건전성
       const pctStr = v => hasVal(v) ? `${v}%` : '';
-      const metricsHtml = metricRows([
+      const metricsHtml = metricTiles([
         ['매출 (TTM)', fmtBig(fin.totalRevenue)],
         ['매출 성장률 (최근 분기 YoY)', pctStr(fin.revenueGrowth), signCls(fin.revenueGrowth), rateMetric('revGrowth', fin.revenueGrowth)],
         ['이익 성장률 (최근 분기 YoY)', pctStr(fin.earningsGrowth), signCls(fin.earningsGrowth), rateMetric('earnGrowth', fin.earningsGrowth)],
@@ -5038,8 +5045,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         barsSvg(quarterly.map(q => ({ label: String(q.quarter ?? ''), vals: [fv(q.revenue)], texts: [ft(q.revenue)] })), revS, '분기 매출'),
         barsSvg(quarterly.map(q => ({ label: String(q.quarter ?? ''), vals: [fv(q.earnings)], texts: [ft(q.earnings)] })), niS, '분기 순이익')
       ].filter(Boolean).join('');
-      body = `<div class="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4"><div>${metricsHtml}</div>${charts ? `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 content-start">${charts}</div>` : ''}</div>`;
-      cards.push(deepCard('재무 건전성', 'fa-scale-balanced', 'bg-emerald-950 text-emerald-400', body, 'lg:col-span-2'));
+      body = `<div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">${metricsHtml}</div>${charts ? `<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-5 gap-y-4 mt-4 pt-4 border-t border-slate-800/70">${charts}</div>` : ''}`;
+      const cFin = deepCard('재무 건전성', 'fa-scale-balanced', 'bg-emerald-950 text-emerald-400', body, 'lg:col-span-2');
 
       // 3. 애널리스트
       body = '';
@@ -5059,10 +5066,10 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         }
       }
       const changes = (an.changes || []).filter(c => c.firm);
-      body += tableHtml(['날짜', '증권사', '변경', '의견'], changes.map(c => [
-        c.date || '', c.firm || '', `${c.from || ''}${c.from && c.to ? ' → ' : ''}${c.to || ''}`,
-        c.action === 'up' ? { text: '상향', cls: 'text-emerald-400' } : (c.action === 'down' ? { text: '하향', cls: 'text-rose-400' } : (c.action || ''))
-      ]));
+      if (changes.length) {
+        const act = c => c.action === 'up' ? ['상향', 'bg-emerald-950 text-emerald-300 border-emerald-800'] : c.action === 'down' ? ['하향', 'bg-rose-950 text-rose-300 border-rose-800'] : c.action === 'init' ? ['신규', 'bg-sky-950 text-sky-300 border-sky-800'] : ['유지', 'bg-slate-800 text-slate-400 border-slate-700'];
+        body += `<div class="text-[11px] text-slate-400 mt-3 mb-1">최근 목표·의견 변경</div><ul class="divide-y divide-slate-800/70">${changes.slice(0, 6).map(c => { const [t, cl] = act(c); const chg = c.from && c.to && c.from !== c.to ? `${c.from} → ${c.to}` : (c.to || c.from || ''); return `<li class="flex items-center gap-2 py-1 text-[11px]"><span class="w-10 shrink-0 font-mono-numbers text-slate-500">${escapeHtml((c.date || '').slice(5))}</span><span class="flex-1 min-w-0 truncate text-slate-200" title="${escapeHtml(c.firm)}">${escapeHtml(c.firm)}</span><span class="shrink-0 truncate max-w-[45%] text-slate-400">${escapeHtml(chg)}</span><span class="shrink-0 px-1.5 rounded border text-[10px] ${cl}">${t}</span></li>`; }).join('')}</ul>`;
+      }
       const fhx = deep.finnhub || {};
       if (fhx.reco && fhx.reco.length > 1) {
         body += '<div class="mt-3">' + stackColsSvg(fhx.reco.map(r => ({ label: String(r.period || '').slice(2, 7), vals: [r.strongBuy, r.buy, r.hold, r.sell, r.strongSell].map(v => Number(v) || 0) })),
@@ -5075,7 +5082,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (fhx.peers && fhx.peers.length) {
         body += `<div class="text-xs text-slate-400 mt-3 mb-1.5">동종 종목 (Finnhub) — 클릭하면 해당 종목으로 분석</div><div class="flex flex-wrap gap-1.5">${fhx.peers.map(t => `<button type="button" onclick="if(typeof quickSearch==='function')quickSearch('${escapeHtml(t)}')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-slate-200">${escapeHtml(t)}</button>`).join('')}</div>`;
       }
-      cards.push(deepCard('애널리스트 의견', 'fa-user-tie', 'bg-cyan-950 text-cyan-400', body));
+      const cAn = deepCard('애널리스트 의견', 'fa-user-tie', 'bg-cyan-950 text-cyan-400', body);
 
       // 4. 수급·내부자
       body = '';
@@ -5099,18 +5106,22 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const insts = (ow.topInstitutions || []).filter(o => o.org);
       if (insts.length) body += '<div class="mt-3"></div>' + hBars(insts.map(o => ({ label: o.org, v: Number(o.pct), text: hasVal(o.pct) ? `${o.pct}%` : '', color: '#38bdf8' })), '주요 기관 지분');
       const insiders = (ow.insiderTransactions || []).filter(x => x.name);
-      body += tableHtml(['날짜', '내부자', '거래', '주식'], insiders.map(x => [x.date || '', `${x.name}${x.relation ? ` (${x.relation})` : ''}`, x.text || '', fmtShares(x.shares)]));
-      cards.push(deepCard('수급 · 내부자 거래', 'fa-people-group', 'bg-purple-950 text-purple-400', body));
+      if (insiders.length) {
+        const kind = t => /sale|sell/i.test(t || '') ? ['매도', 'bg-rose-950 text-rose-300 border-rose-800'] : /purchase|buy/i.test(t || '') ? ['매수', 'bg-emerald-950 text-emerald-300 border-emerald-800'] : /gift/i.test(t || '') ? ['증여', 'bg-slate-800 text-slate-300 border-slate-700'] : /award|grant|exercise/i.test(t || '') ? ['부여', 'bg-sky-950 text-sky-300 border-sky-800'] : [String(t || '기타').slice(0, 6), 'bg-slate-800 text-slate-300 border-slate-700'];
+        body += `<div class="text-[11px] text-slate-400 mt-3 mb-1">최근 내부자 거래</div><ul class="divide-y divide-slate-800/70">${insiders.slice(0, 8).map(x => { const [t, cl] = kind(x.text); const px = (String(x.text || '').match(/price\s+([\d.,]+)/i) || [])[1]; return `<li class="flex items-center gap-2 py-1 text-[11px]"><span class="w-10 shrink-0 font-mono-numbers text-slate-500">${escapeHtml((x.date || '').slice(5))}</span><span class="flex-1 min-w-0"><span class="block truncate text-slate-200" title="${escapeHtml(x.name + (x.relation ? ' (' + x.relation + ')' : ''))}">${escapeHtml(x.name)}</span>${x.relation ? `<span class="block truncate text-[10px] text-slate-500">${escapeHtml(x.relation)}</span>` : ''}</span><span class="shrink-0 px-1.5 rounded border text-[10px] ${cl}">${t}</span><span class="w-16 shrink-0 text-right font-mono-numbers text-slate-300">${fmtShares(x.shares)}${px && Number(px) > 0 ? `<span class="block text-[10px] text-slate-500">@${escapeHtml(px)}</span>` : ''}</span></li>`; }).join('')}</ul>`;
+      }
+      const cFlow = deepCard('수급 · 내부자 거래', 'fa-people-group', 'bg-purple-950 text-purple-400', body);
 
       // 4-2. 위험 신호 점검
+      let cRed = '';
       const flags = computeRedFlags(analysisInputs);
       if (flags.length) {
         const order = { bad: 0, warn: 1, info: 2, good: 3 };
         flags.sort((a, b) => order[a.rating] - order[b.rating]);
         const nWarn = flags.filter(x => x.rating === 'bad' || x.rating === 'warn').length;
         body = `<div class="text-[11px] text-slate-400 mb-2">${nWarn ? `확인이 필요한 신호 <b class="text-amber-300">${nWarn}개</b>` : '눈에 띄는 위험 신호 없음'} · 재무 요약값 기준의 단순 점검이며 감사·주석은 보지 못합니다.</div>` +
-          `<ul class="space-y-1.5">${flags.map(x => { const m = RATING_META[x.rating] || RATING_META.info; return `<li class="flex gap-2 text-xs leading-snug"><span class="mt-0.5 shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${m.badge}">${escapeHtml(x.label)}</span><span class="text-slate-300">${escapeHtml(x.text)}</span></li>`; }).join('')}</ul>`;
-        cards.push(deepCard('위험 신호 점검 (Red Flag)', 'fa-skull', 'bg-rose-950 text-rose-400', body));
+          `<ul class="grid grid-cols-1 xl:grid-cols-2 gap-x-4 gap-y-1.5">${flags.map(x => { const m = RATING_META[x.rating] || RATING_META.info; return `<li class="flex items-start gap-2 text-xs leading-snug"><span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${m.badge}">${escapeHtml(x.label)}</span><span class="text-slate-300">${escapeHtml(x.text)}</span></li>`; }).join('')}</ul>`;
+        cRed = deepCard('위험 신호 점검 (Red Flag)', 'fa-skull', 'bg-rose-950 text-rose-400', body);
       }
 
       // 5. 배당
@@ -5122,7 +5133,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         ['배당성향', pctStr(dv.payoutRatio), '', rateMetric('payout', dv.payoutRatio)],
         ['최근 배당락일', dv.exDate || '']
       ]);
-      cards.push(deepCard('배당', 'fa-coins', 'bg-amber-950 text-amber-400', body));
+      const cDiv = deepCard('배당', 'fa-coins', 'bg-amber-950 text-amber-400', body);
 
       // 6. 뉴스
       const news = (deep.news || []).filter(n => n.title);
@@ -5133,9 +5144,27 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
           : `<span class="text-slate-200">${escapeHtml(n.title)}</span>`;
         return `<li class="py-1.5 border-b border-slate-800/70 text-xs leading-snug">${title}<div class="text-[10px] text-slate-500 mt-0.5">${escapeHtml([n.publisher, date].filter(Boolean).join(' · '))}</div></li>`;
       }).join('');
-      cards.push(deepCard('최신 뉴스', 'fa-newspaper', 'bg-blue-950 text-blue-400', body ? `<ul>${body}</ul>` : ''));
+      const cNews = deepCard('최신 뉴스', 'fa-newspaper', 'bg-blue-950 text-blue-400', body ? `<ul class="grid grid-cols-1 lg:grid-cols-2 gap-x-8">${body}</ul>` : '', 'lg:col-span-2');
 
-      const html = cards.filter(Boolean).join('');
+      const lastEps = hist[hist.length - 1];
+      let dday = '';
+      if (e.nextDate) { const d = Math.ceil((new Date(e.nextDate + 'T00:00:00') - new Date()) / 864e5); if (Number.isFinite(d)) dday = d > 0 ? `D-${d}` : d === 0 ? 'D-DAY' : ''; }
+      const curA = (an.trend || [])[0], totA = curA ? ['strongBuy', 'buy', 'hold', 'sell', 'strongSell'].reduce((a, k) => a + (Number(curA[k]) || 0), 0) : 0;
+      const buyPct = totA > 0 ? ((Number(curA.strongBuy) || 0) + (Number(curA.buy) || 0)) / totA * 100 : null;
+      const kpi = metricTiles([
+        ['다음 실적 발표', e.nextDate ? `${e.nextDate.slice(5)}${dday ? ' · ' + dday : ''}` : '', 'text-cyan-300'],
+        ['EPS 서프라이즈', lastEps && hasVal(lastEps.surprisePct) ? `${lastEps.surprisePct >= 0 ? '+' : ''}${lastEps.surprisePct}%` : '', '', lastEps && hasVal(lastEps.surprisePct) ? rateMetric('epsSurprise', lastEps.surprisePct) : null],
+        ['매출 성장 (YoY)', pctStr(fin.revenueGrowth), '', rateMetric('revGrowth', fin.revenueGrowth)],
+        ['순이익률', pctStr(fin.profitMargin), '', rateMetric('netMargin', fin.profitMargin)],
+        ['ROE', pctStr(fin.returnOnEquity), '', rateMetric('roe', fin.returnOnEquity)],
+        ['잉여현금흐름', hasVal(fin.freeCashflow) ? fmtBig(fin.freeCashflow) : '', '', rateMetric('fcf', fin.freeCashflow)],
+        ['부채비율', pctStr(fin.debtToEquity), '', rateMetric('de', fin.debtToEquity)],
+        ['애널리스트 매수 비율', buyPct !== null ? `${buyPct.toFixed(0)}%` : '', '', buyPct !== null ? rateMetric('buyRatio', buyPct) : null],
+        ['배당수익률', hasVal(dv.yield) ? `${dv.yield}%` : '', '', rateMetric('divYield', dv.yield)],
+        ['베타', hasVal(fin.beta) ? String(fin.beta) : '', '', rateMetric('beta', fin.beta)]
+      ], true);
+      const cKpi = kpi ? deepCard('한눈에 보기', 'fa-gauge-high', 'bg-sky-950 text-sky-400', `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">${kpi}</div>`, 'lg:col-span-2') : '';
+      const html = [cKpi, cEarn, cAn, cFin, cFlow, (cRed || cDiv) ? `<div class="grid gap-5 content-start min-w-0">${cRed}${cDiv}</div>` : '', cNews].filter(Boolean).join('');
       grid.innerHTML = html;
       section.classList.toggle('hidden', !html);
     }
