@@ -2229,7 +2229,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.59.0';
+    const APP_VERSION = '1.59.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -20107,7 +20107,7 @@ ${input}
           P.forEach(p => ro.observe(p.wrap));
         }
         P.forEach(syncControls);
-        sdWire();
+        sdWire(); sdWirePanels();
         applyFocus();
         sdFetch(false);
         return true;
@@ -20289,12 +20289,14 @@ ${input}
         side.innerHTML = `<div class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden flex flex-col h-full min-h-0 border-0 rounded-none bg-transparent" id="mcSideBox">
           <div class="flex border-b border-slate-800">${tabB('watch', '<i class="fa-solid fa-star mr-1 text-amber-400"></i>내 종목')}${tabB('movers', '<i class="fa-solid fa-bolt mr-1 text-amber-400"></i>오늘 큰 움직임')}</div>
           ${SD.tab === 'movers' ? `<div class="flex flex-wrap gap-1 px-2 pt-2">${modeB('abs', '등락 큰 순')}${modeB('up', '급등')}${modeB('down', '급락')}${modeB('vol', '거래량↑')}</div>` : ''}
-          <div class="flex items-center justify-between px-2.5 py-1.5 text-[10px] text-slate-500"><span>선택된 칸: <b class="text-fuchsia-300">${Math.min(ACT, S.n - 1) + 1}</b>번 · 클릭하면 채워지고 다음 칸으로 이동</span><button type="button" data-sdrefresh class="hover:text-white" title="시세 새로고침"><i class="fa-solid fa-rotate"></i></button></div>
+          <div class="flex items-center justify-between px-2.5 py-1.5 text-[10px] text-slate-500"><span>${sdMulti() ? `선택된 칸: <b class="text-fuchsia-300">${Math.min(ACT, S.n - 1) + 1}</b>번 · 클릭하면 채워지고 다음 칸으로 이동` : '클릭하면 그 종목을 분석해요'}</span><button type="button" data-sdrefresh class="hover:text-white" title="시세 새로고침"><i class="fa-solid fa-rotate"></i></button></div>
           <div class="overflow-y-auto flex-1 min-h-0 px-1.5 pb-2 space-y-0.5" style="overscroll-behavior:contain">${body}${empty}</div>
         </div>`;
         const nsc = side.querySelector('.overflow-y-auto'); if (nsc) nsc.scrollTop = keepTop;
       }
+      const sdMulti = () => typeof activeAppTab === 'string' && activeAppTab === 'multi';   // 목록은 5인 분석 탭에서도 쓴다 — 거기서는 클릭 = 그 종목 분석
       function sdAssign(sym) {
+        if (!sdMulti()) { try { appSetSymbol(sym, 'analysis'); } catch (e) { /* 무시 */ } if (typeof quickSearch === 'function') quickSearch(sym); if (window.SIM_UI) window.SIM_UI.follow(sym); return; }
         const shown = S.focus >= 0 ? [S.focus] : P.filter(p => p.i < S.n).map(p => p.i);
         let idx = shown.includes(ACT) ? ACT : shown[0];
         const p = P[idx];
@@ -20318,7 +20320,10 @@ ${input}
           const r = e.target.closest('[data-sdsym]'); if (r) sdAssign(r.dataset.sdsym);
         });
         side.addEventListener('dragstart', e => { const r = e.target.closest('[data-sdsym]'); if (r) { e.dataTransfer.setData('text/plain', r.dataset.sdsym); e.dataTransfer.effectAllowed = 'copy'; } });
+      }
+      function sdWirePanels() {
         P.forEach(p => {
+          if (p._sdw) return; p._sdw = true;
           p.el.addEventListener('pointerdown', () => { if (ACT !== p.i) { ACT = p.i; markAct(); sdRender(); } }, true);
           p.el.addEventListener('dragover', e => { if (e.dataTransfer && [...e.dataTransfer.types].includes('text/plain')) { e.preventDefault(); p.el.classList.add('ring-2', 'ring-fuchsia-400'); } });
           p.el.addEventListener('dragleave', () => p.el.classList.remove('ring-fuchsia-400'));
@@ -20330,8 +20335,9 @@ ${input}
           });
         });
       }
+      window.mcSideInit = () => { sdWire(); sdRender(); sdFetch(false); };   // 도크가 5인 분석 탭에서 목록만 쓸 때(차트 칸은 아직 없음)
       function sdToggle() { if (window.DOCK_UI) window.DOCK_UI.toggleL(); sdFetch(false); }
-      setInterval(() => { const v = document.getElementById('view-multi'); if (SD.open && v && !v.classList.contains('hidden') && !document.hidden) sdFetch(true); }, 90000);
+      setInterval(() => { const v = document.getElementById('view-multi'); const dk = document.getElementById('dockL'); if (SD.open && !document.hidden && ((v && !v.classList.contains('hidden')) || (dk && dk.style.display !== 'none'))) sdFetch(true); }, 90000);
 
       // ---------- 종목 입력 / 자동완성 ----------
       async function resolve(raw) {
@@ -26718,7 +26724,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
   </script>
 
   <script id="mod-dock">
-    // ===== 사이드 도크 — 5인 분석·멀티 차트 탭 양옆에 '관심종목 리스트'(왼쪽)와 '모의투자 주문창'(오른쪽) =====
+    // ===== 사이드 도크 — 5인 분석·멀티 차트 탭 양옆에 '종목 리스트'(왼쪽, 멀티 차트의 내 종목·오늘 큰 움직임)와 '모의투자 주문창'(오른쪽) =====
     // 두 패널은 position:fixed 라서 가운데 내용을 스크롤해도 따라가지 않고, 각자 안에서만 스크롤된다.
     //  - 화면이 아주 넓으면(양옆 여백 ≥ 패널 폭) 여백에 놓고, 그보다 좁으면(≥1000px) 가운데 내용을 안쪽으로 밀어 자리를 만들고, 폰·좁은 창에서는 필요할 때 여는 오버레이가 된다.
     // 의존: watchSymbols·fetchQuotes·quickSearch·appSetSymbol·APP_SYM·APP_SYM_APPLY·activeAppTab·switchAppTab (메인/관심종목 모듈), SIM_UI (mod-sim).
@@ -26731,45 +26737,14 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       const mk = html => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; };
       const panel = (id, title, icon, body) => mk(`<aside id="${id}" style="display:none;position:fixed;z-index:45;flex-direction:column;overflow:hidden" class="rounded-2xl border border-slate-700 bg-slate-950/95 backdrop-blur shadow-2xl shadow-black/60"><div class="flex items-center gap-2 px-2.5 py-1.5 border-b border-slate-800 shrink-0"><i class="fa-solid ${icon} text-xs"></i><div class="text-[13px] font-extrabold text-white mr-auto">${title}</div><button type="button" data-dock-close="${id}" title="접기" class="w-6 h-6 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"><i class="fa-solid fa-xmark"></i></button></div>${body}</aside>`);
       const toggle = (id, label, icon) => mk(`<button type="button" id="${id}" style="display:none;position:fixed;z-index:44" class="px-3 min-h-10 rounded-full bg-slate-900/95 border border-slate-600 text-xs font-bold text-slate-100 shadow-lg items-center"><i class="fa-solid ${icon} mr-1.5"></i>${label}</button>`);
-      const PL = panel('dockL', '내 관심종목', 'fa-star text-yellow-400', '<div id="dockLMulti" class="hidden flex-1 min-h-0"><div id="mcSide" class="h-full"></div></div><div id="dockLBody" class="flex-1 overflow-y-auto p-1.5" style="overscroll-behavior:contain"></div><button type="button" id="dockLGo" class="shrink-0 min-h-7 text-[11px] text-slate-400 hover:text-white border-t border-slate-800">관심종목 탭에서 관리</button>');
+      const PL = panel('dockL', '종목 리스트', 'fa-star text-yellow-400', '<div class="flex-1 min-h-0"><div id="mcSide" class="h-full"></div></div>');
       const PR = panel('dockR', '모의 주문', 'fa-gamepad text-teal-400', '<div id="simDock" class="flex-1 overflow-y-auto p-2" style="overscroll-behavior:contain"></div>');
-      const TL = toggle('dockLT', '관심종목', 'fa-star text-yellow-400'), TR = toggle('dockRT', '모의 주문', 'fa-gamepad text-teal-400');
+      const TL = toggle('dockLT', '종목 리스트', 'fa-star text-yellow-400'), TR = toggle('dockRT', '모의 주문', 'fa-gamepad text-teal-400');
       [PL, PR, TL, TR].forEach(el => document.body.appendChild(el));
       const A = { L: { p: PL, t: TL, w: WL }, R: { p: PR, t: TR, w: WR } };
 
-      // ---------- 관심종목 리스트 ----------
-      const quotes = {}; let lastSig = '', qAt = 0;
-      const list = () => { try { return typeof window.watchSymbols === 'function' ? window.watchSymbols() : []; } catch (e) { return []; } };
-      const fmtP = (v, sym) => { const d = /\.(KS|KQ)$/i.test(sym) ? 0 : 2; return typeof v === 'number' ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—'; };
-      function renderList() {
-        const body = document.getElementById('dockLBody'); if (!body) return;
-        const items = list(), cur = typeof APP_SYM !== 'undefined' ? APP_SYM.sym : '';
-        lastSig = items.map(i => i.sym).join(',') + '|' + cur;
-        if (!items.length) { body.innerHTML = '<div class="p-3 text-xs text-slate-400 leading-relaxed">관심종목이 비어 있어요.<br>종목을 분석한 뒤 ⭐ 로 담으면 여기에 리스트로 떠요.</div>'; return; }
-        body.innerHTML = items.map(i => {
-          const q = quotes[i.sym] || {}, wq = q.price == null && typeof window.watchQuote === 'function' ? window.watchQuote(i.sym) : null, px = q.price != null ? q.price : (wq ? wq.price : null);
-          const ch = typeof q.chg === 'number' ? q.chg : null, on = i.sym === cur;
-          const chTxt = ch == null ? '' : (ch > 0 ? '+' : '') + ch.toFixed(2) + '%';
-          return `<button type="button" data-dock-sym="${esc(i.sym)}" title="${esc(i.name || i.sym)}" class="w-full text-left px-2 py-1 mb-0.5 rounded-lg flex items-center gap-1.5 border ${on ? 'bg-cyan-950/60 border-cyan-800' : 'border-transparent hover:bg-slate-900'}"><span class="min-w-0 flex-1 text-xs font-bold text-white truncate">${esc(i.sym)}</span><span class="shrink-0 text-xs text-slate-100 font-mono-numbers">${fmtP(px, i.sym)}</span><span class="shrink-0 w-[3.6rem] text-right text-[11px] font-mono-numbers ${ch == null || ch === 0 ? 'text-slate-400' : ch > 0 ? 'text-emerald-400' : 'text-rose-400'}">${chTxt}</span></button>`;
-        }).join('');
-      }
-      async function refreshQuotes() {
-        const syms = list().map(i => i.sym); if (!syms.length || typeof fetchQuotes !== 'function') return; qAt = Date.now();
-        try { const q = await fetchQuotes(syms); if (q) q.forEach(x => { if (x && x.symbol && typeof x.price === 'number') quotes[x.symbol.toUpperCase()] = { price: x.price, chg: typeof x.changePct === 'number' ? x.changePct : null }; }); } catch (e) { /* 다음 주기에 */ }
-        renderList();
-      }
-      PL.addEventListener('click', e => {
-        const b = e.target.closest('[data-dock-sym]'); if (!b) return;
-        const sym = b.dataset.dockSym;
-        if (activeAppTab === 'multi') { appSetSymbol(sym, 'multi'); if (APP_SYM_APPLY.multi) APP_SYM_APPLY.multi(sym); }
-        else quickSearch(sym);
-        renderList(); if (window.SIM_UI) window.SIM_UI.follow(sym);
-        if (document.documentElement.clientWidth < 1000) { ov.L = false; layout(); }
-      });
-      document.getElementById('dockLGo').addEventListener('click', () => switchAppTab('watch'));
-
       // ---------- 배치 ----------
-      let lastKey = '', shown = false;
+      let lastKey = '', shown = false, sideReady = false;
       function layout() {
         const on = !!SHOW[typeof activeAppTab === 'string' ? activeAppTab : ''], vw = document.documentElement.clientWidth, side = vw >= 1000;
         const mob = document.getElementById('mobileTabBar'), barH = mob && getComputedStyle(mob).display !== 'none' ? mob.offsetHeight : 0;
@@ -26795,33 +26770,29 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         } else Object.values(fb).forEach(b => { if (b) { b.style.left = b.style.right = b.style.bottom = ''; } });
         if (mainEl && on && side && (st.L || st.R)) { const x = Math.max(0, (vw - st.L - st.R - MAXW) / 2); mainEl.style.width = 'auto'; mainEl.style.marginLeft = (st.L + x) + 'px'; mainEl.style.marginRight = (st.R + x) + 'px'; }
         else if (mainEl) { mainEl.style.width = mainEl.style.marginLeft = mainEl.style.marginRight = ''; }
-        // 멀티 차트 탭에서는 왼쪽 패널이 '관심종목 리스트' 대신 멀티 차트의 종목 리스트(내 종목 · 오늘 큰 움직임)가 된다
-        const multi = activeAppTab === 'multi';
-        document.getElementById('dockLMulti').classList.toggle('hidden', !multi); document.getElementById('dockLBody').classList.toggle('hidden', multi); document.getElementById('dockLGo').classList.toggle('hidden', multi);
-        PL.children[0].children[1].textContent = multi ? '종목 리스트' : '내 관심종목'; TL.lastChild.textContent = multi ? '종목 리스트' : '관심종목';
+        // 왼쪽 패널 = 멀티 차트 모듈의 종목 리스트(내 종목 · 오늘 큰 움직임). 모듈은 처음 필요할 때 불러온다
+        if (on && !sideReady && typeof loadLazyMod === 'function') { loadLazyMod('mod-multi'); if (window.mcSideInit) { sideReady = true; window.mcSideInit(); } }
         const key = `${on}|${st.L}|${st.R}|${vw}`;
         if (key !== lastKey) { lastKey = key; if (on) setTimeout(() => window.dispatchEvent(new Event('resize')), 60); }
-        if (on && !shown) { shown = true; renderList(); refreshQuotes(); if (window.SIM_UI) window.SIM_UI.refresh(); } else if (!on) shown = false;
+        if (on && !shown) { shown = true; if (window.SIM_UI) window.SIM_UI.refresh(); } else if (!on) shown = false;
       }
       let raf = 0; const sched = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; layout(); }); };
       window.addEventListener('scroll', sched, { passive: true }); window.addEventListener('resize', sched);
       document.addEventListener('click', e => {
         const c = e.target.closest('[data-dock-close]'), t = e.target.closest('#dockLT,#dockRT'), side = document.documentElement.clientWidth >= 1000;
         if (c) { const k = c.dataset.dockClose === 'dockL' ? 'L' : 'R'; if (side) { open[k] = false; saveOpen(); } else ov[k] = false; layout(); }
-        else if (t) { const k = t.id === 'dockLT' ? 'L' : 'R'; if (side) { open[k] = true; saveOpen(); } else { ov[k] = true; ov[k === 'L' ? 'R' : 'L'] = false; } layout(); if (k === 'L') { renderList(); refreshQuotes(); } }
+        else if (t) { const k = t.id === 'dockLT' ? 'L' : 'R'; if (side) { open[k] = true; saveOpen(); } else { ov[k] = true; ov[k === 'L' ? 'R' : 'L'] = false; } layout(); if (k === 'L' && window.mcSideInit) window.mcSideInit(); }
       });
       window.DOCK_UI = { toggleL() { if (document.documentElement.clientWidth >= 1000) { open.L = !open.L; saveOpen(); } else { ov.L = !ov.L; ov.R = false; } layout(); } };
       // 탭이 바뀌면 다시 배치
       const origSwitch = window.switchAppTab;
-      window.switchAppTab = function () { const r = origSwitch.apply(this, arguments); layout(); return r; };
+      window.switchAppTab = function () { const r = origSwitch.apply(this, arguments); layout(); if (sideReady && window.mcSideInit && SHOW[activeAppTab]) window.mcSideInit(); return r; };
       if (window.SIM_UI) window.SIM_UI.mountDock(document.getElementById('simDock'));
-      // 가끔 확인: 관심종목·현재 종목이 바뀌면 리스트·주문창을 맞춘다 / 시세는 1분마다
+      // 가끔 확인: 현재 종목이 바뀌면 주문창을 맞춘다
       setInterval(() => {
         if (!shown || document.hidden) return;
         const cur = typeof APP_SYM !== 'undefined' ? APP_SYM.sym : '';
-        if (list().map(i => i.sym).join(',') + '|' + cur !== lastSig) renderList();
         if (cur && window.SIM_UI) window.SIM_UI.follow(cur);
-        if (Date.now() - qAt > 60000) refreshQuotes();
       }, 2000);
       layout();
     })();
