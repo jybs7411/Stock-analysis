@@ -2229,7 +2229,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.59.1';
+    const APP_VERSION = '1.59.2';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3197,13 +3197,13 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       const SILENT_COOLDOWN_MS = 30 * 60 * 1000;
       let lastSilentTry = 0;
       let inflight = null;
-      function getToken(interactive) {
+      function getToken(interactive, force) {   // force: 사용자 조작(클릭) 직후의 조용한 갱신 — 쿨다운을 건너뛴다(팝업이 허용되는 순간이라)
         if (accessToken && Date.now() < tokenExpiresAt - 60000) return Promise.resolve(accessToken);
         const cid = getClientId();
         if (!cid) return Promise.reject(new Error('no_client_id'));
         if (inflight) return inflight;
         if (!interactive) {
-          if (document.visibilityState === 'hidden' || Date.now() - lastSilentTry < SILENT_COOLDOWN_MS) {
+          if (document.visibilityState === 'hidden' || (!force && Date.now() - lastSilentTry < SILENT_COOLDOWN_MS)) {
             return Promise.reject(new Error('silent_skipped'));
           }
           lastSilentTry = Date.now();
@@ -3399,7 +3399,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       const ls = { get: k => { try { return rawGet.call(localStorage, k); } catch (e) { return null; } }, set: (k, v) => { try { rawSet.call(localStorage, k, v); return true; } catch (e) { return false; } } };
       const jparse = s => { try { return JSON.parse(s); } catch (e) { return null; } };
       const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
-      let ev = jparse(ls.get(EV_KEY)) || {}, evTimer = null, lastApply = { removed: 0, skipped: 0 }, meta = jparse(ls.get(META_KEY)) || {}, dirty = ls.get(DIRTY_KEY) === '1', busy = false, applying = false, timer = null, metaTimer = null, frozen = false, fileId = ls.get(FID_KEY) || '', lastErr = '', pending = false;
+      let ev = jparse(ls.get(EV_KEY)) || {}, evTimer = null, lastApply = { removed: 0, skipped: 0 }, meta = jparse(ls.get(META_KEY)) || {}, dirty = ls.get(DIRTY_KEY) === '1', busy = false, waiting = false, applying = false, timer = null, metaTimer = null, frozen = false, fileId = ls.get(FID_KEY) || '', lastErr = '', pending = false;
       const S = { last: +ls.get(LAST_KEY) || 0 };
 
       const auth = () => (typeof GAUTH !== 'undefined' ? GAUTH : null);
@@ -3643,7 +3643,8 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         busy = true; lastErr = ''; emit();
         let ok = false;
         try {
-          const token = await auth().getToken(!!opt.interactive);
+          let token; try { token = await auth().getToken(!!opt.interactive, !!opt.gesture); } catch (e) { if (!opt.interactive) { waiting = true; e.silentToken = true; } throw e; }
+          waiting = false;
           let remote = await fetchRemote(token), migrated = false;
           if (!remote && !fileId) { remote = await readLegacy(token); migrated = !!remote; }
           let changed = [];
@@ -3657,7 +3658,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           if (migrated) toast('동기화 통합', '예전 방식으로 나뉘어 저장돼 있던 설정·관심종목·브리핑·일정을 하나로 합쳤어요.', 'info');
         } catch (e) {
           const msg = (e && e.message) || '';
-          if (!/silent_skipped|no_client_id/.test(msg)) { lastErr = msg || '동기화 실패'; if (!opt.quiet) toast('동기화 실패', lastErr, 'error'); }
+          if (!e.silentToken && !/silent_skipped|no_client_id/.test(msg)) { lastErr = msg || '동기화 실패'; if (!opt.quiet) toast('동기화 실패', lastErr, 'error'); }
           pending = true;
         } finally { busy = false; emit(); if (frozen) reloadSoon(); }
         return ok;
@@ -3688,6 +3689,15 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       }
       let started = false;
       function startup() { if (!user()) return Promise.resolve(false); return run({ apply: true, quiet: true }).then(ok => { if (ok) started = true; return ok; }); }
+      // 앱을 연 직후엔 브라우저가 로그인 갱신 팝업을 막는 일이 잦다 — 첫 클릭·키 입력 때(팝업이 허용되는 순간) 바로 동기화한다
+      let lastGesture = 0;
+      function onGesture() {
+        if (started) { ['pointerdown', 'keydown'].forEach(t => document.removeEventListener(t, onGesture, true)); return; }
+        if (busy || !user() || Date.now() - lastGesture < 60000) return;
+        lastGesture = Date.now();
+        run({ apply: true, quiet: true, gesture: true }).then(ok => { if (ok) started = true; });
+      }
+      ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, onGesture, true));
       // 앱을 연 직후 조용한 로그인 갱신이 막혔으면(쿨다운·백그라운드) 보이는 동안 다시 시도한다
       setInterval(() => { if (!started && !busy && user() && document.visibilityState === 'visible') startup(); }, 10 * 60000);
 
@@ -3696,6 +3706,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       function statusHtml() {
         if (!user()) return '<span class="text-slate-400"><i class="fa-brands fa-google-drive mr-1"></i>Google 로그인하면 모든 데이터가 Drive로 한 번에 동기화돼요.</span>';
         if (busy) return '<span class="text-sky-300"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Drive 동기화 중…</span>';
+        if (waiting) return '<span class="text-amber-300"><i class="fa-brands fa-google-drive mr-1"></i>로그인 갱신 대기 — 화면을 한 번 누르면 바로 동기화해요</span>';
         if (lastErr) return `<span class="text-rose-300" title="${escapeHtml(lastErr)}"><i class="fa-solid fa-triangle-exclamation mr-1"></i>동기화 실패 — 설정에서 다시 시도</span>`;
         return `<span class="text-emerald-300"><i class="fa-brands fa-google-drive mr-1"></i>통합 동기화 켜짐${S.last ? ' · ' + timeTxt(S.last) : ''}${dirty ? ' · 변경 대기' : ''}</span>`;
       }
@@ -3703,7 +3714,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       function renderBadges() {
         document.querySelectorAll('[data-gsync-status]').forEach(el => { el.innerHTML = statusHtml(); });
         const dot = document.getElementById('liveFeedDot'); if (!dot) return;
-        const c = !user() ? ['bg-slate-500', ''] : busy ? ['bg-sky-400 animate-pulse', 'shadow-sky-500/60'] : lastErr ? ['bg-rose-400', 'shadow-rose-500/60'] : dirty ? ['bg-amber-400', 'shadow-amber-500/60'] : ['bg-emerald-400', 'shadow-emerald-500/60'];
+        const c = !user() ? ['bg-slate-500', ''] : busy ? ['bg-sky-400 animate-pulse', 'shadow-sky-500/60'] : lastErr ? ['bg-rose-400', 'shadow-rose-500/60'] : dirty || waiting ? ['bg-amber-400', 'shadow-amber-500/60'] : ['bg-emerald-400', 'shadow-emerald-500/60'];
         dot.className = `w-2.5 h-2.5 rounded-full ${c[0]}${c[1] ? ' shadow ' + c[1] : ''}`;
       }
       setTimeout(renderBadges, 0); setInterval(renderBadges, 20000);   // 첫 표시 + 변경 대기(dirty) 상태 변화 반영
