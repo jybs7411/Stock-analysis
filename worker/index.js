@@ -765,28 +765,62 @@ const PREDICT_SERIES = [
   { id: 'KXRECSSNBER', ko: '미국 경기침체' },
   { id: 'KXCPI', ko: '미국 CPI(전월비)' }
 ];
+const KALSHI_HOSTS = ['https://api.elections.kalshi.com', 'https://external-api.kalshi.com'];
+async function kalshiGet(path, errs, tag) {
+  for (const host of KALSHI_HOSTS) {
+    for (let k = 0; k < 2; k++) {
+      try {
+        const r = await fetch(host + path, { headers: { accept: 'application/json', 'User-Agent': UA } });
+        if (r.ok) return await r.json();
+        errs.push(`${tag}@${host.slice(8, 20)}: HTTP ${r.status}`);
+        if (r.status !== 429) break;
+        await new Promise(res => setTimeout(res, 700));
+      } catch (e) { errs.push(`${tag}: ${String(e && e.message || e)}`); break; }
+    }
+  }
+  return null;
+}
+// Kalshi 가 막히면(429 등) Polymarket 공개 검색으로 대체 — 같은 모양(groups)으로 돌려준다
+async function polymarketFallback(errs) {
+  const Q = [{ ko: '연준 금리 (Polymarket)', q: 'Fed rate' }, { ko: '경기침체 (Polymarket)', q: 'recession' }];
+  const out = [];
+  for (const x of Q) {
+    try {
+      const r = await fetch(`https://gamma-api.polymarket.com/public-search?q=${encodeURIComponent(x.q)}&events_status=active&limit_per_type=1`, { headers: { accept: 'application/json', 'User-Agent': UA } });
+      if (!r.ok) { errs.push(`poly ${x.q}: HTTP ${r.status}`); continue; }
+      const ev = ((await r.json()).events || [])[0];
+      if (!ev) continue;
+      const items = (ev.markets || []).map(m => {
+        let pr = null; try { pr = parseFloat(JSON.parse(m.outcomePrices)[0]); } catch (e) { /* 가격 없음 */ }
+        return { label: m.groupItemTitle || m.question, p: isFinite(pr) ? pr : null, vol: Number(m.volumeNum) || 0, url: 'https://polymarket.com/event/' + ev.slug };
+      }).filter(m => m.p != null && !m.closed);
+      if (items.length) out.push({ id: 'PM-' + x.q, ko: x.ko, title: ev.title, close: ev.endDate || '', items: items.slice(0, 8) });
+    } catch (e) { errs.push(`poly ${x.q}: ${String(e && e.message || e)}`); }
+  }
+  return out;
+}
 async function fetchPredict() {
   const out = [], errs = [];
-  await Promise.all(PREDICT_SERIES.map(async (sr) => {
-    try {
-      const r = await fetch(`https://external-api.kalshi.com/trade-api/v2/markets?series_ticker=${sr.id}&status=open&limit=100`, { headers: { accept: 'application/json', 'User-Agent': UA } });
-      if (!r.ok) { errs.push(`${sr.id}: HTTP ${r.status}`); return; }
-      const d = await r.json();
-      const ms = (d.markets || []).filter(m => m.close_time);
-      if (!ms.length) return;
-      const first = ms.map(m => m.close_time).sort()[0];
-      const ev = ms.find(m => m.close_time === first).event_ticker;
-      const items = ms.filter(m => m.event_ticker === ev).map(m => {
-        const bid = parseFloat(m.yes_bid_dollars), ask = parseFloat(m.yes_ask_dollars), last = parseFloat(m.last_price_dollars);
-        const p = (bid > 0 && ask > 0) ? (bid + ask) / 2 : (isFinite(last) && last > 0 ? last : null);
-        return { label: m.yes_sub_title || m.title, p, vol: parseFloat(m.volume_24h_fp) || 0, url: 'https://kalshi.com/markets/' + sr.id.toLowerCase() };
-      }).filter(x => x.p != null);
-      if (items.length) out.push({ id: sr.id, ko: sr.ko, title: ms.find(m => m.event_ticker === ev).title, close: first, items });
-    } catch (e) { errs.push(`${sr.id}: ${String(e && e.message || e)}`); }
-  }));
-  if (!out.length) throw new Error('Kalshi 응답 없음 — ' + (errs.join('; ') || '열린 시장 없음'));
-  out.sort((a, b) => PREDICT_SERIES.findIndex(x => x.id === a.id) - PREDICT_SERIES.findIndex(x => x.id === b.id));
-  return { source: 'Kalshi', fetchedAt: Date.now(), groups: out };
+  for (const sr of PREDICT_SERIES) { // 순차 호출 — 동시에 3개를 보내면 429 가 나기 쉽다
+    const d = await kalshiGet(`/trade-api/v2/markets?series_ticker=${sr.id}&status=open&limit=100`, errs, sr.id);
+    const ms = d ? (d.markets || []).filter(m => m.close_time) : [];
+    if (!ms.length) continue;
+    const first = ms.map(m => m.close_time).sort()[0];
+    const ev = ms.find(m => m.close_time === first).event_ticker;
+    const items = ms.filter(m => m.event_ticker === ev).map(m => {
+      const bid = parseFloat(m.yes_bid_dollars), ask = parseFloat(m.yes_ask_dollars), last = parseFloat(m.last_price_dollars);
+      const p = (bid > 0 && ask > 0) ? (bid + ask) / 2 : (isFinite(last) && last > 0 ? last : null);
+      return { label: m.yes_sub_title || m.title, p, vol: parseFloat(m.volume_24h_fp) || 0, url: 'https://kalshi.com/markets/' + sr.id.toLowerCase() };
+    }).filter(x => x.p != null);
+    if (items.length) out.push({ id: sr.id, ko: sr.ko, title: ms.find(m => m.event_ticker === ev).title, close: first, items });
+  }
+  let source = 'Kalshi';
+  if (!out.length) {
+    const alt = await polymarketFallback(errs);
+    if (!alt.length) throw new Error('예측시장 응답 없음 — ' + (errs.join('; ') || '열린 시장 없음'));
+    out.push(...alt); source = 'Polymarket';
+  }
+  return { source, fetchedAt: Date.now(), groups: out };
 }
 
 async function fetchFearGreed() {
@@ -913,7 +947,7 @@ export default {
 
     if (url.pathname === '/api/predict') {
       try {
-        return await cached(request, ctx, 900, async () => json(await fetchPredict(), 200, request, env, 900));
+        return await cached(request, ctx, 3600, async () => json(await fetchPredict(), 200, request, env, 3600));
       } catch (err) {
         return json({ error: 'upstream failure', detail: String(err && err.message || err) }, 502, request, env);
       }
