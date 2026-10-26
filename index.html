@@ -2229,7 +2229,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.59.2';
+    const APP_VERSION = '1.59.3';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -21404,7 +21404,6 @@ ${input}
         set('peg', outPeg());
         set('analyst', outAnalyst());
         set('r52', out52());
-        try { const ch = outCharts(); set('pathsInfo', ch.info); set('chart5', ch.c5); set('chart1', ch.c1); set('pathRules', ch.rules); } catch (e) { console.warn('경로 차트 실패:', e); }
         const box = el.querySelector('[data-out="smartNote"]');
         if (box) box.innerHTML = VS.notes ? `<details class="bg-cyan-950/30 border border-cyan-900/60 rounded-xl p-3"><summary class="text-xs font-bold text-cyan-200 cursor-pointer min-h-11 flex items-center">자동으로 채운 숫자는 이렇게 정했어요 (추정일 뿐, 예측 아님)</summary><ul class="text-xs text-slate-300 space-y-1 list-disc pl-4 mt-1">${VS.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></details>` : '';
       }
@@ -21475,18 +21474,6 @@ ${input}
                   <div><div class="text-xs font-bold text-slate-200 mb-1">애널리스트 목표가</div><div data-out="analyst"></div></div>
                   <div><div class="text-xs font-bold text-slate-200 mb-1">최근 52주(1년) 최저 – 최고</div><div data-out="r52"></div></div>
                 </div>`, 'md:col-span-2')}
-              ${section('⑤', '앞으로 5년 · 1년 주가는 어떻게 움직일까? (그래프)', '③의 3가지 경우가 "어디에 도착하는지"에 구름대·모멘텀·변동성 규칙과 이 종목 과거 출렁임을 입힌 예시 경로예요', `
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <p class="text-xs text-slate-300">회색 = 실제 주가, 색 선 = 약세·기준·강세 예시 경로, 보라 띠 = 일목 구름(앞 26주)</p>
-                  <button type="button" data-act="reroll" class="min-h-11 px-3 rounded-lg border border-slate-700 bg-slate-900 hover:border-cyan-500 text-xs text-slate-200"><i class="fa-solid fa-shuffle mr-1.5"></i>출렁임 다시 뽑기</button>
-                </div>
-                <div data-out="pathsInfo"></div>
-                <div class="text-xs font-bold text-slate-200 mt-4 mb-1">앞으로 5년 (최근 2년 실제 + 3가지 경로)</div>
-                <div data-out="chart5"></div>
-                <div class="text-xs font-bold text-slate-200 mt-4 mb-1">앞으로 1년 확대 (최근 1년 실제 + 52주 범위 띠 + 3가지 경로)</div>
-                <div data-out="chart1"></div>
-                <details class="mt-3" open><summary class="text-xs font-bold text-cyan-200 cursor-pointer min-h-11 flex items-center">이 그림에 적용된 규칙 (이 종목 기준)</summary><div data-out="pathRules"></div></details>
-                <p class="text-xs text-slate-300 mt-3">끝점(5년 뒤 가격)은 ③의 계산값이고, 중간 길은 위 규칙에 이 종목의 과거 주간 등락을 섞어 만든 <b>한 가지 예시</b>예요(규칙은 근거가 약한 휴리스틱). 실제로는 같은 도착점이라도 길이 매우 다양하고, 예측이 아닙니다. 세로축은 로그(같은 간격 = 같은 비율)예요.</p>`, 'md:col-span-2')}
             </div>
 
             <details class="border-t border-slate-800 pt-3">
@@ -21553,8 +21540,6 @@ ${input}
           VS.st.pe = b.dataset.v; persist(); syncUi(); updateOutputs();
         } else if (a === 'mos-fill') {
           VS.st.mosReq = b.dataset.v; persist(); syncUi(); updateOutputs();
-        } else if (a === 'reroll') {
-          VS.seedN++; updateOutputs();
         } else if (a === 'smart') {
           const eps = VS.st.eps, man = VS.st.epsManual;
           VS.st = initState(VS.c, null); VS.st.eps = eps; VS.st.epsManual = man; // 기준 EPS 선택은 유지
