@@ -2223,7 +2223,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.57.4';
+    const APP_VERSION = '1.57.5';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3643,7 +3643,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           let remote = await fetchRemote(token), migrated = false;
           if (!remote && !fileId) { remote = await readLegacy(token); migrated = !!remote; }
           let changed = [];
-          if (remote && opt.apply) { changed = applyRemote(remote); if (changed.length && canReload()) frozen = true; }
+          if (remote && opt.apply) { changed = applyRemote(remote); if (changed.length) { try { window.dispatchEvent(new CustomEvent('gsync-applied', { detail: { keys: changed } })); } catch (e) { /* 무시 */ } if (canReload()) frozen = true; } }
           const payload = localPayload(remote, !!opt.apply);
           const same = remote && !migrated && JSON.stringify(remote.keys) === JSON.stringify(payload.keys) && JSON.stringify(remote.ev || {}) === JSON.stringify(payload.ev);
           if (!same) await writeRemote(token, payload, !!opt.keepalive);
@@ -26710,6 +26710,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         // 대기 주문이 있거나 이 탭이 열려 있으면 주기적으로 시세를 받아 체결·자산을 갱신한다
         timer = setInterval(() => { if (document.hidden) return; if (activeAppTab === 'sim' || openOrders().length || (dock && dock.getClientRects().length)) refresh(); }, 30000);
       }
+      // 동기화로 받은 계좌가 메모리에 남은 옛 계좌(S)에 가려지지 않게, 클라우드에서 적용되면 저장소에서 다시 읽어 화면을 갱신한다
+      window.addEventListener('gsync-applied', e => { if (!e.detail || !e.detail.keys.includes(KEY)) return; S = null; load(); if (inited) { if (root) render(); if (dock) renderDock(); } });
       function onOpen() { init(); if (!root) return; const st = load(); if (!st.orders.length && Object.keys(st.lots).length === 0 && !T.sym) V.sub = 'trade'; render(); refresh(); }
       if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.sim = onOpen;
       if (typeof APP_SYM_APPLY !== 'undefined') APP_SYM_APPLY.sim = sym => { if (sym && sym !== T.sym) { T.sym = sym; T.name = ''; T.cur = curOfSym(sym); if (CURS.includes(T.cur)) V.cur = T.cur; pickSymbol(sym, ''); } };
