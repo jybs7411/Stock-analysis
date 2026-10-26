@@ -2229,7 +2229,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.60.0';
+    const APP_VERSION = '1.61.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -4896,6 +4896,45 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const legend = k > 1 ? `<div class="flex gap-3 text-[10px] text-slate-400 mb-0.5">${series.map(s => `<span><i class="inline-block w-2 h-2 rounded-sm mr-1" style="background:${s.color}"></i>${escapeHtml(s.name)}</span>`).join('')}</div>` : '';
       return `<div class="min-w-0"><div class="text-[11px] text-slate-400 mb-0.5">${escapeHtml(title)}</div>${legend}<svg viewBox="0 0 ${W} ${top + H + bot + pad}" class="w-full h-auto max-h-44" style="max-width:${Math.max(W, 220) * 1.6}px" role="img" aria-label="${escapeHtml(title)}">${g}</svg></div>`;
     }
+    // 가로 막대 목록: rows [{label, v, text, color}]
+    function hBars(rows, title) {
+      rows = rows.filter(r => Number.isFinite(r.v));
+      if (!rows.length) return '';
+      const mx = Math.max(...rows.map(r => Math.abs(r.v))) || 1;
+      return `<div class="min-w-0">${title ? `<div class="text-[11px] text-slate-400 mb-1">${escapeHtml(title)}</div>` : ''}<div class="space-y-1">${rows.map(r => `<div class="flex items-center gap-2 text-[11px]"><span class="w-24 shrink-0 truncate text-slate-300" title="${escapeHtml(r.label)}">${escapeHtml(r.label)}</span><div class="flex-1 h-3.5 rounded bg-slate-800/70 overflow-hidden"><div class="h-full rounded" style="width:${Math.max(2, Math.abs(r.v) / mx * 100)}%;background:${r.color || '#38bdf8'}"></div></div><span class="w-16 shrink-0 text-right font-mono-numbers text-slate-200">${escapeHtml(r.text)}</span></div>`).join('')}</div></div>`;
+    }
+    // 100% 누적 가로 막대: parts [{label, v, color}]
+    function stackBar(parts, title) {
+      parts = parts.filter(p => Number.isFinite(p.v) && p.v > 0);
+      const tot = parts.reduce((a, p) => a + p.v, 0);
+      if (!tot) return '';
+      return `<div class="min-w-0">${title ? `<div class="text-[11px] text-slate-400 mb-1">${escapeHtml(title)}</div>` : ''}<div class="flex w-full h-4 rounded-full overflow-hidden bg-slate-800">${parts.map(p => `<div style="width:${p.v / tot * 100}%;background:${p.color}" title="${escapeHtml(p.label)} ${p.v.toFixed(1)}%"></div>`).join('')}</div><div class="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[11px] text-slate-400">${parts.map(p => `<span class="flex items-center gap-1"><i class="w-2 h-2 rounded-full inline-block" style="background:${p.color}"></i>${escapeHtml(p.label)} <b class="font-mono-numbers text-slate-200">${p.v.toFixed(1)}%</b></span>`).join('')}</div></div>`;
+    }
+    // 도넛: pct(0~100)이 채워진 비율
+    function donutSvg(pct, color, center, sub, title) {
+      if (!Number.isFinite(pct)) return '';
+      const r = 34, c = 2 * Math.PI * r, f = Math.min(100, Math.max(0, pct)) / 100 * c;
+      return `<div class="flex flex-col items-center min-w-0">${title ? `<div class="text-[11px] text-slate-400 mb-1">${escapeHtml(title)}</div>` : ''}<svg viewBox="0 0 90 90" class="w-24 h-24" role="img" aria-label="${escapeHtml(title || '')} ${escapeHtml(center)}"><circle cx="45" cy="45" r="${r}" fill="none" stroke="#1e293b" stroke-width="10"/><circle cx="45" cy="45" r="${r}" fill="none" stroke="${color}" stroke-width="10" stroke-dasharray="${f} ${c - f}" transform="rotate(-90 45 45)" stroke-linecap="butt"/><text x="45" y="49" text-anchor="middle" font-size="14" font-weight="700" fill="#f1f5f9" font-family="monospace">${escapeHtml(center)}</text></svg>${sub ? `<div class="text-[10px] text-slate-500 mt-0.5">${escapeHtml(sub)}</div>` : ''}</div>`;
+    }
+    // 월별 누적 막대(투자의견 추이): rows [{label, vals:[...]}]
+    function stackColsSvg(rows, colors, names, title) {
+      rows = rows.filter(r => r.vals.some(v => v > 0));
+      if (!rows.length) return '';
+      const slot = 44, W = rows.length * slot, H = 90, top = 6;
+      const mx = Math.max(...rows.map(r => r.vals.reduce((a, v) => a + v, 0))) || 1;
+      let g = '';
+      rows.forEach((r, i) => {
+        let y = top + H; const x = i * slot + 8, w = slot - 16;
+        r.vals.forEach((v, j) => {
+          if (!(v > 0)) return;
+          const h = v / mx * H; y -= h;
+          g += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${colors[j]}"><title>${escapeHtml(names[j])} ${v}</title></rect>`;
+          if (h >= 10) g += `<text x="${x + w / 2}" y="${y + h / 2 + 3}" text-anchor="middle" font-size="8" fill="#0b0e13" font-weight="700" font-family="monospace">${v}</text>`;
+        });
+        g += `<text x="${i * slot + slot / 2}" y="${top + H + 12}" text-anchor="middle" font-size="9" fill="#94a3b8">${escapeHtml(r.label)}</text>`;
+      });
+      return `<div class="min-w-0"><div class="text-[11px] text-slate-400 mb-1">${escapeHtml(title)}</div><svg viewBox="0 0 ${W} ${top + H + 18}" class="w-full h-auto max-h-44" style="max-width:${W * 1.8}px" role="img" aria-label="${escapeHtml(title)}">${g}</svg><div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400">${names.map((n, j) => `<span><i class="inline-block w-2 h-2 rounded-sm mr-1" style="background:${colors[j]}"></i>${escapeHtml(n)}</span>`).join('')}</div></div>`;
+    }
     const pctNote = v => hasVal(v) ? { text: `${v >= 0 ? '+' : ''}${v}%`, color: v >= 0 ? '#34d399' : '#fb7185' } : null;
 
     function tableHtml(headers, rows) {
@@ -5026,7 +5065,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       ]));
       const fhx = deep.finnhub || {};
       if (fhx.reco && fhx.reco.length > 1) {
-        body += `<div class="text-xs text-slate-400 mt-3 mb-1">Finnhub 투자의견 추이 (최근 ${fhx.reco.length}개월 — 매수 쪽이 늘고 있는지 확인)</div>` + tableHtml(['월', '적극 매수', '매수', '중립', '매도', '적극 매도'], fhx.reco.map(r => [String(r.period || '').slice(0, 7), String(r.strongBuy ?? ''), String(r.buy ?? ''), String(r.hold ?? ''), String(r.sell ?? ''), String(r.strongSell ?? '')]));
+        body += '<div class="mt-3">' + stackColsSvg(fhx.reco.map(r => ({ label: String(r.period || '').slice(2, 7), vals: [r.strongBuy, r.buy, r.hold, r.sell, r.strongSell].map(v => Number(v) || 0) })),
+          ['#10b981', '#6ee7b7', '#fbbf24', '#fb7185', '#e11d48'], ['적극 매수', '매수', '중립', '매도', '적극 매도'], `Finnhub 투자의견 추이 (최근 ${fhx.reco.length}개월 — 매수 쪽이 늘고 있는지 확인)`) + '</div>';
       }
       if (fhx.insider && fhx.insider.length) {
         const rec = fhx.insider.slice(-3), sumMspr = rec.reduce((a, m) => a + (Number.isFinite(m.mspr) ? m.mspr : 0), 0), sumCh = rec.reduce((a, m) => a + (Number.isFinite(m.change) ? m.change : 0), 0);
@@ -5038,22 +5078,26 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       cards.push(deepCard('애널리스트 의견', 'fa-user-tie', 'bg-cyan-950 text-cyan-400', body));
 
       // 4. 수급·내부자
-      body = metricRows([
-        ['내부자 보유', pctStr(ow.insidersPct)],
-        ['기관 보유', pctStr(ow.institutionsPct)],
+      body = '';
+      const insP = Number(ow.insidersPct), instP = Number(ow.institutionsPct);
+      if (hasVal(ow.insidersPct) || hasVal(ow.institutionsPct)) {
+        const other = 100 - (Number.isFinite(insP) ? insP : 0) - (Number.isFinite(instP) ? instP : 0);
+        body += stackBar([{ label: '내부자', v: insP, color: '#a78bfa' }, { label: '기관', v: instP, color: '#38bdf8' }, { label: '개인·기타', v: other, color: '#475569' }], '보유 주체별 지분') + '<div class="mt-3"></div>';
+      }
+      body += metricRows([
         ['유통주식 대비 기관', pctStr(ow.institutionsFloatPct)],
         ['보유 기관 수', hasVal(ow.institutionsCount) ? String(ow.institutionsCount) : '']
       ]);
       const ni = ow.netInsider || {};
       if (hasVal(ni.netShares) || hasVal(ni.buyShares) || hasVal(ni.sellShares)) {
-        body += metricRows([
-          [`내부자 매수${ni.period ? ` (${ni.period})` : ''}`, hasVal(ni.buyShares) ? fmtShares(ni.buyShares) + '주' : ''],
-          ['내부자 매도', hasVal(ni.sellShares) ? fmtShares(ni.sellShares) + '주' : ''],
-          ['순매수', hasVal(ni.netShares) ? fmtShares(ni.netShares) + '주' : '', signCls(ni.netShares)]
-        ]);
+        body += '<div class="mt-3"></div>' + hBars([
+          { label: '내부자 매수', v: Number(ni.buyShares), text: fmtShares(ni.buyShares), color: '#34d399' },
+          { label: '내부자 매도', v: Number(ni.sellShares), text: fmtShares(ni.sellShares), color: '#fb7185' }
+        ], `내부자 매수 vs 매도${ni.period ? ` (${ni.period})` : ''}`);
+        body += metricRows([['순매수', hasVal(ni.netShares) ? fmtShares(ni.netShares) + '주' : '', signCls(ni.netShares)]]);
       }
       const insts = (ow.topInstitutions || []).filter(o => o.org);
-      body += tableHtml(['주요 기관', '지분', '보유 주식'], insts.map(o => [o.org, hasVal(o.pct) ? `${o.pct}%` : '', fmtShares(o.position)]));
+      if (insts.length) body += '<div class="mt-3"></div>' + hBars(insts.map(o => ({ label: o.org, v: Number(o.pct), text: hasVal(o.pct) ? `${o.pct}%` : '', color: '#38bdf8' })), '주요 기관 지분');
       const insiders = (ow.insiderTransactions || []).filter(x => x.name);
       body += tableHtml(['날짜', '내부자', '거래', '주식'], insiders.map(x => [x.date || '', `${x.name}${x.relation ? ` (${x.relation})` : ''}`, x.text || '', fmtShares(x.shares)]));
       cards.push(deepCard('수급 · 내부자 거래', 'fa-people-group', 'bg-purple-950 text-purple-400', body));
@@ -5070,7 +5114,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }
 
       // 5. 배당
-      body = metricRows([
+      const payP = Number(dv.payoutRatio);
+      body = hasVal(dv.payoutRatio) ? `<div class="flex items-center gap-4 mb-2">${donutSvg(payP, payP > 100 ? '#fb7185' : payP > 80 ? '#fbbf24' : '#34d399', `${payP.toFixed(0)}%`, '이익 중 배당으로 나가는 비율', '배당성향')}<div class="text-[11px] text-slate-400 leading-relaxed min-w-0">${hasVal(dv.yield) ? `주가 대비 연 <b class="text-amber-300">${dv.yield}%</b>` : ''}${hasVal(dv.rate) ? ` · 주당 ${escapeHtml(curSym())}${dv.rate}` : ''}<br>${payP > 100 ? '벌어들인 이익보다 더 많이 배당 중 — 지속 가능성 확인' : payP > 80 ? '이익 대부분을 배당으로 지급' : '이익 일부만 배당, 나머지는 재투자'}</div></div>` : '';
+      body += metricRows([
         ['배당수익률', hasVal(dv.yield) ? `${dv.yield}%` : '', '', rateMetric('divYield', dv.yield)],
         ['연간 배당금', hasVal(dv.rate) ? `${curSym()}${dv.rate}` : ''],
         ['배당성향', pctStr(dv.payoutRatio), '', rateMetric('payout', dv.payoutRatio)],
