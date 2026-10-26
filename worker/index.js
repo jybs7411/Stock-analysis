@@ -766,11 +766,11 @@ const PREDICT_SERIES = [
   { id: 'KXCPI', ko: '미국 CPI(전월비)' }
 ];
 async function fetchPredict() {
-  const out = [];
+  const out = [], errs = [];
   await Promise.all(PREDICT_SERIES.map(async (sr) => {
     try {
-      const r = await fetch(`https://external-api.kalshi.com/trade-api/v2/markets?series_ticker=${sr.id}&status=open&limit=100`, { headers: { accept: 'application/json' } });
-      if (!r.ok) return;
+      const r = await fetch(`https://external-api.kalshi.com/trade-api/v2/markets?series_ticker=${sr.id}&status=open&limit=100`, { headers: { accept: 'application/json', 'User-Agent': UA } });
+      if (!r.ok) { errs.push(`${sr.id}: HTTP ${r.status}`); return; }
       const d = await r.json();
       const ms = (d.markets || []).filter(m => m.close_time);
       if (!ms.length) return;
@@ -782,8 +782,9 @@ async function fetchPredict() {
         return { label: m.yes_sub_title || m.title, p, vol: parseFloat(m.volume_24h_fp) || 0, url: 'https://kalshi.com/markets/' + sr.id.toLowerCase() };
       }).filter(x => x.p != null);
       if (items.length) out.push({ id: sr.id, ko: sr.ko, title: ms.find(m => m.event_ticker === ev).title, close: first, items });
-    } catch (e) { /* 한 시리즈 실패는 건너뜀 */ }
+    } catch (e) { errs.push(`${sr.id}: ${String(e && e.message || e)}`); }
   }));
+  if (!out.length) throw new Error('Kalshi 응답 없음 — ' + (errs.join('; ') || '열린 시장 없음'));
   out.sort((a, b) => PREDICT_SERIES.findIndex(x => x.id === a.id) - PREDICT_SERIES.findIndex(x => x.id === b.id));
   return { source: 'Kalshi', fetchedAt: Date.now(), groups: out };
 }
