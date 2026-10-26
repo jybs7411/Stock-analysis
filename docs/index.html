@@ -815,6 +815,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
               <span data-gsync-status></span>
             </div>
           </div>
+          <button type="button" id="btnSyncNow" onclick="hdrSyncNow()" class="w-6 h-6 flex items-center justify-center rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="지금 동기화 (Google Drive와 맞추기)" aria-label="지금 동기화"><i class="fa-solid fa-rotate text-[11px]"></i></button>
           <div class="hidden md:flex items-center gap-1">
             <a id="btnLinkGoogle" href="https://www.google.com/search?q=JVA+stock+price" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1" title="Google 실시간 검색으로 주가 및 뉴스 확인">
               <i class="fa-brands fa-google text-cyan-400"></i>
@@ -2211,7 +2212,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.62.0';
+    const APP_VERSION = '1.63.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3695,6 +3696,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       // 헤더 불빛: 꺼짐(회색)=로그아웃, 파랑=동기화 중, 빨강=실패, 주황=변경 대기, 초록=최신
       function renderBadges() {
         document.querySelectorAll('[data-gsync-status]').forEach(el => { el.innerHTML = statusHtml(); });
+        const sb = document.querySelector('#btnSyncNow i'); if (sb) sb.classList.toggle('fa-spin', !!busy);
         const dot = document.getElementById('liveFeedDot'); if (!dot) return;
         const c = !user() ? ['bg-slate-500', ''] : busy ? ['bg-sky-400 animate-pulse', 'shadow-sky-500/60'] : lastErr ? ['bg-rose-400', 'shadow-rose-500/60'] : dirty || waiting ? ['bg-amber-400', 'shadow-amber-500/60'] : ['bg-emerald-400', 'shadow-emerald-500/60'];
         dot.className = `w-2.5 h-2.5 rounded-full ${c[0]}${c[1] ? ' shadow ' + c[1] : ''}`;
@@ -3709,6 +3711,12 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         backups: () => jparse(ls.get(BAK_KEY)) || {}
       };
     })();
+
+    // 헤더 '지금 동기화' 버튼: 로그인 전이면 로그인, 후면 Drive와 양방향으로 맞춘다(불러와 합친 뒤 저장)
+    function hdrSyncNow() {
+      if (!GSYNC.isOn()) { GAUTH.login(); return; }
+      GSYNC.loadNow(false);
+    }
 
     // ===== 모바일 1초 전송 (QR Code Instant Sync) =====    // ===== 모바일 1초 전송 (QR Code Instant Sync) =====
     function openQrSyncModal() {
