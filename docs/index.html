@@ -1114,7 +1114,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       <div class="absolute -right-10 -bottom-10 opacity-5 pointer-events-none text-9xl text-cyan-400">
         <i class="fa-solid fa-chart-line"></i>
       </div>
-      <div class="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] gap-6 lg:gap-8 items-start">
+      <div class="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] gap-6 lg:gap-8 items-stretch">
       <div class="max-w-3xl min-w-0">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800 text-cyan-400 text-xs font-semibold mb-3">
           <i class="fa-solid fa-users-viewfinder"></i> 5인의 독자적 투자 위원회
@@ -1262,7 +1262,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       </div>
 
       <!-- 최근 검색한 종목 (브라우저에 저장) -->
-      <aside id="recentPanel" class="rounded-2xl bg-slate-950/70 border border-slate-800 flex flex-col lg:max-h-[600px] min-w-0">
+      <aside id="recentPanel" class="relative min-w-0 lg:self-stretch lg:min-h-[380px]"><div class="rounded-2xl bg-slate-950/70 border border-slate-800 flex flex-col max-h-[420px] lg:max-h-none lg:absolute lg:inset-0 overflow-hidden">
         <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
           <div class="flex items-center gap-2 text-sm font-bold text-white">
             <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
@@ -1273,6 +1273,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         </div>
         <div id="recentList" class="overflow-y-auto flex-1 divide-y divide-slate-800/70"></div>
         <p class="px-4 py-2 border-t border-slate-800 text-[10px] text-slate-500 leading-snug">이 브라우저에만 저장됩니다. 가격·등락률은 <strong class="text-slate-400">검색한 시점</strong> 값이며, 클릭하면 최신 데이터로 다시 분석합니다.</p>
+      </div>
       </aside>
       </div>
     </section>
@@ -1302,132 +1303,64 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     <div id="dashboardSection" class="hidden space-y-6">
 
       <!-- Stock Overview Header & Live Quote Banner -->
-      <div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
-        <div class="min-w-0">
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <button type="button" id="dispStarBtn" data-star="" onclick="starToggle(this.dataset.star)" aria-pressed="false" aria-label="관심종목에 추가" title="관심종목에 추가/제거" class="w-11 h-11 grid place-items-center rounded-xl border border-slate-700 bg-slate-900 hover:border-yellow-500/60 shrink-0"><i class="fa-regular fa-star text-lg text-slate-400"></i></button>
-            <h2 id="dispTicker" class="text-3xl font-extrabold text-white font-mono-numbers tracking-tight">AAPL</h2>
-            <span id="dispCompanyName" class="text-lg text-slate-300 font-semibold">Apple Inc.</span>
-            <span id="dispSector" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-cyan-400 border border-slate-700">Technology</span>
-            <span id="dispDataBadge" class="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono-numbers flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-              REAL-TIME MARKET
-            </span>
+      <div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 lg:p-6 shadow-xl space-y-4">
+        <div class="flex flex-col md:flex-row justify-between items-start gap-5">
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <button type="button" id="dispStarBtn" data-star="" onclick="starToggle(this.dataset.star)" aria-pressed="false" aria-label="관심종목에 추가" title="관심종목에 추가/제거" class="w-11 h-11 grid place-items-center rounded-xl border border-slate-700 bg-slate-900 hover:border-yellow-500/60 shrink-0"><i class="fa-regular fa-star text-lg text-slate-400"></i></button>
+              <h2 id="dispTicker" class="text-3xl font-extrabold text-white font-mono-numbers tracking-tight">AAPL</h2>
+              <span id="dispCompanyName" class="text-lg text-slate-300 font-semibold">Apple Inc.</span>
+              <span id="dispDataBadge" class="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono-numbers flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                REAL-TIME MARKET
+              </span>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5 mt-2.5 text-xs">
+              <span id="dispCountry" class="hidden px-2.5 py-1 rounded-full bg-indigo-950/70 text-indigo-200 border border-indigo-800/70 font-semibold"></span>
+              <span id="dispSector" class="px-2.5 py-1 rounded-full bg-slate-800 text-cyan-400 border border-slate-700">Technology</span>
+              <span id="dispIndustry" class="hidden px-2.5 py-1 rounded-full bg-slate-900 text-slate-300 border border-slate-700"></span>
+              <span id="dispExchange" class="hidden px-2.5 py-1 rounded-full bg-slate-900 text-slate-400 border border-slate-800 font-mono-numbers"></span>
+            </div>
+            <p id="dispSummary" onclick="this.classList.toggle('line-clamp-3')" title="클릭하면 전체 보기/접기" class="text-xs sm:text-sm text-slate-400 mt-2.5 max-w-3xl leading-relaxed line-clamp-3 cursor-pointer">
+              비즈니스 개요 요약
+            </p>
           </div>
-          <p id="dispSummary" class="text-xs sm:text-sm text-slate-400 mt-2 max-w-3xl leading-relaxed">
-            비즈니스 개요 요약
-          </p>
-        </div>
 
-        <!-- Price & Consensus Badge -->
-        <div class="flex flex-row md:flex-col items-end justify-between w-full md:w-auto gap-4 border-t md:border-t-0 pt-3 md:pt-0 border-slate-800">
-          <div class="text-left md:text-right">
-            <span class="text-xs text-slate-400 block">현재 주가 (USD)</span>
-            <div class="flex items-baseline gap-2">
-              <span id="dispPrice" class="text-3xl font-bold font-mono-numbers text-white">$0.00</span>
-              <span id="dispChange" class="text-sm font-semibold font-mono-numbers text-emerald-400">+0.00%</span>
+          <!-- Price & Consensus Badge -->
+          <div class="flex flex-row md:flex-col items-end justify-between w-full md:w-auto gap-4 border-t md:border-t-0 pt-3 md:pt-0 border-slate-800">
+            <div class="text-left md:text-right">
+              <span id="dispPriceLabel" class="text-xs text-slate-400 block">현재 주가 (USD)</span>
+              <div class="flex items-baseline gap-2 md:justify-end">
+                <span id="dispPrice" class="text-3xl font-bold font-mono-numbers text-white">$0.00</span>
+                <span id="dispChange" class="text-sm font-semibold font-mono-numbers text-emerald-400">+0.00%</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs text-slate-400 block mb-1">5인 위원회 컨센서스</span>
+              <span id="dispConsensusBadge" class="px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                STRONG BUY
+              </span>
             </div>
           </div>
-          <div class="text-right">
-            <span class="text-xs text-slate-400 block mb-1">5인 위원회 컨센서스</span>
-            <span id="dispConsensusBadge" class="px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              STRONG BUY
-            </span>
-          </div>
         </div>
+
+        <!-- 52주 범위 + 핵심 시장 지표 -->
+        <div id="dispRange" class="hidden"></div>
+        <div id="dispStats" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-9 gap-2.5"></div>
       </div>
 
-      <!-- Gemini Multimodal Studio Toolbar -->
-      <div class="bg-gradient-to-r from-cyan-950/40 via-indigo-950/40 to-slate-900 border border-cyan-800/40 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xl">
-        <div class="flex items-center space-x-3">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-500 flex items-center justify-center text-white text-base shadow-md">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
+      <!-- Finviz 지표 / 기술적 분석 & 타겟 (탭 2개, 카드 1개) -->
+      <div data-fold class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-slate-800/80 pb-3">
+          <div class="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-800" role="tablist">
+            <button type="button" role="tab" id="atab-finviz" onclick="analysisTab('finviz')" class="px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 bg-cyan-950 text-cyan-300 border border-cyan-500/60"><i class="fa-solid fa-table-cells"></i>Finviz 핵심 지표</button>
+            <button type="button" role="tab" id="atab-tech" onclick="analysisTab('tech')" class="px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 text-slate-400 hover:text-white border border-transparent"><i class="fa-solid fa-chart-column"></i>기술적 분석 &amp; 타겟</button>
           </div>
-          <div>
-            <h4 class="text-sm font-bold text-white flex items-center gap-2">
-              브리핑 · 인포그래픽 스튜디오
-              <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-900 text-cyan-300 border border-cyan-700">TTS · Image</span>
-            </h4>
-            <p class="text-xs text-slate-400">오디오 팟캐스트 브리핑 청취 또는 시각적 투자 인포그래픽을 원클릭으로 생성합니다.</p>
-          </div>
+          <span id="chartTrendBadge" class="text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">상승 추세</span>
         </div>
 
-        <div class="flex items-center gap-2.5 flex-wrap">
-          <button
-            onclick="generateAudioBriefing()"
-            id="audioBriefingBtn"
-            class="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-cyan-300 border border-cyan-700/50 hover:border-cyan-400 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow"
-          >
-            <i class="fa-solid fa-headphones"></i>
-            <span>오디오 브리핑 듣기 (브라우저 TTS)</span>
-          </button>
-
-          <button
-            onclick="generateInfographicCard()"
-            id="infographicBtn"
-            class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:scale-95 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-purple-600/30"
-          >
-            <i class="fa-solid fa-image"></i>
-            <span>AI 비주얼 인포그래픽 생성</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Audio Player Container (Hidden by default) -->
-      <div id="audioPlayerPanel" class="hidden bg-slate-900/90 border border-cyan-800/60 rounded-2xl p-4 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div class="flex items-center space-x-3">
-          <div class="w-10 h-10 rounded-full bg-cyan-950 border border-cyan-500 flex items-center justify-center text-cyan-400 text-lg animate-pulse">
-            <i class="fa-solid fa-volume-high"></i>
-          </div>
-          <div>
-            <span class="text-xs font-bold text-white block">PentAnalyst 팟캐스트 모닝 브리핑</span>
-            <span id="audioStatusText" class="text-[11px] text-cyan-400 font-mono-numbers">브라우저 음성 엔진 준비 중...</span>
-          </div>
-        </div>
-        <div class="flex items-center gap-3 w-full sm:w-auto">
-          <audio id="ttsAudioElement" controls class="h-9 w-full sm:w-72 bg-slate-800 rounded-lg outline-none"></audio>
-          <button onclick="closeAudioPlayer()" class="text-slate-400 hover:text-white text-sm p-2"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-      </div>
-
-      <!-- Infographic Modal Preview Container (Hidden by default) -->
-      <div id="infographicPanel" class="hidden bg-slate-900/95 border border-purple-800/60 rounded-2xl p-5 shadow-2xl space-y-3">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
-            <h4 class="text-sm font-bold text-white">투자 인포그래픽 카드 (Canvas 렌더링)</h4>
-          </div>
-          <button onclick="closeInfographicPanel()" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div id="infographicLoading" class="py-12 text-center space-y-3">
-          <div class="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p class="text-xs text-purple-300">월스트리트 스타일 고해상도 인포그래픽 렌더링 중...</p>
-        </div>
-        <div id="infographicResult" class="hidden flex flex-col items-center">
-          <img id="infographicImage" alt="AI Stock Infographic" class="rounded-xl border border-slate-700 max-h-[500px] w-auto object-contain shadow-2xl" />
-          <div class="mt-3 flex items-center justify-between w-full text-xs text-slate-400">
-            <span>브라우저 Canvas로 직접 렌더링</span>
-            <a id="downloadImageBtn" download="Stock_Infographic.png" href="#" class="text-cyan-400 hover:underline flex items-center gap-1">
-              <i class="fa-solid fa-download"></i> 고화질 이미지 다운로드
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Finviz Metrics Grid & Interactive Technical Preview -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        <!-- Finviz Key Metrics Table (8 Cols) -->
-        <div data-fold class="lg:col-span-8 bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-4 border-b border-slate-800/80 pb-3">
-            <div class="flex items-center gap-2">
-              <span class="p-1.5 rounded bg-cyan-950 text-cyan-400 text-sm"><i class="fa-solid fa-table-cells"></i></span>
-              <h3 class="text-base font-bold text-white tracking-wide">Finviz 스타일 핵심 재무/기술 지표 표</h3>
-            </div>
-            <span class="text-xs text-slate-400"><i class="fa-solid fa-arrow-trend-up text-cyan-400 mr-1"></i>정밀 팩터 테이블</span>
-          </div>
-
-          <!-- Metric cards with traffic-light rating -->
+        <!-- 탭 1: Finviz -->
+        <div id="apane-finviz">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-[11px] text-slate-400">
             <div id="metricSummary" class="flex items-center gap-3"></div>
             <div class="flex items-center gap-3">
@@ -1437,67 +1370,57 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
               <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span>위험</span>
             </div>
           </div>
-          <div id="finvizTableBody" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+          <div id="finvizTableBody" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"></div>
           <p class="text-[10px] text-slate-500 mt-3 leading-snug">※ 색상은 일반적인 경험칙 기준입니다. 업종·시장 상황에 따라 다르므로 참고용으로만 보세요. 투자 권유가 아닙니다.</p>
           <details class="mt-3 group">
             <summary class="cursor-pointer text-xs font-semibold text-cyan-300 hover:text-cyan-200 select-none"><i class="fa-solid fa-book-open mr-1"></i>지표 읽는 법 (펼치기)</summary>
             <div id="metricGuideBody" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
           </details>
           <p id="dataFeedNote" class="text-[10px] text-slate-500 mt-2"></p>
-
-          <div class="mt-4 flex flex-wrap items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-800/80">
-            <div><i class="fa-solid fa-circle-info text-cyan-400 mr-1"></i>P/E, PEG, Short Float, 52주 변동폭 및 20/50/200 이평선 배열 상태</div>
-            <div class="text-slate-400">통화: <strong class="text-slate-200">USD ($)</strong></div>
-          </div>
         </div>
 
-        <!-- Technical Chart & Target Gauge (4 Cols) -->
-        <div class="lg:col-span-4 bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
-              <div class="flex items-center gap-2">
-                <span class="p-1.5 rounded bg-blue-950 text-blue-400 text-sm"><i class="fa-solid fa-chart-column"></i></span>
-                <h3 class="text-base font-bold text-white">기술적 추세 & 타겟</h3>
+        <!-- 탭 2: 기술적 분석 & 타겟 -->
+        <div id="apane-tech" class="hidden space-y-4">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div class="lg:col-span-7 space-y-3 min-w-0">
+              <div class="relative bg-slate-950 rounded-xl border border-slate-800/80 h-72 overflow-hidden">
+                <canvas id="techTrendCanvas" class="block w-full h-full"></canvas>
+                <div class="absolute top-2 left-3 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400 font-mono-numbers pointer-events-none">
+                  <span class="text-cyan-300">● 종가 6M</span><span class="text-amber-400">━ SMA20</span><span class="text-violet-400">━ SMA50</span><span class="text-rose-400">━ SMA200</span><span class="text-slate-400">▒ 볼린저</span><span class="text-emerald-400">┄ 지지</span><span class="text-rose-300">┄ 저항</span>
+                </div>
               </div>
-              <span id="chartTrendBadge" class="text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">상승 추세</span>
+              <div id="techSignalSummary"></div>
             </div>
-
-            <!-- Canvas for Candlestick / Trend Simulation -->
-            <div class="relative bg-slate-950 rounded-xl p-2 border border-slate-800/80 h-44 flex items-center justify-center overflow-hidden">
-              <canvas id="techTrendCanvas" class="w-full h-full"></canvas>
-              <div class="absolute bottom-2 left-3 text-[10px] text-slate-500 font-mono-numbers">
-                FINVIZ 6M PATTERN PREVIEW
+            <div class="lg:col-span-5 space-y-3 min-w-0">
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                <div class="flex justify-between items-center text-xs">
+                  <span class="text-slate-400">애널리스트 평균 목표가</span>
+                  <span id="dispAvgTarget" class="text-lg font-bold text-cyan-400 font-mono-numbers">$0.00</span>
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                  <span class="text-slate-400">예상 상승/하락 여력</span>
+                  <span id="dispTargetUpside" class="font-bold text-emerald-400 font-mono-numbers">+0.0%</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden mt-1" title="목표가 범위(최저~최고) 안에서 현재가의 위치">
+                  <div id="targetBar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-2 rounded-full" style="width: 60%"></div>
+                </div>
+                <div class="flex justify-between text-[10px] text-slate-500 font-mono-numbers">
+                  <span id="targetMin">최저: $0</span>
+                  <span id="targetMax">최고: $0</span>
+                </div>
               </div>
+              <div id="techTargetExtra"></div>
+              <div id="revCard"></div>
             </div>
-
-            <!-- Target Price Card -->
-            <div class="mt-4 p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-              <div class="flex justify-between items-center text-xs">
-                <span class="text-slate-400">평균 목표 주가:</span>
-                <span id="dispAvgTarget" class="text-lg font-bold text-cyan-400 font-mono-numbers">$0.00</span>
-              </div>
-              <div class="flex justify-between items-center text-xs">
-                <span class="text-slate-400">예상 상승/하락 여력:</span>
-                <span id="dispTargetUpside" class="font-bold text-emerald-400 font-mono-numbers">+0.0%</span>
-              </div>
-              <!-- Range Bar -->
-              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden mt-1">
-                <div id="targetBar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-2 rounded-full" style="width: 60%"></div>
-              </div>
-              <div class="flex justify-between text-[10px] text-slate-500 font-mono-numbers">
-                <span id="targetMin">최저: $0</span>
-                <span id="targetMax">최고: $0</span>
-              </div>
-            </div>
-            <div id="revCard" class="mt-3"></div>
           </div>
-
-          <div class="mt-4 pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+          <div id="techIndicatorGrid" class="space-y-3"></div>
+          <div id="techLevels" class="grid grid-cols-1 lg:grid-cols-3 gap-3"></div>
+          <div class="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
             <span>RSI(14): <strong id="dispRSI" class="text-slate-200">54.2</strong></span>
             <span>200 SMA: <strong id="dispSMA200" class="text-emerald-400">상회 (강세)</strong></span>
+            <span class="text-slate-500">※ 일봉 기준 자동 계산 · 참고용이며 투자 권유가 아닙니다.</span>
           </div>
         </div>
-
       </div>
 
       <!-- Pro Chart Station (TradingView-style) -->
@@ -2212,7 +2135,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.64.0';
+    const APP_VERSION = '1.65.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -4576,6 +4499,17 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         ticker: upperTicker,
         name: stockName,
         sector: stockSector,
+        industry: f.industry || '',
+        exchange: f.exchange || (market && market.exchange) || '',
+        country: f.country || '',
+        countryInfo: countryInfo(upperTicker, f, market),
+        marketCap: pick(f.marketCap),
+        beta: pick(f.beta),
+        divYield: pick(f.dividendYieldPct),
+        numAnalysts: pick(f.numAnalysts),
+        recMean: pick(f.recMean),
+        high52, low52, pos52,
+        stats: histStats(history, f),
         price: price !== null ? price.toFixed(2) : '',
         change: market ? (market.change || '') : '',
         consensus: g.consensus || f.consensus || '',
@@ -4594,19 +4528,19 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         dataFeed,
         expertsNotice,
         finviz: [
-          { label: 'P/E', key: 'pe', raw: pe, val: fmtNum(pe) },
-          { label: 'Forward P/E', key: 'fpe', raw: forwardPe, val: fmtNum(forwardPe, 1) },
-          { label: 'PEG', key: 'peg', raw: peg, val: fmtNum(peg) },
-          { label: 'P/S', key: 'ps', raw: pSales, val: fmtNum(pSales) },
-          { label: 'P/B', key: 'pb', raw: pBook, val: fmtNum(pBook) },
-          { label: 'ROE', key: 'roe', raw: roe, val: fmtNum(roe, null, '%') },
-          { label: '52주 위치', key: 'pos52', raw: pos52, val: pos52 !== null ? `${pos52.toFixed(0)}%` : '', sub: (low52 !== null && high52 !== null) ? `저 ${fmtPx(low52)} ~ 고 ${fmtPx(high52)}` : '' },
-          { label: 'Short Float', key: 'shortFloat', raw: shortFloat, val: fmtNum(shortFloat, null, '%') },
-          { label: 'SMA20', key: 'sma20', raw: parseFloat(tech.sma20Diff), val: tech.sma20Diff },
-          { label: 'SMA50', key: 'sma50', raw: parseFloat(tech.sma50Diff), val: tech.sma50Diff },
-          { label: 'SMA200', key: 'sma200', raw: parseFloat(tech.sma200Diff), val: tech.sma200Diff },
-          { label: 'RSI (14)', key: 'rsi', raw: tech.rsi, val: fmtNum(tech.rsi) },
-          { label: '목표가 상승여력', key: 'upside', raw: upside, val: targetAvg !== null ? `${fmtPx(targetAvg)}${upside !== null ? ` (${upside >= 0 ? '+' : ''}${upside.toFixed(1)}%)` : ''}` : '' }
+          { grp: 'val', label: 'P/E', key: 'pe', raw: pe, val: fmtNum(pe, 1) },
+          { grp: 'val', label: 'Forward P/E', key: 'fpe', raw: forwardPe, val: fmtNum(forwardPe, 1) },
+          { grp: 'val', label: 'PEG', key: 'peg', raw: peg, val: fmtNum(peg, 2) },
+          { grp: 'val', label: 'P/S', key: 'ps', raw: pSales, val: fmtNum(pSales, 2) },
+          { grp: 'val', label: 'P/B', key: 'pb', raw: pBook, val: fmtNum(pBook, 2) },
+          { grp: 'val', label: 'ROE', key: 'roe', raw: roe, val: fmtNum(roe, 1, '%') },
+          { grp: 'pos', label: '52주 위치', key: 'pos52', raw: pos52, val: pos52 !== null ? `${pos52.toFixed(0)}%` : '', sub: (low52 !== null && high52 !== null) ? `저 ${fmtPx(low52)} ~ 고 ${fmtPx(high52)}` : '' },
+          { grp: 'pos', label: 'Short Float', key: 'shortFloat', raw: shortFloat, val: fmtNum(shortFloat, 1, '%') },
+          { grp: 'pos', label: '목표가 상승여력', key: 'upside', raw: upside, val: targetAvg !== null ? `${fmtPx(targetAvg)}${upside !== null ? ` (${upside >= 0 ? '+' : ''}${upside.toFixed(1)}%)` : ''}` : '' },
+          { grp: 'trend', label: 'SMA20', key: 'sma20', raw: parseFloat(tech.sma20Diff), val: tech.sma20Diff },
+          { grp: 'trend', label: 'SMA50', key: 'sma50', raw: parseFloat(tech.sma50Diff), val: tech.sma50Diff },
+          { grp: 'trend', label: 'SMA200', key: 'sma200', raw: parseFloat(tech.sma200Diff), val: tech.sma200Diff },
+          { grp: 'trend', label: 'RSI (14)', key: 'rsi', raw: tech.rsi, val: fmtNum(tech.rsi, 1) }
         ],
         experts, bullCase, bearCase
       };
@@ -5386,12 +5320,339 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return { text: '횡보 / 혼조', cls: 'bg-amber-950 text-amber-300 border-amber-800' };
     }
 
+    // ===== 종목 헤더 확장 (국가·거래 통계) / 분석 탭 / 기술적 분석 패널 =====
+    const COUNTRY_INFO = {
+      'United States': ['US', '미국'], 'China': ['CN', '중국'], 'Hong Kong': ['HK', '홍콩'], 'Japan': ['JP', '일본'], 'South Korea': ['KR', '한국'], 'Korea, Republic of': ['KR', '한국'],
+      'Taiwan': ['TW', '대만'], 'India': ['IN', '인도'], 'United Kingdom': ['GB', '영국'], 'Germany': ['DE', '독일'], 'France': ['FR', '프랑스'], 'Switzerland': ['CH', '스위스'],
+      'Netherlands': ['NL', '네덜란드'], 'Canada': ['CA', '캐나다'], 'Australia': ['AU', '호주'], 'Brazil': ['BR', '브라질'], 'Ireland': ['IE', '아일랜드'], 'Israel': ['IL', '이스라엘'],
+      'Singapore': ['SG', '싱가포르'], 'Sweden': ['SE', '스웨덴'], 'Spain': ['ES', '스페인'], 'Italy': ['IT', '이탈리아'], 'Denmark': ['DK', '덴마크'], 'Norway': ['NO', '노르웨이'],
+      'Finland': ['FI', '핀란드'], 'Belgium': ['BE', '벨기에'], 'Mexico': ['MX', '멕시코'], 'Argentina': ['AR', '아르헨티나'], 'Luxembourg': ['LU', '룩셈부르크'], 'Bermuda': ['BM', '버뮤다'],
+      'Cayman Islands': ['KY', '케이맨 제도'], 'Saudi Arabia': ['SA', '사우디아라비아'], 'South Africa': ['ZA', '남아프리카공화국'], 'Russia': ['RU', '러시아'], 'Indonesia': ['ID', '인도네시아'],
+      'Thailand': ['TH', '태국'], 'Malaysia': ['MY', '말레이시아'], 'Vietnam': ['VN', '베트남'], 'Philippines': ['PH', '필리핀'], 'Chile': ['CL', '칠레'], 'Colombia': ['CO', '콜롬비아'],
+      'Peru': ['PE', '페루'], 'Turkey': ['TR', '튀르키예'], 'United Arab Emirates': ['AE', '아랍에미리트'], 'Greece': ['GR', '그리스'], 'Austria': ['AT', '오스트리아'], 'Portugal': ['PT', '포르투갈'],
+      'Poland': ['PL', '폴란드'], 'New Zealand': ['NZ', '뉴질랜드'], 'Macau': ['MO', '마카오'], 'Jersey': ['JE', '저지'], 'Panama': ['PA', '파나마'], 'Monaco': ['MC', '모나코'], 'Uruguay': ['UY', '우루과이']
+    };
+    const SUFFIX_COUNTRY = { KS: 'KR', KQ: 'KR', T: 'JP', HK: 'HK', L: 'GB', DE: 'DE', F: 'DE', PA: 'FR', SS: 'CN', SZ: 'CN', TW: 'TW', TWO: 'TW', TO: 'CA', V: 'CA', AX: 'AU', NS: 'IN', BO: 'IN', SI: 'SG', SW: 'CH', AS: 'NL', MI: 'IT', MC: 'ES', ST: 'SE', CO: 'DK', OL: 'NO', HE: 'FI', BR: 'BE', SA: 'BR', MX: 'MX', JK: 'ID', BK: 'TH', KL: 'MY' };
+    function countryInfo(ticker, f, market) {
+      const flagOf = cc => String.fromCodePoint(...[...cc].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
+      const byName = f && f.country && COUNTRY_INFO[f.country];
+      if (byName) return { cc: byName[0], ko: byName[1], flag: flagOf(byName[0]), en: f.country };
+      if (f && f.country) return { cc: '', ko: f.country, flag: '🌐', en: f.country };
+      let cc = '';
+      const m = /\.([A-Z]{1,3})$/.exec(String(ticker || ''));
+      if (m && SUFFIX_COUNTRY[m[1]]) cc = SUFFIX_COUNTRY[m[1]];
+      else if (!m && market && /nasdaq|nyse|nms|nyq|ngm|ncm|pcx|ase|bats|arca|amex/i.test(String(market.exchange || '')) && !/^\^|=/.test(String(ticker || ''))) cc = 'US';
+      if (!cc) return null;
+      const hit = Object.values(COUNTRY_INFO).find(v => v[0] === cc);
+      return { cc, ko: hit ? hit[1] : cc, flag: flagOf(cc), en: '' };
+    }
+
+    // 일봉으로 계산하는 시장 통계: 1·3·6개월 수익률, 연환산 변동성, 거래량·평균 대비
+    function histStats(history, f) {
+      const out = { r1: null, r3: null, r6: null, vola: null, vol: null, avgVol: null, volRatio: null };
+      const n = history ? history.length : 0;
+      if (n < 2) return out;
+      const last = history[n - 1].close;
+      const ret = k => (n > k && history[n - 1 - k].close) ? (last / history[n - 1 - k].close - 1) * 100 : null;
+      out.r1 = ret(21); out.r3 = ret(63); out.r6 = ret(126);
+      const rs = [];
+      for (let i = Math.max(1, n - 60); i < n; i++) if (history[i - 1].close > 0 && history[i].close > 0) rs.push(Math.log(history[i].close / history[i - 1].close));
+      if (rs.length >= 20) {
+        const mean = rs.reduce((a, b) => a + b, 0) / rs.length;
+        const v = rs.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (rs.length - 1);
+        out.vola = Math.sqrt(v * 252) * 100;
+      }
+      out.vol = history[n - 1].volume || null;
+      const prev = history.slice(Math.max(0, n - 51), n - 1).map(h => h.volume || 0).filter(v => v > 0);
+      out.avgVol = (f && Number.isFinite(Number(f.avgVolume)) && Number(f.avgVolume) > 0) ? Number(f.avgVolume) : (prev.length >= 10 ? prev.reduce((a, b) => a + b, 0) / prev.length : null);
+      if (out.vol && out.avgVol) out.volRatio = out.vol / out.avgVol * 100;
+      return out;
+    }
+
+    function renderHeaderExtras(d) {
+      const setChip = (id, text, title) => { const el = document.getElementById(id); if (!el) return; el.textContent = text || ''; el.classList.toggle('hidden', !text); if (title !== undefined) el.title = title || ''; };
+      const ci = d.countryInfo;
+      setChip('dispCountry', ci ? `${ci.flag} ${ci.ko}` : '', ci && ci.en ? ci.en : '본사(상장) 국가');
+      setChip('dispIndustry', d.industry || '');
+      setChip('dispExchange', d.exchange || '', '거래소');
+      const lab = document.getElementById('dispPriceLabel'); if (lab) lab.textContent = `현재 주가 (${activeCurrency})`;
+
+      const st = d.stats || {};
+      const pct = v => v === null || v === undefined ? ['–', 'text-slate-500'] : [`${v >= 0 ? '+' : ''}${v.toFixed(1)}%`, v >= 0 ? 'text-emerald-400' : 'text-rose-400'];
+      const cell = (label, val, cls = 'text-white', sub = '') => `<div class="rounded-xl bg-slate-900/60 border border-slate-800 px-3 py-2 min-w-0"><div class="text-[11px] text-slate-400 truncate">${label}</div><div class="text-sm font-bold font-mono-numbers ${cls} truncate">${escapeHtml(val)}</div>${sub ? `<div class="text-[10px] text-slate-500 leading-tight">${escapeHtml(sub)}</div>` : ''}</div>`;
+      const volaSub = st.vola === null ? '' : (st.vola < 25 ? '낮음' : st.vola < 45 ? '보통' : st.vola < 70 ? '높음' : '매우 높음');
+      const volCls = st.volRatio === null ? 'text-white' : (st.volRatio >= 150 ? 'text-amber-300' : st.volRatio < 60 ? 'text-slate-400' : 'text-white');
+      const cells = [
+        cell('시가총액', d.marketCap ? fmtBig(d.marketCap) : '–', d.marketCap ? 'text-white' : 'text-slate-500'),
+        cell('거래량', st.vol ? fmtVol(st.vol) : '–', st.vol ? 'text-white' : 'text-slate-500'),
+        cell('거래량 비율', st.volRatio !== null ? `${st.volRatio.toFixed(0)}%` : '–', volCls, st.avgVol ? `평균 ${fmtVol(st.avgVol)} 대비` : ''),
+        cell('1개월', ...pct(st.r1)),
+        cell('3개월', ...pct(st.r3)),
+        cell('6개월', ...pct(st.r6)),
+        cell('연환산 변동성', st.vola !== null ? `${st.vola.toFixed(0)}%` : '–', st.vola !== null ? 'text-white' : 'text-slate-500', volaSub),
+        cell('베타', d.beta !== null && d.beta !== undefined ? d.beta.toFixed(2) : '–', d.beta ? 'text-white' : 'text-slate-500', d.beta ? (d.beta < 0.8 ? '시장보다 둔함' : d.beta > 1.3 ? '시장보다 민감' : '시장과 비슷') : ''),
+        cell('배당수익률', d.divYield ? `${d.divYield.toFixed(2)}%` : '–', d.divYield ? 'text-white' : 'text-slate-500')
+      ];
+      document.getElementById('dispStats').innerHTML = cells.join('');
+
+      const rg = document.getElementById('dispRange');
+      const p = Number(d.price);
+      if (rg) {
+        if (d.low52 !== null && d.high52 !== null && d.high52 > d.low52 && Number.isFinite(p)) {
+          const pos = Math.min(100, Math.max(0, (p - d.low52) / (d.high52 - d.low52) * 100));
+          const fromHigh = (p / d.high52 - 1) * 100;
+          rg.innerHTML = `<div class="flex items-center gap-3 text-[11px] text-slate-400 font-mono-numbers">
+            <span class="whitespace-nowrap">52주 저 ${escapeHtml(fmtPx(d.low52))}</span>
+            <div class="relative flex-1 h-1.5 rounded-full bg-gradient-to-r from-rose-500/60 via-slate-600 to-emerald-500/60">
+              <div class="absolute -top-1 w-1 h-3.5 rounded bg-white shadow" style="left:calc(${pos.toFixed(1)}% - 2px)" title="현재가 ${escapeHtml(fmtPx(p))}"></div>
+            </div>
+            <span class="whitespace-nowrap">52주 고 ${escapeHtml(fmtPx(d.high52))}</span>
+            <span class="whitespace-nowrap text-slate-500 hidden sm:inline">· 고점 대비 <span class="${fromHigh >= -0.05 ? 'text-emerald-400' : 'text-rose-400'}">${fromHigh.toFixed(1)}%</span></span>
+          </div>`;
+          rg.classList.remove('hidden');
+        } else rg.classList.add('hidden');
+      }
+    }
+
+    let analysisTabId = 'finviz';
+    function analysisTab(id) {
+      if (id) analysisTabId = id;
+      ['finviz', 'tech'].forEach(k => {
+        const on = k === analysisTabId;
+        const pane = document.getElementById('apane-' + k), btn = document.getElementById('atab-' + k);
+        if (pane) pane.classList.toggle('hidden', !on);
+        if (btn) {
+          btn.setAttribute('aria-selected', on ? 'true' : 'false');
+          btn.className = 'px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ' + (on ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/60' : 'text-slate-400 hover:text-white border border-transparent');
+        }
+      });
+      if (analysisTabId === 'tech') requestAnimationFrame(renderMiniTrendPreview);
+    }
+
+    // ---- 기술적 분석: 지표별 신호 계산 ----
+    // sig: 1 매수 / -1 매도 / 0 중립 / null 참고용(집계 제외)
+    function computeTechRows(d) {
+      const h = d.history || [], n = h.length;
+      if (n < 30) return null;
+      const closes = h.map(x => x.close), p = closes[n - 1], ind = d.ind;
+      const rows = [];
+      const add = (grp, name, val, sig, note, g) => rows.push({ grp, name, val, sig, note, g });
+      const last = a => (a && a.length) ? a[a.length - 1] : null;
+      const f1 = (v, k = 1) => (v === null || v === undefined || !Number.isFinite(v)) ? '' : v.toFixed(k);
+      const barsAgo = k => k === 0 ? '오늘' : `${k}거래일 전`;
+
+      // 추세
+      const s20 = ind.sma20[n - 1], s50 = ind.sma50[n - 1], s200 = ind.sma200[n - 1];
+      if (s20 !== null && s50 !== null) {
+        let sig = 0, note = '이평선이 엇갈린 혼조 구간입니다.';
+        if (p > s20 && s20 > s50 && (s200 === null || s50 > s200)) { sig = 1; note = s200 === null ? '가격 > 20일 > 50일 (단기 정배열)' : '가격 > 20일 > 50일 > 200일 (정배열)'; }
+        else if (p < s20 && s20 < s50 && (s200 === null || s50 < s200)) { sig = -1; note = s200 === null ? '가격 < 20일 < 50일 (단기 역배열)' : '가격 < 20일 < 50일 < 200일 (역배열)'; }
+        add('trend', '이평선 배열', `${p > s20 ? '▲' : '▼'}20 ${p > s50 ? '▲' : '▼'}50${s200 === null ? '' : ' ' + (p > s200 ? '▲' : '▼') + '200'}`, sig, note);
+      }
+      const crossOf = (A, B, win) => {
+        for (let i = n - 1; i >= Math.max(1, n - win); i--) {
+          if (A[i] === null || B[i] === null || A[i - 1] === null || B[i - 1] === null) continue;
+          const a = A[i] - B[i], b = A[i - 1] - B[i - 1];
+          if (a > 0 && b <= 0) return { kind: 1, ago: n - 1 - i };
+          if (a < 0 && b >= 0) return { kind: -1, ago: n - 1 - i };
+        }
+        return null;
+      };
+      const cx = crossOf(ind.sma50, ind.sma200, 120);
+      if (s200 !== null) add('trend', '골든/데드크로스 (50·200)', cx ? (cx.kind > 0 ? '골든크로스' : '데드크로스') : '없음', cx ? (cx.ago <= 30 ? cx.kind : 0) : 0, cx ? `${barsAgo(cx.ago)} 발생` : '최근 120거래일 내 교차 없음');
+      const cx2 = crossOf(ind.sma20, ind.sma50, 60);
+      if (s50 !== null) add('trend', '단기 크로스 (20·50)', cx2 ? (cx2.kind > 0 ? '상향 교차' : '하향 교차') : '없음', cx2 ? (cx2.ago <= 10 ? cx2.kind : 0) : 0, cx2 ? `${barsAgo(cx2.ago)} 발생` : '최근 60거래일 내 교차 없음');
+      const ad = TA.adx(h, 14), adx = last(ad.adx), pdi = last(ad.plusDI), mdi = last(ad.minusDI);
+      if (adx !== null && pdi !== null && mdi !== null) add('trend', 'ADX (추세 강도)', f1(adx), adx >= 20 ? (pdi > mdi ? 1 : -1) : 0, `${adx >= 25 ? '뚜렷한 추세' : adx >= 20 ? '추세 형성 중' : '추세 약함(횡보)'} · +DI ${f1(pdi, 0)} / −DI ${f1(mdi, 0)}`, { v: adx, min: 0, max: 60, lo: 20, hi: 40, mid: true });
+      const st = TA.supertrend(h, 10, 3), stDir = last(st.dir), stLine = last(st.line);
+      if (stDir !== null) add('trend', '슈퍼트렌드 (10,3)', stDir > 0 ? '상승' : '하락', stDir, `${stDir > 0 ? '지지선' : '저항선'} ${fmtPx(stLine)} (현재가 대비 ${pctDiff(p, stLine) || '-'})`);
+      const ps = TA.psar(h), psDir = last(ps.dir);
+      if (psDir !== null && psDir !== undefined) add('trend', '파라볼릭 SAR', psDir > 0 ? '상승' : '하락', psDir, `SAR ${fmtPx(last(ps.sar))} ${psDir > 0 ? '아래 (매수 우위)' : '위 (매도 우위)'}`);
+      const ich = TA.ichimoku(h), ia = ich.spanA[n - 1], ib = ich.spanB[n - 1];
+      if (ia !== null && ib !== null) {
+        const top = Math.max(ia, ib), bot = Math.min(ia, ib);
+        const tk = ich.tenkan[n - 1], kj = ich.kijun[n - 1];
+        add('trend', '일목균형표', p > top ? '구름 위' : p < bot ? '구름 아래' : '구름 안', p > top ? 1 : p < bot ? -1 : 0, `구름대 ${fmtPx(bot)} ~ ${fmtPx(top)}${(tk !== null && kj !== null) ? ` · 전환선 ${tk > kj ? '>' : '<'} 기준선` : ''}`);
+      }
+
+      // 모멘텀
+      const rsi = ind.rsi[n - 1];
+      if (rsi !== null) add('mom', 'RSI (14)', f1(rsi), rsi > 70 ? -1 : rsi < 30 ? 1 : 0, rsi > 70 ? '과열 구간 (조정 가능성)' : rsi < 30 ? '과매도 구간 (반등 가능성)' : rsi >= 50 ? '중립 · 상승 우위' : '중립 · 하락 우위', { v: rsi, min: 0, max: 100, lo: 30, hi: 70 });
+      const sk = TA.stochastic(h, 14, 3, 3), k = last(sk.k), dd = last(sk.d);
+      if (k !== null && dd !== null) add('mom', '스토캐스틱 (14,3,3)', `${f1(k, 0)} / ${f1(dd, 0)}`, k > 80 ? -1 : k < 20 ? 1 : 0, `%K ${k > dd ? '>' : '<'} %D · ${k > 80 ? '과매수권' : k < 20 ? '과매도권' : '중간 구간'}`, { v: k, min: 0, max: 100, lo: 20, hi: 80 });
+      const mm = ind.macd.macd[n - 1], ms = ind.macd.signal[n - 1], mh = ind.macd.hist[n - 1], mhp = ind.macd.hist[n - 2];
+      if (mm !== null && ms !== null && mh !== null) add('mom', 'MACD (12,26,9)', f1(mm, 2), mh > 0 ? 1 : -1, `시그널 ${mm > ms ? '위' : '아래'} · 히스토그램 ${mhp !== null && mhp !== undefined ? (mh > mhp ? '증가' : '감소') : ''} · 0선 ${mm > 0 ? '위' : '아래'}`);
+      const cci = last(TA.cci(h, 20));
+      if (cci !== null) add('mom', 'CCI (20)', f1(cci, 0), cci > 100 ? -1 : cci < -100 ? 1 : 0, cci > 100 ? '과열권 (+100 상회)' : cci < -100 ? '과매도권 (−100 하회)' : '정상 범위', { v: cci, min: -200, max: 200, lo: -100, hi: 100 });
+      const wr = last(TA.williamsR(h, 14));
+      if (wr !== null) add('mom', '윌리엄스 %R (14)', f1(wr, 0), wr > -20 ? -1 : wr < -80 ? 1 : 0, wr > -20 ? '과매수권' : wr < -80 ? '과매도권' : '중간 구간', { v: wr, min: -100, max: 0, lo: -80, hi: -20 });
+      const roc = last(TA.roc(closes, 12));
+      if (roc !== null) add('mom', 'ROC (12일 변화율)', `${roc >= 0 ? '+' : ''}${f1(roc)}%`, roc > 0 ? 1 : -1, roc > 0 ? '12거래일 전보다 상승' : '12거래일 전보다 하락');
+
+      // 거래량·변동성
+      const mfi = last(TA.mfi(h, 14));
+      if (mfi !== null && d.stats && d.stats.vol) add('vol', 'MFI (14)', f1(mfi, 0), mfi > 80 ? -1 : mfi < 20 ? 1 : 0, mfi > 80 ? '자금 과열 유입' : mfi < 20 ? '자금 이탈 과다 (과매도)' : '정상 범위', { v: mfi, min: 0, max: 100, lo: 20, hi: 80 });
+      const cmf = last(TA.cmf(h, 20));
+      if (cmf !== null && d.stats && d.stats.vol) add('vol', 'CMF (20)', f1(cmf, 2), cmf > 0.05 ? 1 : cmf < -0.05 ? -1 : 0, cmf > 0.05 ? '매수 자금 유입 우세' : cmf < -0.05 ? '매도 압력 우세' : '수급 균형');
+      const obv = TA.obv(h);
+      if (obv && obv.length > 21 && d.stats && d.stats.vol) {
+        const ou = obv[n - 1] > obv[n - 21], pu = closes[n - 1] > closes[n - 21];
+        add('vol', 'OBV (20일 추세)', ou ? '상승' : '하락', ou === pu ? (ou ? 1 : -1) : 0, ou === pu ? (ou ? '거래량이 상승을 뒷받침' : '거래량이 하락을 확인') : (ou ? '가격은 약한데 OBV 상승 (매집 가능성)' : '가격은 오르는데 OBV 하락 (다이버전스 주의)'));
+      }
+      const bu = ind.bb.upper[n - 1], bl = ind.bb.lower[n - 1], bm = ind.bb.mid[n - 1];
+      if (bu !== null && bl !== null && bu > bl) {
+        const pb = (p - bl) / (bu - bl);
+        add('vol', '볼린저 %B (20,2)', f1(pb, 2), pb > 0.95 ? -1 : pb < 0.05 ? 1 : 0, `밴드폭 ${f1((bu - bl) / bm * 100)}% · ${pb > 1 ? '상단 돌파' : pb < 0 ? '하단 이탈' : pb > 0.8 ? '상단 근접' : pb < 0.2 ? '하단 근접' : '밴드 중앙부'}`, { v: Math.max(-0.2, Math.min(1.2, pb)), min: -0.2, max: 1.2, lo: 0.05, hi: 0.95 });
+      }
+      const atr = last(TA.atr(h, 14));
+      if (atr !== null) add('vol', 'ATR (14)', `${f1(atr / p * 100, 2)}%`, null, `하루 평균 변동폭 ${fmtPx(atr)} (현재가의 ${f1(atr / p * 100, 2)}%)`);
+      if (d.stats && d.stats.vol && n > 21) {
+        const av20 = closes.length ? h.slice(n - 21, n - 1).reduce((a, b) => a + (b.volume || 0), 0) / 20 : 0;
+        if (av20 > 0) {
+          const r = h[n - 1].volume / av20 * 100, up = closes[n - 1] >= closes[n - 2];
+          add('vol', '거래량 (20일 평균 대비)', `${f1(r, 0)}%`, r >= 150 ? (up ? 1 : -1) : 0, r >= 150 ? `평균보다 크게 늘며 ${up ? '상승' : '하락'} (힘 실림)` : r < 60 ? '거래 한산' : '평균 수준');
+        }
+      }
+      return rows;
+    }
+
+    function techMiniGauge(g) {
+      if (!g) return '';
+      const span = g.max - g.min, pc = v => Math.min(100, Math.max(0, (v - g.min) / span * 100));
+      const lo = pc(g.lo), hi = pc(g.hi), pos = pc(g.v);
+      const cols = g.mid ? ['bg-slate-700', 'bg-sky-500/70', 'bg-emerald-500/70'] : ['bg-emerald-500/70', 'bg-slate-700', 'bg-rose-500/70'];
+      return `<div class="relative mt-2 mb-1"><div class="flex h-1.5 rounded-full overflow-hidden"><div class="${cols[0]}" style="width:${lo}%"></div><div class="${cols[1]}" style="width:${hi - lo}%"></div><div class="${cols[2]}" style="width:${100 - hi}%"></div></div><div class="absolute -top-0.5 w-0.5 h-2.5 bg-white rounded shadow" style="left:calc(${pos}% - 1px)"></div></div>`;
+    }
+
+    function renderTechPanel(d) {
+      const grid = document.getElementById('techIndicatorGrid'), sum = document.getElementById('techSignalSummary'), lv = document.getElementById('techLevels');
+      if (!grid || !sum || !lv) return;
+      const rows = computeTechRows(d);
+      if (!rows || !rows.length) {
+        grid.innerHTML = ''; lv.innerHTML = '';
+        sum.innerHTML = '<p class="text-xs text-slate-500">일봉 데이터가 부족해 기술적 지표를 계산하지 못했습니다 (최소 30거래일 필요).</p>';
+        renderTechTargets(d, null);
+        return;
+      }
+      const SIG = { 1: { t: '매수', cls: 'bg-emerald-950 text-emerald-300 border-emerald-800', card: 'border-emerald-900/60' }, '-1': { t: '매도', cls: 'bg-rose-950 text-rose-300 border-rose-800', card: 'border-rose-900/60' }, 0: { t: '중립', cls: 'bg-sky-950 text-sky-300 border-sky-800', card: 'border-slate-800' } };
+      const counted = rows.filter(r => r.sig !== null);
+      const buy = counted.filter(r => r.sig === 1).length, sell = counted.filter(r => r.sig === -1).length, neu = counted.length - buy - sell;
+      const score = counted.length ? (buy - sell) / counted.length : 0;
+      const verdict = score >= 0.45 ? ['강한 매수 우위', 'text-emerald-300'] : score >= 0.15 ? ['매수 우위', 'text-emerald-400'] : score <= -0.45 ? ['강한 매도 우위', 'text-rose-300'] : score <= -0.15 ? ['매도 우위', 'text-rose-400'] : ['중립 · 방향성 약함', 'text-sky-300'];
+      const pos = Math.min(100, Math.max(0, (score + 1) / 2 * 100));
+      const grpName = { trend: '추세', mom: '모멘텀', vol: '거래량·변동성' };
+      const grpLine = ['trend', 'mom', 'vol'].map(g => {
+        const rs = rows.filter(r => r.grp === g && r.sig !== null);
+        const b = rs.filter(r => r.sig === 1).length, s = rs.filter(r => r.sig === -1).length;
+        return `<span class="px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-300">${grpName[g]} <span class="text-emerald-400 font-bold">${b}</span>/<span class="text-slate-400">${rs.length - b - s}</span>/<span class="text-rose-400 font-bold">${s}</span></span>`;
+      }).join('');
+      sum.innerHTML = `<div class="rounded-xl bg-slate-900 border border-slate-800 p-3.5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div><div class="text-[11px] text-slate-400">기술적 종합 신호 (지표 ${counted.length}개)</div><div class="text-lg font-extrabold ${verdict[1]}">${verdict[0]}</div></div>
+          <div class="flex items-center gap-1.5 text-xs font-mono-numbers"><span class="px-2 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">매수 ${buy}</span><span class="px-2 py-1 rounded bg-sky-950 text-sky-300 border border-sky-800">중립 ${neu}</span><span class="px-2 py-1 rounded bg-rose-950 text-rose-300 border border-rose-800">매도 ${sell}</span></div>
+        </div>
+        <div class="relative mt-3 mb-1"><div class="flex h-2 rounded-full overflow-hidden"><div class="bg-rose-500/70" style="width:30%"></div><div class="bg-slate-600" style="width:40%"></div><div class="bg-emerald-500/70" style="width:30%"></div></div><div class="absolute -top-1 w-1 h-4 bg-white rounded shadow" style="left:calc(${pos.toFixed(1)}% - 2px)"></div></div>
+        <div class="flex justify-between text-[10px] text-slate-500"><span>매도</span><span>중립</span><span>매수</span></div>
+        <div class="flex flex-wrap gap-1.5 mt-2">${grpLine}<span class="text-[10px] text-slate-500 self-center">(매수/중립/매도)</span></div>
+      </div>`;
+
+      grid.innerHTML = ['trend', 'mom', 'vol'].map(g => {
+        const rs = rows.filter(r => r.grp === g);
+        if (!rs.length) return '';
+        return `<div><div class="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2"><span class="w-1 h-3.5 rounded bg-cyan-500"></span>${grpName[g]}</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">${rs.map(r => {
+            const m = r.sig === null ? { t: '참고', cls: 'bg-slate-800 text-slate-300 border-slate-700', card: 'border-slate-800' } : SIG[r.sig];
+            return `<div class="rounded-xl border ${m.card} bg-slate-900/50 p-3 flex flex-col">
+              <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-400 font-sans">${escapeHtml(r.name)}</span><span class="text-[10px] px-1.5 py-0.5 rounded border font-sans font-semibold ${m.cls}">${m.t}</span></div>
+              <div class="text-lg font-bold font-mono-numbers text-white mt-0.5">${escapeHtml(String(r.val))}</div>
+              ${techMiniGauge(r.g)}
+              <p class="text-[10px] ${r.sig === 1 ? 'text-emerald-400' : r.sig === -1 ? 'text-rose-400' : 'text-slate-400'} mt-1 leading-snug font-sans">${escapeHtml(r.note)}</p></div>`;
+          }).join('')}</div></div>`;
+      }).join('');
+
+      // 지지·저항 / 피벗 / 피보나치 / 최근 신호
+      const h = d.history, n = h.length, p = h[n - 1].close;
+      const dist = v => { const x = (v / p - 1) * 100; return `<span class="${x >= 0 ? 'text-rose-300' : 'text-emerald-300'}">${x >= 0 ? '+' : ''}${x.toFixed(1)}%</span>`; };
+      const lvRow = (lab, price, extra = '') => `<div class="flex items-center justify-between text-xs py-1 border-b border-slate-800/60 last:border-0"><span class="text-slate-300">${lab}${extra}</span><span class="font-mono-numbers text-slate-200">${escapeHtml(fmtPx(price))} <span class="ml-1 text-[11px]">${dist(price)}</span></span></div>`;
+      const sr = TA.autoSR(h, { maxEach: 3 }).sort((a, b) => b.price - a.price);
+      const srHtml = sr.length ? sr.map(l => lvRow(`<span class="${l.kind === 'R' ? 'text-rose-400' : 'text-emerald-400'} font-bold mr-1">${l.kind === 'R' ? '저항' : '지지'}</span>`, l.price, ` <span class="text-[10px] text-slate-500">(${l.touches}회 터치)</span>`)).join('') : '<p class="text-xs text-slate-500">뚜렷한 가격대가 없습니다.</p>';
+      const pv = h[n - 2] || h[n - 1], P = (pv.high + pv.low + pv.close) / 3;
+      const piv = [['R2', P + (pv.high - pv.low)], ['R1', 2 * P - pv.low], ['P', P], ['S1', 2 * P - pv.high], ['S2', P - (pv.high - pv.low)]];
+      const pivHtml = piv.map(([k, v]) => lvRow(`<span class="font-mono-numbers font-bold mr-1 ${k[0] === 'R' ? 'text-rose-400' : k[0] === 'S' ? 'text-emerald-400' : 'text-amber-300'}">${k}</span>`, v)).join('');
+      const w = h.slice(-126); let hi = -Infinity, lo = Infinity, hiI = 0, loI = 0;
+      w.forEach((b, i) => { if (b.high > hi) { hi = b.high; hiI = i; } if (b.low < lo) { lo = b.low; loI = i; } });
+      const up = loI < hiI;
+      const fib = [0.236, 0.382, 0.5, 0.618, 0.786].map(r => [r, up ? hi - (hi - lo) * r : lo + (hi - lo) * r]);
+      const fibHtml = `<p class="text-[10px] text-slate-500 mb-1">최근 6개월 ${up ? '상승' : '하락'} 파동 (${escapeHtml(fmtPx(lo))} ~ ${escapeHtml(fmtPx(hi))}) 되돌림</p>` + fib.map(([r, v]) => lvRow(`<span class="font-mono-numbers mr-1 text-violet-300">${(r * 100).toFixed(1)}%</span>`, v)).join('');
+      const pats = TA.patterns(h).filter(x => x.i >= n - 10).slice(-5).reverse();
+      const ev = [];
+      const mh = d.ind.macd.hist;
+      for (let i = n - 1; i >= n - 10 && i > 0; i--) if (mh[i] !== null && mh[i - 1] !== null && (mh[i] > 0) !== (mh[i - 1] > 0)) { ev.push(`MACD ${mh[i] > 0 ? '상향' : '하향'} 교차 (${n - 1 - i === 0 ? '오늘' : (n - 1 - i) + '거래일 전'})`); break; }
+      if (d.high52 && p >= d.high52 * 0.98) ev.push('52주 신고가 부근 (2% 이내)');
+      if (d.low52 && p <= d.low52 * 1.02) ev.push('52주 신저가 부근 (2% 이내)');
+      const patHtml = (pats.length ? pats.map(x => `<div class="flex items-center justify-between text-xs py-1 border-b border-slate-800/60 last:border-0"><span class="${x.kind === 'bull' ? 'text-emerald-400' : x.kind === 'bear' ? 'text-rose-400' : 'text-slate-300'} font-semibold">${escapeHtml((x.kind === 'bull' ? '▲ ' : x.kind === 'bear' ? '▼ ' : '• ') + x.text)}${x.kind === 'neutral' ? '' : ' 캔들'}</span><span class="text-slate-500 font-mono-numbers">${escapeHtml(h[x.i].date)}</span></div>`).join('') : '<p class="text-xs text-slate-500 py-1">최근 10거래일 내 두드러진 캔들 패턴 없음</p>')
+        + (ev.length ? `<div class="mt-2 pt-2 border-t border-slate-800/60 space-y-1">${ev.map(t => `<div class="text-xs text-amber-300"><i class="fa-solid fa-bolt text-[10px] mr-1"></i>${escapeHtml(t)}</div>`).join('')}</div>` : '');
+      const box = (title, icon, body) => `<div class="rounded-xl bg-slate-900/50 border border-slate-800 p-3"><div class="text-xs font-bold text-slate-200 mb-1.5"><i class="fa-solid ${icon} text-cyan-400 mr-1.5"></i>${title}</div>${body}</div>`;
+      lv.innerHTML = box('지지·저항 가격대 (자동 탐지)', 'fa-layer-group', srHtml) + box('피벗 포인트 · 피보나치', 'fa-ruler-vertical', `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-x-4"><div>${pivHtml}</div><div>${fibHtml}</div></div>`) + box('최근 캔들 패턴 · 이벤트', 'fa-bolt', patHtml);
+      renderTechTargets(d, TA.atr(h, 14)[n - 1]);
+    }
+
+    // 타겟: 애널리스트 의견 + 목표가 가격대 스케일 + 변동성(ATR) 기반 참고 구간
+    function renderTechTargets(d, atr) {
+      const el = document.getElementById('techTargetExtra');
+      if (!el) return;
+      const p = Number(d.price), parts = [];
+      const hasT = d.targetAvg !== null && Number.isFinite(p);
+      if (hasT && d.targetMin !== null && d.targetMax !== null && d.targetMax > d.targetMin) {
+        const lo = Math.min(d.targetMin, p), hi = Math.max(d.targetMax, p), span = hi - lo || 1;
+        const x = v => Math.min(100, Math.max(0, (v - lo) / span * 100));
+        const mk = (v, label, cls) => `<div class="absolute top-0 -translate-x-1/2 flex flex-col items-center" style="left:${x(v).toFixed(1)}%"><div class="w-0.5 h-5 ${cls}"></div></div>`;
+        const pc = v => `${(v / p - 1) * 100 >= 0 ? '+' : ''}${((v / p - 1) * 100).toFixed(0)}%`;
+        parts.push(`<div class="rounded-xl bg-slate-900 border border-slate-800 p-3.5">
+          <div class="text-xs font-bold text-slate-200 mb-2"><i class="fa-solid fa-bullseye text-cyan-400 mr-1.5"></i>애널리스트 목표가 분포</div>
+          <div class="relative h-5 mx-1"><div class="absolute top-2 left-0 right-0 h-1 rounded bg-slate-700"></div>
+            <div class="absolute top-2 h-1 rounded bg-cyan-500/50" style="left:${x(d.targetMin).toFixed(1)}%;width:${(x(d.targetMax) - x(d.targetMin)).toFixed(1)}%"></div>
+            ${mk(d.targetMin, '', 'bg-slate-400')}${mk(d.targetAvg, '', 'bg-cyan-400')}${mk(d.targetMax, '', 'bg-slate-400')}${mk(p, '', 'bg-white')}</div>
+          <div class="grid grid-cols-4 gap-1 mt-2 text-center font-mono-numbers text-[10px]">
+            <div><div class="text-slate-500">최저</div><div class="text-slate-200">${escapeHtml(fmtPx(d.targetMin))}</div><div class="${d.targetMin >= p ? 'text-emerald-400' : 'text-rose-400'}">${pc(d.targetMin)}</div></div>
+            <div><div class="text-white">현재</div><div class="text-white font-bold">${escapeHtml(fmtPx(p))}</div><div>&nbsp;</div></div>
+            <div><div class="text-cyan-300">평균</div><div class="text-cyan-300 font-bold">${escapeHtml(fmtPx(d.targetAvg))}</div><div class="${d.targetAvg >= p ? 'text-emerald-400' : 'text-rose-400'}">${pc(d.targetAvg)}</div></div>
+            <div><div class="text-slate-500">최고</div><div class="text-slate-200">${escapeHtml(fmtPx(d.targetMax))}</div><div class="${d.targetMax >= p ? 'text-emerald-400' : 'text-rose-400'}">${pc(d.targetMax)}</div></div>
+          </div></div>`);
+      }
+      if (d.recMean !== null || d.numAnalysts) {
+        const rm = d.recMean, lab = rm === null ? '' : rm <= 1.5 ? '적극 매수' : rm <= 2.5 ? '매수' : rm <= 3.5 ? '보유' : rm <= 4.5 ? '비중 축소' : '매도';
+        const pos = rm === null ? null : Math.min(100, Math.max(0, (5 - rm) / 4 * 100));
+        parts.push(`<div class="rounded-xl bg-slate-900 border border-slate-800 p-3.5">
+          <div class="flex items-center justify-between text-xs"><span class="font-bold text-slate-200"><i class="fa-solid fa-users text-cyan-400 mr-1.5"></i>애널리스트 의견</span><span class="text-slate-400">${d.numAnalysts ? `${d.numAnalysts}명 참여` : ''}</span></div>
+          ${rm === null ? '' : `<div class="flex items-baseline justify-between mt-1.5"><span class="text-base font-bold text-white">${lab}</span><span class="text-[11px] text-slate-400 font-mono-numbers">평균 점수 ${rm.toFixed(2)} (1=적극 매수 · 5=매도)</span></div>
+          <div class="relative mt-2"><div class="flex h-1.5 rounded-full overflow-hidden"><div class="bg-rose-500/70" style="width:25%"></div><div class="bg-amber-500/70" style="width:25%"></div><div class="bg-sky-500/70" style="width:25%"></div><div class="bg-emerald-500/70" style="width:25%"></div></div><div class="absolute -top-0.5 w-0.5 h-2.5 bg-white rounded shadow" style="left:calc(${pos.toFixed(1)}% - 1px)"></div></div>
+          <div class="flex justify-between text-[10px] text-slate-500 mt-0.5"><span>매도</span><span>보유</span><span>적극 매수</span></div>`}
+        </div>`);
+      }
+      if (atr && Number.isFinite(p) && p > 0) {
+        const stop = p - 2 * atr, t1 = p + 2 * atr, t2 = p + 3 * atr;
+        const pc = v => `${(v / p - 1) * 100 >= 0 ? '+' : ''}${((v / p - 1) * 100).toFixed(1)}%`;
+        parts.push(`<div class="rounded-xl bg-slate-900 border border-slate-800 p-3.5">
+          <div class="text-xs font-bold text-slate-200 mb-2"><i class="fa-solid fa-crosshairs text-cyan-400 mr-1.5"></i>변동성(ATR) 기반 참고 구간</div>
+          <div class="grid grid-cols-3 gap-2 text-center font-mono-numbers text-[11px]">
+            <div class="rounded-lg bg-rose-950/40 border border-rose-900/50 py-1.5"><div class="text-rose-300 text-[10px]">손절 (−2 ATR)</div><div class="text-white font-bold">${escapeHtml(fmtPx(stop))}</div><div class="text-rose-400">${pc(stop)}</div></div>
+            <div class="rounded-lg bg-emerald-950/40 border border-emerald-900/50 py-1.5"><div class="text-emerald-300 text-[10px]">1차 (+2 ATR)</div><div class="text-white font-bold">${escapeHtml(fmtPx(t1))}</div><div class="text-emerald-400">${pc(t1)}</div></div>
+            <div class="rounded-lg bg-emerald-950/40 border border-emerald-900/50 py-1.5"><div class="text-emerald-300 text-[10px]">2차 (+3 ATR)</div><div class="text-white font-bold">${escapeHtml(fmtPx(t2))}</div><div class="text-emerald-400">${pc(t2)}</div></div>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-2 leading-snug">ATR(14)=${escapeHtml(fmtPx(atr))}. 평균 변동폭으로 잡은 단순 기준이며, 손익비는 1차 1:1 · 2차 1:1.5입니다. 실제 손절·목표는 지지/저항과 함께 판단하세요.</p>
+        </div>`);
+      }
+      el.innerHTML = parts.length ? `<div class="space-y-3">${parts.join('')}</div>` : '';
+    }
+
     function renderAnalysisResult(data) {
       document.getElementById('dispTicker').textContent = data.ticker;
       const starB = document.getElementById('dispStarBtn'); if (starB) { starB.dataset.star = data.ticker; starRefresh(); }
       document.getElementById('dispCompanyName').textContent = data.name;
       document.getElementById('dispSector').textContent = data.sector;
       document.getElementById('dispSector').classList.toggle('hidden', !data.sector);
+      renderHeaderExtras(data);
       document.getElementById('dispSummary').textContent = data.summary;
       document.getElementById('dispPrice').textContent = data.price ? fmtPx(data.price) : '';
 
@@ -5454,13 +5715,16 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       }
 
       renderFinvizTable(data.finviz, data.dataFeed);
+      renderTechPanel(data);
+      analysisTab();
       renderExperts(data.experts);
       renderBullBear(data.bullCase, data.bearCase);
     }
 
     function renderFinvizTable(items, dataFeed = '') {
       const grid = document.getElementById('finvizTableBody');
-      grid.innerHTML = items.map(it => {
+      const GRP = { val: ['밸류에이션 · 수익성', 'fa-scale-balanced'], pos: ['가격 위치 · 수급 · 목표가', 'fa-crosshairs'], trend: ['추세 · 모멘텀', 'fa-arrow-trend-up'] };
+      const card = it => {
         const g = METRIC_GUIDE[it.key];
         const r = rateMetric(it.key, it.raw);
         const verdict = r ? r.text : '';
@@ -5476,7 +5740,16 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
             ${it.sub ? `<div class="text-[10px] text-slate-500 font-mono-numbers">${escapeHtml(it.sub)}</div>` : ''}
             <p class="text-[10px] ${r ? r.meta.text : 'text-slate-500'} mt-1 leading-snug font-sans">${escapeHtml(verdict)}</p>
           </div>`;
-      }).join('');
+      };
+      const shown = items.filter(it => it.val !== '' && it.val !== null && it.val !== undefined && !(typeof it.raw === 'number' && Number.isNaN(it.raw) && !it.val));
+      grid.innerHTML = Object.keys(GRP).map(k => {
+        const list = shown.filter(it => it.grp === k);
+        if (!list.length) return '';
+        const cnt = { good: 0, ok: 0, warn: 0, bad: 0 };
+        list.forEach(it => { const r = rateMetric(it.key, it.raw); if (r && cnt[r.rating] !== undefined) cnt[r.rating]++; });
+        const chips = ['good', 'ok', 'warn', 'bad'].filter(x => cnt[x]).map(x => `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full ${RATING_META[x].dot}"></span>${cnt[x]}</span>`).join('');
+        return `<div class="col-span-full flex items-center justify-between mt-1 first:mt-0"><span class="text-xs font-bold text-slate-300 flex items-center gap-2"><i class="fa-solid ${GRP[k][1]} text-cyan-400 text-[11px]"></i>${GRP[k][0]}</span><span class="flex items-center gap-2 text-[11px] text-slate-400">${chips}</span></div>` + list.map(card).join('');
+      }).join('') || '<p class="col-span-full text-xs text-slate-500">표시할 재무 지표가 없습니다 (프록시 연결 필요).</p>';
       renderMetricSummary(items);
       const note = document.getElementById('dataFeedNote');
       if (note) note.textContent = dataFeed ? `데이터 출처: ${dataFeed}` : '';
@@ -9113,47 +9386,93 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
     function renderMiniTrendPreview() {
       const canvas = document.getElementById('techTrendCanvas');
       if (!canvas || !currentAnalysisData) return;
-      const ctx = canvas.getContext('2d');
-      const w = canvas.parentElement.clientWidth;
-      const h = canvas.parentElement.clientHeight;
+      const box = canvas.parentElement;
+      const w = box.clientWidth, h = box.clientHeight;
       if (!w || !h) return;
-      canvas.width = w;
-      canvas.height = h;
-
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
-      const history = (currentAnalysisData.history || []).slice(-126); // 최근 6개월(약 126거래일)
-      if (!history || history.length < 2) return;
+      const hist = currentAnalysisData.history || [], ind = currentAnalysisData.ind;
+      const n = hist.length;
+      if (n < 2 || !ind) return;
+      const N = Math.min(n, 126), s = n - N;
+      const view = hist.slice(s);
+      const pick = a => a.slice(s);
+      const s20 = pick(ind.sma20), s50 = pick(ind.sma50), s200 = pick(ind.sma200), bu = pick(ind.bb.upper), bl = pick(ind.bb.lower);
 
       let min = Infinity, max = -Infinity;
-      history.forEach(hItem => {
-        if (hItem.close < min) min = hItem.close;
-        if (hItem.close > max) max = hItem.close;
-      });
-      const range = (max - min) || 1;
-      const yOf = v => h - ((v - min) / range) * (h - 20) - 10;
+      const feed = v => { if (v !== null && v !== undefined && Number.isFinite(v)) { if (v < min) min = v; if (v > max) max = v; } };
+      view.forEach(b => feed(b.close));
+      s20.forEach(feed); s50.forEach(feed);
+      const sr = (typeof TA !== 'undefined') ? TA.autoSR(hist, { maxEach: 2 }).filter(l => l.price >= min * 0.9 && l.price <= max * 1.1) : [];
+      sr.forEach(l => feed(l.price));
+      const padv = (max - min) * 0.06 || 1; min -= padv; max += padv;
+      const padR = 54, padT = 22, volH = Math.round(h * 0.15), plotW = w - padR, plotH = h - padT - volH - 6;
+      const xOf = i => (i / (N - 1)) * plotW;
+      const yOf = v => padT + (1 - (v - min) / (max - min)) * plotH;
 
-      const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, 'rgba(6, 182, 212, 0.35)');
-      grad.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+      // 격자 + 가격축
+      ctx.font = '10px ui-monospace, monospace'; ctx.textBaseline = 'middle';
+      for (let g = 0; g <= 4; g++) {
+        const v = min + (max - min) * g / 4, y = yOf(v);
+        ctx.strokeStyle = 'rgba(100,116,139,0.18)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(plotW, y); ctx.stroke();
+        ctx.fillStyle = '#64748b'; ctx.textAlign = 'left';
+        ctx.fillText(v >= 1000 ? v.toFixed(0) : v.toFixed(2), plotW + 6, y);
+      }
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, padT - 4, plotW, plotH + 8); ctx.clip();
 
-      ctx.beginPath();
-      history.forEach((pt, i) => {
-        const x = (i / (history.length - 1)) * w;
-        if (i === 0) ctx.moveTo(x, yOf(pt.close)); else ctx.lineTo(x, yOf(pt.close));
-      });
-      ctx.lineTo(w, h);
-      ctx.lineTo(0, h);
-      ctx.fillStyle = grad;
-      ctx.fill();
+      // 볼린저 밴드
+      ctx.beginPath(); let started = false;
+      for (let i = 0; i < N; i++) { if (bu[i] === null) continue; const x = xOf(i), y = yOf(bu[i]); if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); }
+      for (let i = N - 1; i >= 0; i--) { if (bl[i] === null) continue; ctx.lineTo(xOf(i), yOf(bl[i])); }
+      if (started) { ctx.closePath(); ctx.fillStyle = 'rgba(148,163,184,0.09)'; ctx.fill(); }
 
-      ctx.beginPath();
-      history.forEach((pt, i) => {
-        const x = (i / (history.length - 1)) * w;
-        if (i === 0) ctx.moveTo(x, yOf(pt.close)); else ctx.lineTo(x, yOf(pt.close));
+      // 지지·저항 (점선)
+      sr.forEach(l => {
+        const y = yOf(l.price), res = l.kind === 'R';
+        ctx.setLineDash([5, 4]); ctx.strokeStyle = res ? 'rgba(253,164,175,0.7)' : 'rgba(110,231,183,0.7)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(plotW, y); ctx.stroke(); ctx.setLineDash([]);
       });
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
+
+      // 종가 영역 + 선
+      const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+      grad.addColorStop(0, 'rgba(6,182,212,0.28)'); grad.addColorStop(1, 'rgba(6,182,212,0)');
+      ctx.beginPath(); view.forEach((b, i) => { const x = xOf(i), y = yOf(b.close); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.lineTo(xOf(N - 1), padT + plotH); ctx.lineTo(0, padT + plotH); ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+
+      const line = (arr, color, wd) => {
+        ctx.beginPath(); let on = false;
+        arr.forEach((v, i) => { if (v === null || v === undefined) { on = false; return; } const x = xOf(i), y = yOf(v); if (!on) { ctx.moveTo(x, y); on = true; } else ctx.lineTo(x, y); });
+        ctx.strokeStyle = color; ctx.lineWidth = wd; ctx.lineJoin = 'round'; ctx.stroke();
+      };
+      line(s200, '#fb7185', 1.2); line(s50, '#a78bfa', 1.3); line(s20, '#f59e0b', 1.3);
+      line(view.map(b => b.close), '#22d3ee', 2);
+      ctx.restore();
+
+      // 지지·저항 라벨
+      sr.forEach(l => {
+        ctx.fillStyle = l.kind === 'R' ? '#fda4af' : '#6ee7b7'; ctx.textAlign = 'left';
+        ctx.fillText(l.price >= 1000 ? l.price.toFixed(0) : l.price.toFixed(2), plotW + 6, yOf(l.price) + (l.kind === 'R' ? -8 : 8));
+      });
+
+      // 거래량
+      const vmax = Math.max(...view.map(b => b.volume || 0), 1);
+      const bw = Math.max(1, plotW / N - 1);
+      view.forEach((b, i) => {
+        const vh = ((b.volume || 0) / vmax) * volH, up = i === 0 ? true : b.close >= view[i - 1].close;
+        ctx.fillStyle = up ? 'rgba(52,211,153,0.45)' : 'rgba(251,113,133,0.45)';
+        ctx.fillRect(xOf(i) - bw / 2, h - 4 - vh, bw, vh);
+      });
+
+      // 현재가 태그
+      const last = view[N - 1].close, ly = yOf(last);
+      ctx.fillStyle = '#0891b2'; ctx.fillRect(plotW + 2, ly - 8, padR - 4, 16);
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(last >= 1000 ? last.toFixed(0) : last.toFixed(2), plotW + 5, ly);
+      ctx.beginPath(); ctx.arc(xOf(N - 1), ly, 3, 0, Math.PI * 2); ctx.fillStyle = '#22d3ee'; ctx.fill();
     }
 
     function selectChatTarget(target) {
@@ -9408,100 +9727,6 @@ ${buildVerifiedDataText(analysisInputs)}`;
       })();
     }
 
-    function generateAudioBriefing() {
-      if (!currentAnalysisData) return;
-      if (!currentAnalysisData.price) { showToast('데이터 없음', '시세 데이터가 없어 브리핑을 만들 수 없습니다.', 'info'); return; }
-      const panel = document.getElementById('audioPlayerPanel');
-      const audioStatus = document.getElementById('audioStatusText');
-      panel.classList.remove('hidden');
-
-      if ('speechSynthesis' in window) {
-        audioStatus.textContent = '브라우저 음성 엔진으로 브리핑 재생 중...';
-        const msg = new SpeechSynthesisUtterance();
-        msg.text = tr(`PentAnalyst 모닝 브리핑입니다. 분석 종목은 ${currentAnalysisData.name}, 티커는 ${currentAnalysisData.ticker}입니다. 현재 주가는 ${currentAnalysisData.price} 달러이며, 5인 전문가 종합 컨센서스는 ${currentAnalysisData.consensus || '없음'}입니다. ${currentAnalysisData.targetAvg !== null ? `애널리스트 평균 목표 주가는 ${currentAnalysisData.targetAvg} 달러입니다.` : '목표 주가 데이터는 없습니다.'}`);
-        msg.lang = window.LOCALE || 'ko-KR';
-        msg.rate = 1.0;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(msg);
-        showToast("오디오 브리핑", `${currentAnalysisData.ticker} 브리핑 음성이 시작되었습니다.`, "success");
-      } else {
-        showToast("오디오 안내", "브라우저에서 음성 합성을 지원하지 않습니다.", "error");
-      }
-    }
-
-    function closeAudioPlayer() {
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-      document.getElementById('audioPlayerPanel').classList.add('hidden');
-    }
-
-    function generateInfographicCard() {
-      if (!currentAnalysisData) return;
-      if (!currentAnalysisData.price) { showToast('데이터 없음', '시세 데이터가 없어 인포그래픽을 만들 수 없습니다.', 'info'); return; }
-      const panel = document.getElementById('infographicPanel');
-      const loading = document.getElementById('infographicLoading');
-      const result = document.getElementById('infographicResult');
-      const img = document.getElementById('infographicImage');
-
-      panel.classList.remove('hidden');
-      loading.classList.remove('hidden');
-      result.classList.add('hidden');
-
-      setTimeout(() => {
-        // Draw infographic on virtual canvas and export as data URL
-        const offscreen = document.createElement('canvas');
-        offscreen.width = 800;
-        offscreen.height = 450;
-        const ctx = offscreen.getContext('2d');
-
-        // Background
-        ctx.fillStyle = '#07090c';
-        ctx.fillRect(0, 0, 800, 450);
-
-        // Header Banner
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(20, 20, 760, 80);
-        ctx.fillStyle = '#38bdf8';
-        ctx.font = 'bold 32px Inter, sans-serif';
-        ctx.fillText(currentAnalysisData.ticker, 40, 70);
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '16px Inter, sans-serif';
-        ctx.fillText(currentAnalysisData.name, 180, 70);
-
-        // Key stats box
-        ctx.fillStyle = '#0b0e13';
-        ctx.fillRect(20, 120, 370, 300);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 20px Inter, sans-serif';
-        ctx.fillText(`현재가: ${fmtPx(currentAnalysisData.price)}`, 40, 160);
-        ctx.fillText(`목표가: ${currentAnalysisData.targetAvg !== null ? fmtPx(currentAnalysisData.targetAvg) : ''}`, 40, 200);
-        ctx.fillText(`P/E: ${fmtNum(currentAnalysisData.pe)} | PEG: ${fmtNum(currentAnalysisData.peg)}`, 40, 240);
-        ctx.fillText(`RSI: ${fmtNum(currentAnalysisData.rsi)} | ROE: ${fmtNum(currentAnalysisData.roe, null, '%')}`, 40, 280);
-        ctx.fillText(`컨센서스: ${currentAnalysisData.consensus}`, 40, 320);
-
-        // Bull thesis preview
-        ctx.fillStyle = '#132822';
-        ctx.fillRect(410, 120, 370, 300);
-        ctx.fillStyle = '#34d399';
-        ctx.font = 'bold 18px Inter, sans-serif';
-        ctx.fillText('Motley Fool 핵심 성장 포인트', 430, 160);
-        ctx.fillStyle = '#cbd5e1';
-        ctx.font = '13px Inter, sans-serif';
-        currentAnalysisData.bullCase.forEach((b, idx) => {
-          ctx.fillText(`• ${b.slice(0, 26)}...`, 430, 210 + idx * 45);
-        });
-
-        img.src = offscreen.toDataURL('image/png');
-        document.getElementById('downloadImageBtn').href = img.src;
-
-        loading.classList.add('hidden');
-        result.classList.remove('hidden');
-        showToast("인포그래픽 완료", "투자 인포그래픽 카드가 생성되었습니다.", "success");
-      }, 500);
-    }
-
-    function closeInfographicPanel() {
-      document.getElementById('infographicPanel').classList.add('hidden');
-    }
 
     // Screener State Management
     let screenerState = {
