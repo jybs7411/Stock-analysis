@@ -5717,5 +5717,10 @@
 "최근순": "Zuletzt",
 "테마별": "Nach Thema",
 "아직 검색한 종목이 없습니다. 위 검색창에서 종목을 검색하면 여기에 쌓입니다.": "Noch keine Suchen. Hier erscheinen die oben gesuchten Aktien.",
-"이 브라우저에만 저장됩니다. 등락률은": "Nur in diesem Browser gespeichert. Die Veränderung in % ist der"
+"이 브라우저에만 저장됩니다. 등락률은": "Nur in diesem Browser gespeichert. Die Veränderung in % ist der",
+"기술·타겟": "Technik · Ziel",
+"목표 {0}": "Ziel {0}",
+"아직 의견이 없습니다. [AI 심층 분석 실행]을 누르면 채워집니다.": "Noch keine Einschätzung. [KI-Tiefenanalyse starten] füllt sie aus.",
+"재무 요약 기준 위험 신호 없음": "Keine Risikosignale in der Finanzübersicht",
+"Finviz 지표": "Finviz-Kennzahlen"
 }

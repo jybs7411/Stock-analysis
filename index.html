@@ -381,6 +381,16 @@
     .scr-note-in { position: sticky; left: .5rem; display: flex; flex-wrap: wrap; gap: .25rem; max-width: min(64rem, calc(100vw - 4.5rem)); }
     #screenerTableBody tr.scr-note:hover { background: rgba(15,23,42,.5); }
 
+  /* 5인 분석: 상단 2열(차트 | 지표 탭)·지표 행 3열은 '컨테이너 폭' 기준이라 좌우 도크가 열려 있어도 알맞게 바뀐다 */
+  #dashTop { container-type: inline-size; }
+  #dashTopGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  @container (min-width: 1000px) { #dashTopGrid { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; } #dashChartCol { position: sticky; top: 4.5rem; max-height: calc(100vh - 5.5rem); overflow-y: auto; scrollbar-width: thin; } }
+  #analysisTabsCard { container-type: inline-size; }
+  .mrow-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem 2rem; }
+  @container (min-width: 760px) { .mrow-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .expert-row > summary::-webkit-details-marker { display: none; }
+  .expert-row[open] .expert-chev { transform: rotate(180deg); }
+
     /* 폰: 길거나 큰 블록은 접기·가로 스크롤, 가로로 삐져나가는 요소 방지 */
     .fold-ico { display: none; }
     @media (max-width: 639px) {
@@ -393,9 +403,6 @@
       .fold-ico { display: inline-block; position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); transition: transform .15s; color: #94a3b8; font-size: .75rem; }
       [data-fold].is-folded > .fold-head { margin-bottom: 0 !important; border-bottom: 0 !important; padding-bottom: 0; }
       [data-fold]:not(.is-folded) .fold-ico { transform: translateY(-50%) rotate(180deg); }
-      #expertsContainer { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: .75rem; padding-bottom: .5rem; scrollbar-width: none; }
-      #expertsContainer::-webkit-scrollbar { display: none; }
-      #expertsContainer > * { flex: 0 0 88%; scroll-snap-align: start; }
       #screenerPresets .grid { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: .5rem; padding-bottom: .25rem; scrollbar-width: none; }
       #screenerPresets .grid::-webkit-scrollbar { display: none; }
       #screenerPresets .preset-btn { flex: 0 0 78%; scroll-snap-align: start; }
@@ -1277,6 +1284,9 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         <div id="dispStats" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-9 gap-2.5"></div>
       </div>
 
+      <div id="dashTop">
+      <div id="dashTopGrid">
+      <div id="dashChartCol" class="min-w-0">
       <!-- Pro Chart Station (TradingView-style) -->
       <section id="chartStation" class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 lg:p-5 shadow-2xl space-y-3">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
@@ -1363,26 +1373,13 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         </div>
       </section>
 
-      <!-- 지표 선택 모달 -->
-      <div id="indicatorModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-        <div class="bg-[#0b0e13] border border-cyan-800/70 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl">
-          <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-800">
-            <div class="flex items-center gap-2"><i class="fa-solid fa-chart-simple text-cyan-400"></i><h3 class="text-base font-bold text-white">지표 · 분석 도구</h3></div>
-            <button type="button" onclick="chCloseIndicators()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-          </div>
-          <div class="px-5 py-3 border-b border-slate-800">
-            <input id="indSearch" type="text" placeholder="지표 검색 (예: RSI, 볼린저, 일목, ADX, 거래량…)" autocomplete="off" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white outline-none focus:border-cyan-400">
-          </div>
-          <div id="indList" class="px-5 py-4 overflow-y-auto"></div>
-        </div>
       </div>
-
       <!-- Finviz 지표 / 기술적 분석 & 타겟 (탭 2개, 카드 1개) -->
-      <div data-fold class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl">
+      <div id="analysisTabsCard" data-fold class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 lg:p-5 shadow-xl min-w-0">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-slate-800/80 pb-3">
           <div class="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-800" role="tablist">
-            <button type="button" role="tab" id="atab-finviz" onclick="analysisTab('finviz')" class="px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 bg-cyan-950 text-cyan-300 border border-cyan-500/60"><i class="fa-solid fa-table-cells"></i>Finviz 핵심 지표</button>
-            <button type="button" role="tab" id="atab-tech" onclick="analysisTab('tech')" class="px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 text-slate-400 hover:text-white border border-transparent"><i class="fa-solid fa-chart-column"></i>기술적 분석 &amp; 타겟</button>
+            <button type="button" role="tab" id="atab-finviz" onclick="analysisTab('finviz')" class="px-3 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 whitespace-nowrap bg-cyan-950 text-cyan-300 border border-cyan-500/60"><i class="fa-solid fa-table-cells"></i>Finviz 지표</button>
+            <button type="button" role="tab" id="atab-tech" onclick="analysisTab('tech')" class="px-3 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 whitespace-nowrap text-slate-400 hover:text-white border border-transparent"><i class="fa-solid fa-chart-column"></i>기술·타겟</button>
           </div>
           <span id="chartTrendBadge" class="text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">상승 추세</span>
         </div>
@@ -1398,7 +1395,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
               <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span>위험</span>
             </div>
           </div>
-          <div id="finvizTableBody" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"></div>
+          <div id="finvizTableBody" class="mrow-grid"></div>
           <p class="text-[10px] text-slate-500 mt-3 leading-snug">※ 색상은 일반적인 경험칙 기준입니다. 업종·시장 상황에 따라 다르므로 참고용으로만 보세요. 투자 권유가 아닙니다.</p>
           <details class="mt-3 group">
             <summary class="cursor-pointer text-xs font-semibold text-cyan-300 hover:text-cyan-200 select-none"><i class="fa-solid fa-book-open mr-1"></i>지표 읽는 법 (펼치기)</summary>
@@ -1409,8 +1406,8 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
         <!-- 탭 2: 기술적 분석 & 타겟 -->
         <div id="apane-tech" class="hidden space-y-4">
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            <div class="lg:col-span-7 space-y-3 min-w-0">
+          <div class="grid grid-cols-1 gap-4">
+            <div class="space-y-3 min-w-0">
               <div class="relative bg-slate-950 rounded-xl border border-slate-800/80 h-72 overflow-hidden">
                 <canvas id="techTrendCanvas" class="block w-full h-full"></canvas>
                 <div class="absolute top-2 left-3 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400 font-mono-numbers pointer-events-none">
@@ -1419,7 +1416,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
               </div>
               <div id="techSignalSummary"></div>
             </div>
-            <div class="lg:col-span-5 space-y-3 min-w-0">
+            <div class="space-y-3 min-w-0">
               <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
                 <div class="flex justify-between items-center text-xs">
                   <span class="text-slate-400">애널리스트 평균 목표가</span>
@@ -1441,13 +1438,29 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
               <div id="revCard"></div>
             </div>
           </div>
-          <div id="techIndicatorGrid" class="space-y-3"></div>
-          <div id="techLevels" class="grid grid-cols-1 lg:grid-cols-3 gap-3"></div>
+          <div id="techIndicatorGrid" class="mrow-grid"></div>
+          <div id="techLevels" class="mrow-grid"></div>
           <div class="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
             <span>RSI(14): <strong id="dispRSI" class="text-slate-200">54.2</strong></span>
             <span>200 SMA: <strong id="dispSMA200" class="text-emerald-400">상회 (강세)</strong></span>
             <span class="text-slate-500">※ 일봉 기준 자동 계산 · 참고용이며 투자 권유가 아닙니다.</span>
           </div>
+        </div>
+      </div>
+
+      </div>
+      </div>
+      <!-- 지표 선택 모달 -->
+      <div id="indicatorModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div class="bg-[#0b0e13] border border-cyan-800/70 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+          <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-800">
+            <div class="flex items-center gap-2"><i class="fa-solid fa-chart-simple text-cyan-400"></i><h3 class="text-base font-bold text-white">지표 · 분석 도구</h3></div>
+            <button type="button" onclick="chCloseIndicators()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="px-5 py-3 border-b border-slate-800">
+            <input id="indSearch" type="text" placeholder="지표 검색 (예: RSI, 볼린저, 일목, ADX, 거래량…)" autocomplete="off" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white outline-none focus:border-cyan-400">
+          </div>
+          <div id="indList" class="px-5 py-4 overflow-y-auto"></div>
         </div>
       </div>
 
@@ -1490,7 +1503,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
         <p id="expertsNotice" class="hidden text-xs text-amber-300 bg-amber-950/40 border border-amber-800/60 rounded-lg px-3 py-2"></p>
 
-        <div id="expertsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div id="expertsContainer" class="rounded-2xl border border-slate-800 bg-[#0b0e13] px-3 sm:px-4">
           <!-- 5 Cards will be injected via JS -->
         </div>
       </div>
@@ -2063,7 +2076,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.67.0';
+    const APP_VERSION = '1.68.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -5393,7 +5406,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         if (pane) pane.classList.toggle('hidden', !on);
         if (btn) {
           btn.setAttribute('aria-selected', on ? 'true' : 'false');
-          btn.className = 'px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ' + (on ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/60' : 'text-slate-400 hover:text-white border border-transparent');
+          btn.className = 'px-3 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 whitespace-nowrap ' + (on ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/60' : 'text-slate-400 hover:text-white border border-transparent');
         }
       });
       if (analysisTabId === 'tech') requestAnimationFrame(renderMiniTrendPreview);
@@ -5529,15 +5542,13 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       grid.innerHTML = ['trend', 'mom', 'vol'].map(g => {
         const rs = rows.filter(r => r.grp === g);
         if (!rs.length) return '';
-        return `<div><div class="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2"><span class="w-1 h-3.5 rounded bg-cyan-500"></span>${grpName[g]}</div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">${rs.map(r => {
-            const m = r.sig === null ? { t: '참고', cls: 'bg-slate-800 text-slate-300 border-slate-700', card: 'border-slate-800' } : SIG[r.sig];
-            return `<div class="rounded-xl border ${m.card} bg-slate-900/50 p-3 flex flex-col">
-              <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-400 font-sans">${escapeHtml(r.name)}</span><span class="text-[10px] px-1.5 py-0.5 rounded border font-sans font-semibold ${m.cls}">${m.t}</span></div>
-              <div class="text-lg font-bold font-mono-numbers text-white mt-0.5">${escapeHtml(String(r.val))}</div>
-              ${techMiniGauge(r.g)}
-              <p class="text-[10px] ${r.sig === 1 ? 'text-emerald-400' : r.sig === -1 ? 'text-rose-400' : 'text-slate-400'} mt-1 leading-snug font-sans">${escapeHtml(r.note)}</p></div>`;
-          }).join('')}</div></div>`;
+        const gi = { trend: 'fa-arrow-trend-up', mom: 'fa-gauge-high', vol: 'fa-chart-simple' }[g];
+        const gb = rs.filter(r => r.sig === 1).length, gs = rs.filter(r => r.sig === -1).length;
+        const chips = `<span class="text-emerald-400 font-mono-numbers">▲${gb}</span><span class="text-rose-400 font-mono-numbers">▼${gs}</span>`;
+        return metricGroupHtml(gi, grpName[g], chips, rs.map(r => {
+          const m = r.sig === null ? { t: '참고', cls: 'bg-slate-800 text-slate-300 border-slate-700' } : SIG[r.sig];
+          return metricRowHtml({ name: r.name, val: r.val, badge: `<span class="text-[10px] px-1.5 py-0.5 rounded border font-sans font-semibold ${m.cls}">${m.t}</span>`, gauge: techMiniGauge(r.g), note: r.note, noteCls: r.sig === 1 ? 'text-emerald-400' : r.sig === -1 ? 'text-rose-400' : 'text-slate-400' });
+        }).join(''));
       }).join('');
 
       // 지지·저항 / 피벗 / 피보나치 / 최근 신호
@@ -5562,8 +5573,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       if (d.low52 && p <= d.low52 * 1.02) ev.push('52주 신저가 부근 (2% 이내)');
       const patHtml = (pats.length ? pats.map(x => `<div class="flex items-center justify-between text-xs py-1 border-b border-slate-800/60 last:border-0"><span class="${x.kind === 'bull' ? 'text-emerald-400' : x.kind === 'bear' ? 'text-rose-400' : 'text-slate-300'} font-semibold">${escapeHtml((x.kind === 'bull' ? '▲ ' : x.kind === 'bear' ? '▼ ' : '• ') + x.text)}${x.kind === 'neutral' ? '' : ' 캔들'}</span><span class="text-slate-500 font-mono-numbers">${escapeHtml(h[x.i].date)}</span></div>`).join('') : '<p class="text-xs text-slate-500 py-1">최근 10거래일 내 두드러진 캔들 패턴 없음</p>')
         + (ev.length ? `<div class="mt-2 pt-2 border-t border-slate-800/60 space-y-1">${ev.map(t => `<div class="text-xs text-amber-300"><i class="fa-solid fa-bolt text-[10px] mr-1"></i>${escapeHtml(t)}</div>`).join('')}</div>` : '');
-      const box = (title, icon, body) => `<div class="rounded-xl bg-slate-900/50 border border-slate-800 p-3"><div class="text-xs font-bold text-slate-200 mb-1.5"><i class="fa-solid ${icon} text-cyan-400 mr-1.5"></i>${title}</div>${body}</div>`;
-      lv.innerHTML = box('지지·저항 가격대 (자동 탐지)', 'fa-layer-group', srHtml) + box('피벗 포인트 · 피보나치', 'fa-ruler-vertical', `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-x-4"><div>${pivHtml}</div><div>${fibHtml}</div></div>`) + box('최근 캔들 패턴 · 이벤트', 'fa-bolt', patHtml);
+      const box = (title, icon, body) => metricGroupHtml(icon, title, '', `<div class="pt-1">${body}</div>`);
+      lv.innerHTML = box('지지·저항 가격대 (자동 탐지)', 'fa-layer-group', srHtml) + box('피벗 포인트 · 피보나치', 'fa-ruler-vertical', `<div>${pivHtml}</div><div class="mt-2">${fibHtml}</div>`) + box('최근 캔들 패턴 · 이벤트', 'fa-bolt', patHtml);
       renderTechTargets(d, TA.atr(h, 14)[n - 1]);
     }
 
@@ -5691,25 +5702,30 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       renderBullBear(data.bullCase, data.bearCase);
     }
 
+    // 지표 한 줄(박스 없음): 이름 · 값 · 판정 배지 + 구간 게이지 + 한 줄 해석
+    function metricRowHtml(o) {
+      return `<div class="py-2 border-b border-slate-800/60 last:border-0" title="${escapeHtml(o.title || '')}">
+        <div class="flex items-center gap-2">
+          <span class="flex-1 min-w-0 truncate text-[12px] text-slate-300 font-sans">${escapeHtml(o.name)}</span>
+          <span class="font-mono-numbers font-bold text-white text-sm whitespace-nowrap">${escapeHtml(String(o.val))}</span>
+          ${o.badge || ''}
+        </div>
+        ${o.gauge || ''}
+        ${o.sub ? `<div class="text-[10px] text-slate-500 font-mono-numbers">${escapeHtml(o.sub)}</div>` : ''}
+        ${o.note ? `<p class="text-[10px] ${o.noteCls || 'text-slate-400'} mt-0.5 leading-snug font-sans">${escapeHtml(o.note)}</p>` : ''}
+      </div>`;
+    }
+    function metricGroupHtml(icon, title, chips, rows) {
+      return `<div class="min-w-0"><div class="flex items-center justify-between mb-0.5 pb-1.5 border-b border-slate-700/70"><span class="text-xs font-bold text-slate-200 flex items-center gap-2"><i class="fa-solid ${icon} text-cyan-400 text-[11px]"></i>${escapeHtml(title)}</span><span class="flex items-center gap-2 text-[11px] text-slate-400">${chips || ''}</span></div>${rows}</div>`;
+    }
+
     function renderFinvizTable(items, dataFeed = '') {
       const grid = document.getElementById('finvizTableBody');
       const GRP = { val: ['밸류에이션 · 수익성', 'fa-scale-balanced'], pos: ['가격 위치 · 수급 · 목표가', 'fa-crosshairs'], trend: ['추세 · 모멘텀', 'fa-arrow-trend-up'] };
       const card = it => {
         const g = METRIC_GUIDE[it.key];
         const r = rateMetric(it.key, it.raw);
-        const verdict = r ? r.text : '';
-        const border = r ? ({ good: 'border-emerald-900/70', ok: 'border-sky-900/60', warn: 'border-amber-900/60', bad: 'border-rose-900/70', info: 'border-slate-800' }[r.rating]) : 'border-slate-800';
-        return `
-          <div class="rounded-xl border ${border} bg-slate-900/50 p-3 flex flex-col" title="${escapeHtml(g ? g.what : '')}">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[11px] text-slate-400 font-sans">${escapeHtml(g ? g.name : it.label)}</span>
-              ${ratingBadge(r)}
-            </div>
-            <div class="text-lg font-bold font-mono-numbers text-white mt-0.5 min-h-[1.75rem]">${escapeHtml(it.val)}</div>
-            ${r ? gaugeHtml(it.key, it.raw) : ''}
-            ${it.sub ? `<div class="text-[10px] text-slate-500 font-mono-numbers">${escapeHtml(it.sub)}</div>` : ''}
-            <p class="text-[10px] ${r ? r.meta.text : 'text-slate-500'} mt-1 leading-snug font-sans">${escapeHtml(verdict)}</p>
-          </div>`;
+        return metricRowHtml({ name: g ? g.name : it.label, val: it.val, badge: ratingBadge(r), gauge: r ? gaugeHtml(it.key, it.raw) : '', sub: it.sub, note: r ? r.text : '', noteCls: r ? r.meta.text : 'text-slate-500', title: g ? g.what : '' });
       };
       const shown = items.filter(it => it.val !== '' && it.val !== null && it.val !== undefined && !(typeof it.raw === 'number' && Number.isNaN(it.raw) && !it.val));
       grid.innerHTML = Object.keys(GRP).map(k => {
@@ -5718,50 +5734,39 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         const cnt = { good: 0, ok: 0, warn: 0, bad: 0 };
         list.forEach(it => { const r = rateMetric(it.key, it.raw); if (r && cnt[r.rating] !== undefined) cnt[r.rating]++; });
         const chips = ['good', 'ok', 'warn', 'bad'].filter(x => cnt[x]).map(x => `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full ${RATING_META[x].dot}"></span>${cnt[x]}</span>`).join('');
-        return `<div class="col-span-full flex items-center justify-between mt-1 first:mt-0"><span class="text-xs font-bold text-slate-300 flex items-center gap-2"><i class="fa-solid ${GRP[k][1]} text-cyan-400 text-[11px]"></i>${GRP[k][0]}</span><span class="flex items-center gap-2 text-[11px] text-slate-400">${chips}</span></div>` + list.map(card).join('');
+        return metricGroupHtml(GRP[k][1], GRP[k][0], chips, list.map(card).join(''));
       }).join('') || '<p class="col-span-full text-xs text-slate-500">표시할 재무 지표가 없습니다 (프록시 연결 필요).</p>';
       renderMetricSummary(items);
       const note = document.getElementById('dataFeedNote');
       if (note) note.textContent = dataFeed ? `데이터 출처: ${dataFeed}` : '';
     }
 
+    function expertRowHtml(o) {
+      return `<details class="expert-row group border-b border-slate-800/70 last:border-0">
+        <summary class="flex items-center gap-3 px-1 py-2.5 cursor-pointer list-none hover:bg-slate-900/50 rounded-lg select-none">
+          <span class="w-8 h-8 shrink-0 rounded-xl ${escapeHtml(o.color)} border flex items-center justify-center text-sm"><i class="fa-solid ${escapeHtml(o.avatar)}"></i></span>
+          <span class="min-w-0 w-36 sm:w-44 shrink-0"><span class="block text-sm font-bold text-white truncate">${escapeHtml(o.name)}</span><span class="block text-[10px] text-slate-500 truncate">${escapeHtml(o.role)}</span></span>
+          <span class="shrink-0">${o.badge || '<span class="text-[10px] text-slate-600">—</span>'}</span>
+          <span class="flex-1 min-w-0 hidden md:block truncate text-xs text-slate-400 font-sans">${escapeHtml(o.preview || '')}</span>
+          <span class="ml-auto md:ml-0 shrink-0 text-xs font-mono-numbers font-bold text-cyan-400 whitespace-nowrap">${o.target ? escapeHtml(o.target) : ''}</span>
+          <i class="fa-solid fa-chevron-down text-[10px] text-slate-500 expert-chev transition"></i>
+        </summary>
+        <div class="pl-12 pr-2 pb-3 space-y-2">
+          ${o.body}
+          <div class="flex items-center justify-between text-[11px] text-slate-500"><span>${escapeHtml(o.foot)}</span>${o.ask}</div>
+        </div>
+      </details>`;
+    }
     function renderExperts(experts) {
       const container = document.getElementById('expertsContainer');
-      container.innerHTML = experts.map(exp => `
-        <div class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-cyan-500/40 transition">
-          <div>
-            <div class="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
-              <div class="flex items-center gap-2.5">
-                <span class="w-8 h-8 rounded-xl ${escapeHtml(exp.color)} border flex items-center justify-center text-sm shadow">
-                  <i class="fa-solid ${escapeHtml(exp.avatar)}"></i>
-                </span>
-                <div>
-                  <h4 class="text-sm font-bold text-white">${escapeHtml(exp.name)}</h4>
-                  <span class="text-[10px] text-slate-400 block">${escapeHtml(exp.role)}</span>
-                </div>
-              </div>
-              ${exp.target ? `<span class="text-xs font-mono-numbers font-bold text-cyan-400 bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">
-                목표: ${escapeHtml(exp.target)}
-              </span>` : ''}
-            </div>
-            ${exp.stance ? `<div class="mb-3">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold border bg-cyan-950/80 text-cyan-300 border-cyan-800">
-                ${escapeHtml(exp.stance)}
-              </span>
-            </div>` : ''}
-            ${exp.thesis ? `<p class="text-xs text-slate-300 leading-relaxed font-sans">
-              "${escapeHtml(exp.thesis)}"
-            </p>` : ''}
-          </div>
-          <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Finviz/Fool 검증</span>
-            <button data-name="${escapeHtml(exp.name)}" onclick="setExpertForQuestion(this.dataset.name)" class="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1">
-              <span>직접 질문</span>
-              <i class="fa-solid fa-arrow-right text-[10px]"></i>
-            </button>
-          </div>
-        </div>
-      `).join('') + redExpertCard();
+      container.innerHTML = experts.map(exp => expertRowHtml({
+        color: exp.color, avatar: exp.avatar, name: exp.name, role: exp.role,
+        badge: exp.stance ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold border bg-cyan-950/80 text-cyan-300 border-cyan-800 whitespace-nowrap">${escapeHtml(exp.stance)}</span>` : '',
+        preview: exp.thesis, target: exp.target ? `목표 ${exp.target}` : '',
+        body: exp.thesis ? `<p class="text-xs text-slate-300 leading-relaxed font-sans">"${escapeHtml(exp.thesis)}"</p>` : '<p class="text-xs text-slate-500">아직 의견이 없습니다. [AI 심층 분석 실행]을 누르면 채워집니다.</p>',
+        foot: 'Finviz/Fool 검증',
+        ask: `<button data-name="${escapeHtml(exp.name)}" onclick="setExpertForQuestion(this.dataset.name)" class="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1"><span>직접 질문</span><i class="fa-solid fa-arrow-right text-[10px]"></i></button>`
+      })).join('') + redExpertCard();
     }
 
     // 5인 리포트의 6번째 카드: 악마의 변호인 레드 (위험 신호 점검 결과를 요약)
@@ -5773,26 +5778,13 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const list = flags.length
         ? `<ul class="space-y-1.5">${flags.slice(0, 5).map(x => { const m = RATING_META[x.rating] || RATING_META.info; return `<li class="flex gap-2 text-xs leading-snug"><span class="mt-0.5 shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${m.badge}">${escapeHtml(x.label)}</span><span class="text-slate-300">${escapeHtml(x.text)}</span></li>`; }).join('')}</ul>`
         : '<p class="text-xs text-slate-400 leading-relaxed font-sans">재무 요약 기준으로 눈에 띄는 위험 신호가 없습니다. 그래도 위원회가 한쪽으로 쏠렸다면 "틀릴 수 있는 이유"를 직접 물어보세요.</p>';
-      return `
-        <div class="bg-[#0b0e13] border border-rose-900/50 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-rose-500/50 transition">
-          <div>
-            <div class="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
-              <div class="flex items-center gap-2.5">
-                <span class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-300 border-rose-500/50 border flex items-center justify-center text-sm shadow"><i class="fa-solid fa-skull"></i></span>
-                <div>
-                  <h4 class="text-sm font-bold text-white">레드</h4>
-                  <span class="text-[10px] text-slate-400 block">악마의 변호인 · 반대편 시나리오</span>
-                </div>
-              </div>
-            </div>
-            <div class="mb-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold border bg-rose-950/80 text-rose-300 border-rose-800">${nWarn ? `확인 필요 신호 ${nWarn}개` : '경고 신호 없음'}</span></div>
-            ${list}
-          </div>
-          <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-            <span>재무 요약 자동 점검</span>
-            <button onclick="selectChatTarget('devil');document.getElementById('expertQuestionInput').focus()" class="text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1"><span>직접 질문</span><i class="fa-solid fa-arrow-right text-[10px]"></i></button>
-          </div>
-        </div>`;
+      return expertRowHtml({
+        color: 'text-rose-300 bg-rose-500/20 border-rose-500/50', avatar: 'fa-skull', name: '레드', role: '악마의 변호인 · 반대편 시나리오',
+        badge: `<span class="px-2 py-0.5 rounded text-[10px] font-bold border bg-rose-950/80 text-rose-300 border-rose-800 whitespace-nowrap">${nWarn ? `확인 필요 신호 ${nWarn}개` : '경고 신호 없음'}</span>`,
+        preview: flags.length ? flags.slice(0, 2).map(x => x.label).join(' · ') : '재무 요약 기준 위험 신호 없음', target: '',
+        body: list, foot: '재무 요약 자동 점검',
+        ask: `<button onclick="selectChatTarget('devil');document.getElementById('expertQuestionInput').focus()" class="text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1"><span>직접 질문</span><i class="fa-solid fa-arrow-right text-[10px]"></i></button>`
+      });
     }
 
     function renderBullBear(bulls, bears) {
