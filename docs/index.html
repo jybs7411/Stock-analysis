@@ -380,8 +380,8 @@
   #dashTop { container-type: inline-size; }
   #dashTopGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
   #analysisTabsCard { container-type: inline-size; }
-  .tech-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
-  @container (min-width: 760px) { .tech-top { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
+  .tech-strip, .tech-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  @container (min-width: 760px) { .tech-strip { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); } .tech-cols { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1.5rem; } }
   .mrow-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem 2rem; }
   @container (min-width: 760px) { .mrow-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .expert-row > summary::-webkit-details-marker { display: none; }
@@ -432,6 +432,7 @@ html[data-theme="light"] body .bg-amber-950\/20{background-color:rgb(255 251 235
 html[data-theme="light"] body .bg-amber-950\/25{background-color:rgb(255 251 235 / 0.35)}
 html[data-theme="light"] body .bg-amber-950\/30{background-color:rgb(255 251 235 / 0.42)}
 html[data-theme="light"] body .bg-amber-950\/40{background-color:rgb(255 251 235 / 0.5599999999999999)}
+html[data-theme="light"] body .bg-amber-950\/50{background-color:rgb(255 251 235 / 0.7)}
 html[data-theme="light"] body .bg-amber-950\/60{background-color:rgb(255 251 235 / 0.84)}
 html[data-theme="light"] body .bg-amber-950\/70{background-color:rgb(255 251 235 / 0.95)}
 html[data-theme="light"] body .bg-amber-950{background-color:rgb(255 251 235)}
@@ -519,6 +520,7 @@ html[data-theme="light"] body .bg-teal-950{background-color:rgb(240 253 250)}
 html[data-theme="light"] body .bg-violet-900\/60{background-color:rgb(237 233 254 / 0.95)}
 html[data-theme="light"] body .bg-violet-950\/20{background-color:rgb(245 243 255 / 0.27999999999999997)}
 html[data-theme="light"] body .bg-violet-950\/40{background-color:rgb(245 243 255 / 0.5599999999999999)}
+html[data-theme="light"] body .bg-violet-950\/60{background-color:rgb(245 243 255 / 0.84)}
 html[data-theme="light"] body .bg-violet-950{background-color:rgb(245 243 255)}
 html[data-theme="light"] body .bg-yellow-950\/30{background-color:rgb(254 252 232 / 0.42)}
 html[data-theme="light"] body .bg-yellow-950\/40{background-color:rgb(254 252 232 / 0.5599999999999999)}
@@ -540,6 +542,7 @@ html[data-theme="light"] body .border-amber-800\/80{border-color:rgb(253 230 138
 html[data-theme="light"] body .border-amber-800{border-color:rgb(253 230 138)}
 html[data-theme="light"] body .border-amber-900\/50{border-color:rgb(253 230 138 / 0.5)}
 html[data-theme="light"] body .border-amber-900\/60{border-color:rgb(253 230 138 / 0.6)}
+html[data-theme="light"] body .border-amber-900{border-color:rgb(253 230 138)}
 html[data-theme="light"] body .border-blue-700\/60{border-color:rgb(147 197 253 / 0.6)}
 html[data-theme="light"] body .border-cyan-600{border-color:rgb(103 232 249)}
 html[data-theme="light"] body .border-cyan-700\/50{border-color:rgb(103 232 249 / 0.5)}
@@ -555,6 +558,7 @@ html[data-theme="light"] body .border-cyan-800\/80{border-color:rgb(165 243 252 
 html[data-theme="light"] body .border-cyan-800{border-color:rgb(165 243 252)}
 html[data-theme="light"] body .border-cyan-900\/50{border-color:rgb(165 243 252 / 0.5)}
 html[data-theme="light"] body .border-cyan-900\/60{border-color:rgb(165 243 252 / 0.6)}
+html[data-theme="light"] body .border-cyan-900{border-color:rgb(165 243 252)}
 html[data-theme="light"] body .border-emerald-600\/50{border-color:rgb(110 231 183 / 0.5)}
 html[data-theme="light"] body .border-emerald-600{border-color:rgb(110 231 183)}
 html[data-theme="light"] body .border-emerald-700\/40{border-color:rgb(110 231 183 / 0.4)}
@@ -616,6 +620,7 @@ html[data-theme="light"] body .border-slate-600{border-color:rgb(203 213 225)}
 html[data-theme="light"] body .border-slate-700\/60{border-color:rgb(203 213 225 / 0.6)}
 html[data-theme="light"] body .border-slate-700\/70{border-color:rgb(203 213 225 / 0.7)}
 html[data-theme="light"] body .border-slate-700{border-color:rgb(203 213 225)}
+html[data-theme="light"] body .border-slate-800\/50{border-color:rgb(226 232 240 / 0.5)}
 html[data-theme="light"] body .border-slate-800\/60{border-color:rgb(226 232 240 / 0.6)}
 html[data-theme="light"] body .border-slate-800\/70{border-color:rgb(226 232 240 / 0.7)}
 html[data-theme="light"] body .border-slate-800\/80{border-color:rgb(226 232 240 / 0.8)}
@@ -629,6 +634,7 @@ html[data-theme="light"] body .border-violet-800\/60{border-color:rgb(221 214 25
 html[data-theme="light"] body .border-violet-800{border-color:rgb(221 214 254)}
 html[data-theme="light"] body .border-violet-900\/50{border-color:rgb(221 214 254 / 0.5)}
 html[data-theme="light"] body .border-violet-900\/60{border-color:rgb(221 214 254 / 0.6)}
+html[data-theme="light"] body .border-violet-900{border-color:rgb(221 214 254)}
 html[data-theme="light"] body .border-yellow-600{border-color:rgb(253 224 71)}
 html[data-theme="light"] body .border-yellow-700\/70{border-color:rgb(253 224 71 / 0.7)}
 html[data-theme="light"] body .border-yellow-700\/80{border-color:rgb(253 224 71 / 0.8)}
@@ -716,6 +722,7 @@ html[data-theme="light"] body .text-emerald-100{color:rgb(6 95 70)}
 html[data-theme="light"] body .text-emerald-200{color:rgb(6 95 70)}
 html[data-theme="light"] body .text-emerald-300{color:rgb(4 120 87)}
 html[data-theme="light"] body .text-emerald-400{color:rgb(4 120 87)}
+html[data-theme="light"] body .text-emerald-500{color:rgb(5 150 105)}
 html[data-theme="light"] body .text-fuchsia-200{color:rgb(134 25 143)}
 html[data-theme="light"] body .text-fuchsia-300{color:rgb(162 28 175)}
 html[data-theme="light"] body .text-fuchsia-400{color:rgb(162 28 175)}
@@ -776,7 +783,7 @@ html[data-theme="light"] body .to-slate-950{--tw-gradient-to:rgb(241 245 249) va
 @media (min-width:1024px){
 html[data-theme="light"] body .lg\:bg-slate-900{background-color:rgb(248 250 252)}
 }
-html[data-theme="light"] body :is(.bg-amber-500,.bg-amber-500\/70,.bg-amber-600,.bg-amber-700,.bg-blue-600,.bg-blue-600\/90,.bg-cyan-600,.bg-cyan-700,.bg-emerald-500,.bg-emerald-500\/70,.bg-emerald-600,.bg-fuchsia-600,.bg-indigo-500,.bg-indigo-600,.bg-lime-500,.bg-orange-500,.bg-orange-600,.bg-orange-700,.bg-purple-600,.bg-red-600,.bg-rose-500,.bg-rose-500\/70,.bg-rose-600,.bg-rose-600\/90,.bg-rose-700,.bg-sky-500,.bg-sky-500\/70,.bg-sky-600,.bg-teal-600,.bg-violet-600,.bg-violet-700,.bg-yellow-500,.from-cyan-500,.from-purple-600,.bg-gradient-to-tr,.bg-gradient-to-r.from-cyan-500).text-white, html[data-theme="light"] body :is(.bg-amber-500,.bg-amber-500\/70,.bg-amber-600,.bg-amber-700,.bg-blue-600,.bg-blue-600\/90,.bg-cyan-600,.bg-cyan-700,.bg-emerald-500,.bg-emerald-500\/70,.bg-emerald-600,.bg-fuchsia-600,.bg-indigo-500,.bg-indigo-600,.bg-lime-500,.bg-orange-500,.bg-orange-600,.bg-orange-700,.bg-purple-600,.bg-red-600,.bg-rose-500,.bg-rose-500\/70,.bg-rose-600,.bg-rose-600\/90,.bg-rose-700,.bg-sky-500,.bg-sky-500\/70,.bg-sky-600,.bg-teal-600,.bg-violet-600,.bg-violet-700,.bg-yellow-500,.from-cyan-500,.from-purple-600,.bg-gradient-to-tr,.bg-gradient-to-r.from-cyan-500) .text-white, html[data-theme="light"] body :is(.bg-amber-500,.bg-amber-500\/70,.bg-amber-600,.bg-amber-700,.bg-blue-600,.bg-blue-600\/90,.bg-cyan-600,.bg-cyan-700,.bg-emerald-500,.bg-emerald-500\/70,.bg-emerald-600,.bg-fuchsia-600,.bg-indigo-500,.bg-indigo-600,.bg-lime-500,.bg-orange-500,.bg-orange-600,.bg-orange-700,.bg-purple-600,.bg-red-600,.bg-rose-500,.bg-rose-500\/70,.bg-rose-600,.bg-rose-600\/90,.bg-rose-700,.bg-sky-500,.bg-sky-500\/70,.bg-sky-600,.bg-teal-600,.bg-violet-600,.bg-violet-700,.bg-yellow-500,.from-cyan-500,.from-purple-600,.bg-gradient-to-tr,.bg-gradient-to-r.from-cyan-500) :is(i,span,b):not([class*="text-"]) {color:#fff}
+html[data-theme="light"] body :is(.bg-amber-500,.bg-amber-600,.bg-amber-700,.bg-blue-600,.bg-blue-600\/90,.bg-cyan-600,.bg-cyan-700,.bg-emerald-500,.bg-emerald-500\/70,.bg-emerald-600,.bg-fuchsia-600,.bg-indigo-500,.bg-indigo-600,.bg-lime-500,.bg-orange-500,.bg-orange-600,.bg-orange-700,.bg-purple-600,.bg-red-600,.bg-rose-500,.bg-rose-500\/70,.bg-rose-600,.bg-rose-600\/90,.bg-rose-700,.bg-sky-500,.bg-sky-600,.bg-teal-600,.bg-violet-600,.bg-violet-700,.bg-yellow-500,.from-cyan-500,.from-purple-600,.bg-gradient-to-tr,.bg-gradient-to-r.from-cyan-500).text-white, html[data-theme="light"] body :is(.bg-amber-500,.bg-amber-600,.bg-amber-700,.bg-blue-600,.bg-blue-600\/90,.bg-cyan-600,.bg-cyan-700,.bg-emerald-500,.bg-emerald-500\/70,.bg-emerald-600,.bg-fuchsia-600,.bg-indigo-500,.bg-indigo-600,.bg-lime-500,.bg-orange-500,.bg-orange-600,.bg-orange-700,.bg-purple-600,.bg-red-600,.bg-rose-500,.bg-rose-500\/70,.bg-rose-600,.bg-rose-600\/90,.bg-rose-700,.bg-sky-500,.bg-sky-600,.bg-teal-600,.bg-violet-600,.bg-violet-700,.bg-yellow-500,.from-cyan-500,.from-purple-600,.bg-gradient-to-tr,.bg-gradient-to-r.from-cyan-500) .text-white, html[data-theme="light"] body :is(.bg-amber-500,.bg-amber-600,.bg-amber-700,.bg-blue-600,.bg-blue-600\/90,.bg-cyan-600,.bg-cyan-700,.bg-emerald-500,.bg-emerald-500\/70,.bg-emerald-600,.bg-fuchsia-600,.bg-indigo-500,.bg-indigo-600,.bg-lime-500,.bg-orange-500,.bg-orange-600,.bg-orange-700,.bg-purple-600,.bg-red-600,.bg-rose-500,.bg-rose-500\/70,.bg-rose-600,.bg-rose-600\/90,.bg-rose-700,.bg-sky-500,.bg-sky-600,.bg-teal-600,.bg-violet-600,.bg-violet-700,.bg-yellow-500,.from-cyan-500,.from-purple-600,.bg-gradient-to-tr,.bg-gradient-to-r.from-cyan-500) :is(i,span,b):not([class*="text-"]) {color:#fff}
 html[data-theme="light"] body [style*="color:#22d3ee" i]{color:#0d96aa !important}
 html[data-theme="light"] body [style*="color: #22d3ee" i]{color:#0d96aa !important}
 html[data-theme="light"] body [style*="color:#2dd4bf" i]{color:#1f9889 !important}
@@ -1420,45 +1427,28 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
         <!-- 탭 2: 기술적 분석 & 타겟 -->
         <div id="apane-tech" class="hidden space-y-4">
-          <div class="tech-top">
-            <div class="space-y-3 min-w-0">
-              <div class="relative bg-slate-950 rounded-xl border border-slate-800/80 h-72 overflow-hidden">
-                <canvas id="techTrendCanvas" class="block w-full h-full"></canvas>
-                <div class="absolute top-2 left-3 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400 font-mono-numbers pointer-events-none">
-                  <span class="text-cyan-300">● 종가 6M</span><span class="text-amber-400">━ SMA20</span><span class="text-violet-400">━ SMA50</span><span class="text-rose-400">━ SMA200</span><span class="text-slate-400">▒ 볼린저</span><span class="text-emerald-400">┄ 지지</span><span class="text-rose-300">┄ 저항</span>
-                </div>
-              </div>
-              <div id="techSignalSummary"></div>
+          <!-- 1) 요약 띠: 종합 신호 | 애널리스트 목표 -->
+          <div class="tech-strip">
+            <div id="techSignalSummary" class="min-w-0"></div>
+            <div id="techTargetStrip" class="min-w-0"></div>
+          </div>
+          <div id="techEvents" class="flex flex-wrap items-center gap-1.5 empty:hidden"></div>
+          <!-- 2) 차트 -->
+          <div class="relative bg-slate-950 rounded-xl border border-slate-800/80 h-72 overflow-hidden">
+            <canvas id="techTrendCanvas" class="block w-full h-full"></canvas>
+            <div class="absolute top-2 left-3 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400 font-mono-numbers pointer-events-none">
+              <span class="text-cyan-300">● 종가 6M</span><span class="text-amber-400">━ SMA20</span><span class="text-violet-400">━ SMA50</span><span class="text-rose-400">━ SMA200</span><span class="text-slate-400">▒ 볼린저</span><span class="text-emerald-400">┄ 지지</span><span class="text-rose-300">┄ 저항</span>
             </div>
-            <div class="space-y-3 min-w-0">
-              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                <div class="flex justify-between items-center text-xs">
-                  <span class="text-slate-400">애널리스트 평균 목표가</span>
-                  <span id="dispAvgTarget" class="text-lg font-bold text-cyan-400 font-mono-numbers">$0.00</span>
-                </div>
-                <div class="flex justify-between items-center text-xs">
-                  <span class="text-slate-400">예상 상승/하락 여력</span>
-                  <span id="dispTargetUpside" class="font-bold text-emerald-400 font-mono-numbers">+0.0%</span>
-                </div>
-                <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden mt-1" title="목표가 범위(최저~최고) 안에서 현재가의 위치">
-                  <div id="targetBar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-2 rounded-full" style="width: 60%"></div>
-                </div>
-                <div class="flex justify-between text-[10px] text-slate-500 font-mono-numbers">
-                  <span id="targetMin">최저: $0</span>
-                  <span id="targetMax">최고: $0</span>
-                </div>
-              </div>
-              <div id="techTargetExtra"></div>
+          </div>
+          <!-- 3) 지표 표 | 가격대 사다리 -->
+          <div class="tech-cols">
+            <div id="techIndicatorGrid" class="min-w-0 space-y-4"></div>
+            <div class="min-w-0 space-y-4">
+              <div id="techLevels"></div>
               <div id="revCard"></div>
             </div>
           </div>
-          <div id="techIndicatorGrid" class="mrow-grid"></div>
-          <div id="techLevels" class="mrow-grid"></div>
-          <div class="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
-            <span>RSI(14): <strong id="dispRSI" class="text-slate-200">54.2</strong></span>
-            <span>200 SMA: <strong id="dispSMA200" class="text-emerald-400">상회 (강세)</strong></span>
-            <span class="text-slate-500">※ 일봉 기준 자동 계산 · 참고용이며 투자 권유가 아닙니다.</span>
-          </div>
+          <p class="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500">※ 일봉 기준 자동 계산 · 참고용이며 투자 권유가 아닙니다. 지표 이름에 마우스를 올리면 해석이 보입니다.</p>
         </div>
       </div>
 
@@ -2090,7 +2080,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.69.0';
+    const APP_VERSION = '1.70.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -5513,25 +5503,28 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       return rows;
     }
 
-    function techMiniGauge(g) {
-      if (!g) return '';
-      const span = g.max - g.min, pc = v => Math.min(100, Math.max(0, (v - g.min) / span * 100));
-      const lo = pc(g.lo), hi = pc(g.hi), pos = pc(g.v);
-      const cols = g.mid ? ['bg-slate-700', 'bg-sky-500/70', 'bg-emerald-500/70'] : ['bg-emerald-500/70', 'bg-slate-700', 'bg-rose-500/70'];
-      return `<div class="relative mt-2 mb-1"><div class="flex h-1.5 rounded-full overflow-hidden"><div class="${cols[0]}" style="width:${lo}%"></div><div class="${cols[1]}" style="width:${hi - lo}%"></div><div class="${cols[2]}" style="width:${100 - hi}%"></div></div><div class="absolute -top-0.5 w-0.5 h-2.5 bg-white rounded shadow" style="left:calc(${pos}% - 1px)"></div></div>`;
+    function techRowHtml(r, SIG) {
+      const m = r.sig === null ? { t: '참고', cls: 'bg-slate-800 text-slate-300 border-slate-700' } : SIG[r.sig];
+      const noteCls = r.sig === 1 ? 'text-emerald-400' : r.sig === -1 ? 'text-rose-400' : 'text-slate-500';
+      return `<div class="flex items-center gap-2 py-1.5 border-b border-slate-800/60 last:border-0" title="${escapeHtml(r.name + ' — ' + r.note)}">
+        <span class="w-32 shrink-0 truncate text-xs text-slate-300 font-sans">${escapeHtml(r.name)}</span>
+        <span class="w-[6.5rem] shrink-0 text-right font-mono-numbers font-bold text-white whitespace-nowrap ${String(r.val).length > 9 ? 'text-xs' : 'text-sm'}">${escapeHtml(String(r.val))}</span>
+        <span class="min-w-[2.75rem] shrink-0 text-center text-[10px] px-1 py-0.5 rounded border font-sans font-semibold ${m.cls}">${m.t}</span>
+        <span class="min-w-0 flex-1 truncate text-[11px] ${noteCls} font-sans">${escapeHtml(r.note)}</span>
+      </div>`;
     }
 
     function renderTechPanel(d) {
-      const grid = document.getElementById('techIndicatorGrid'), sum = document.getElementById('techSignalSummary'), lv = document.getElementById('techLevels');
+      const grid = document.getElementById('techIndicatorGrid'), sum = document.getElementById('techSignalSummary'), lv = document.getElementById('techLevels'), ev = document.getElementById('techEvents');
       if (!grid || !sum || !lv) return;
       const rows = computeTechRows(d);
       if (!rows || !rows.length) {
-        grid.innerHTML = ''; lv.innerHTML = '';
+        grid.innerHTML = ''; lv.innerHTML = ''; if (ev) ev.innerHTML = '';
         sum.innerHTML = '<p class="text-xs text-slate-500">일봉 데이터가 부족해 기술적 지표를 계산하지 못했습니다 (최소 30거래일 필요).</p>';
-        renderTechTargets(d, null);
+        renderTechTargets(d);
         return;
       }
-      const SIG = { 1: { t: '매수', cls: 'bg-emerald-950 text-emerald-300 border-emerald-800', card: 'border-emerald-900/60' }, '-1': { t: '매도', cls: 'bg-rose-950 text-rose-300 border-rose-800', card: 'border-rose-900/60' }, 0: { t: '중립', cls: 'bg-sky-950 text-sky-300 border-sky-800', card: 'border-slate-800' } };
+      const SIG = { 1: { t: '매수', cls: 'bg-emerald-950 text-emerald-300 border-emerald-800' }, '-1': { t: '매도', cls: 'bg-rose-950 text-rose-300 border-rose-800' }, 0: { t: '중립', cls: 'bg-sky-950 text-sky-300 border-sky-800' } };
       const counted = rows.filter(r => r.sig !== null);
       const buy = counted.filter(r => r.sig === 1).length, sell = counted.filter(r => r.sig === -1).length, neu = counted.length - buy - sell;
       const score = counted.length ? (buy - sell) / counted.length : 0;
@@ -5540,17 +5533,16 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const grpName = { trend: '추세', mom: '모멘텀', vol: '거래량·변동성' };
       const grpLine = ['trend', 'mom', 'vol'].map(g => {
         const rs = rows.filter(r => r.grp === g && r.sig !== null);
-        const b = rs.filter(r => r.sig === 1).length, s = rs.filter(r => r.sig === -1).length;
-        return `<span class="px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-300">${grpName[g]} <span class="text-emerald-400 font-bold">${b}</span>/<span class="text-slate-400">${rs.length - b - s}</span>/<span class="text-rose-400 font-bold">${s}</span></span>`;
-      }).join('');
-      sum.innerHTML = `<div class="rounded-xl bg-slate-900 border border-slate-800 p-3.5">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div><div class="text-[11px] text-slate-400">기술적 종합 신호 (지표 ${counted.length}개)</div><div class="text-lg font-extrabold ${verdict[1]}">${verdict[0]}</div></div>
-          <div class="flex items-center gap-1.5 text-xs font-mono-numbers"><span class="px-2 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">매수 ${buy}</span><span class="px-2 py-1 rounded bg-sky-950 text-sky-300 border border-sky-800">중립 ${neu}</span><span class="px-2 py-1 rounded bg-rose-950 text-rose-300 border border-rose-800">매도 ${sell}</span></div>
+        const b = rs.filter(r => r.sig === 1).length, s2 = rs.filter(r => r.sig === -1).length;
+        return `<span class="text-[11px] text-slate-400">${grpName[g]} <span class="text-emerald-400 font-bold font-mono-numbers">${b}</span><span class="text-slate-600">/</span><span class="font-mono-numbers">${rs.length - b - s2}</span><span class="text-slate-600">/</span><span class="text-rose-400 font-bold font-mono-numbers">${s2}</span></span>`;
+      }).join('<span class="text-slate-700">·</span>');
+      sum.innerHTML = `<div class="h-full rounded-xl bg-slate-900/70 border border-slate-800 p-3.5">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0"><div class="text-[11px] text-slate-400">기술적 종합 신호 · 지표 ${counted.length}개</div><div class="text-lg font-extrabold leading-tight ${verdict[1]}">${verdict[0]}</div></div>
+          <div class="flex items-center gap-1 text-[11px] font-mono-numbers shrink-0"><span class="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">매수 ${buy}</span><span class="px-1.5 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800">중립 ${neu}</span><span class="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">매도 ${sell}</span></div>
         </div>
-        <div class="relative mt-3 mb-1"><div class="flex h-2 rounded-full overflow-hidden"><div class="bg-rose-500/70" style="width:30%"></div><div class="bg-slate-400/70" style="width:40%"></div><div class="bg-emerald-500/70" style="width:30%"></div></div><div class="absolute -top-1 w-1 h-4 bg-white rounded shadow" style="left:calc(${pos.toFixed(1)}% - 2px)"></div></div>
-        <div class="flex justify-between text-[10px] text-slate-500"><span>매도</span><span>중립</span><span>매수</span></div>
-        <div class="flex flex-wrap gap-1.5 mt-2">${grpLine}<span class="text-[10px] text-slate-500 self-center">(매수/중립/매도)</span></div>
+        <div class="relative mt-3"><div class="flex h-1.5 rounded-full overflow-hidden"><div class="bg-rose-500/70" style="width:30%"></div><div class="bg-slate-500/60" style="width:40%"></div><div class="bg-emerald-500/70" style="width:30%"></div></div><div class="absolute -top-1 w-1 h-3.5 bg-white rounded shadow" style="left:calc(${pos.toFixed(1)}% - 2px)"></div></div>
+        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-2.5">${grpLine}<span class="text-[10px] text-slate-600">(매수/중립/매도)</span></div>
       </div>`;
 
       grid.innerHTML = ['trend', 'mom', 'vol'].map(g => {
@@ -5559,86 +5551,94 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         const gi = { trend: 'fa-arrow-trend-up', mom: 'fa-gauge-high', vol: 'fa-chart-simple' }[g];
         const gb = rs.filter(r => r.sig === 1).length, gs = rs.filter(r => r.sig === -1).length;
         const chips = `<span class="text-emerald-400 font-mono-numbers">▲${gb}</span><span class="text-rose-400 font-mono-numbers">▼${gs}</span>`;
-        return metricGroupHtml(gi, grpName[g], chips, rs.map(r => {
-          const m = r.sig === null ? { t: '참고', cls: 'bg-slate-800 text-slate-300 border-slate-700' } : SIG[r.sig];
-          return metricRowHtml({ name: r.name, val: r.val, badge: `<span class="text-[10px] px-1.5 py-0.5 rounded border font-sans font-semibold ${m.cls}">${m.t}</span>`, gauge: techMiniGauge(r.g), note: r.note, noteCls: r.sig === 1 ? 'text-emerald-400' : r.sig === -1 ? 'text-rose-400' : 'text-slate-400' });
-        }).join(''));
+        return metricGroupHtml(gi, grpName[g], chips, rs.map(r => techRowHtml(r, SIG)).join(''));
       }).join('');
 
-      // 지지·저항 / 피벗 / 피보나치 / 최근 신호
+      // 최근 신호 칩: 캔들 패턴 · MACD 교차 · 52주 신고/신저가
       const h = d.history, n = h.length, p = h[n - 1].close;
-      const dist = v => { const x = (v / p - 1) * 100; return `<span class="${x >= 0 ? 'text-rose-300' : 'text-emerald-300'}">${x >= 0 ? '+' : ''}${x.toFixed(1)}%</span>`; };
-      const lvRow = (lab, price, extra = '') => `<div class="flex items-center justify-between text-xs py-1 border-b border-slate-800/60 last:border-0"><span class="text-slate-300">${lab}${extra}</span><span class="font-mono-numbers text-slate-200">${escapeHtml(fmtPx(price))} <span class="ml-1 text-[11px]">${dist(price)}</span></span></div>`;
-      const sr = TA.autoSR(h, { maxEach: 3 }).sort((a, b) => b.price - a.price);
-      const srHtml = sr.length ? sr.map(l => lvRow(`<span class="${l.kind === 'R' ? 'text-rose-400' : 'text-emerald-400'} font-bold mr-1">${l.kind === 'R' ? '저항' : '지지'}</span>`, l.price, ` <span class="text-[10px] text-slate-500">(${l.touches}회 터치)</span>`)).join('') : '<p class="text-xs text-slate-500">뚜렷한 가격대가 없습니다.</p>';
-      const pv = h[n - 2] || h[n - 1], P = (pv.high + pv.low + pv.close) / 3;
-      const piv = [['R2', P + (pv.high - pv.low)], ['R1', 2 * P - pv.low], ['P', P], ['S1', 2 * P - pv.high], ['S2', P - (pv.high - pv.low)]];
-      const pivHtml = piv.map(([k, v]) => lvRow(`<span class="font-mono-numbers font-bold mr-1 ${k[0] === 'R' ? 'text-rose-400' : k[0] === 'S' ? 'text-emerald-400' : 'text-amber-300'}">${k}</span>`, v)).join('');
+      const chips = [];
+      TA.patterns(h).filter(x => x.i >= n - 10).slice(-4).reverse().forEach(x => {
+        const c = x.kind === 'bull' ? 'text-emerald-300 border-emerald-800 bg-emerald-950/60' : x.kind === 'bear' ? 'text-rose-300 border-rose-800 bg-rose-950/60' : 'text-slate-300 border-slate-700 bg-slate-900';
+        chips.push(`<span class="text-[11px] px-2 py-0.5 rounded-full border ${c}">${x.kind === 'bull' ? '▲ ' : x.kind === 'bear' ? '▼ ' : '• '}${escapeHtml(x.text)}${x.kind === 'neutral' ? '' : ' 캔들'} <span class="opacity-60 font-mono-numbers">${escapeHtml(h[x.i].date.slice(5))}</span></span>`);
+      });
+      const mh = d.ind.macd.hist;
+      for (let i = n - 1; i >= n - 10 && i > 0; i--) if (mh[i] !== null && mh[i - 1] !== null && (mh[i] > 0) !== (mh[i - 1] > 0)) { chips.push(`<span class="text-[11px] px-2 py-0.5 rounded-full border border-amber-800 bg-amber-950/50 text-amber-300">⚡ MACD ${mh[i] > 0 ? '상향' : '하향'} 교차 (${n - 1 - i === 0 ? '오늘' : (n - 1 - i) + '거래일 전'})</span>`); break; }
+      if (d.high52 && p >= d.high52 * 0.98) chips.push('<span class="text-[11px] px-2 py-0.5 rounded-full border border-amber-800 bg-amber-950/50 text-amber-300">⚡ 52주 신고가 부근 (2% 이내)</span>');
+      if (d.low52 && p <= d.low52 * 1.02) chips.push('<span class="text-[11px] px-2 py-0.5 rounded-full border border-amber-800 bg-amber-950/50 text-amber-300">⚡ 52주 신저가 부근 (2% 이내)</span>');
+      if (ev) ev.innerHTML = chips.length ? `<span class="text-[11px] text-slate-500 mr-1">최근 신호</span>${chips.join('')}` : '';
+
+      lv.innerHTML = techLadderHtml(d, rows);
+      renderTechTargets(d);
+    }
+
+    // 가격대 사다리: 지지·저항 · 피벗 · 피보나치 · 이평선 · 52주 · 목표가 · ATR 구간을 한 줄 세로 목록으로 합쳐 현재가와의 거리를 한눈에
+    function techLadderHtml(d) {
+      const h = d.history, n = h.length, p = h[n - 1].close, ind = d.ind;
+      const L = [];
+      const add = (price, label, kind, extra) => { if (Number.isFinite(price) && price > 0) L.push({ price, label, kind, extra: extra || '' }); };
+      TA.autoSR(h, { maxEach: 3 }).forEach(l => add(l.price, l.kind === 'R' ? '저항' : '지지', l.kind === 'R' ? 'R' : 'S', `${l.touches}회 터치`));
+      const pv = h[n - 2] || h[n - 1], P = (pv.high + pv.low + pv.close) / 3, rg = pv.high - pv.low;
+      [['피벗 R2', P + rg], ['피벗 R1', 2 * P - pv.low], ['피벗 P', P], ['피벗 S1', 2 * P - pv.high], ['피벗 S2', P - rg]].forEach(([k, v]) => add(v, k, 'piv'));
       const w = h.slice(-126); let hi = -Infinity, lo = Infinity, hiI = 0, loI = 0;
       w.forEach((b, i) => { if (b.high > hi) { hi = b.high; hiI = i; } if (b.low < lo) { lo = b.low; loI = i; } });
       const up = loI < hiI;
-      const fib = [0.236, 0.382, 0.5, 0.618, 0.786].map(r => [r, up ? hi - (hi - lo) * r : lo + (hi - lo) * r]);
-      const fibHtml = `<p class="text-[10px] text-slate-500 mb-1">최근 6개월 ${up ? '상승' : '하락'} 파동 (${escapeHtml(fmtPx(lo))} ~ ${escapeHtml(fmtPx(hi))}) 되돌림</p>` + fib.map(([r, v]) => lvRow(`<span class="font-mono-numbers mr-1 text-violet-300">${(r * 100).toFixed(1)}%</span>`, v)).join('');
-      const pats = TA.patterns(h).filter(x => x.i >= n - 10).slice(-5).reverse();
-      const ev = [];
-      const mh = d.ind.macd.hist;
-      for (let i = n - 1; i >= n - 10 && i > 0; i--) if (mh[i] !== null && mh[i - 1] !== null && (mh[i] > 0) !== (mh[i - 1] > 0)) { ev.push(`MACD ${mh[i] > 0 ? '상향' : '하향'} 교차 (${n - 1 - i === 0 ? '오늘' : (n - 1 - i) + '거래일 전'})`); break; }
-      if (d.high52 && p >= d.high52 * 0.98) ev.push('52주 신고가 부근 (2% 이내)');
-      if (d.low52 && p <= d.low52 * 1.02) ev.push('52주 신저가 부근 (2% 이내)');
-      const patHtml = (pats.length ? pats.map(x => `<div class="flex items-center justify-between text-xs py-1 border-b border-slate-800/60 last:border-0"><span class="${x.kind === 'bull' ? 'text-emerald-400' : x.kind === 'bear' ? 'text-rose-400' : 'text-slate-300'} font-semibold">${escapeHtml((x.kind === 'bull' ? '▲ ' : x.kind === 'bear' ? '▼ ' : '• ') + x.text)}${x.kind === 'neutral' ? '' : ' 캔들'}</span><span class="text-slate-500 font-mono-numbers">${escapeHtml(h[x.i].date)}</span></div>`).join('') : '<p class="text-xs text-slate-500 py-1">최근 10거래일 내 두드러진 캔들 패턴 없음</p>')
-        + (ev.length ? `<div class="mt-2 pt-2 border-t border-slate-800/60 space-y-1">${ev.map(t => `<div class="text-xs text-amber-300"><i class="fa-solid fa-bolt text-[10px] mr-1"></i>${escapeHtml(t)}</div>`).join('')}</div>` : '');
-      const box = (title, icon, body) => metricGroupHtml(icon, title, '', `<div class="pt-1">${body}</div>`);
-      lv.innerHTML = box('지지·저항 가격대 (자동 탐지)', 'fa-layer-group', srHtml) + box('피벗 포인트 · 피보나치', 'fa-ruler-vertical', `<div>${pivHtml}</div><div class="mt-2">${fibHtml}</div>`) + box('최근 캔들 패턴 · 이벤트', 'fa-bolt', patHtml);
-      renderTechTargets(d, TA.atr(h, 14)[n - 1]);
+      [0.382, 0.5, 0.618].forEach(r => add(up ? hi - (hi - lo) * r : lo + (hi - lo) * r, `피보 ${(r * 100).toFixed(1)}%`, 'fib', up ? '상승 파동 되돌림' : '하락 파동 되돌림'));
+      [['SMA20', ind.sma20], ['SMA50', ind.sma50], ['SMA200', ind.sma200]].forEach(([k, a]) => add(a[n - 1], k, 'ma'));
+      if (ind.bb.upper[n - 1] !== null) { add(ind.bb.upper[n - 1], '볼린저 상단', 'bb'); add(ind.bb.lower[n - 1], '볼린저 하단', 'bb'); }
+      if (d.high52) add(d.high52, '52주 고점', 'y'); if (d.low52) add(d.low52, '52주 저점', 'y');
+      const atr = TA.atr(h, 14)[n - 1];
+      if (atr) { add(p - 2 * atr, '손절 −2 ATR', 'atrS', '변동성 기준'); add(p + 2 * atr, '1차 +2 ATR', 'atrT', '변동성 기준'); add(p + 3 * atr, '2차 +3 ATR', 'atrT', '변동성 기준'); }
+      const tg = [];
+      if (d.targetAvg) tg.push({ price: d.targetAvg, label: '목표가 평균', kind: 'tgt', extra: d.numAnalysts ? `${d.numAnalysts}명` : '' });
+      if (d.targetMin) tg.push({ price: d.targetMin, label: '목표가 최저', kind: 'tgt', extra: '' });
+      if (d.targetMax) tg.push({ price: d.targetMax, label: '목표가 최고', kind: 'tgt', extra: '' });
+      // 현재가 ±30% 안의 레벨만(목표가는 항상), 위/아래 각각 가까운 순 11개
+      const near = L.filter(l => Math.abs(l.price / p - 1) <= 0.3).concat(tg);
+      near.sort((a, b) => b.price - a.price);
+      const above = near.filter(l => l.price >= p).slice(-11), below = near.filter(l => l.price < p).slice(0, 11);
+      const KIND = { R: ['text-rose-300', 'bg-rose-950/60 border-rose-900'], S: ['text-emerald-300', 'bg-emerald-950/60 border-emerald-900'], piv: ['text-slate-300', 'bg-slate-800 border-slate-700'], fib: ['text-violet-300', 'bg-violet-950/60 border-violet-900'], ma: ['text-amber-300', 'bg-amber-950/50 border-amber-900'], bb: ['text-slate-400', 'bg-slate-800 border-slate-700'], y: ['text-sky-300', 'bg-sky-950/60 border-sky-900'], atrS: ['text-rose-300', 'bg-rose-950/60 border-rose-900'], atrT: ['text-emerald-300', 'bg-emerald-950/60 border-emerald-900'], tgt: ['text-cyan-300', 'bg-cyan-950/60 border-cyan-900'] };
+      const row = l => {
+        const x = (l.price / p - 1) * 100, k = KIND[l.kind] || KIND.piv;
+        return `<div class="flex items-center gap-2 py-1 border-b border-slate-800/50 last:border-0 text-xs" title="${escapeHtml(l.label + (l.extra ? ' · ' + l.extra : ''))}">
+          <span class="shrink-0 w-[7.5rem] text-center text-[10px] px-1 py-0.5 rounded border truncate ${k[0]} ${k[1]}">${escapeHtml(l.label)}</span>
+          <span class="min-w-0 flex-1 truncate text-[10px] text-slate-600">${escapeHtml(l.extra)}</span>
+          <span class="font-mono-numbers text-slate-200">${escapeHtml(fmtPx(l.price))}</span>
+          <span class="w-14 text-right font-mono-numbers text-[11px] ${x >= 0 ? 'text-rose-300' : 'text-emerald-300'}">${x >= 0 ? '+' : ''}${x.toFixed(1)}%</span></div>`;
+      };
+      const cur = `<div class="flex items-center justify-between gap-2 my-1 px-2 py-1.5 rounded-lg bg-cyan-950/50 border border-cyan-700/60 text-xs"><span class="font-bold text-cyan-200"><i class="fa-solid fa-caret-right mr-1"></i>현재가</span><span class="font-mono-numbers font-bold text-white">${escapeHtml(fmtPx(p))}</span></div>`;
+      return metricGroupHtml('fa-layer-group', '가격대 지도', '<span class="text-[10px] text-slate-500">위 = 저항·목표 / 아래 = 지지·손절</span>', `<div class="pt-1">${above.map(row).join('')}${cur}${below.map(row).join('')}</div>`);
     }
 
-    // 타겟: 애널리스트 의견 + 목표가 가격대 스케일 + 변동성(ATR) 기반 참고 구간
-    function renderTechTargets(d, atr) {
-      const el = document.getElementById('techTargetExtra');
+    // 애널리스트 목표 요약 띠: 목표가 · 상승여력 · 최저~최고 스케일 · 의견
+    function renderTechTargets(d) {
+      const el = document.getElementById('techTargetStrip');
       if (!el) return;
-      const p = Number(d.price), parts = [];
-      const hasT = d.targetAvg !== null && Number.isFinite(p);
-      if (hasT && d.targetMin !== null && d.targetMax !== null && d.targetMax > d.targetMin) {
-        const lo = Math.min(d.targetMin, p), hi = Math.max(d.targetMax, p), span = hi - lo || 1;
-        const x = v => Math.min(100, Math.max(0, (v - lo) / span * 100));
-        const mk = (v, label, cls) => `<div class="absolute top-0 -translate-x-1/2 flex flex-col items-center" style="left:${x(v).toFixed(1)}%"><div class="w-0.5 h-5 ${cls}"></div></div>`;
-        const pc = v => `${(v / p - 1) * 100 >= 0 ? '+' : ''}${((v / p - 1) * 100).toFixed(0)}%`;
-        parts.push(`<div class="rounded-xl bg-slate-900 border border-slate-800 p-3.5">
-          <div class="text-xs font-bold text-slate-200 mb-2"><i class="fa-solid fa-bullseye text-cyan-400 mr-1.5"></i>애널리스트 목표가 분포</div>
-          <div class="relative h-5 mx-1"><div class="absolute top-2 left-0 right-0 h-1 rounded bg-slate-700"></div>
-            <div class="absolute top-2 h-1 rounded bg-cyan-500/50" style="left:${x(d.targetMin).toFixed(1)}%;width:${(x(d.targetMax) - x(d.targetMin)).toFixed(1)}%"></div>
-            ${mk(d.targetMin, '', 'bg-slate-400')}${mk(d.targetAvg, '', 'bg-cyan-400')}${mk(d.targetMax, '', 'bg-slate-400')}${mk(p, '', 'bg-white')}</div>
-          <div class="grid grid-cols-4 gap-1 mt-2 text-center font-mono-numbers text-[10px]">
-            <div><div class="text-slate-500">최저</div><div class="text-slate-200">${escapeHtml(fmtPx(d.targetMin))}</div><div class="${d.targetMin >= p ? 'text-emerald-400' : 'text-rose-400'}">${pc(d.targetMin)}</div></div>
-            <div><div class="text-white">현재</div><div class="text-white font-bold">${escapeHtml(fmtPx(p))}</div><div>&nbsp;</div></div>
-            <div><div class="text-cyan-300">평균</div><div class="text-cyan-300 font-bold">${escapeHtml(fmtPx(d.targetAvg))}</div><div class="${d.targetAvg >= p ? 'text-emerald-400' : 'text-rose-400'}">${pc(d.targetAvg)}</div></div>
-            <div><div class="text-slate-500">최고</div><div class="text-slate-200">${escapeHtml(fmtPx(d.targetMax))}</div><div class="${d.targetMax >= p ? 'text-emerald-400' : 'text-rose-400'}">${pc(d.targetMax)}</div></div>
-          </div></div>`);
+      const p = Number(d.price);
+      if (d.targetAvg === null || !Number.isFinite(p)) {
+        el.innerHTML = '<div class="h-full rounded-xl bg-slate-900/70 border border-slate-800 p-3.5 text-xs text-slate-500 flex items-center">애널리스트 목표가 데이터가 없습니다 (프록시 연결 필요).</div>';
+        return;
       }
+      const up = d.upside, upCls = up !== null && up >= 0 ? 'text-emerald-400' : 'text-rose-400';
+      let scale = '';
+      if (d.targetMin !== null && d.targetMax !== null && d.targetMax > d.targetMin) {
+        const lo = Math.min(d.targetMin, p), hi = Math.max(d.targetMax, p), span = hi - lo || 1;
+        const x = v => Math.min(100, Math.max(0, (v - lo) / span * 100)).toFixed(1);
+        const pc = v => `${(v / p - 1) * 100 >= 0 ? '+' : ''}${((v / p - 1) * 100).toFixed(0)}%`;
+        scale = `<div class="relative h-4 mt-2.5 mx-0.5"><div class="absolute top-1.5 left-0 right-0 h-1 rounded bg-slate-700"></div>
+            <div class="absolute top-1.5 h-1 rounded bg-cyan-500/50" style="left:${x(d.targetMin)}%;width:${(x(d.targetMax) - x(d.targetMin)).toFixed(1)}%"></div>
+            <div class="absolute top-0 w-0.5 h-4 bg-cyan-300" style="left:${x(d.targetAvg)}%" title="평균 ${escapeHtml(fmtPx(d.targetAvg))}"></div>
+            <div class="absolute -top-0.5 w-1 h-5 rounded bg-white" style="left:calc(${x(p)}% - 2px)" title="현재가 ${escapeHtml(fmtPx(p))}"></div></div>
+          <div class="flex justify-between text-[10px] font-mono-numbers text-slate-500 mt-1"><span>최저 ${escapeHtml(fmtPx(d.targetMin))} <span class="${d.targetMin >= p ? 'text-emerald-500' : 'text-rose-400'}">${pc(d.targetMin)}</span></span><span>최고 ${escapeHtml(fmtPx(d.targetMax))} <span class="text-emerald-500">${pc(d.targetMax)}</span></span></div>`;
+      }
+      let opinion = '';
       if (d.recMean !== null || d.numAnalysts) {
         const rm = d.recMean, lab = rm === null ? '' : rm <= 1.5 ? '적극 매수' : rm <= 2.5 ? '매수' : rm <= 3.5 ? '보유' : rm <= 4.5 ? '비중 축소' : '매도';
-        const pos = rm === null ? null : Math.min(100, Math.max(0, (5 - rm) / 4 * 100));
-        parts.push(`<div class="rounded-xl bg-slate-900 border border-slate-800 p-3.5">
-          <div class="flex items-center justify-between text-xs"><span class="font-bold text-slate-200"><i class="fa-solid fa-users text-cyan-400 mr-1.5"></i>애널리스트 의견</span><span class="text-slate-400">${d.numAnalysts ? `${d.numAnalysts}명 참여` : ''}</span></div>
-          ${rm === null ? '' : `<div class="flex items-baseline justify-between mt-1.5"><span class="text-base font-bold text-white">${lab}</span><span class="text-[11px] text-slate-400 font-mono-numbers">평균 점수 ${rm.toFixed(2)} (1=적극 매수 · 5=매도)</span></div>
-          <div class="relative mt-2"><div class="flex h-1.5 rounded-full overflow-hidden"><div class="bg-rose-500/70" style="width:25%"></div><div class="bg-amber-500/70" style="width:25%"></div><div class="bg-sky-500/70" style="width:25%"></div><div class="bg-emerald-500/70" style="width:25%"></div></div><div class="absolute -top-0.5 w-0.5 h-2.5 bg-white rounded shadow" style="left:calc(${pos.toFixed(1)}% - 1px)"></div></div>
-          <div class="flex justify-between text-[10px] text-slate-500 mt-0.5"><span>매도</span><span>보유</span><span>적극 매수</span></div>`}
-        </div>`);
+        opinion = `<div class="mt-2.5 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-xs"><span class="text-slate-400"><i class="fa-solid fa-users text-cyan-400 mr-1.5"></i>애널리스트 의견</span><span class="font-bold text-white">${escapeHtml(lab)}${rm !== null ? ` <span class="font-mono-numbers font-normal text-slate-400">${rm.toFixed(2)}/5</span>` : ''}${d.numAnalysts ? ` <span class="font-normal text-slate-500">· ${d.numAnalysts}명</span>` : ''}</span></div>`;
       }
-      if (atr && Number.isFinite(p) && p > 0) {
-        const stop = p - 2 * atr, t1 = p + 2 * atr, t2 = p + 3 * atr;
-        const pc = v => `${(v / p - 1) * 100 >= 0 ? '+' : ''}${((v / p - 1) * 100).toFixed(1)}%`;
-        parts.push(`<div class="rounded-xl bg-slate-900 border border-slate-800 p-3.5">
-          <div class="text-xs font-bold text-slate-200 mb-2"><i class="fa-solid fa-crosshairs text-cyan-400 mr-1.5"></i>변동성(ATR) 기반 참고 구간</div>
-          <div class="grid grid-cols-3 gap-2 text-center font-mono-numbers text-[11px]">
-            <div class="rounded-lg bg-rose-950/40 border border-rose-900/50 py-1.5"><div class="text-rose-300 text-[10px]">손절 (−2 ATR)</div><div class="text-white font-bold">${escapeHtml(fmtPx(stop))}</div><div class="text-rose-400">${pc(stop)}</div></div>
-            <div class="rounded-lg bg-emerald-950/40 border border-emerald-900/50 py-1.5"><div class="text-emerald-300 text-[10px]">1차 (+2 ATR)</div><div class="text-white font-bold">${escapeHtml(fmtPx(t1))}</div><div class="text-emerald-400">${pc(t1)}</div></div>
-            <div class="rounded-lg bg-emerald-950/40 border border-emerald-900/50 py-1.5"><div class="text-emerald-300 text-[10px]">2차 (+3 ATR)</div><div class="text-white font-bold">${escapeHtml(fmtPx(t2))}</div><div class="text-emerald-400">${pc(t2)}</div></div>
-          </div>
-          <p class="text-[10px] text-slate-500 mt-2 leading-snug">ATR(14)=${escapeHtml(fmtPx(atr))}. 평균 변동폭으로 잡은 단순 기준이며, 손익비는 1차 1:1 · 2차 1:1.5입니다. 실제 손절·목표는 지지/저항과 함께 판단하세요.</p>
-        </div>`);
-      }
-      el.innerHTML = parts.length ? `<div class="space-y-3">${parts.join('')}</div>` : '';
+      el.innerHTML = `<div class="h-full rounded-xl bg-slate-900/70 border border-slate-800 p-3.5">
+        <div class="flex items-end justify-between gap-3"><div><div class="text-[11px] text-slate-400">애널리스트 평균 목표가</div><div class="text-lg font-extrabold font-mono-numbers text-cyan-300 leading-tight">${escapeHtml(fmtPx(d.targetAvg))}</div></div>
+          <div class="text-right"><div class="text-[11px] text-slate-400">예상 여력</div><div class="text-lg font-extrabold font-mono-numbers leading-tight ${upCls}">${up === null ? '' : `${up >= 0 ? '+' : ''}${up.toFixed(1)}%`}</div></div></div>
+        ${scale}${opinion}</div>`;
     }
 
     function renderAnalysisResult(data) {
@@ -5666,35 +5666,6 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       cons.className = `px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${consensusClass(data.consensus)}` + (data.consensus ? '' : ' invisible');
 
       const price = Number(data.price);
-      document.getElementById('dispAvgTarget').textContent = data.targetAvg !== null ? fmtPx(data.targetAvg) : '';
-      const upEl = document.getElementById('dispTargetUpside');
-      if (data.upside === null) {
-        upEl.textContent = '';
-      } else {
-        upEl.textContent = `${data.upside >= 0 ? '+' : ''}${data.upside.toFixed(1)}%`;
-        upEl.className = `font-bold font-mono-numbers ${data.upside >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
-      }
-      document.getElementById('targetMin').textContent = data.targetMin !== null ? `최저: ${fmtPx(data.targetMin)}` : '';
-      document.getElementById('targetMax').textContent = data.targetMax !== null ? `최고: ${fmtPx(data.targetMax)}` : '';
-      // 막대: 목표가 범위 안에서 '현재가'의 위치
-      const bar = document.getElementById('targetBar');
-      if (data.targetMin !== null && data.targetMax !== null && data.targetMax > data.targetMin && Number.isFinite(price)) {
-        const pos = Math.min(100, Math.max(0, ((price - data.targetMin) / (data.targetMax - data.targetMin)) * 100));
-        bar.style.width = `${pos.toFixed(0)}%`;
-      } else {
-        bar.style.width = '0%';
-      }
-
-      document.getElementById('dispRSI').textContent = fmtNum(data.rsi);
-      const smaEl = document.getElementById('dispSMA200');
-      if (!data.sma200Diff) {
-        smaEl.textContent = '';
-      } else {
-        const up = isPositivePct(data.sma200Diff);
-        smaEl.textContent = `${up ? '상회' : '하회'} (${data.sma200Diff})`;
-        smaEl.className = up ? 'text-emerald-400' : 'text-rose-400';
-      }
-
       const tr = trendLabel(data);
       const trendBadge = document.getElementById('chartTrendBadge');
       trendBadge.textContent = tr.text;
