@@ -2212,7 +2212,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.63.2';
+    const APP_VERSION = '1.64.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -10369,8 +10369,9 @@ CHT|Chunghwa Telecom ADR|M
     async function screenerLoadRev(auto) {
       if (typeof window.revFetchSyms !== 'function' || !getProxyUrl() || screenerRevState.running) return;
       if (typeof window.revApplyAll === 'function') window.revApplyAll();
-      const targets = screenerRevTargets().filter(e => !e.revLoaded && (!auto || !e.revFail));
-      if (!targets.length || (auto && targets.length > 150)) { updateScreenerRevUI(); return; }
+      let targets = screenerRevTargets().filter(e => !e.revLoaded && (!auto || (e.loaded && !e.revFail)));
+      if (auto) targets = targets.slice(0, 150); // 자동 조회는 한 번에 150개씩, 끝나면 다음 묶음을 이어서 받는다
+      if (!targets.length) { updateScreenerRevUI(); return; }
       screenerRevState.running = true; screenerRevState.done = 0; screenerRevState.total = targets.length; updateScreenerRevUI();
       try {
         await window.revFetchSyms(targets.map(e => e.ticker), (d, t) => { screenerRevState.done = d; screenerRevState.total = t; if (d % 8 === 0) { updateScreenerRevUI(); runScreenerFilter(); } });
@@ -11335,7 +11336,7 @@ CHT|Chunghwa Telecom ADR|M
         return active.every(a => optMatches(a.def, a.opt, item));
       });
       filtered.forEach(e => { e._score = scoreOf(e, kind); });
-      if (active.some(a => a.def.tab === 'rev') && !screenerRevState.running) setTimeout(() => screenerLoadRev(true), 0);
+      if (!screenerRevState.running) setTimeout(() => screenerLoadRev(true), 0); // 발굴 종목처럼 리비전도 미리 불러온다
 
       const colDef = SCREENER_COLS[screenerState.sortBy] || SCREENER_COLS.rank;
       const dir = screenerState.sortDir === 'asc' ? 1 : -1;
