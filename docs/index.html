@@ -2212,7 +2212,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.63.0';
+    const APP_VERSION = '1.63.2';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3333,7 +3333,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
               </div>
               <button type="button" onclick="GSYNC.restoreBackup()" class="text-[11px] text-slate-400 hover:text-slate-200 underline">동기화가 덮어쓰거나 지운 내용 되돌리기</button>
               <p class="text-[11px] text-slate-400 leading-relaxed">
-                <span data-gsync-status></span><br>설정·API 키·관심종목·모의투자·장부·불단왕 일지·브리핑 기록·AI 일정 분석 등 <b>앱의 모든 데이터</b>를 내 Google Drive의 앱 전용 숨김 폴더 파일 하나로 동기화합니다. 변경 후 잠시 뒤, 앱을 닫거나 화면이 숨겨질 때 자동 저장되고, 앱을 열 때 자동으로 불러옵니다. 다른 기기의 새 데이터를 받으면 화면 반영을 위해 한 번 새로고침합니다.
+                설정·API 키·관심종목·모의투자·장부·불단왕 일지·브리핑 기록·AI 일정 분석 등 <b>앱의 모든 데이터</b>를 내 Google Drive의 앱 전용 숨김 폴더 파일 하나로 동기화합니다. 변경 후 잠시 뒤, 앱을 닫거나 화면이 숨겨질 때 자동 저장되고, 앱을 열 때 자동으로 불러옵니다. 다른 기기의 새 데이터를 받으면 화면 반영을 위해 한 번 새로고침합니다.
               </p>
             </div>` : `
             <div class="p-3.5 rounded-xl bg-gradient-to-r from-slate-950 via-[#0b0e13] to-slate-950 border border-cyan-800/60 space-y-3">
@@ -19970,9 +19970,8 @@ ${input}
         try { inner = MKB.view === 'review' ? mkbReviewHtml() : mkbTodayHtml(); }
         catch (e) { console.error('브리핑 렌더 실패', e); inner = '<div class="text-xs text-rose-300 bg-rose-950/40 border border-rose-900 rounded-lg px-3 py-2">브리핑을 그리는 중 오류가 발생했습니다. 새로고침 후 다시 시도하세요.</div>'; }
         el.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-4"><div class="inline-flex bg-slate-900 border border-slate-800 rounded-xl p-1">${tab('today', 'fa-newspaper', '오늘 브리핑')}${tab('review', 'fa-clock-rotate-left', `되돌아보기 (${nDays})`)}</div>
-          <div class="flex flex-wrap items-center gap-3 text-[11px]"><span id="mkbSync"></span>
+          <div class="flex flex-wrap items-center gap-3 text-[11px]">
           <label class="flex items-center gap-1 text-slate-400 cursor-pointer select-none"><input type="checkbox" ${start ? 'checked' : ''} onchange="mkbSetStart(this.checked)" class="accent-sky-500"/>앱 시작 시 시장 탭 먼저</label></div></div>${inner}`;
-        mkbRenderSync();
     }
     function mkRenderBrief() { try { mkbAutoSave(); } catch (e) { console.error('브리핑 자동 저장 실패', e); } mkbRender(false); }
 
@@ -22247,14 +22246,12 @@ ${input}
         const root = document.getElementById('calRoot'); if (!root) return;
         const cnt = Object.keys(CATS);
         const sm = store().month[`${C.y}-${pad(C.m + 1)}`], searched = !!sm;
-        const syncRow = `<div class="mt-2 text-[11px]"><span data-gsync-status>${GSYNC.statusHtml()}</span></div>`;
         const savedNote = searched && !C.monthMsg ? `<div class="text-[11px] text-emerald-300">✓ ${C.m + 1}월 일정은 ${new Date(sm.ts).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}에 AI로 검색해 저장된 결과가 반영돼 있어요.</div>` : '';
         const missingFomc = !CAL_FOMC[C.y] ? `<div class="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-800/50 rounded-lg px-3 py-2 mb-2">${C.y}년 FOMC 일정은 앱에 내장되어 있지 않아요. "AI 일정 검색"으로 확인할 수 있습니다.</div>` : '';
         root.innerHTML = `<div class="space-y-4">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
             <div class="flex flex-wrap items-center gap-2 mb-1"><h2 class="text-lg font-black text-white"><i class="fa-solid fa-calendar-days text-rose-400 mr-2"></i>금융 달력</h2>
               <span class="text-[11px] text-slate-400">시장을 움직일 수 있는 일정을 한눈에 · Yahoo Finance 연동</span></div>
-            ${syncRow}
             <details class="text-[13px] text-slate-300"><summary class="cursor-pointer text-rose-300 font-semibold">💡 처음이라면: 이 달력 보는 법</summary>
               <ul class="list-disc pl-5 mt-2 space-y-1 leading-relaxed">
                 <li><b>호재</b> = 주가에 좋은 소식, <b>악재</b> = 나쁜 소식입니다. 같은 이벤트도 결과에 따라 호재가 되기도 악재가 되기도 해요.</li>
