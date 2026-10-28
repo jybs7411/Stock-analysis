@@ -1277,80 +1277,6 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         <div id="dispStats" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-9 gap-2.5"></div>
       </div>
 
-      <!-- Finviz 지표 / 기술적 분석 & 타겟 (탭 2개, 카드 1개) -->
-      <div data-fold class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl">
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-slate-800/80 pb-3">
-          <div class="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-800" role="tablist">
-            <button type="button" role="tab" id="atab-finviz" onclick="analysisTab('finviz')" class="px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 bg-cyan-950 text-cyan-300 border border-cyan-500/60"><i class="fa-solid fa-table-cells"></i>Finviz 핵심 지표</button>
-            <button type="button" role="tab" id="atab-tech" onclick="analysisTab('tech')" class="px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 text-slate-400 hover:text-white border border-transparent"><i class="fa-solid fa-chart-column"></i>기술적 분석 &amp; 타겟</button>
-          </div>
-          <span id="chartTrendBadge" class="text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">상승 추세</span>
-        </div>
-
-        <!-- 탭 1: Finviz -->
-        <div id="apane-finviz">
-          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-[11px] text-slate-400">
-            <div id="metricSummary" class="flex items-center gap-3"></div>
-            <div class="flex items-center gap-3">
-              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>좋음</span>
-              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400"></span>보통</span>
-              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span>주의</span>
-              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span>위험</span>
-            </div>
-          </div>
-          <div id="finvizTableBody" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"></div>
-          <p class="text-[10px] text-slate-500 mt-3 leading-snug">※ 색상은 일반적인 경험칙 기준입니다. 업종·시장 상황에 따라 다르므로 참고용으로만 보세요. 투자 권유가 아닙니다.</p>
-          <details class="mt-3 group">
-            <summary class="cursor-pointer text-xs font-semibold text-cyan-300 hover:text-cyan-200 select-none"><i class="fa-solid fa-book-open mr-1"></i>지표 읽는 법 (펼치기)</summary>
-            <div id="metricGuideBody" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-          </details>
-          <p id="dataFeedNote" class="text-[10px] text-slate-500 mt-2"></p>
-        </div>
-
-        <!-- 탭 2: 기술적 분석 & 타겟 -->
-        <div id="apane-tech" class="hidden space-y-4">
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            <div class="lg:col-span-7 space-y-3 min-w-0">
-              <div class="relative bg-slate-950 rounded-xl border border-slate-800/80 h-72 overflow-hidden">
-                <canvas id="techTrendCanvas" class="block w-full h-full"></canvas>
-                <div class="absolute top-2 left-3 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400 font-mono-numbers pointer-events-none">
-                  <span class="text-cyan-300">● 종가 6M</span><span class="text-amber-400">━ SMA20</span><span class="text-violet-400">━ SMA50</span><span class="text-rose-400">━ SMA200</span><span class="text-slate-400">▒ 볼린저</span><span class="text-emerald-400">┄ 지지</span><span class="text-rose-300">┄ 저항</span>
-                </div>
-              </div>
-              <div id="techSignalSummary"></div>
-            </div>
-            <div class="lg:col-span-5 space-y-3 min-w-0">
-              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                <div class="flex justify-between items-center text-xs">
-                  <span class="text-slate-400">애널리스트 평균 목표가</span>
-                  <span id="dispAvgTarget" class="text-lg font-bold text-cyan-400 font-mono-numbers">$0.00</span>
-                </div>
-                <div class="flex justify-between items-center text-xs">
-                  <span class="text-slate-400">예상 상승/하락 여력</span>
-                  <span id="dispTargetUpside" class="font-bold text-emerald-400 font-mono-numbers">+0.0%</span>
-                </div>
-                <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden mt-1" title="목표가 범위(최저~최고) 안에서 현재가의 위치">
-                  <div id="targetBar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-2 rounded-full" style="width: 60%"></div>
-                </div>
-                <div class="flex justify-between text-[10px] text-slate-500 font-mono-numbers">
-                  <span id="targetMin">최저: $0</span>
-                  <span id="targetMax">최고: $0</span>
-                </div>
-              </div>
-              <div id="techTargetExtra"></div>
-              <div id="revCard"></div>
-            </div>
-          </div>
-          <div id="techIndicatorGrid" class="space-y-3"></div>
-          <div id="techLevels" class="grid grid-cols-1 lg:grid-cols-3 gap-3"></div>
-          <div class="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
-            <span>RSI(14): <strong id="dispRSI" class="text-slate-200">54.2</strong></span>
-            <span>200 SMA: <strong id="dispSMA200" class="text-emerald-400">상회 (강세)</strong></span>
-            <span class="text-slate-500">※ 일봉 기준 자동 계산 · 참고용이며 투자 권유가 아닙니다.</span>
-          </div>
-        </div>
-      </div>
-
       <!-- Pro Chart Station (TradingView-style) -->
       <section id="chartStation" class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 lg:p-5 shadow-2xl space-y-3">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
@@ -1451,14 +1377,79 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         </div>
       </div>
 
-      <!-- 밸류에이션 계산기 (module: valcalc) — 사용자가 직접 넣는 가정으로만 계산 -->
-      <section id="valCalcSection" data-fold class="hidden">
-        <div data-fold-head class="sm:hidden flex items-center gap-2 px-4 py-3 rounded-2xl bg-[#0b0e13] border border-slate-800 text-sm font-bold text-white"><i class="fa-solid fa-scale-balanced text-cyan-400"></i>쉬운 밸류에이션 — 지금 주가, 비싼 걸까?</div>
-        <div id="valCalcBody"></div>
-      </section>
-      <section id="riskSizerSection" class="hidden">
-        <div id="riskSizerBody"></div>
-      </section>
+      <!-- Finviz 지표 / 기술적 분석 & 타겟 (탭 2개, 카드 1개) -->
+      <div data-fold class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-slate-800/80 pb-3">
+          <div class="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-800" role="tablist">
+            <button type="button" role="tab" id="atab-finviz" onclick="analysisTab('finviz')" class="px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 bg-cyan-950 text-cyan-300 border border-cyan-500/60"><i class="fa-solid fa-table-cells"></i>Finviz 핵심 지표</button>
+            <button type="button" role="tab" id="atab-tech" onclick="analysisTab('tech')" class="px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 text-slate-400 hover:text-white border border-transparent"><i class="fa-solid fa-chart-column"></i>기술적 분석 &amp; 타겟</button>
+          </div>
+          <span id="chartTrendBadge" class="text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">상승 추세</span>
+        </div>
+
+        <!-- 탭 1: Finviz -->
+        <div id="apane-finviz">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-[11px] text-slate-400">
+            <div id="metricSummary" class="flex items-center gap-3"></div>
+            <div class="flex items-center gap-3">
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>좋음</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400"></span>보통</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span>주의</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span>위험</span>
+            </div>
+          </div>
+          <div id="finvizTableBody" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"></div>
+          <p class="text-[10px] text-slate-500 mt-3 leading-snug">※ 색상은 일반적인 경험칙 기준입니다. 업종·시장 상황에 따라 다르므로 참고용으로만 보세요. 투자 권유가 아닙니다.</p>
+          <details class="mt-3 group">
+            <summary class="cursor-pointer text-xs font-semibold text-cyan-300 hover:text-cyan-200 select-none"><i class="fa-solid fa-book-open mr-1"></i>지표 읽는 법 (펼치기)</summary>
+            <div id="metricGuideBody" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+          </details>
+          <p id="dataFeedNote" class="text-[10px] text-slate-500 mt-2"></p>
+        </div>
+
+        <!-- 탭 2: 기술적 분석 & 타겟 -->
+        <div id="apane-tech" class="hidden space-y-4">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div class="lg:col-span-7 space-y-3 min-w-0">
+              <div class="relative bg-slate-950 rounded-xl border border-slate-800/80 h-72 overflow-hidden">
+                <canvas id="techTrendCanvas" class="block w-full h-full"></canvas>
+                <div class="absolute top-2 left-3 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400 font-mono-numbers pointer-events-none">
+                  <span class="text-cyan-300">● 종가 6M</span><span class="text-amber-400">━ SMA20</span><span class="text-violet-400">━ SMA50</span><span class="text-rose-400">━ SMA200</span><span class="text-slate-400">▒ 볼린저</span><span class="text-emerald-400">┄ 지지</span><span class="text-rose-300">┄ 저항</span>
+                </div>
+              </div>
+              <div id="techSignalSummary"></div>
+            </div>
+            <div class="lg:col-span-5 space-y-3 min-w-0">
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                <div class="flex justify-between items-center text-xs">
+                  <span class="text-slate-400">애널리스트 평균 목표가</span>
+                  <span id="dispAvgTarget" class="text-lg font-bold text-cyan-400 font-mono-numbers">$0.00</span>
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                  <span class="text-slate-400">예상 상승/하락 여력</span>
+                  <span id="dispTargetUpside" class="font-bold text-emerald-400 font-mono-numbers">+0.0%</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden mt-1" title="목표가 범위(최저~최고) 안에서 현재가의 위치">
+                  <div id="targetBar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-2 rounded-full" style="width: 60%"></div>
+                </div>
+                <div class="flex justify-between text-[10px] text-slate-500 font-mono-numbers">
+                  <span id="targetMin">최저: $0</span>
+                  <span id="targetMax">최고: $0</span>
+                </div>
+              </div>
+              <div id="techTargetExtra"></div>
+              <div id="revCard"></div>
+            </div>
+          </div>
+          <div id="techIndicatorGrid" class="space-y-3"></div>
+          <div id="techLevels" class="grid grid-cols-1 lg:grid-cols-3 gap-3"></div>
+          <div class="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
+            <span>RSI(14): <strong id="dispRSI" class="text-slate-200">54.2</strong></span>
+            <span>200 SMA: <strong id="dispSMA200" class="text-emerald-400">상회 (강세)</strong></span>
+            <span class="text-slate-500">※ 일봉 기준 자동 계산 · 참고용이며 투자 권유가 아닙니다.</span>
+          </div>
+        </div>
+      </div>
 
       <!-- Deep analysis (Yahoo Finance via own proxy) -->
       <section id="deepSection" class="hidden space-y-4">
@@ -1474,6 +1465,11 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         <div id="deepGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-5"></div>
       </section>
 
+      <!-- 밸류에이션 계산기 (module: valcalc) — 사용자가 직접 넣는 가정으로만 계산 -->
+      <section id="valCalcSection" data-fold class="hidden">
+        <div data-fold-head class="sm:hidden flex items-center gap-2 px-4 py-3 rounded-2xl bg-[#0b0e13] border border-slate-800 text-sm font-bold text-white"><i class="fa-solid fa-scale-balanced text-cyan-400"></i>쉬운 밸류에이션 — 지금 주가, 비싼 걸까?</div>
+        <div id="valCalcBody"></div>
+      </section>
       <!-- 5 Experts In-Depth Analysis Grid -->
       <div class="space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -1539,6 +1535,10 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         </div>
 
       </div>
+
+      <section id="riskSizerSection" class="hidden">
+        <div id="riskSizerBody"></div>
+      </section>
 
       <!-- Interactive Expert Roundtable & Q&A Arena -->
       <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-5 lg:p-7 shadow-2xl space-y-5">
@@ -2063,7 +2063,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.66.0';
+    const APP_VERSION = '1.67.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
