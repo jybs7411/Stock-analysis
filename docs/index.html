@@ -1114,21 +1114,13 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       <div class="absolute -right-10 -bottom-10 opacity-5 pointer-events-none text-9xl text-cyan-400">
         <i class="fa-solid fa-chart-line"></i>
       </div>
-      <div class="relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_330px] gap-6 lg:gap-8 items-stretch">
-      <div class="max-w-3xl min-w-0">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800 text-cyan-400 text-xs font-semibold mb-3">
+      <div class="relative">
+      <div class="min-w-0">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800 text-cyan-400 text-xs font-semibold mb-1">
           <i class="fa-solid fa-users-viewfinder"></i> 5인의 독자적 투자 위원회
         </div>
-        <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-          티커나 회사명을 입력하면, <br class="hidden sm:block">
-          <span class="text-cyan-400">5명의 전문가</span>가 Motley Fool과 Finviz 기법으로 전방위 분석합니다.
-        </h1>
-        <p class="text-slate-400 text-sm mt-2">
-          경제적 해자(Moat)와 장기 성장 펀더멘털부터 20/50/200일 이평선, 숏 플로트, 밸류에이션 모델까지 종목의 거래 통화 단위로 즉시 해부합니다.
-        </p>
-
         <!-- Search Input Bar -->
-        <form id="searchForm" onsubmit="handleStockAnalysis(event)" class="mt-6 flex flex-col sm:flex-row gap-3">
+        <form id="searchForm" onsubmit="handleStockAnalysis(event)" class="mt-4 flex flex-col sm:flex-row gap-3">
           <div class="relative flex-1">
             <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
               <i class="fa-solid fa-magnifying-glass text-lg"></i>
@@ -1173,108 +1165,26 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           </button>
         </div>
 
-        <!-- Recommended Stocks Panel -->
-        <div class="mt-5 pt-4 border-t border-slate-800/80 space-y-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2 text-xs font-semibold text-slate-300">
-              <i class="fa-solid fa-fire text-amber-400"></i>
-              <span>추천 관심 종목 <span class="text-slate-500 font-normal">(클릭 시 즉시 5인 분석 실행)</span>:</span>
+        <!-- 내가 검색한 종목 (테마별) -->
+        <div id="recentPanel" class="mt-5 pt-4 border-t border-slate-800/80">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div class="flex items-center gap-2 text-sm font-bold text-white">
+              <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
+              <span>내가 검색한 종목</span>
+              <span id="recentCount" class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono-numbers">0</span>
             </div>
-            <span class="text-[11px] text-cyan-400/80 hidden sm:inline">원클릭 분석</span>
-          </div>
-
-          <!-- Category Badges Grid -->
-          <div class="flex flex-col gap-2.5">
-            <!-- Group 1: AI & Mega Cap -->
-            <div class="flex flex-wrap items-center gap-1.5">
-              <span class="text-[11px] font-semibold text-cyan-400 bg-cyan-950/80 border border-cyan-800/60 px-2 py-0.5 rounded-md flex items-center gap-1 mr-1">
-                <i class="fa-solid fa-microchip text-[10px]"></i> AI & 빅테크
-              </span>
-              <button type="button" onclick="quickSearch('NVDA')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-cyan-950/60 border border-slate-800 hover:border-cyan-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-cyan-300">
-                <span class="font-bold text-white group-hover:text-cyan-400 font-mono-numbers">NVDA</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">엔비디아</span>
-              </button>
-              <button type="button" onclick="quickSearch('AAPL')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-cyan-950/60 border border-slate-800 hover:border-cyan-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-cyan-300">
-                <span class="font-bold text-white group-hover:text-cyan-400 font-mono-numbers">AAPL</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">애플</span>
-              </button>
-              <button type="button" onclick="quickSearch('MSFT')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-cyan-950/60 border border-slate-800 hover:border-cyan-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-cyan-300">
-                <span class="font-bold text-white group-hover:text-cyan-400 font-mono-numbers">MSFT</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">마이크로소프트</span>
-              </button>
-              <button type="button" onclick="quickSearch('GOOGL')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-cyan-950/60 border border-slate-800 hover:border-cyan-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-cyan-300">
-                <span class="font-bold text-white group-hover:text-cyan-400 font-mono-numbers">GOOGL</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">알파벳</span>
-              </button>
-              <button type="button" onclick="quickSearch('AMZN')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-cyan-950/60 border border-slate-800 hover:border-cyan-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-cyan-300">
-                <span class="font-bold text-white group-hover:text-cyan-400 font-mono-numbers">AMZN</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">아마존</span>
-              </button>
-            </div>
-
-            <!-- Group 2: Growth & Momentum -->
-            <div class="flex flex-wrap items-center gap-1.5">
-              <span class="text-[11px] font-semibold text-amber-400 bg-amber-950/80 border border-amber-800/60 px-2 py-0.5 rounded-md flex items-center gap-1 mr-1">
-                <i class="fa-solid fa-rocket text-[10px]"></i> 성장 & 모멘텀
-              </span>
-              <button type="button" onclick="quickSearch('TSLA')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-amber-950/60 border border-slate-800 hover:border-amber-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-amber-300">
-                <span class="font-bold text-white group-hover:text-amber-400 font-mono-numbers">TSLA</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">테슬라</span>
-              </button>
-              <button type="button" onclick="quickSearch('PLTR')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-amber-950/60 border border-slate-800 hover:border-amber-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-amber-300">
-                <span class="font-bold text-white group-hover:text-amber-400 font-mono-numbers">PLTR</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">팔란티어</span>
-              </button>
-              <button type="button" onclick="quickSearch('AVGO')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-amber-950/60 border border-slate-800 hover:border-amber-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-amber-300">
-                <span class="font-bold text-white group-hover:text-amber-400 font-mono-numbers">AVGO</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">브로드컴</span>
-              </button>
-              <button type="button" onclick="quickSearch('AMD')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-amber-950/60 border border-slate-800 hover:border-amber-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-amber-300">
-                <span class="font-bold text-white group-hover:text-amber-400 font-mono-numbers">AMD</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">초미세반도체</span>
-              </button>
-            </div>
-
-            <!-- Group 3: Value & Defensive -->
-            <div class="flex flex-wrap items-center gap-1.5">
-              <span class="text-[11px] font-semibold text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 rounded-md flex items-center gap-1 mr-1">
-                <i class="fa-solid fa-shield-halved text-[10px]"></i> 가치 & 배당
-              </span>
-              <button type="button" onclick="quickSearch('BRK-B')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-emerald-950/60 border border-slate-800 hover:border-emerald-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-emerald-300">
-                <span class="font-bold text-white group-hover:text-emerald-400 font-mono-numbers">BRK-B</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">버크셔 해서웨이</span>
-              </button>
-              <button type="button" onclick="quickSearch('LLY')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-emerald-950/60 border border-slate-800 hover:border-emerald-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-emerald-300">
-                <span class="font-bold text-white group-hover:text-emerald-400 font-mono-numbers">LLY</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">일라이 릴리</span>
-              </button>
-              <button type="button" onclick="quickSearch('JPM')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-emerald-950/60 border border-slate-800 hover:border-emerald-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-emerald-300">
-                <span class="font-bold text-white group-hover:text-emerald-400 font-mono-numbers">JPM</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">JP모건</span>
-              </button>
-              <button type="button" onclick="quickSearch('KO')" class="group px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-emerald-950/60 border border-slate-800 hover:border-emerald-500/60 transition flex items-center gap-1.5 text-xs text-slate-300 hover:text-emerald-300">
-                <span class="font-bold text-white group-hover:text-emerald-400 font-mono-numbers">KO</span>
-                <span class="text-[11px] text-slate-400 group-hover:text-slate-300">코카콜라</span>
-              </button>
+            <div class="flex items-center gap-3">
+              <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800 text-[11px]">
+                <button type="button" id="recentModeTheme" onclick="setRecentMode('theme')" class="px-2.5 py-1 rounded-md">테마별</button>
+                <button type="button" id="recentModeTime" onclick="setRecentMode('time')" class="px-2.5 py-1 rounded-md">최근순</button>
+              </div>
+              <button type="button" id="recentClearBtn" onclick="clearRecentSearches()" class="hidden text-[11px] text-slate-500 hover:text-rose-300 transition"><i class="fa-regular fa-trash-can mr-1"></i>전체 삭제</button>
             </div>
           </div>
+          <div id="recentList" class="space-y-2.5"></div>
+          <p class="mt-3 text-[10px] text-slate-500 leading-snug">이 브라우저에만 저장됩니다. 등락률은 <strong class="text-slate-400">검색한 시점</strong> 값이며, 클릭하면 최신 데이터로 다시 분석합니다.</p>
         </div>
       </div>
-
-      <!-- 최근 검색한 종목 (브라우저에 저장) -->
-      <aside id="recentPanel" class="relative min-w-0 lg:self-stretch lg:min-h-[380px]"><div class="rounded-2xl bg-slate-950/70 border border-slate-800 flex flex-col max-h-[420px] lg:max-h-none lg:absolute lg:inset-0 overflow-hidden">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-          <div class="flex items-center gap-2 text-sm font-bold text-white">
-            <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
-            <span>내가 검색한 종목</span>
-            <span id="recentCount" class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono-numbers">0</span>
-          </div>
-          <button type="button" id="recentClearBtn" onclick="clearRecentSearches()" class="hidden text-[11px] text-slate-500 hover:text-rose-300 transition"><i class="fa-regular fa-trash-can mr-1"></i>전체 삭제</button>
-        </div>
-        <div id="recentList" class="overflow-y-auto flex-1 divide-y divide-slate-800/70"></div>
-        <p class="px-4 py-2 border-t border-slate-800 text-[10px] text-slate-500 leading-snug">이 브라우저에만 저장됩니다. 가격·등락률은 <strong class="text-slate-400">검색한 시점</strong> 값이며, 클릭하면 최신 데이터로 다시 분석합니다.</p>
-      </div>
-      </aside>
       </div>
     </section>
 
@@ -2135,7 +2045,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.65.0';
+    const APP_VERSION = '1.66.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2677,12 +2587,13 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     function saveRecentSearches(list) {
       try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) { /* 저장 불가 환경에서도 동작 */ }
     }
-    function recordSearch(symbol, market, name) {
+    function recordSearch(symbol, market, name, sector) {
       const list = loadRecentSearches().filter(r => r.symbol !== symbol);
       list.unshift({
         symbol,
         name: name || (market && market.name) || '',
         currency: (market && market.currency) || 'USD',
+        sector: sector || '',
         price: market && Number.isFinite(Number(market.price)) ? Number(market.price) : null,
         change: (market && market.change) || '',
         t: Date.now()
@@ -2711,34 +2622,75 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       if (d < 30) return `${d}일 전`;
       return new Date(ts).toISOString().slice(0, 10);
     }
-    function renderRecentSearches() {
+    // 내가 검색한 종목: 섹터(테마)별 / 최근순 보기
+    const RECENT_THEME_KO = { 'Technology': '기술 · AI', 'Communication Services': '통신 · 미디어', 'Consumer Cyclical': '경기소비재', 'Consumer Defensive': '필수소비재', 'Healthcare': '헬스케어', 'Financial Services': '금융', 'Financial': '금융', 'Energy': '에너지', 'Industrials': '산업재', 'Basic Materials': '소재', 'Utilities': '유틸리티', 'Real Estate': '부동산' };
+    const RECENT_THEME_ICON = { '기술 · AI': 'fa-microchip text-cyan-400', '통신 · 미디어': 'fa-tower-broadcast text-fuchsia-400', '경기소비재': 'fa-bag-shopping text-pink-400', '필수소비재': 'fa-basket-shopping text-lime-400', '헬스케어': 'fa-heart-pulse text-rose-400', '금융': 'fa-landmark text-emerald-400', '에너지': 'fa-oil-well text-amber-400', '산업재': 'fa-industry text-orange-400', '소재': 'fa-mountain text-yellow-400', '유틸리티': 'fa-bolt text-sky-400', '부동산': 'fa-building text-violet-400', '기타': 'fa-layer-group text-slate-400' };
+    let recentMode = 'theme';
+    try { recentMode = localStorage.getItem('pentanalyst_recent_mode') === 'time' ? 'time' : 'theme'; } catch (e) { /* 저장소 없음 */ }
+    function setRecentMode(m) {
+      recentMode = m === 'time' ? 'time' : 'theme';
+      try { localStorage.setItem('pentanalyst_recent_mode', recentMode); } catch (e) { /* 저장 불가 */ }
+      renderRecentSearches();
+    }
+    function recentThemeOf(r) { return RECENT_THEME_KO[r.sector] || (r.sector ? r.sector : '기타'); }
+
+    // 섹터가 저장되지 않은 옛 기록은 재무 데이터(프록시)에서 한 번만 채운다
+    let recentBackfilling = false;
+    async function backfillRecentSectors() {
+      if (recentBackfilling || !getProxyUrl()) return;
+      const todo = loadRecentSearches().filter(r => !r.sector && !r.sf).map(r => r.symbol).slice(0, 40);
+      if (!todo.length) return;
+      recentBackfilling = true;
+      const got = {};
+      try {
+        let idx = 0;
+        const worker = async () => {
+          while (idx < todo.length) {
+            const sym = todo[idx++];
+            const f = await fetchFundamentals(sym);
+            got[sym] = f && f.sector ? f.sector : '';
+          }
+        };
+        await Promise.all([worker(), worker(), worker()]);
+        const list = loadRecentSearches().map(r => (r.symbol in got && !r.sector) ? { ...r, sector: got[r.symbol], sf: got[r.symbol] ? 0 : 1 } : r);
+        saveRecentSearches(list);
+      } catch (e) { /* 다음 기회에 */ }
+      recentBackfilling = false;
+      renderRecentSearches(true);
+    }
+
+    function recentChip(r) {
+      const up = isPositivePct(r.change);
+      return `<div class="recent-item group relative inline-flex items-center gap-1.5 pl-2.5 pr-6 py-1 rounded-lg bg-slate-950/80 hover:bg-cyan-950/60 border border-slate-800 hover:border-cyan-500/60 cursor-pointer transition text-xs" data-symbol="${escapeHtml(r.symbol)}" onclick="quickSearch(this.dataset.symbol)" title="${escapeHtml(r.name || r.symbol)} · ${timeAgo(r.t)}">
+        <span class="font-mono-numbers font-bold text-white group-hover:text-cyan-300">${escapeHtml(r.symbol)}</span>
+        <span class="text-[11px] text-slate-400 group-hover:text-slate-300 max-w-[7.5rem] truncate">${escapeHtml(r.name || '')}</span>
+        ${r.change ? `<span class="font-mono-numbers text-[11px] ${up ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(r.change)}</span>` : ''}
+        <button type="button" data-symbol="${escapeHtml(r.symbol)}" onclick="event.stopPropagation(); removeRecentSearch(this.dataset.symbol)" title="목록에서 삭제" class="absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 rounded text-slate-600 hover:text-rose-300 hidden group-hover:grid place-items-center"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+      </div>`;
+    }
+
+    function renderRecentSearches(fromBackfill) {
       const box = document.getElementById('recentList');
       if (!box) return;
       const list = loadRecentSearches();
       document.getElementById('recentCount').textContent = list.length;
       document.getElementById('recentClearBtn').classList.toggle('hidden', !list.length);
+      ['theme', 'time'].forEach(m => { const b = document.getElementById(m === 'theme' ? 'recentModeTheme' : 'recentModeTime'); if (b) b.className = 'px-2.5 py-1 rounded-md transition ' + (recentMode === m ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/60' : 'text-slate-400 hover:text-white border border-transparent'); });
       if (!list.length) {
-        box.innerHTML = '<div class="px-4 py-10 text-center text-xs text-slate-500 leading-relaxed"><i class="fa-regular fa-compass text-2xl text-slate-700 block mb-2"></i>아직 검색한 종목이 없습니다.<br>종목을 검색하면 여기에 쌓여서<br>나중에 다시 찾아볼 수 있습니다.</div>';
+        box.innerHTML = '<div class="py-6 text-center text-xs text-slate-500 leading-relaxed"><i class="fa-regular fa-compass text-2xl text-slate-700 block mb-2"></i>아직 검색한 종목이 없습니다. 위 검색창에서 종목을 검색하면 여기에 쌓입니다.</div>';
         return;
       }
-      box.innerHTML = list.map(r => {
-        const up = isPositivePct(r.change);
-        return `
-        <div class="recent-item group flex items-center gap-2 px-4 py-2.5 hover:bg-slate-800/60 cursor-pointer transition" data-symbol="${escapeHtml(r.symbol)}" onclick="quickSearch(this.dataset.symbol)">
-          <div class="min-w-0 flex-1">
-            <div class="flex items-baseline gap-2">
-              <span class="font-mono-numbers font-bold text-cyan-300 text-sm group-hover:text-cyan-200">${escapeHtml(r.symbol)}</span>
-              <span class="text-[11px] text-slate-400 truncate">${escapeHtml(r.name)}</span>
-            </div>
-            <div class="flex items-center gap-2 text-[11px] font-mono-numbers mt-0.5">
-              ${r.price !== null ? `<span class="text-slate-200">${escapeHtml(fmtPx(r.price, r.currency))}</span>` : ''}
-              ${r.change ? `<span class="${up ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(r.change)}</span>` : ''}
-              <span class="text-slate-600 font-sans">· ${timeAgo(r.t)}</span>
-            </div>
-          </div>
-          <button type="button" data-symbol="${escapeHtml(r.symbol)}" onclick="event.stopPropagation(); removeRecentSearch(this.dataset.symbol)" title="목록에서 삭제" class="shrink-0 w-6 h-6 rounded text-slate-600 hover:text-rose-300 hover:bg-slate-800 opacity-60 group-hover:opacity-100 transition"><i class="fa-solid fa-xmark text-xs"></i></button>
-        </div>`;
-      }).join('');
+      if (recentMode === 'time') {
+        box.innerHTML = `<div class="flex flex-wrap gap-1.5">${list.map(recentChip).join('')}</div>`;
+      } else {
+        const groups = new Map();
+        list.forEach(r => { const k = recentThemeOf(r); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); });
+        const ordered = [...groups.entries()].sort((a, b) => (a[0] === '기타') - (b[0] === '기타') || b[1][0].t - a[1][0].t);
+        box.innerHTML = ordered.map(([k, rs]) => `<div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-[11px] font-semibold text-slate-300 bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-md flex items-center gap-1 mr-1 whitespace-nowrap"><i class="fa-solid ${RECENT_THEME_ICON[k] || RECENT_THEME_ICON['기타']} text-[10px]"></i>${escapeHtml(k)} <span class="text-slate-500 font-mono-numbers">${rs.length}</span></span>
+          ${rs.map(recentChip).join('')}</div>`).join('');
+      }
+      if (!fromBackfill && list.some(r => !r.sector && !r.sf)) backfillRecentSectors();
     }
 
     // ===== 회사명/티커 검색 (Yahoo 검색 — 전 세계 거래소, 자동완성) =====
@@ -4648,7 +4600,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         renderValCalcCard();
         renderRiskSizerCard();
         updateAiButton();
-        if (market && !opts.noRecord) recordSearch(upperTicker, market, currentAnalysisData.name);
+        if (market && !opts.noRecord) recordSearch(upperTicker, market, currentAnalysisData.name, currentAnalysisData.sector);
 
         loading.classList.add('hidden');
         dashboard.classList.remove('hidden');
