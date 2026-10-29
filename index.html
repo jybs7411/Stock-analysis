@@ -2104,7 +2104,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.78.1';
+    const APP_VERSION = '1.79.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -27620,11 +27620,20 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       }
       // avoid = 앱 규칙 엔진의 '매수 금지'(하락 추세). sell 은 보유 종목의 비중 축소 검토.
       const VERDICT = { buy: ['매수', 'text-emerald-300 border-emerald-700'], sell: ['매도', 'text-rose-300 border-rose-700'], avoid: ['매수 금지', 'text-amber-300 border-amber-700'], hold: ['관망', 'text-slate-300 border-slate-600'] };
+      // Claude 의견(선택 필드): 앱 규칙 신호에 대한 동의/반론/보류 + 이유. 판정은 바꾸지 않고 표시만 한다.
+      const STANCE = { agree: ['동의', 'border-emerald-700 text-emerald-300'], counter: ['반론', 'border-rose-700 text-rose-300'], hold: ['보류', 'border-slate-600 text-slate-300'] };
+      function opinionLine(o) {
+        if (!isObj(o)) return '';
+        const st = STANCE[String(o.stance || '').toLowerCase()];
+        if (!st && !o.why) return '';
+        return `<span class="text-xs text-slate-300 basis-full"><span class="px-1.5 py-0.5 rounded border text-[11px] ${st ? st[1] : STANCE.hold[1]}">Claude 의견 · ${st ? st[0] : STANCE.hold[0]}</span> ${o.why ? rich(o.why) : ''}</span>`;
+      }
+
       function alertsCard(a) {
         const rows = arr(a.results).filter(Boolean).map(r => {
           const v = verdictView(r.verdict, r.sym);
           const lv = isObj(r.levels) ? ['buy', 'sell', 'stop'].filter(k => num(r.levels[k]) > 0).map(k => `${{ buy: '매수', sell: '매도', stop: '손절' }[k]} ${r.levels[k]}`).join(' · ') : '';
-          return `<li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-slate-800 pt-1.5">${sym(r.sym)}<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}">${v[0]}</span>${lv ? `<span class="text-xs text-slate-400">${esc(lv)}</span>` : ''}${r.note ? `<span class="text-xs text-slate-300 basis-full">${rich(r.note)}</span>` : ''}</li>`;
+          return `<li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-slate-800 pt-1.5">${sym(r.sym)}<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}">${v[0]}</span>${lv ? `<span class="text-xs text-slate-400">${esc(lv)}</span>` : ''}${r.note ? `<span class="text-xs text-slate-300 basis-full">${rich(r.note)}</span>` : ''}${opinionLine(r.opinion)}</li>`;
         }).join('');
         return card('알림 스캔', 'fa-bell', `${a.summary ? `<p class="text-sm text-slate-300">${rich(a.summary)}</p>` : ''}${rows ? `<ul class="space-y-1.5">${rows}</ul>` : '<p class="text-xs text-slate-500">스캔 결과가 아직 없어요.</p>'}`, a.asOf ? `<span class="text-xs text-slate-500">${esc(a.asOf)}</span>` : '', 'rule');
       }

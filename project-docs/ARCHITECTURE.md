@@ -59,6 +59,7 @@ bridge/scripts(DB) → features.py (Drive 시세로 지표·점수)
 - `claude-bridge/quotes@1`: name, price, prev, chgPct, asOf, currency, 관심종목 항목.
 - `claude-bridge/quotes-detail@1`: closes(63), ohlcv(130; 관심종목·기술·펀더멘털·섹터 400). v1.76.0부터 선택 필드 `rule`: `{cv:규칙버전, v:buy|hold|avoid, r:이유코드, sc:점수, p:[[항목id,점수]…], lv:{support,buy,stop,sell}|null, f:[플래그], m:[결측 입력], d:실적까지 일수|null, pb:눌림목 처리|null}` (보유·수량·메모는 포함하지 않음).
 - `claude-bridge/analysis@1`: macro, screens, pullbacks, alerts (모두 선택), contentKey, generatedAt.
+  - `alerts.results[]`의 선택 필드 `opinion:{stance:agree|counter|hold, why}` (v1.79.0~): 앱 규칙 신호에 대한 Claude 의견. 판정(`verdict`)은 바꾸지 않고 앱 'Claude 분석' 탭에 칩으로만 표시. 빌더(`build_analysis.py`)는 필드를 그대로 통과시킨다.
 - 스키마 변경 시 앱 CLAUDE.md와 데스크 양쪽을 함께 갱신한다.
 
 ## 5. 점수 체계 현황 (핵심 문제)
