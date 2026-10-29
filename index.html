@@ -2104,7 +2104,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.73.0';
+    const APP_VERSION = '1.74.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -25287,7 +25287,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           <td class="text-right pr-3 whitespace-nowrap">${priceCell(r)}</td>
           <td class="pr-3 whitespace-nowrap">${chgHtml(r.chg)}</td>
           <td class="pr-3">${r.e && r.e.closes ? sparkSvg(r.e.closes, 84, 30) : '<span class="text-slate-400">—</span>'}</td>
-          <td class="pr-3"><div class="flex flex-wrap items-center gap-1 max-w-[16rem]">${sig}${window.bridgeVerdictChip ? window.bridgeVerdictChip(r.sym) : ''}</div></td>
+          <td class="pr-3"><div class="flex flex-wrap items-center gap-1 max-w-[16rem]">${sig}${window.bridgeVerdictChip ? window.bridgeVerdictChip(r.sym) : ''}${window.bridgeDeskLink ? window.bridgeDeskLink(r.sym) : ''}</div></td>
           <td class="pr-3 text-right wl-opt2">${volHtml(r.vol)}</td>
           <td class="pr-3 wl-opt2">${posBar(r.pos52)}</td>
           <td class="pr-3 text-right wl-opt">${buyGapHtml(r)}</td>
@@ -27142,8 +27142,10 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
     // 인증: GAUTH 의 별도 토큰(getBridgeToken) — 기존 로그인·동기화 권한 요청은 건드리지 않는다.
     const BRIDGE = (function () {
       const FOLDER = '주식데스크-브릿지', QFILE = 'pentanalyst_quotes.json';
-      const K = { cache: 'pentanalyst_bridge_analysis_v1', qid: 'pentanalyst_bridge_quotes_id', qlast: 'pentanalyst_bridge_quotes_last', granted: 'pentanalyst_bridge_granted' };
-      const QUOTES_EVERY_MS = 3 * 3600 * 1000, OHLCV_BARS = 130, CLOSE_BARS = 63;
+      const K = { cache: 'pentanalyst_bridge_analysis_v1', qid: 'pentanalyst_bridge_quotes_id', qlast: 'pentanalyst_bridge_quotes_last', did: 'pentanalyst_bridge_detail_id', dlast: 'pentanalyst_bridge_detail_last', desk: 'pentanalyst_bridge_desk_url', granted: 'pentanalyst_bridge_granted' };
+      const DFILE = 'pentanalyst_quotes_detail.json';
+      const DESK_URL = 'https://claude.ai/artifact/QFtKAXr7iBT1q8LGJJDw61';
+      const DETAIL_EVERY_MS = 3 * 3600 * 1000, LIVE_EVERY_MS = 30 * 60 * 1000, OHLCV_BARS = 130, WATCH_BARS = 400, CLOSE_BARS = 63;
       const ST = { busy: false, sending: false, msg: '', need: false, data: null, file: '', fetchedAt: 0, pbSort: 'rsi', pbFlags: {} };
       const esc = v => escapeHtml(v);
       const ls = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 저장 불가 */ } } };
@@ -27222,20 +27224,23 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         return [...s];
       }
       const pick = (o, ks) => { const out = {}; ks.forEach(k => { const v = r2(o[k]); if (v !== null) out[k] = v; }); return out; };
-      function fromEntry(e) {
+      function fromEntry(e, asOf) {
         const h = e.hist, n = h.length, last = h[n - 1], prev = n > 1 ? h[n - 2].close : null;
         const price = num(e.price) != null ? e.price : last.close;
         const bars = h.slice(-OHLCV_BARS);
         return {
-          name: e.name || '', sector: e.sector || '',
-          price: r2(price), prev: r2(prev), chgPct: prev ? r2((price / prev - 1) * 100) : null, asOf: last.date || null,
-          closes: { t: h.slice(-CLOSE_BARS).map(b => b.t), c: h.slice(-CLOSE_BARS).map(b => b.close) },
-          ohlcv: { t: bars.map(b => b.t), o: bars.map(b => b.open), h: bars.map(b => b.high), l: bars.map(b => b.low), c: bars.map(b => b.close), v: bars.map(b => b.volume) },
-          tech: pick(e, ['rsi', 'sma20Pct', 'sma50Pct', 'sma200Pct', 'atrPct', 'fromHigh52', 'fromLow52', 'relVol', 'perf1w', 'perf1m', 'perf3m', 'perf6m', 'perf1y']),
-          fund: Object.assign(pick(e, ['pe', 'peg', 'roe', 'marketCapVal']), e.consensus ? { consensus: e.consensus } : {})
+          light: { name: e.name || '', price: r2(price), prev: r2(prev), chgPct: prev ? r2((price / prev - 1) * 100) : null, asOf, currency: e.currency || undefined },
+          detail: {
+            sector: e.sector || '',
+            closes: { t: h.slice(-CLOSE_BARS).map(b => b.t), c: h.slice(-CLOSE_BARS).map(b => b.close) },
+            ohlcv: { t: bars.map(b => b.t), o: bars.map(b => b.open), h: bars.map(b => b.high), l: bars.map(b => b.low), c: bars.map(b => b.close), v: bars.map(b => b.volume) },
+            tech: pick(e, ['rsi', 'sma20Pct', 'sma50Pct', 'sma200Pct', 'atrPct', 'fromHigh52', 'fromLow52', 'relVol', 'perf1w', 'perf1m', 'perf3m', 'perf6m', 'perf1y']),
+            fund: Object.assign(pick(e, ['pe', 'peg', 'roe', 'marketCapVal']), e.consensus ? { consensus: e.consensus } : {})
+          }
         };
       }
-      async function buildQuotes(say) {
+      async function buildQuotes(say, withDetail) {
+        const now = new Date().toISOString();
         const ws = watchState(), wsyms = Object.keys(ws.items || {});
         const want = new Set([...wsyms, ...analysisSyms(), 'SPY', 'QQQ', 'IWM', 'DIA']);
         const master = typeof SCREENER_MASTER_DATA !== 'undefined' ? SCREENER_MASTER_DATA : [];
@@ -27247,8 +27252,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             while (master.some(e => !e.loaded && !e.missing) && Date.now() - t0 < 90000) await new Promise(r => setTimeout(r, 500));
           }
         }
-        const quotes = {};
-        master.forEach(e => { if (!e.missing && Array.isArray(e.hist) && e.hist.length) quotes[e.ticker] = fromEntry(e); });
+        const quotes = {}, detail = {};
+        master.forEach(e => { if (!e.missing && Array.isArray(e.hist) && e.hist.length) { const f = fromEntry(e, now); quotes[e.ticker] = f.light; detail[e.ticker] = f.detail; } });
         const rest = [...want].filter(s => !quotes[s]);
         const failed = [];
         if (rest.length) {
@@ -27258,8 +27263,27 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             const q = sp && sp[s];
             if (!q || !Array.isArray(q.c) || !q.c.length) { failed.push(s); return; }
             const price = num(q.price) != null ? q.price : q.c[q.c.length - 1];
-            quotes[s] = { price: r2(price), prev: r2(q.prev), chgPct: q.prev ? r2((price / q.prev - 1) * 100) : null, currency: q.currency || undefined, asOf: new Date().toISOString(), closes: { t: q.t, c: q.c } };
+            quotes[s] = { price: r2(price), prev: r2(q.prev), chgPct: q.prev ? r2((price / q.prev - 1) * 100) : null, currency: q.currency || undefined, asOf: now };
+            detail[s] = { closes: { t: q.t, c: q.c } };
           });
+        }
+        // 관심·보유 종목은 일봉 WATCH_BARS(400)개까지 상세 파일에 담는다 (200일선 계산용). 스크리너 종목은 OHLCV_BARS 유지.
+        if (withDetail && wsyms.length) {
+          say(`관심종목 ${wsyms.length}개 일봉 받는 중…`);
+          for (let i = 0; i < wsyms.length; i += 5) {
+            await Promise.all(wsyms.slice(i, i + 5).map(async s => {
+              try {
+                const d = await fetchRealYahooFinanceData(s, '2y', '1d');
+                const h = d && Array.isArray(d.history) ? d.history : null;
+                if (!h || !h.length) return;
+                const b = h.slice(-WATCH_BARS);
+                detail[s] = Object.assign(detail[s] || {}, {
+                  closes: { t: h.slice(-CLOSE_BARS).map(x => x.t), c: h.slice(-CLOSE_BARS).map(x => x.close) },
+                  ohlcv: { t: b.map(x => x.t), o: b.map(x => x.open), h: b.map(x => x.high), l: b.map(x => x.low), c: b.map(x => x.close), v: b.map(x => x.volume) }
+                });
+              } catch (e) { /* 기존(130봉/종가) 데이터 유지 */ }
+            }));
+          }
         }
         const lists = {}; arr(ws.lists).forEach(l => { if (l && l.id) lists[l.id] = l.name; });
         const items = {};
@@ -27267,25 +27291,37 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           const it = ws.items[s] || {}, tg = it.target || {};
           items[s] = { buy: tg.buy ?? null, stop: tg.stop ?? null, target: tg.goal ?? null, qty: it.qty ?? null, entry: it.entry ?? null, memo: it.note || '', thesis: it.thesis || '', group: arr(it.lists).map(id => lists[id]).filter(Boolean).join(', ') };
         });
-        return { schema: 'claude-bridge/quotes@1', exportedAt: new Date().toISOString(), source: 'yahoo via pentanalyst worker', count: Object.keys(quotes).length, failed, quotes, watchlist: { items } };
+        return {
+          light: { schema: 'claude-bridge/quotes@1', exportedAt: now, source: 'yahoo via pentanalyst worker', count: Object.keys(quotes).length, failed, quotes, watchlist: { items } },
+          detail: { schema: 'claude-bridge/quotes-detail@1', exportedAt: now, quotes: detail }
+        };
       }
-      async function uploadQuotes(t, json) {
+      async function uploadFile(t, json, name, idKey) {
         const body = JSON.stringify(json), H = { Authorization: `Bearer ${t}` };
-        let id = ls.get(K.qid);
+        let id = ls.get(idKey);
         if (!id) { // 다른 기기에서 이미 만들었을 수 있으니 이름으로 먼저 찾는다
-          const fr = await (await dget(t, `https://www.googleapis.com/drive/v3/files?q=${qenc(`name = '${QFILE}' and trashed = false`)}&fields=files(id)&pageSize=1`)).json();
+          const fr = await (await dget(t, `https://www.googleapis.com/drive/v3/files?q=${qenc(`name = '${name}' and trashed = false`)}&fields=files(id)&pageSize=1`)).json();
           id = fr.files && fr.files[0] && fr.files[0].id;
         }
         if (id) {
           const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`, { method: 'PATCH', headers: Object.assign({ 'Content-Type': 'application/json; charset=UTF-8' }, H), body });
-          if (r.ok) { ls.set(K.qid, id); return; }
+          if (r.ok) { ls.set(idKey, id); return body.length; }
           if (r.status !== 404) throw new Error(`업로드 실패 (${r.status})`);
         }
         const b = '-------pentbridge';
-        const multi = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: QFILE, mimeType: 'application/json' })}\r\n--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${body}\r\n--${b}--`;
+        const multi = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, mimeType: 'application/json' })}\r\n--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${body}\r\n--${b}--`;
         const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: Object.assign({ 'Content-Type': `multipart/related; boundary=${b}` }, H), body: multi });
         if (!r.ok) throw new Error(`업로드 실패 (${r.status})`);
-        ls.set(K.qid, (await r.json()).id);
+        ls.set(idKey, (await r.json()).id);
+        return body.length;
+      }
+      // 미국 정규장(독일 시간 15:30~22:00, 평일)
+      function usOpenNow() {
+        try {
+          const p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+          const m = Number(p.hour) * 60 + Number(p.minute);
+          return p.weekday !== 'Sat' && p.weekday !== 'Sun' && m >= 15 * 60 + 30 && m < 22 * 60;
+        } catch (e) { return false; }
       }
       async function sendQuotes(interactive) {
         if (ST.sending) return;
@@ -27293,23 +27329,39 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         const say = m => { ST.msg = m; render(); };
         try {
           const t = await token(!!interactive);
-          const json = await buildQuotes(say);
-          say(`${json.count}종목 업로드 중…`);
-          await uploadQuotes(t, json);
+          const withDetail = !!interactive || Date.now() - (Number(ls.get(K.dlast)) || 0) >= DETAIL_EVERY_MS;
+          const { light, detail } = await buildQuotes(say, withDetail);
+          say(`${light.count}종목 업로드 중…`);
+          const lsz = await uploadFile(t, light, QFILE, K.qid); // 가벼운 파일 먼저
+          console.log(`[bridge] ${QFILE} ${(lsz / 1024).toFixed(1)}KB${lsz > 200 * 1024 ? ' (목표 200KB 초과!)' : ''}`);
           ls.set(K.qlast, String(Date.now()));
+          let dsz = 0;
+          if (withDetail) {
+            dsz = await uploadFile(t, detail, DFILE, K.did);
+            console.log(`[bridge] ${DFILE} ${(dsz / 1024).toFixed(1)}KB`);
+            ls.set(K.dlast, String(Date.now()));
+          }
           ST.msg = '';
-          showToast('Claude에 시세 전달', `${json.count}종목을 드라이브(${QFILE})에 올렸어요.${json.failed.length ? ` 못 받은 ${json.failed.length}종목 제외.` : ''}`, 'success');
+          if (interactive) showToast('Claude에 시세 전달', `${light.count}종목을 드라이브에 올렸어요 (${(lsz / 1024).toFixed(0)}KB${withDetail ? ` + 상세 ${(dsz / 1024).toFixed(0)}KB` : ''}).${light.failed.length ? ` 못 받은 ${light.failed.length}종목 제외.` : ''}`, 'success');
         } catch (e) {
           ST.msg = '';
-          showToast('시세 내보내기 실패', String(e.message || e), 'error');
+          if (interactive) showToast('시세 내보내기 실패', String(e.message || e), 'error'); else console.warn('[bridge] 자동 전송 실패:', e);
         }
         ST.sending = false; render();
       }
+      // 가벼운 파일: 미국 정규장 30분 / 그 외 3시간. 상세 파일은 sendQuotes 안에서 3시간 간격 유지
       function autoSend() {
         if (ls.get(K.granted) !== '1' || !GAUTH.getUser()) return;
-        if (Date.now() - (Number(ls.get(K.qlast)) || 0) < QUOTES_EVERY_MS) return;
+        if (Date.now() - (Number(ls.get(K.qlast)) || 0) < (usOpenNow() ? LIVE_EVERY_MS : DETAIL_EVERY_MS)) return;
         sendQuotes(false);
       }
+      function deskUrl() { return ls.get(K.desk) || DESK_URL; }
+      // 관심종목 행의 "주식 데스크에서 보기" 링크 (티커 대문자, 거래소 접미사 제외)
+      window.bridgeDeskLink = function (s) {
+        const t = String(s || '').toUpperCase().split(':')[0];
+        if (!t) return '';
+        return `<a href="${esc(deskUrl().replace(/#.*$/, ''))}#${encodeURIComponent(t)}" target="_blank" rel="noopener" class="px-1.5 py-0.5 rounded border border-slate-600 text-[11px] text-cyan-300 hover:underline" title="주식 데스크에서 보기">데스크 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>`;
+      };
 
       // ---------- 화면 ----------
       const TILE = { warn: 'border-amber-600/60 text-amber-300', bad: 'border-rose-600/60 text-rose-300', good: 'border-emerald-600/60 text-emerald-300', '': 'border-slate-700 text-slate-200' };
@@ -27383,6 +27435,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             <div class="flex flex-wrap items-center gap-2">
               <button type="button" data-act="refresh" class="${btn} border-cyan-700 text-cyan-300 bg-cyan-950/50" ${ST.busy ? 'disabled' : ''}><i class="fa-solid fa-rotate mr-1 ${ST.busy ? 'fa-spin' : ''}"></i>새로고침</button>
               <button type="button" data-act="send" class="${btn} border-amber-700 text-amber-300 bg-amber-950/40" ${ST.sending ? 'disabled' : ''}><i class="fa-solid fa-paper-plane mr-1"></i>Claude에 시세 보내기</button>
+              <button type="button" data-act="deskurl" class="${btn} border-slate-600 text-slate-300" title="${esc(deskUrl())}"><i class="fa-solid fa-link mr-1"></i>데스크 링크 주소</button>
               <span class="text-[11px] text-slate-500">${when}</span>
             </div>
             ${ST.need ? `<div class="rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-200">구글 권한(드라이브 읽기·시세 파일 쓰기)이 필요해요. <button type="button" data-act="grant" class="${btn} ml-2 border-amber-600 text-amber-200">권한 허용 / 다시 로그인</button></div>` : ''}
@@ -27400,6 +27453,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         else if (a === 'refresh') refresh(true);
         else if (a === 'grant') refresh(true).then(() => ST.data && autoSend());
         else if (a === 'send') sendQuotes(true);
+        else if (a === 'deskurl') { const v = prompt('주식 데스크 아티팩트 주소 (비우면 기본값)', deskUrl()); if (v !== null) { if (/^https?:\/\//i.test(v.trim())) ls.set(K.desk, v.trim()); else if (!v.trim()) { try { localStorage.removeItem(K.desk); } catch (e) { /* 무시 */ } } render(); } }
         else if (a === 'pbsort') { ST.pbSort = el.dataset.k; render(); }
         else if (a === 'pbflag') { ST.pbFlags[el.dataset.k] = !ST.pbFlags[el.dataset.k]; render(); }
       }
@@ -27416,6 +27470,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           if (ls.get(K.granted) === '1' && GAUTH.getUser()) refresh(false).then(autoSend);
         };
         setTimeout(boot, 4000);
+        setInterval(autoSend, 5 * 60 * 1000); // 앱이 열려 있는 동안 5분마다 간격 확인
         window.addEventListener('gauth-changed', () => setTimeout(boot, 1500));
       }
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
