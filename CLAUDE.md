@@ -26,7 +26,7 @@
 - 인증은 `GAUTH`를 공유하되, 로그인·동기화 권한(`SCOPE`)은 건드리지 않고 `GAUTH.getBridgeToken`이 `drive.readonly`+`drive.file`을 필요할 때만 추가 동의로 받는다.
 - 읽기: 드라이브 폴더 `주식데스크-브릿지`(이름으로 검색)의 `claude_analysis_YYYYMMDD-HHMM.json` 중 최신(TEST 제외) → 'Claude 분석' 탭(`claude`, 표시 전용). 외부 파일이므로 `<b><i><br>`만 허용하고 나머지는 이스케이프, 링크는 http(s)만.
 - 쓰기: 드라이브 루트 `pentanalyst_quotes.json`(`claude-bridge/quotes@1`)을 같은 파일 id로 덮어쓴다(제목 변경 금지). 스크리너가 받아 둔 일봉(`SCREENER_MASTER_DATA[].hist`)을 우선 쓰고, 없는 종목만 `fetchSpark`로 채운다.
-- 규칙 결과: `pentanalyst_quotes_detail.json`의 종목별 `rule`(앱 `RuleEngine.forEntry`가 계산한 규칙 점수·판정·가격대·플래그, 선택 필드)을 함께 싣는다. 보유 여부·수량·메모는 규칙 계산에 쓰지 않고 내보내지도 않는다. 판정 값은 buy/hold/avoid(매수 금지)이며 'sell'은 화면에서 보유 종목에만 쓴다.
+- 규칙 결과: `pentanalyst_quotes_detail.json`의 종목별 `rule`(앱 `RuleEngine.forEntry`가 계산한 규칙 점수·판정·가격대·플래그, 선택 필드)을 함께 싣는다. 보유 여부·수량·메모는 규칙 계산에 쓰지 않고 내보내지도 않는다. 판정 값은 buy/hold/avoid(매수 금지)이며 'sell'은 화면에서 보유 종목에만 쓴다. 'Claude 분석' 탭 카드는 출처 배지로 '규칙 신호(앱 계산)'와 'Claude 리서치'를 구분하고, 칩 문구는 "Claude …"가 아니라 "규칙 …"로 쓴다.
 - 규격: 분석 파일은 모든 최상위 필드가 선택(`macro`/`screens`/`pullbacks`/`alerts`)이며 없으면 해당 카드를 숨긴다. 스키마를 바꾸면 웹의 Claude 쪽에도 알린다.
 
 ## 프로젝트 문서 (`project-docs/`)

@@ -2086,7 +2086,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.75.0';
+    const APP_VERSION = '1.77.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -27516,7 +27516,16 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       // ---------- 화면 ----------
       const TILE = { warn: 'border-amber-600/60 text-amber-300', bad: 'border-rose-600/60 text-rose-300', good: 'border-emerald-600/60 text-emerald-300', '': 'border-slate-700 text-slate-200' };
       const sym = s => `<button type="button" data-act="open" data-sym="${esc(s)}" class="font-mono-numbers font-bold text-cyan-300 hover:underline">${esc(s)}</button>`;
-      const card = (title, icon, body, right) => `<section class="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3"><div class="flex items-center justify-between gap-2"><h3 class="font-bold text-slate-100"><i class="fa-solid ${icon} mr-2 text-slate-400"></i>${title}</h3>${right || ''}</div>${body}</section>`;
+      // 출처 표시: rule = 앱이 계산한 규칙 신호, ai = Claude 리서치·의견 (R-2 라벨 분리)
+      const KIND = { rule: ['규칙 신호 · 앱 계산', 'border-cyan-700 text-cyan-300'], ai: ['Claude 리서치', 'border-amber-700 text-amber-300'] };
+      const card = (title, icon, body, right, kind) => `<section class="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3"><div class="flex items-center justify-between gap-2"><h3 class="font-bold text-slate-100"><i class="fa-solid ${icon} mr-2 text-slate-400"></i>${title}${KIND[kind] ? ` <span class="ml-1 px-1.5 py-0.5 rounded border text-[10px] font-normal align-middle ${KIND[kind][1]}">${KIND[kind][0]}</span>` : ''}</h3>${right || ''}</div>${body}</section>`;
+      // 보유 종목이면 하락 추세 판정을 '매수 금지' 대신 '비중 축소 검토'로 보여 준다 (보유 여부는 화면에서만 쓰고 내보내지 않음)
+      function heldSet() { try { return new Set(((window.Ledger && window.Ledger.derive().holdings) || []).map(h => String(h.sym).toUpperCase())); } catch (e) { return new Set(); } }
+      function verdictView(verdict, s) {
+        const k = String(verdict || '').toLowerCase();
+        if ((k === 'avoid' || k === 'sell') && heldSet().has(String(s || '').toUpperCase())) return ['비중 축소 검토', 'text-rose-300 border-rose-700'];
+        return VERDICT[k] || [esc(verdict || '–'), 'text-slate-300 border-slate-600'];
+      }
 
       function macroCard(m) {
         const tiles = arr(m.tiles).map(t => `<div class="rounded-lg border bg-slate-950/60 p-2.5 ${TILE[t && t.c] || TILE['']}"><div class="text-[11px] text-slate-400">${esc(t && t.k)}</div><div class="font-bold">${esc(t && t.v)}</div>${t && t.n ? `<div class="text-[11px] text-slate-400 mt-0.5">${esc(t.n)}</div>` : ''}</div>`).join('');
@@ -27530,7 +27539,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           ${m.sectors ? `<p class="text-sm text-slate-300">${rich(m.sectors)}</p>` : ''}
           ${cal ? `<div><div class="text-xs font-bold text-slate-400 mb-1">일정</div><ul class="space-y-0.5">${cal}</ul></div>` : ''}
           ${m.caveat ? `<p class="text-[11px] text-slate-500">${rich(m.caveat)}</p>` : ''}
-          ${src ? `<ul class="text-[11px] space-y-0.5">${src}</ul>` : ''}`, m.asOf ? `<span class="text-xs text-slate-500">${esc(m.asOf)} 기준</span>` : '');
+          ${src ? `<ul class="text-[11px] space-y-0.5">${src}</ul>` : ''}`, m.asOf ? `<span class="text-xs text-slate-500">${esc(m.asOf)} 기준</span>` : '', 'ai');
       }
       function screensCard(list) {
         const body = list.map((s, i) => {
@@ -27541,7 +27550,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             ${rows ? `<div class="overflow-x-auto"><table class="w-full text-left"><tbody>${rows}</tbody></table></div>` : ''}
             ${s && s.caveat ? `<p class="text-[11px] text-slate-500">${esc(s.caveat)}</p>` : ''}${src ? `<ul class="text-[11px]">${src}</ul>` : ''}</div></details>`;
         }).join('');
-        return card('스크리너 결과', 'fa-filter', `<div class="space-y-2">${body}</div>`);
+        return card('스크리너 결과', 'fa-filter', `<div class="space-y-2">${body}</div>`, '', 'ai');
       }
       function pullbackCard(p) {
         let rows = arr(p.rows).filter(r => r && r.s);
@@ -27556,17 +27565,17 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           ${p.scope ? `<p class="text-xs text-slate-400">${esc(p.scope)}${p.universe ? ` · ${esc(p.universe)}` : ''}</p>` : ''}
           <div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] text-slate-500">정렬</span>${sortBtn('rsi', 'RSI 낮은 순')}${sortBtn('s', '티커')}<span class="text-[11px] text-slate-500 ml-2">필터</span>${chip('a', '200일선 위')}${chip('r', 'ROE 12%↑')}${chip('m', '시총 $200B↑')}</div>
           <div class="overflow-x-auto max-h-96"><table class="w-full text-left"><thead class="text-[11px] text-slate-500"><tr><th>종목</th><th>이름</th><th class="text-right">RSI14</th><th class="text-center">조건</th></tr></thead><tbody>${tr || '<tr><td colspan="4" class="py-3 text-xs text-slate-500">조건에 맞는 종목이 없어요.</td></tr>'}</tbody></table></div>
-          ${p.fields ? `<p class="text-[11px] text-slate-500">${esc(p.fields)}</p>` : ''}`, `<span class="text-xs text-slate-500">${esc(p.asOf || '')} · ${rows.length}/${arr(p.rows).length}</span>`);
+          ${p.fields ? `<p class="text-[11px] text-slate-500">${esc(p.fields)}</p>` : ''}`, `<span class="text-xs text-slate-500">${esc(p.asOf || '')} · ${rows.length}/${arr(p.rows).length}</span>`, 'rule');
       }
       // avoid = 앱 규칙 엔진의 '매수 금지'(하락 추세). sell 은 보유 종목의 비중 축소 검토.
       const VERDICT = { buy: ['매수', 'text-emerald-300 border-emerald-700'], sell: ['매도', 'text-rose-300 border-rose-700'], avoid: ['매수 금지', 'text-amber-300 border-amber-700'], hold: ['관망', 'text-slate-300 border-slate-600'] };
       function alertsCard(a) {
         const rows = arr(a.results).filter(Boolean).map(r => {
-          const v = VERDICT[String(r.verdict || '').toLowerCase()] || [esc(r.verdict || '–'), 'text-slate-300 border-slate-600'];
+          const v = verdictView(r.verdict, r.sym);
           const lv = isObj(r.levels) ? ['buy', 'sell', 'stop'].filter(k => num(r.levels[k]) > 0).map(k => `${{ buy: '매수', sell: '매도', stop: '손절' }[k]} ${r.levels[k]}`).join(' · ') : '';
           return `<li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-slate-800 pt-1.5">${sym(r.sym)}<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}">${v[0]}</span>${lv ? `<span class="text-xs text-slate-400">${esc(lv)}</span>` : ''}${r.note ? `<span class="text-xs text-slate-300 basis-full">${esc(r.note)}</span>` : ''}</li>`;
         }).join('');
-        return card('알림 스캔', 'fa-bell', `${a.summary ? `<p class="text-sm text-slate-300">${rich(a.summary)}</p>` : ''}${rows ? `<ul class="space-y-1.5">${rows}</ul>` : '<p class="text-xs text-slate-500">스캔 결과가 아직 없어요.</p>'}`, a.asOf ? `<span class="text-xs text-slate-500">${esc(a.asOf)}</span>` : '');
+        return card('알림 스캔', 'fa-bell', `${a.summary ? `<p class="text-sm text-slate-300">${rich(a.summary)}</p>` : ''}${rows ? `<ul class="space-y-1.5">${rows}</ul>` : '<p class="text-xs text-slate-500">스캔 결과가 아직 없어요.</p>'}`, a.asOf ? `<span class="text-xs text-slate-500">${esc(a.asOf)}</span>` : '', 'rule');
       }
 
       function render() {
@@ -27591,7 +27600,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             </div>
             ${ST.need ? `<div class="rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-200">구글 권한(드라이브 읽기·시세 파일 쓰기)이 필요해요. <button type="button" data-act="grant" class="${btn} ml-2 border-amber-600 text-amber-200">권한 허용 / 다시 로그인</button></div>` : ''}
             ${ST.msg ? `<div class="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm text-slate-300">${esc(ST.msg)}</div>` : ''}
-            <p class="text-[11px] text-slate-500">Claude가 정리한 참고 자료이며 투자 권유가 아니에요. 표시 전용이고, 이 화면의 내용으로 주문·매매가 실행되지 않아요.</p>
+            <p class="text-[11px] text-slate-500">'규칙 신호'는 앱의 규칙(추세·RSI·밸류 점수)으로 계산한 값이고, 'Claude 리서치'는 Claude가 웹에서 찾아 정리한 참고 자료예요. 투자 권유가 아니며, 표시 전용이라 이 화면의 내용으로 주문·매매가 실행되지 않아요.</p>
             ${cards.join('') || (!ST.need && !ST.msg && !ST.busy ? '<div class="text-sm text-slate-500 py-10 text-center">아직 받은 분석이 없어요. 새로고침을 눌러 보세요.</div>' : '')}
           </div>`;
       }
@@ -27625,11 +27634,11 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         window.addEventListener('gauth-changed', () => setTimeout(boot, 1500));
       }
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
-      // 관심종목 행에 붙이는 Claude 알림 스캔 판정 칩 (표시 전용)
+      // 관심종목 행에 붙이는 알림 스캔 규칙 신호 칩 (표시 전용)
       window.bridgeVerdictChip = function (s) {
         const res = ST.data && ST.data.alerts && arr(ST.data.alerts.results).find(r => r && String(r.sym || '').toUpperCase() === String(s).toUpperCase());
-        const v = res && VERDICT[String(res.verdict || '').toLowerCase()];
-        return v ? `<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}" title="${esc(`Claude 알림 스캔${res.asOf ? ' ' + res.asOf : ''}${res.note ? ': ' + res.note : ''}`)}">Claude ${v[0]}</span>` : '';
+        const v = res && VERDICT[String(res.verdict || '').toLowerCase()] && verdictView(res.verdict, s);
+        return v ? `<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}" title="${esc(`규칙 신호(알림 스캔)${res.asOf ? ' ' + res.asOf : ''}${res.note ? ': ' + res.note : ''}`)}">규칙 ${v[0]}</span>` : '';
       };
       return { refresh, sendQuotes, buildQuotes };
     })();
