@@ -2104,7 +2104,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.78.0';
+    const APP_VERSION = '1.78.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -27579,9 +27579,9 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       }
 
       function macroCard(m) {
-        const tiles = arr(m.tiles).map(t => `<div class="rounded-lg border bg-slate-950/60 p-2.5 ${TILE[t && t.c] || TILE['']}"><div class="text-[11px] text-slate-400">${esc(t && t.k)}</div><div class="font-bold">${esc(t && t.v)}</div>${t && t.n ? `<div class="text-[11px] text-slate-400 mt-0.5">${esc(t.n)}</div>` : ''}</div>`).join('');
+        const tiles = arr(m.tiles).map(t => `<div class="rounded-lg border bg-slate-950/60 p-2.5 ${TILE[t && t.c] || TILE['']}"><div class="text-[11px] text-slate-400">${esc(t && t.k)}</div><div class="font-bold">${esc(t && t.v)}</div>${t && t.n ? `<div class="text-[11px] text-slate-400 mt-0.5">${rich(t.n)}</div>` : ''}</div>`).join('');
         const read = arr(m.read).map(x => `<li class="text-sm text-slate-300 leading-relaxed">${rich(x)}</li>`).join('');
-        const cal = arr(m.cal).map(c => `<li class="text-xs text-slate-400"><span class="font-mono-numbers text-slate-300">${esc(c && c.d)}</span> ${esc(c && c.e)}</li>`).join('');
+        const cal = arr(m.cal).map(c => `<li class="text-xs text-slate-400"><span class="font-mono-numbers text-slate-300">${esc(c && c.d)}</span> ${rich(c && c.e)}</li>`).join('');
         const src = arr(m.src).map(s => `<li>${link(s && s.u, s && s.t)}</li>`).join('');
         return card('거시 브리핑', 'fa-globe', `
           ${m.headline ? `<p class="text-sm text-slate-200 leading-relaxed">${rich(m.headline)}</p>` : ''}
@@ -27594,14 +27594,14 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       }
       function screensCard(list) {
         const body = list.map((s, i) => {
-          const rows = arr(s && s.rows).map(r => r && `<tr class="border-t border-slate-800 align-top"><td class="py-1.5 pr-2">${sym(r.sym)}<div class="text-[11px] text-slate-500">${esc(r.name)}</div></td><td class="py-1.5 pr-2 text-xs text-slate-400">${esc(r.sector)}</td><td class="py-1.5 text-xs text-slate-300">${esc(r.why)}${r.risk ? `<div class="text-rose-300/80 mt-0.5">리스크: ${esc(r.risk)}</div>` : ''}${arr(r.m).length ? `<div class="flex flex-wrap gap-1 mt-1">${arr(r.m).map(c => `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-[11px] text-slate-300">${esc(c)}</span>`).join('')}</div>` : ''}</td></tr>`).join('');
+          const rows = arr(s && s.rows).map(r => r && `<tr class="border-t border-slate-800 align-top"><td class="py-1.5 pr-2">${sym(r.sym)}<div class="text-[11px] text-slate-500">${esc(r.name)}</div></td><td class="py-1.5 pr-2 text-xs text-slate-400">${esc(r.sector)}</td><td class="py-1.5 text-xs text-slate-300">${rich(r.why)}${r.risk ? `<div class="text-rose-300/80 mt-0.5">리스크: ${rich(r.risk)}</div>` : ''}${arr(r.m).length ? `<div class="flex flex-wrap gap-1 mt-1">${arr(r.m).map(c => `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-[11px] text-slate-300">${rich(c)}</span>`).join('')}</div>` : ''}</td></tr>`).join('');
           const src = arr(s && s.sources).map(x => `<li>${link(x && x.u, x && x.t)}</li>`).join('');
-          return `<details class="rounded-lg border border-slate-800 bg-slate-950/50" ${i === 0 ? 'open' : ''}><summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-200">${esc(s && s.title)} <span class="text-xs font-normal text-slate-500">${arr(s && s.rows).length}종목${s && s.asOf ? ` · ${esc(s.asOf)}` : ''}</span></summary><div class="px-3 pb-3 space-y-2">
-            ${s && s.summary ? `<p class="text-sm text-slate-300">${rich(s.summary)}</p>` : ''}${s && s.method ? `<p class="text-[11px] text-slate-500">방법: ${esc(s.method)}</p>` : ''}
+          return `<details class="rounded-lg border border-slate-800 bg-slate-950/50" ${i === 0 ? 'open' : ''}><summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-200">${esc(s && s.title)} ${(k => `<span class="px-1.5 py-0.5 rounded border text-[10px] font-normal align-middle ${KIND[k][1]}">${KIND[k][0]}</span>`)(s && /^insight-(pullback|weekly)$/.test(String(s.id || '')) ? 'rule' : 'ai')} <span class="text-xs font-normal text-slate-500">${arr(s && s.rows).length}종목${s && s.asOf ? ` · ${esc(s.asOf)}` : ''}</span></summary><div class="px-3 pb-3 space-y-2">
+            ${s && s.summary ? `<p class="text-sm text-slate-300">${rich(s.summary)}</p>` : ''}${s && s.method ? `<p class="text-[11px] text-slate-500">방법: ${rich(s.method)}</p>` : ''}
             ${rows ? `<div class="overflow-x-auto"><table class="w-full text-left"><tbody>${rows}</tbody></table></div>` : ''}
-            ${s && s.caveat ? `<p class="text-[11px] text-slate-500">${esc(s.caveat)}</p>` : ''}${src ? `<ul class="text-[11px]">${src}</ul>` : ''}</div></details>`;
+            ${s && s.caveat ? `<p class="text-[11px] text-slate-500">${rich(s.caveat)}</p>` : ''}${src ? `<ul class="text-[11px]">${src}</ul>` : ''}</div></details>`;
         }).join('');
-        return card('스크리너 결과', 'fa-filter', `<div class="space-y-2">${body}</div>`, '', 'ai');
+        return card('스크리너 결과', 'fa-filter', `<div class="space-y-2">${body}</div>`);
       }
       function pullbackCard(p) {
         let rows = arr(p.rows).filter(r => r && r.s);
@@ -27616,7 +27616,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           ${p.scope ? `<p class="text-xs text-slate-400">${esc(p.scope)}${p.universe ? ` · ${esc(p.universe)}` : ''}</p>` : ''}
           <div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] text-slate-500">정렬</span>${sortBtn('rsi', 'RSI 낮은 순')}${sortBtn('s', '티커')}<span class="text-[11px] text-slate-500 ml-2">필터</span>${chip('a', '200일선 위')}${chip('r', 'ROE 12%↑')}${chip('m', '시총 $200B↑')}</div>
           <div class="overflow-x-auto max-h-96"><table class="w-full text-left"><thead class="text-[11px] text-slate-500"><tr><th>종목</th><th>이름</th><th class="text-right">RSI14</th><th class="text-center">조건</th></tr></thead><tbody>${tr || '<tr><td colspan="4" class="py-3 text-xs text-slate-500">조건에 맞는 종목이 없어요.</td></tr>'}</tbody></table></div>
-          ${p.fields ? `<p class="text-[11px] text-slate-500">${esc(p.fields)}</p>` : ''}`, `<span class="text-xs text-slate-500">${esc(p.asOf || '')} · ${rows.length}/${arr(p.rows).length}</span>`, 'rule');
+          ${p.fields ? `<p class="text-[11px] text-slate-500">${rich(p.fields)}</p>` : ''}`, `<span class="text-xs text-slate-500">${esc(p.asOf || '')} · ${rows.length}/${arr(p.rows).length}</span>`, 'rule');
       }
       // avoid = 앱 규칙 엔진의 '매수 금지'(하락 추세). sell 은 보유 종목의 비중 축소 검토.
       const VERDICT = { buy: ['매수', 'text-emerald-300 border-emerald-700'], sell: ['매도', 'text-rose-300 border-rose-700'], avoid: ['매수 금지', 'text-amber-300 border-amber-700'], hold: ['관망', 'text-slate-300 border-slate-600'] };
@@ -27624,7 +27624,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         const rows = arr(a.results).filter(Boolean).map(r => {
           const v = verdictView(r.verdict, r.sym);
           const lv = isObj(r.levels) ? ['buy', 'sell', 'stop'].filter(k => num(r.levels[k]) > 0).map(k => `${{ buy: '매수', sell: '매도', stop: '손절' }[k]} ${r.levels[k]}`).join(' · ') : '';
-          return `<li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-slate-800 pt-1.5">${sym(r.sym)}<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}">${v[0]}</span>${lv ? `<span class="text-xs text-slate-400">${esc(lv)}</span>` : ''}${r.note ? `<span class="text-xs text-slate-300 basis-full">${esc(r.note)}</span>` : ''}</li>`;
+          return `<li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-slate-800 pt-1.5">${sym(r.sym)}<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}">${v[0]}</span>${lv ? `<span class="text-xs text-slate-400">${esc(lv)}</span>` : ''}${r.note ? `<span class="text-xs text-slate-300 basis-full">${rich(r.note)}</span>` : ''}</li>`;
         }).join('');
         return card('알림 스캔', 'fa-bell', `${a.summary ? `<p class="text-sm text-slate-300">${rich(a.summary)}</p>` : ''}${rows ? `<ul class="space-y-1.5">${rows}</ul>` : '<p class="text-xs text-slate-500">스캔 결과가 아직 없어요.</p>'}`, a.asOf ? `<span class="text-xs text-slate-500">${esc(a.asOf)}</span>` : '', 'rule');
       }
@@ -27689,7 +27689,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       window.bridgeVerdictChip = function (s) {
         const res = ST.data && ST.data.alerts && arr(ST.data.alerts.results).find(r => r && String(r.sym || '').toUpperCase() === String(s).toUpperCase());
         const v = res && VERDICT[String(res.verdict || '').toLowerCase()] && verdictView(res.verdict, s);
-        return v ? `<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}" title="${esc(`규칙 신호(알림 스캔)${res.asOf ? ' ' + res.asOf : ''}${res.note ? ': ' + res.note : ''}`)}">규칙 ${v[0]}</span>` : '';
+        return v ? `<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}" title="${esc(`규칙 신호(알림 스캔)${res.asOf ? ' ' + res.asOf : ''}${res.note ? ': ' + String(res.note).replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, '') : ''}`)}">규칙 ${v[0]}</span>` : '';
       };
       return { refresh, sendQuotes, buildQuotes };
     })();
