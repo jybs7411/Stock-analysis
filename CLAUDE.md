@@ -28,6 +28,12 @@
 - 쓰기: 드라이브 루트 `pentanalyst_quotes.json`(`claude-bridge/quotes@1`)을 같은 파일 id로 덮어쓴다(제목 변경 금지). 스크리너가 받아 둔 일봉(`SCREENER_MASTER_DATA[].hist`)을 우선 쓰고, 없는 종목만 `fetchSpark`로 채운다.
 - 규격: 분석 파일은 모든 최상위 필드가 선택(`macro`/`screens`/`pullbacks`/`alerts`)이며 없으면 해당 카드를 숨긴다. 스키마를 바꾸면 웹의 Claude 쪽에도 알린다.
 
+## 프로젝트 문서 (`project-docs/`)
+- 앱·주식 데스크·브릿지의 원칙/구조/결정/로드맵은 `project-docs/`가 원본이다. **개선·구조 변경 작업 전에 `project-docs/README.md`(한 장 요약)부터 읽는다.** 상세는 필요한 문서만 연다.
+- 원칙: 앱 = 수집·계산·표시, 주식 데스크 = Claude만 가능한 일. 새 기능은 `PRINCIPLES.md`의 판별 질문으로 위치를 정한다.
+- 브릿지 스키마·점수/판정 로직·모듈 구조를 바꿨다면 같은 커밋에서 `ARCHITECTURE.md`를, 방향을 정했다면 `DECISIONS.md`에 한 줄을, 개선 항목 진행 시 `ROADMAP.md`를 갱신한다. 문서에 줄 번호는 쓰지 않는다.
+- `project-docs/`는 생성물이 아니다(`docs/`와 혼동 금지). 문서만 바꾼 커밋은 `APP_VERSION`을 올리지 않는다.
+
 ## 버전 규칙
 - 앱 버전은 `index.html`의 `const APP_VERSION`(메인 스크립트, `switchAppTab` 위)이 단일 출처이며 화면 맨 아래 푸터(`#appVersion`)에 표시된다.
 - **앱을 수정(업데이트)할 때마다 `APP_VERSION`을 올린다.** 기능 추가·동작 변경은 minor(1.1.0→1.2.0), 버그 수정·문구 수정은 patch(1.1.0→1.1.1).
