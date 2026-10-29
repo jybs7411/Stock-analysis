@@ -2104,7 +2104,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.74.0';
+    const APP_VERSION = '1.75.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -23182,6 +23182,131 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       };
     })();
   </script>
+  <script id="mod-rules">
+    // ===== 규칙 엔진 — window.RuleEngine =====
+    // 관심종목·스크리너 종목의 '규칙 점수 · 판정 · 지지/매수/손절/목표 가격대'를 계산하는 순수 함수 모음(DOM·네트워크·저장소를 쓰지 않는다).
+    // 주식 데스크(Claude 아티팩트)와 스케줄 작업이 따로 계산하던 규칙을 앱 한 곳으로 옮긴 것이다 (project-docs/DECISIONS.md, R-1).
+    // 1단계는 기존 Python 규칙(features.py score / insight.py verdict)과 '동작이 같게' 옮겼다 — tools/test-rules.mjs 가 골든 파일로 대조한다.
+    // 임계값을 바꾸려면 먼저 신호 이력 측정(taSignalBacktest 등)으로 근거를 만든 뒤 CFG 만 고치고 골든 파일을 다시 만든다.
+    // 이 규칙은 검증된 예측 모델이 아니라 '추세 위에서 눌림만 매수 후보로 보고, 과열·실적 직전은 보류'하는 단순 기준이다.
+    // 입력 x: { price, rsi, sma20Pct, sma50Pct, sma200Pct, perf3m, atrPct, pe, peg, consensus } (스크리너 항목·브릿지 tech/fund 와 같은 이름, 없으면 null)
+    // 입력 hist: 일봉 [{high,low,close}] 오래된 것 → 최신. 결과 문구는 만들지 않는다(id·숫자만) — 화면 문구는 표시하는 쪽에서 붙인다.
+    (function () {
+      const num = v => typeof v === 'number' && Number.isFinite(v);
+      const r2 = v => Number(v.toFixed(2)); // 이진 표현 그대로 반올림 — Python round(v, 2) 와 같은 결과 (Math.round(v*100) 은 경계에서 달라진다)
+      const CFG = Object.freeze({
+        version: 1,
+        // 점수
+        pts200: 2, pts50: 1, ptsPerf3m: 1,
+        rsiHot: 75, rsiHotPts: -2, rsiWarm: 70, rsiWarmPts: -1, rsiOversold: 30, rsiOversoldPts: 1,
+        dipPct: -4, dipPts: 2,
+        pegMax: 1.5, pegPts: 1, peHigh: 45, peHighPts: -1, consPts: 1,
+        // 판정
+        sellScore: -2, buyMinScore: 4, buyStrictScore: 5, nearSupportPct: 4, earnHoldDays: 3,
+        // 가격대
+        minBars: 60, supportBuf: 0.995, buyBuf: 1.01, stopAtr: 1.5, atrDefaultPct: 2.5, sellCapPct: 15,
+        // 눌림목 후보 해설
+        pbDipPct: -4, pbMinCapB: 25, pbMinScore: 4, pbNearPct: 3, pbEarnGap: 5, pbRsiMin: 30
+      });
+
+      // 규칙 점수: parts 에 어떤 항목이 몇 점을 줬는지 남긴다 (사후 검증·화면 설명용)
+      function score(x, cfg) {
+        cfg = cfg || CFG; x = x || {};
+        const parts = []; let s = 0;
+        const add = (id, pts, v) => { s += pts; parts.push({ id, pts, v: num(v) ? v : null }); };
+        const p200 = num(x.sma200Pct) ? x.sma200Pct : null, p50 = num(x.sma50Pct) ? x.sma50Pct : null, rsi = num(x.rsi) ? x.rsi : null;
+        if (p200 !== null) add(p200 > 0 ? 'above200' : 'below200', p200 > 0 ? cfg.pts200 : -cfg.pts200, p200);
+        if (p50 !== null) add(p50 > 0 ? 'above50' : 'below50', p50 > 0 ? cfg.pts50 : -cfg.pts50, p50);
+        if (num(x.perf3m) && x.perf3m > 0) add('perf3m', cfg.ptsPerf3m, x.perf3m);
+        if (rsi !== null) {
+          if (rsi >= cfg.rsiHot) add('rsiHot', cfg.rsiHotPts, rsi);
+          else if (rsi >= cfg.rsiWarm) add('rsiWarm', cfg.rsiWarmPts, rsi);
+          else if (rsi <= cfg.rsiOversold && p200 !== null && p200 > 0) add('rsiOversoldUp', cfg.rsiOversoldPts, rsi);
+        }
+        if (num(x.sma20Pct) && x.sma20Pct <= cfg.dipPct && p200 !== null && p200 > 0) add('dipInUptrend', cfg.dipPts, x.sma20Pct);
+        if (num(x.peg) && x.peg > 0 && x.peg < cfg.pegMax) add('pegLow', cfg.pegPts, x.peg);
+        if (num(x.pe) && x.pe > cfg.peHigh) add('peHigh', cfg.peHighPts, x.pe);
+        // 컨센서스 라벨: STRONG BUY / BUY / HOLD / UNDERPERFORM / SELL (UNDERPERFORM 은 기존 규칙과 같게 감점하지 않는다 — DECISIONS 참고)
+        const cons = String(x.consensus == null ? '' : x.consensus).toUpperCase();
+        if (cons.includes('BUY')) add('consBuy', cfg.consPts, null);
+        if (cons.includes('SELL')) add('consSell', -cfg.consPts, null);
+        return { score: s, parts };
+      }
+
+      // 가격대: 현재가 바로 아래의 가장 높은 지지(20/50/200일선, 20/60일 저점) → 매수 = 지지×1.01, 손절 = 지지 − 1.5×ATR, 목표 = min(52주 고점, 현재가+15%)
+      function levels(hist, price, atrPct, cfg) {
+        cfg = cfg || CFG;
+        if (!Array.isArray(hist) || !num(price) || !price) return null;
+        const h = hist.filter(b => b && num(b.close) && num(b.high) && num(b.low));
+        if (h.length < cfg.minBars) return null;
+        const c = h.map(b => b.close), lo = h.map(b => b.low), hi = h.map(b => b.high);
+        const sma = n => c.length >= n ? c.slice(-n).reduce((a, b) => a + b, 0) / n : null;
+        const rd = v => (v === null || !v) ? null : r2(v);
+        const s20 = rd(sma(20)), s50 = rd(sma(50)), s200 = rd(sma(200));
+        const low20 = r2(Math.min(...lo.slice(-20))), low60 = r2(Math.min(...lo.slice(-60))), high52 = r2(Math.max(...hi.slice(-252)));
+        const below = [s20, s50, s200, low20, low60].filter(v => v && v < price * cfg.supportBuf);
+        const support = below.length ? Math.max(...below) : null;
+        const atr = ((num(atrPct) && atrPct) ? atrPct : cfg.atrDefaultPct) / 100 * price;
+        return {
+          support, buy: support ? r2(support * cfg.buyBuf) : null, stop: support ? r2(support - cfg.stopAtr * atr) : null,
+          sell: r2(Math.min(high52, price * (1 + cfg.sellCapPct / 100))),
+          sma20: s20, sma50: s50, sma200: s200, low20, low60, high52, bars: h.length
+        };
+      }
+
+      // 실적까지 남은 일수 (ISO 날짜 'YYYY-MM-DD', 오늘은 호출하는 쪽이 넘긴다). 모르면 null
+      function daysUntil(iso, todayIso) {
+        const p = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
+        const a = p(iso), b = p(todayIso);
+        return a === null || b === null ? null : Math.round((a - b) / 864e5);
+      }
+
+      // 판정: sell(점수≤−2) / buy(점수≥5, RSI<70, 지지선까지 4% 이내, 실적 3일 이내 아님) / hold. reason = 코드 (없으면 '')
+      function verdict(x, sc, lv, daysToEarn, cfg) {
+        cfg = cfg || CFG;
+        if (!x || !num(x.price)) return { verdict: 'hold', reason: 'no_data' };
+        if (sc <= cfg.sellScore) return { verdict: 'sell', reason: 'weak_trend' };
+        const rsi = num(x.rsi) ? x.rsi : null;
+        if (sc >= cfg.buyMinScore && (rsi === null || rsi < cfg.rsiWarm)) {
+          if (num(daysToEarn) && daysToEarn >= 0 && daysToEarn <= cfg.earnHoldDays) return { verdict: 'hold', reason: 'earnings_near' };
+          const sp = lv && lv.support, dist = sp ? (x.price / sp - 1) * 100 : null;
+          if (sc >= cfg.buyStrictScore && dist !== null && dist <= cfg.nearSupportPct) return { verdict: 'buy', reason: '' };
+          return { verdict: 'hold', reason: 'chase_hold' };
+        }
+        return { verdict: 'hold', reason: '' };
+      }
+
+      // 종합: { score, parts, verdict, reason, levels, daysToEarnings, flags[] }
+      // opts: { nextEarnings:'YYYY-MM-DD'|null, today:'YYYY-MM-DD' }
+      function evaluate(x, hist, opts, cfg) {
+        cfg = cfg || CFG; opts = opts || {}; x = x || {};
+        const sc = score(x, cfg), lv = levels(hist, x.price, x.atrPct, cfg), d = daysUntil(opts.nextEarnings, opts.today);
+        const v = verdict(x, sc.score, lv, d, cfg);
+        const flags = [];
+        if (num(x.rsi) && x.rsi >= cfg.rsiWarm) flags.push('overheat');
+        if (num(x.pe) && x.pe > cfg.peHigh) flags.push('expensive');
+        if (num(x.sma200Pct) && x.sma200Pct < 0) flags.push('below200');
+        if (v.reason === 'earnings_near' || v.reason === 'chase_hold') flags.push(v.reason);
+        return { score: sc.score, parts: sc.parts, verdict: v.verdict, reason: v.reason, levels: lv, daysToEarnings: d, flags, cfgVersion: cfg.version };
+      }
+
+      // 눌림목 후보(20일선 −4% 이하 · 시총 25B 이상)를 어떻게 다룰지: approach(분할 접근 검토) / wait_support(지지선까지 대기) / hold_wait(보류)
+      function isPullbackCandidate(x, capB, cfg) {
+        cfg = cfg || CFG;
+        return !!x && num(x.sma20Pct) && x.sma20Pct <= cfg.pbDipPct && num(capB) && capB >= cfg.pbMinCapB;
+      }
+      function pullbackAction(x, sc, lv, daysToEarn, cfg) {
+        cfg = cfg || CFG;
+        const d = num(daysToEarn) ? daysToEarn : null, rsi = (num(x.rsi) && x.rsi) ? x.rsi : 50;
+        const sp = lv && lv.support, near = !!(sp && num(x.price) && (x.price / sp - 1) * 100 <= cfg.pbNearPct);
+        const ok = sc >= cfg.pbMinScore && (d === null || d > cfg.pbEarnGap || d < 0) && rsi >= cfg.pbRsiMin;
+        return ok && near ? 'approach' : ok ? 'wait_support' : 'hold_wait';
+      }
+
+      window.RuleEngine = Object.freeze({ CFG, score, levels, verdict, evaluate, daysUntil, isPullbackCandidate, pullbackAction });
+    })();
+  </script>
+
   <script id="mod-risk">
     // ===== 포지션 사이징 공용 모듈 — window.RiskKit =====
     //  RiskKit.cfg() / saveCfg({equity, riskPct})  — 계좌 크기·1회 허용 손실(%)을 탭 간에 공유(localStorage)

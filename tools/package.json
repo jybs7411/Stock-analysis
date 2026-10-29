@@ -3,7 +3,8 @@
   "private": true,
   "description": "index.html 을 폰에서 쓰기 좋은 배포본(docs/)으로 만드는 도구",
   "scripts": {
-    "build": "python3 build.py"
+    "build": "python3 build.py",
+    "test:rules": "node test-rules.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.4.0",

@@ -38,6 +38,9 @@
 - 앱 버전은 `index.html`의 `const APP_VERSION`(메인 스크립트, `switchAppTab` 위)이 단일 출처이며 화면 맨 아래 푸터(`#appVersion`)에 표시된다.
 - **앱을 수정(업데이트)할 때마다 `APP_VERSION`을 올린다.** 기능 추가·동작 변경은 minor(1.1.0→1.2.0), 버그 수정·문구 수정은 patch(1.1.0→1.1.1).
 
+## 규칙 엔진 (`mod-rules`) 변경 시
+- 순수 함수 모음이다(DOM·네트워크 금지). 임계값은 `CFG` 한 곳에 둔다. 규칙을 바꾸면 `python3 tools/gen-rules-golden.py`로 골든(`tools/rules-golden.json`)을 다시 만들고 `node tools/test-rules.mjs`가 통과해야 한다. 규칙을 바꾸는 이유는 `project-docs/DECISIONS.md`에 남긴다.
+
 ## 탭 간 종목 동기화
 - 어느 탭에서든 종목을 고르면 `appSetSymbol(sym, 탭id)`로 공용 '현재 종목'(`APP_SYM`)을 갱신한다. 다른 탭은 열릴 때 `APP_SYM_APPLY[탭id]`로 그 종목에 맞춘다(`switchAppTab` → `appSyncTab`).
 - 새 탭/모듈이 종목을 다룬다면: 종목이 확정되는 지점에서 `appSetSymbol`을 호출하고, `APP_SYM_APPLY.<탭id>`를 등록한다.
@@ -55,6 +58,7 @@
 | `mod-multi` | 멀티 차트 2×2 | — |
 | `mod-valcalc` | 밸류에이션 계산기 `window.valCalcRender` | val |
 | `mod-signals` | 신호 엔진 `window.taSignalsLite` (관심종목·스크리너용) | — |
+| `mod-rules` | 규칙 엔진 `window.RuleEngine` (규칙 점수·판정·지지/매수/손절/목표, 순수 함수) | — |
 | `mod-watch` | 관심종목 탭(저장·알림·리스크) | watch / wl |
 
 모듈은 메인 스크립트의 공용 헬퍼만 호출하고 자기 DOM 루트(#fxRoot, #multiRoot, #watchRoot…) 안에서만 작동한다. 수정 대상 모듈만 열 것.

@@ -26,6 +26,8 @@
 - 쓰기(같은 파일 id로 PATCH, `drive.file`): `pentanalyst_quotes.json`(경량, `LIVE_EVERY_MS` 30분) / `pentanalyst_quotes_detail.json`(종가 63, OHLCV 130, 관심종목 400, `DETAIL_EVERY_MS` 3시간). 스크리너 일봉 재활용, 없는 종목만 `fetchSpark`. 장 상태 `usOpenNow`로 전송 판단.
 - 관심종목 내보내기에 memo/thesis/qty/entry/buy/stop/target/group이 포함됨 (→ ROADMAP R-5).
 
+**규칙 엔진 `mod-rules` (v1.75.0~)**: `window.RuleEngine` — 순수 함수(`score`/`levels`/`verdict`/`evaluate`/`pullbackAction`/`daysUntil`), 임계값은 `CFG` 한 곳. 기존 Python 규칙(`features.py score`·`insight.py verdict`)과 동작이 같게 이식했고, `tools/gen-rules-golden.py`(Python 원문을 oracle로 포함) → `tools/rules-golden.json` → `node tools/test-rules.mjs`로 대조한다. 아직 화면·브릿지에 연결되지 않았다(ROADMAP 2단계).
+
 ## 2. 주식 데스크 (Claude 아티팩트, 약 607KB 단일 HTML)
 URL: claude.ai/artifact/QFtKAXr7iBT1q8LGJJDw61. 런타임: `window.claude.use('db'|'mcp'|'sample'|'user'|'downloads')`.
 
