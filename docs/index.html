@@ -2086,7 +2086,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.79.0';
+    const APP_VERSION = '1.80.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -27278,7 +27278,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
     // 인증: GAUTH 의 별도 토큰(getBridgeToken) — 기존 로그인·동기화 권한 요청은 건드리지 않는다.
     const BRIDGE = (function () {
       const FOLDER = '주식데스크-브릿지', QFILE = 'pentanalyst_quotes.json';
-      const K = { cache: 'pentanalyst_bridge_analysis_v1', qid: 'pentanalyst_bridge_quotes_id', qlast: 'pentanalyst_bridge_quotes_last', did: 'pentanalyst_bridge_detail_id', dlast: 'pentanalyst_bridge_detail_last', earn: 'pentanalyst_bridge_earn_v1', desk: 'pentanalyst_bridge_desk_url', granted: 'pentanalyst_bridge_granted' };
+      const K = { cache: 'pentanalyst_bridge_analysis_v1', qid: 'pentanalyst_bridge_quotes_id', qlast: 'pentanalyst_bridge_quotes_last', did: 'pentanalyst_bridge_detail_id', dlast: 'pentanalyst_bridge_detail_last', earn: 'pentanalyst_bridge_earn_v1', priv: 'pentanalyst_bridge_priv', desk: 'pentanalyst_bridge_desk_url', granted: 'pentanalyst_bridge_granted' };
       const DFILE = 'pentanalyst_quotes_detail.json';
       const DESK_URL = 'https://claude.ai/artifact/QFtKAXr7iBT1q8LGJJDw61';
       const DETAIL_EVERY_MS = 3 * 3600 * 1000, LIVE_EVERY_MS = 30 * 60 * 1000, OHLCV_BARS = 130, WATCH_BARS = 400, CLOSE_BARS = 63;
@@ -27472,7 +27472,9 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         const items = {};
         wsyms.forEach(s => {
           const it = ws.items[s] || {}, tg = it.target || {};
-          items[s] = { buy: tg.buy ?? null, stop: tg.stop ?? null, target: tg.goal ?? null, qty: it.qty ?? null, entry: it.entry ?? null, memo: it.note || '', thesis: it.thesis || '', group: arr(it.lists).map(id => lists[id]).filter(Boolean).join(', ') };
+          items[s] = { buy: tg.buy ?? null, stop: tg.stop ?? null, target: tg.goal ?? null, group: arr(it.lists).map(id => lists[id]).filter(Boolean).join(', ') };
+          // 수량·평단·메모·논지는 기본 비공개(R-5). 사용자가 옵트인했을 때만 Claude 데스크로 보낸다.
+          if (ls.get(K.priv) === '1') Object.assign(items[s], { qty: it.qty ?? null, entry: it.entry ?? null, memo: it.note || '', thesis: it.thesis || '' });
         });
         return {
           light: { schema: 'claude-bridge/quotes@1', exportedAt: now, source: 'yahoo via pentanalyst worker', count: Object.keys(quotes).length, failed, quotes, watchlist: { items } },
@@ -27640,6 +27642,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
               <button type="button" data-act="deskurl" class="${btn} border-slate-600 text-slate-300" title="${esc(deskUrl())}"><i class="fa-solid fa-link mr-1"></i>데스크 링크 주소</button>
               <span class="text-[11px] text-slate-500">${when}</span>
             </div>
+            <label class="flex items-start gap-2 text-[11px] text-slate-400 cursor-pointer"><input type="checkbox" data-act="priv" class="mt-0.5" ${ls.get(K.priv) === '1' ? 'checked' : ''}><span>내 수량·평단·메모·논지도 Claude 데스크로 보내기 <span class="text-slate-500">(기본은 꺼짐 — 매수·손절·목표가와 목록 이름만 보내요. 다음 '시세 보내기'부터 적용)</span></span></label>
             ${ST.need ? `<div class="rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-200">구글 권한(드라이브 읽기·시세 파일 쓰기)이 필요해요. <button type="button" data-act="grant" class="${btn} ml-2 border-amber-600 text-amber-200">권한 허용 / 다시 로그인</button></div>` : ''}
             ${ST.msg ? `<div class="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm text-slate-300">${esc(ST.msg)}</div>` : ''}
             <p class="text-[11px] text-slate-500">'규칙 신호'는 앱의 규칙(추세·RSI·밸류 점수)으로 계산한 값이고, 'Claude 리서치'는 Claude가 웹에서 찾아 정리한 참고 자료예요. 투자 권유가 아니며, 표시 전용이라 이 화면의 내용으로 주문·매매가 실행되지 않아요.</p>
@@ -27655,6 +27658,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         else if (a === 'refresh') refresh(true);
         else if (a === 'grant') refresh(true).then(() => ST.data && autoSend());
         else if (a === 'send') sendQuotes(true);
+        else if (a === 'priv') { ls.set(K.priv, el.checked ? '1' : '0'); }
         else if (a === 'deskurl') { const v = prompt('주식 데스크 아티팩트 주소 (비우면 기본값)', deskUrl()); if (v !== null) { if (/^https?:\/\//i.test(v.trim())) ls.set(K.desk, v.trim()); else if (!v.trim()) { try { localStorage.removeItem(K.desk); } catch (e) { /* 무시 */ } } render(); } }
         else if (a === 'pbsort') { ST.pbSort = el.dataset.k; render(); }
         else if (a === 'pbflag') { ST.pbFlags[el.dataset.k] = !ST.pbFlags[el.dataset.k]; render(); }
