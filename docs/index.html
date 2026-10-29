@@ -23250,12 +23250,14 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         return a === null || b === null ? null : Math.round((a - b) / 864e5);
       }
 
-      // 판정: sell(점수≤−2) / buy(점수≥5, RSI<70, 지지선까지 4% 이내, 실적 3일 이내 아님) / hold. reason = 코드 (없으면 '')
-      function verdict(x, sc, lv, daysToEarn, cfg) {
+      // 판정: avoid(점수≤−2, '매수 금지') / buy(점수≥5, RSI<70, 지지선까지 4% 이내, 실적 3일 이내 아님) / hold. reason = 코드 (없으면 '')
+      // 기존 Python 규칙의 'sell' 은 이제 avoid 다. 하락 추세는 '팔아라'가 아니라 '사지 마라'이기 때문이다. 보유 중인 종목에만(held=true) 'sell'(비중 축소 검토)로 바꿔 돌려준다.
+      // 브릿지로 내보낼 때는 held 를 넘기지 않는다 — 보유 여부가 파일에 드러나지 않게 하고, 화면에서 보유 종목에 한해 문구를 바꾼다.
+      function verdict(x, sc, lv, daysToEarn, cfg, held) {
         cfg = Object.assign({}, CFG, cfg);
         if (!x || !num(x.price)) return { verdict: 'hold', reason: 'no_data' };
         if (!num(sc)) return { verdict: 'hold', reason: 'bad_score' };
-        if (sc <= cfg.sellScore) return { verdict: 'sell', reason: 'weak_trend' };
+        if (sc <= cfg.sellScore) return { verdict: held ? 'sell' : 'avoid', reason: 'weak_trend' };
         const rsi = num(x.rsi) ? x.rsi : null;
         if (sc >= cfg.buyMinScore && (rsi === null || rsi < cfg.rsiWarm)) {
           if (num(daysToEarn) && daysToEarn >= 0 && daysToEarn <= cfg.earnHoldDays) return { verdict: 'hold', reason: 'earnings_near' };
@@ -23267,11 +23269,11 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
       }
 
       // 종합: { score, parts, verdict, reason, levels, daysToEarnings, flags[] }
-      // opts: { nextEarnings:'YYYY-MM-DD'|null, today:'YYYY-MM-DD' }
+      // opts: { nextEarnings:'YYYY-MM-DD'|null, today:'YYYY-MM-DD', held:boolean(보유 종목이면 avoid 대신 sell) }
       function evaluate(x, hist, opts, cfg) {
         cfg = Object.assign({}, CFG, cfg); opts = opts || {}; x = x || {};
         const sc = score(x, cfg), lv = levels(hist, x.price, x.atrPct, cfg), d = daysUntil(opts.nextEarnings, opts.today);
-        const v = verdict(x, sc.score, lv, d, cfg);
+        const v = verdict(x, sc.score, lv, d, cfg, !!opts.held);
         const flags = [];
         if (num(x.rsi) && x.rsi >= cfg.rsiWarm) flags.push('overheat');
         if (num(x.pe) && x.pe > cfg.peHigh) flags.push('expensive');
@@ -23297,7 +23299,22 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         return ok && near ? 'approach' : ok ? 'wait_support' : 'hold_wait';
       }
 
-      window.RuleEngine = Object.freeze({ CFG, score, levels, verdict, evaluate, daysUntil, isPullbackCandidate, pullbackAction });
+      // 스크리너·관심종목 항목(e)을 평가해 브릿지 quotes-detail 에 싣는 compact 객체로 돌려준다. 평가할 수 없으면 null (일봉 60개 미만·200일선 이격 없음).
+      //  { cv:규칙버전, v:판정, r:이유코드, sc:점수, p:[[항목id,점수]…], lv:{support,buy,stop,sell}|null, f:[플래그], m:[결측 입력], d:실적까지 일수|null, pb:'approach'|'wait_support'|'hold_wait'|null(눌림목 후보일 때만) }
+      // ctx: { nextEarnings, today } — held 는 일부러 받지 않는다(위 verdict 주석 참고)
+      function forEntry(e, ctx, cfg) {
+        cfg = Object.assign({}, CFG, cfg); ctx = ctx || {};
+        if (!e || !Array.isArray(e.hist) || e.hist.length < cfg.minBars) return null;
+        const last = e.hist[e.hist.length - 1], px = num(e.price) ? e.price : (last && num(last.close) ? last.close : null);
+        const x = { price: px, rsi: e.rsi, sma20Pct: e.sma20Pct, sma50Pct: e.sma50Pct, sma200Pct: e.sma200Pct, perf3m: e.perf3m, atrPct: e.atrPct, pe: e.pe, peg: e.peg, consensus: e.consensus };
+        if (!num(x.sma200Pct) || !num(px)) return null;
+        const r = evaluate(x, e.hist, { nextEarnings: ctx.nextEarnings, today: ctx.today }, cfg);
+        const pb = isPullbackCandidate(x, e.marketCapVal, cfg) ? pullbackAction(x, r.score, r.levels, r.daysToEarnings, cfg) : null;
+        const lv = r.levels ? { support: r.levels.support, buy: r.levels.buy, stop: r.levels.stop, sell: r.levels.sell } : null;
+        return { cv: r.cfgVersion, v: r.verdict, r: r.reason, sc: r.score, p: r.parts.map(q => [q.id, q.pts]), lv, f: r.flags, m: r.inputsMissing, d: r.daysToEarnings, pb };
+      }
+
+      window.RuleEngine = Object.freeze({ CFG, score, levels, verdict, evaluate, daysUntil, isPullbackCandidate, pullbackAction, forEntry });
     })();
   </script>
 
@@ -27343,10 +27360,23 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         return [...s];
       }
       const pick = (o, ks) => { const out = {}; ks.forEach(k => { const v = r2(o[k]); if (v !== null) out[k] = v; }); return out; };
-      function fromEntry(e, asOf) {
+      // 규칙 엔진(RuleEngine) 입력용 문맥: 관심종목 탭이 캐시해 둔 다음 실적일(14일 이내 갱신분만)과 오늘 날짜. 보유 여부는 일부러 넣지 않는다.
+      function ruleCtx() {
+        let earn = {};
+        try { const c = JSON.parse(ls.get('pentanalyst_watch_cache_v1') || 'null'); if (c && isObj(c.earn)) earn = c.earn; } catch (e) { /* 캐시 없음 */ }
+        return { earn, today: new Date().toISOString().slice(0, 10), now: Date.now() };
+      }
+      function ruleOf(e, rc) {
+        try {
+          if (typeof RuleEngine === 'undefined' || !rc) return null;
+          const c = rc.earn[e.ticker], fresh = c && num(c.asOf) != null && rc.now - c.asOf < 14 * 864e5;
+          return RuleEngine.forEntry(e, { nextEarnings: fresh ? c.nextDate || null : null, today: rc.today });
+        } catch (err) { return null; } // 규칙 계산이 실패해도 시세 내보내기는 계속한다
+      }
+      function fromEntry(e, asOf, rc) {
         const h = e.hist, n = h.length, last = h[n - 1], prev = n > 1 ? h[n - 2].close : null;
         const price = num(e.price) != null ? e.price : last.close;
-        const bars = h.slice(-OHLCV_BARS);
+        const bars = h.slice(-OHLCV_BARS), rule = rc ? ruleOf(e, rc) : null;
         return {
           light: { name: e.name || '', price: r2(price), prev: r2(prev), chgPct: prev ? r2((price / prev - 1) * 100) : null, asOf, currency: e.currency || undefined },
           detail: {
@@ -27354,7 +27384,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             closes: { t: h.slice(-CLOSE_BARS).map(b => b.t), c: h.slice(-CLOSE_BARS).map(b => b.close) },
             ohlcv: { t: bars.map(b => b.t), o: bars.map(b => b.open), h: bars.map(b => b.high), l: bars.map(b => b.low), c: bars.map(b => b.close), v: bars.map(b => b.volume) },
             tech: pick(e, ['rsi', 'sma20Pct', 'sma50Pct', 'sma200Pct', 'atrPct', 'fromHigh52', 'fromLow52', 'relVol', 'perf1w', 'perf1m', 'perf3m', 'perf6m', 'perf1y']),
-            fund: Object.assign(pick(e, ['pe', 'peg', 'roe', 'marketCapVal']), e.consensus ? { consensus: e.consensus } : {})
+            fund: Object.assign(pick(e, ['pe', 'peg', 'roe', 'marketCapVal']), e.consensus ? { consensus: e.consensus } : {}),
+            ...(rule ? { rule } : {}) // 앱이 계산한 규칙 점수·판정·가격대 (claude-bridge/quotes-detail@1 의 선택 필드)
           }
         };
       }
@@ -27371,8 +27402,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
             while (master.some(e => !e.loaded && !e.missing) && Date.now() - t0 < 90000) await new Promise(r => setTimeout(r, 500));
           }
         }
-        const quotes = {}, detail = {};
-        master.forEach(e => { if (!e.missing && Array.isArray(e.hist) && e.hist.length) { const f = fromEntry(e, now); quotes[e.ticker] = f.light; detail[e.ticker] = f.detail; } });
+        const quotes = {}, detail = {}, rc = ruleCtx();
+        master.forEach(e => { if (!e.missing && Array.isArray(e.hist) && e.hist.length) { const f = fromEntry(e, now, rc); quotes[e.ticker] = f.light; detail[e.ticker] = f.detail; } });
         const rest = [...want].filter(s => !quotes[s]);
         const failed = [];
         if (rest.length) {
@@ -27527,7 +27558,8 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           <div class="overflow-x-auto max-h-96"><table class="w-full text-left"><thead class="text-[11px] text-slate-500"><tr><th>종목</th><th>이름</th><th class="text-right">RSI14</th><th class="text-center">조건</th></tr></thead><tbody>${tr || '<tr><td colspan="4" class="py-3 text-xs text-slate-500">조건에 맞는 종목이 없어요.</td></tr>'}</tbody></table></div>
           ${p.fields ? `<p class="text-[11px] text-slate-500">${esc(p.fields)}</p>` : ''}`, `<span class="text-xs text-slate-500">${esc(p.asOf || '')} · ${rows.length}/${arr(p.rows).length}</span>`);
       }
-      const VERDICT = { buy: ['매수', 'text-emerald-300 border-emerald-700'], sell: ['매도', 'text-rose-300 border-rose-700'], hold: ['관망', 'text-slate-300 border-slate-600'] };
+      // avoid = 앱 규칙 엔진의 '매수 금지'(하락 추세). sell 은 보유 종목의 비중 축소 검토.
+      const VERDICT = { buy: ['매수', 'text-emerald-300 border-emerald-700'], sell: ['매도', 'text-rose-300 border-rose-700'], avoid: ['매수 금지', 'text-amber-300 border-amber-700'], hold: ['관망', 'text-slate-300 border-slate-600'] };
       function alertsCard(a) {
         const rows = arr(a.results).filter(Boolean).map(r => {
           const v = VERDICT[String(r.verdict || '').toLowerCase()] || [esc(r.verdict || '–'), 'text-slate-300 border-slate-600'];

@@ -46,7 +46,9 @@ for (const c of golden.cases) {
   const res = RE.evaluate(c.x, hist, { nextEarnings: c.nextEarnings, today: c.today });
   const e = c.expect;
   eq(id, 'score', res.score, e.score);
-  eq(id, 'verdict', res.verdict, e.verdict);
+  // 기존 Python 의 sell 은 이제 avoid (보유 종목이면 sell) — 2026-10-29 '매수 금지' 라벨 분리
+  eq(id, 'verdict', res.verdict, e.verdict === 'sell' ? 'avoid' : e.verdict);
+  eq(id, 'verdict(보유)', RE.evaluate(c.x, hist, { nextEarnings: c.nextEarnings, today: c.today, held: true }).verdict, e.verdict);
   eq(id, 'reason', res.reason, e.reason);
   eq(id, 'days', res.daysToEarnings, e.days);
   eq(id, 'levels 유무', res.levels !== null, e.levels !== null);
@@ -68,7 +70,9 @@ for (const c of golden.cases) {
 for (const [i, b] of (golden.verdictCases || []).entries()) {
   const lv = b.support === null ? null : { support: b.support };
   const r = RE.verdict(b.x, b.score, lv, b.days);
-  eq(`verdict#${i}`, JSON.stringify(b), `${r.verdict}/${r.reason}`, `${b.verdict}/${b.reason}`);
+  eq(`verdict#${i}`, JSON.stringify(b), `${r.verdict}/${r.reason}`, `${b.verdict === 'sell' ? 'avoid' : b.verdict}/${b.reason}`);
+  const rh = RE.verdict(b.x, b.score, lv, b.days, undefined, true);
+  eq(`verdict보유#${i}`, JSON.stringify(b), `${rh.verdict}/${rh.reason}`, `${b.verdict}/${b.reason}`);
 }
 for (const [i, b] of (golden.pullbackCases || []).entries()) {
   const lv = b.support === null ? null : { support: b.support };
@@ -111,6 +115,24 @@ t('가격 0 이하면 가격대 없음', RE.levels(genHist(2, 120, 100, 5000), -
   t('inputsMissing 에 결측 키', ev.inputsMissing.includes('perf3m') && !ev.inputsMissing.includes('rsi'), true);
 }
 t('가격대 정확 일치 비율 유지', exactLv >= 130, true);
+
+// 브릿지용 compact (forEntry)
+{
+  const h = genHist(7, 260, 120, 8000), last = h[h.length - 1].close;
+  const e = { ticker: 'TST', hist: h, price: last, rsi: 48, sma20Pct: -5, sma50Pct: 2, sma200Pct: 8, perf3m: 6, atrPct: 2.2, pe: 20, peg: 1.2, consensus: 'BUY', marketCapVal: 120 };
+  const r = RE.forEntry(e, { nextEarnings: '2026-11-20', today: '2026-10-29' });
+  const full = RE.evaluate({ price: last, rsi: 48, sma20Pct: -5, sma50Pct: 2, sma200Pct: 8, perf3m: 6, atrPct: 2.2, pe: 20, peg: 1.2, consensus: 'BUY' }, h, { nextEarnings: '2026-11-20', today: '2026-10-29' });
+  t('forEntry 판정 = evaluate', r.v === full.verdict && r.sc === full.score && r.d === 22, true);
+  t('forEntry 눌림목 후보 → pb', typeof r.pb, 'string');
+  t('forEntry 가격대 필드', Object.keys(r.lv || {}).join(','), 'support,buy,stop,sell');
+  t('forEntry 규칙 버전', r.cv, 1);
+  t('forEntry 직렬화에 보유 정보 없음', /held|qty|entry|memo/i.test(JSON.stringify(r)), false);
+  t('forEntry 시총 작으면 pb null', RE.forEntry({ ...e, marketCapVal: 3 }, {}).pb, null);
+  t('forEntry 200일선 이격 없으면 null', RE.forEntry({ ...e, sma200Pct: null }, {}), null);
+  t('forEntry 일봉 부족이면 null', RE.forEntry({ ...e, hist: h.slice(0, 40) }, {}), null);
+  t('forEntry 약세는 avoid', RE.forEntry({ ...e, sma200Pct: -10, sma50Pct: -5, sma20Pct: 0, perf3m: -5, peg: null, consensus: 'HOLD' }, {}).v, 'avoid');
+  t('compact 크기(바이트) 400 이하', JSON.stringify(r).length <= 400, true);
+}
 
 console.log(`케이스 ${golden.cases.length}개 · 경계격자 ${(golden.verdictCases||[]).length}+${(golden.pullbackCases||[]).length} · 검사 ${checks}건 · 가격대 정확 일치 ${exactLv}/${lvCount} · 실패 ${fail}건`);
 process.exit(fail ? 1 : 0);

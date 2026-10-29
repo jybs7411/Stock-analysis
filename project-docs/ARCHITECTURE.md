@@ -26,7 +26,7 @@
 - 쓰기(같은 파일 id로 PATCH, `drive.file`): `pentanalyst_quotes.json`(경량, `LIVE_EVERY_MS` 30분) / `pentanalyst_quotes_detail.json`(종가 63, OHLCV 130, 관심종목 400, `DETAIL_EVERY_MS` 3시간). 스크리너 일봉 재활용, 없는 종목만 `fetchSpark`. 장 상태 `usOpenNow`로 전송 판단.
 - 관심종목 내보내기에 memo/thesis/qty/entry/buy/stop/target/group이 포함됨 (→ ROADMAP R-5).
 
-**규칙 엔진 `mod-rules` (v1.75.0~)**: `window.RuleEngine` — 순수 함수(`score`/`levels`/`verdict`/`evaluate`/`pullbackAction`/`daysUntil`), 임계값은 `CFG` 한 곳. 기존 Python 규칙(`features.py score`·`insight.py verdict`)과 동작이 같게 이식했고, `tools/gen-rules-golden.py`(Python 원문을 oracle로 포함) → `tools/rules-golden.json` → `node tools/test-rules.mjs`로 대조한다. 아직 화면·브릿지에 연결되지 않았다(ROADMAP 2단계).
+**규칙 엔진 `mod-rules` (v1.75.0~)**: `window.RuleEngine` — 순수 함수(`score`/`levels`/`verdict`/`evaluate`/`pullbackAction`/`daysUntil`), 임계값은 `CFG` 한 곳. 기존 Python 규칙(`features.py score`·`insight.py verdict`)과 동작이 같게 이식했고, `tools/gen-rules-golden.py`(Python 원문을 oracle로 포함) → `tools/rules-golden.json` → `node tools/test-rules.mjs`로 대조한다. v1.76.0부터 브릿지 `quotes-detail`의 종목별 `rule` 필드로 내보낸다(아래 4. 스키마). 판정은 buy/hold/avoid(매수 금지); 'sell'(비중 축소 검토)은 화면에서 보유 종목에만.
 
 ## 2. 주식 데스크 (Claude 아티팩트, 약 607KB 단일 HTML)
 URL: claude.ai/artifact/QFtKAXr7iBT1q8LGJJDw61. 런타임: `window.claude.use('db'|'mcp'|'sample'|'user'|'downloads')`.
@@ -57,7 +57,7 @@ bridge/scripts(DB) → features.py (Drive 시세로 지표·점수)
 
 ## 4. 스키마
 - `claude-bridge/quotes@1`: name, price, prev, chgPct, asOf, currency, 관심종목 항목.
-- `claude-bridge/quotes-detail@1`: closes(63), ohlcv(130; 관심종목·기술·펀더멘털·섹터 400).
+- `claude-bridge/quotes-detail@1`: closes(63), ohlcv(130; 관심종목·기술·펀더멘털·섹터 400). v1.76.0부터 선택 필드 `rule`: `{cv:규칙버전, v:buy|hold|avoid, r:이유코드, sc:점수, p:[[항목id,점수]…], lv:{support,buy,stop,sell}|null, f:[플래그], m:[결측 입력], d:실적까지 일수|null, pb:눌림목 처리|null}` (보유·수량·메모는 포함하지 않음).
 - `claude-bridge/analysis@1`: macro, screens, pullbacks, alerts (모두 선택), contentKey, generatedAt.
 - 스키마 변경 시 앱 CLAUDE.md와 데스크 양쪽을 함께 갱신한다.
 

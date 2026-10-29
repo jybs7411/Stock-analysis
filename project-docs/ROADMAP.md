@@ -41,7 +41,10 @@
 
 ## 진행 기록
 - 2026-10-29 · 앱 v1.75.0: `mod-rules`(`window.RuleEngine`) 추가 — score / levels / verdict / evaluate / pullbackAction / daysUntil. 아직 아무 화면·브릿지에도 연결하지 않음(동작 변화 없음). `node tools/test-rules.mjs`: 기존 Python 규칙과 대조(난수 240건 + 경계 격자 768건), 뮤테이션 12/12 검출.
-- 다음(2단계): 브릿지 `quotes-detail`에 `rule` 객체 추가(additive). 전달 대상은 관심종목 + 분석 파일에 등장한 종목 + 눌림목 후보. 입력 일봉은 스크리너 전체 일봉을 쓰고, 실적일은 `fetchDeep`의 `nextDate`(관심종목 캐시)를 우선 사용.
+- 2026-10-29 · 앱 v1.76.0 (2단계 완료): 브릿지 `quotes-detail`에 `rule` 추가(스크리너 전체 중 계산 가능한 종목), `avoid`(매수 금지) 판정 분리, 앱 'Claude 분석' 카드·칩에 '매수 금지' 라벨(en/de 번역 포함). 브릿지 통합은 vm 시뮬레이션으로 확인(보유·메모 비노출, 오래된 실적일 캐시 무시, 일봉 부족·200일선 이격 없음은 rule 생략).
+- 다음(3단계): 앱 'Claude 분석' 탭에서 '규칙 신호(앱 계산)'와 'Claude 리서치/의견'을 분리 표시하고, "Claude 판정" 표기를 정정(R-2). 보유 종목은 avoid 대신 '비중 축소 검토' 문구.
+- 이후(4단계): 스케줄 작업이 Drive의 `rule`을 읽도록 바꾸고 Python 점수 제거, `analysis@1`에 선택 필드(Claude 의견) 추가. 5단계: 데스크 분석 탭 감량.
+- 미해결: 실적일 — 스크리너 전체 종목에는 아직 앱이 실적일을 갖고 있지 않다(관심종목 탭 캐시만). 4단계 전까지 Claude 웹 조사로 보완할지, 앱이 후보 종목의 `fetchDeep`을 부르게 할지 결정 필요.
 
 - 2026-10-29 · 독립 리뷰 반영(같은 v1.75.0): 입력 방어(null·부분 cfg·없는 날짜·가격≤0·음수 ATR·손절 하한·컨센서스 정확 일치), 결과에 `inputsMissing`·`earnings_unknown`·`no_sma200_support` 표시 추가. 규칙 동작은 그대로(골든 일치).
 
