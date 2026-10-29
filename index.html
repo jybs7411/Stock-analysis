@@ -2104,7 +2104,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.82.0';
+    const APP_VERSION = '1.83.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -27148,7 +27148,27 @@ ${input}
         const f = arr(lr.files).filter(x => /^claude_analysis_\d{8}-\d{4}\.json$/.test(x.name)).sort((a, b) => (a.name < b.name ? 1 : -1))[0];
         if (!f) return { empty: true };
         const data = await (await dget(t, `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`)).json();
-        return { name: f.name, data };
+        // 스케줄 상태 파일(claude_status.json, 선택): 스케줄이 돌 때마다 덮어쓰는 확인 시각·한 줄 결과. 없으면 건너뛴다.
+        let status = null;
+        try {
+          const sr = await (await dget(t, `https://www.googleapis.com/drive/v3/files?q=${qenc(`'${folder.id}' in parents and name = 'claude_status.json' and trashed = false`)}&fields=files(id)&pageSize=1`)).json();
+          if (sr.files && sr.files[0]) { const sj = await (await dget(t, `https://www.googleapis.com/drive/v3/files/${sr.files[0].id}?alt=media`)).json(); if (isObj(sj) && sj.lastCheckAt) status = { at: Date.parse(sj.lastCheckAt) || 0, result: String(sj.result || '').slice(0, 200) }; }
+        } catch (e) { /* 상태 파일은 없어도 된다 */ }
+        return { name: f.name, data, status };
+      }
+      // 스케줄이 멈췄는지 판단(R-8): 평일 07:35·15:05(독일 시간)에 도는 작업이므로 평일엔 30시간, 주말·월요일 이른 아침엔 80시간까지 허용한다.
+      function schedStale(at) {
+        if (!at) return false;
+        const f = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Berlin', weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(new Date());
+        const wd = (f.find(p => p.type === 'weekday') || {}).value, hr = Number((f.find(p => p.type === 'hour') || {}).value) % 24;
+        const long = wd === 'Sat' || wd === 'Sun' || (wd === 'Mon' && hr < 8);
+        return Date.now() - at > (long ? 80 : 30) * 3600e3;
+      }
+      function statusNote() {
+        const s = ST.status;
+        if (!s) return '';
+        const stale = schedStale(s.at);
+        return `<div class="rounded-lg border ${stale ? 'border-amber-700/60 bg-amber-950/30 text-amber-200' : 'border-slate-800 bg-slate-900/50 text-slate-400'} p-2.5 text-[11px]">${stale ? '<b>스케줄이 멈춘 것 같아요.</b> ' : ''}Claude 스케줄 마지막 확인 ${esc(ago(s.at))}${s.result ? ` · ${esc(s.result)}` : ''}${stale ? ' — 예약 작업(스케줄 작업) 상태를 확인해 보세요.' : ''}</div>`;
       }
       function validate(d) { return isObj(d) && (d.schema == null || /^claude-bridge\/analysis@/.test(String(d.schema))) ? d : null; }
 
@@ -27165,7 +27185,7 @@ ${input}
           if (r.missingFolder) ST.msg = `드라이브에서 '${FOLDER}' 폴더를 찾지 못했어요. Claude가 첫 분석 파일을 만들면 나타나요.`;
           else if (r.empty) ST.msg = '폴더에 분석 파일(claude_analysis_날짜-시각.json)이 아직 없어요.';
           else if (!validate(r.data)) ST.msg = '분석 파일 형식을 읽을 수 없어요.';
-          else { ST.data = r.data; ST.file = r.name; ST.fetchedAt = Date.now(); ls.set(K.cache, JSON.stringify({ file: r.name, fetchedAt: ST.fetchedAt, data: r.data })); }
+          else { ST.data = r.data; ST.file = r.name; ST.status = r.status || null; ST.fetchedAt = Date.now(); ls.set(K.cache, JSON.stringify({ file: r.name, fetchedAt: ST.fetchedAt, data: r.data })); }
           ST.need = false;
         } catch (e) {
           if (!interactive) ST.need = true; else ST.msg = `불러오기 실패: ${e.message || e}`;
@@ -27499,6 +27519,7 @@ ${input}
             <label class="flex items-start gap-2 text-[11px] text-slate-400 cursor-pointer"><input type="checkbox" data-act="priv" class="mt-0.5" ${ls.get(K.priv) === '1' ? 'checked' : ''}><span>내 수량·평단·메모·논지도 Claude 데스크로 보내기 <span class="text-slate-500">(기본은 꺼짐 — 매수·손절·목표가와 목록 이름만 보내요. 다음 '시세 보내기'부터 적용)</span></span></label>
             ${ST.need ? `<div class="rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-200">구글 권한(드라이브 읽기·시세 파일 쓰기)이 필요해요. <button type="button" data-act="grant" class="${btn} ml-2 border-amber-600 text-amber-200">권한 허용 / 다시 로그인</button></div>` : ''}
             ${ST.msg ? `<div class="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm text-slate-300">${esc(ST.msg)}</div>` : ''}
+            ${statusNote()}
             <p class="text-[11px] text-slate-500">'규칙 신호'는 앱의 규칙(추세·RSI·밸류 점수)으로 계산한 값이고, 'Claude 리서치'는 Claude가 웹에서 찾아 정리한 참고 자료예요. 투자 권유가 아니며, 표시 전용이라 이 화면의 내용으로 주문·매매가 실행되지 않아요.</p>
             ${cards.join('') || (!ST.need && !ST.msg && !ST.busy ? '<div class="text-sm text-slate-500 py-10 text-center">아직 받은 분석이 없어요. 새로고침을 눌러 보세요.</div>' : '')}
           </div>`;

@@ -76,3 +76,7 @@ bridge/scripts(DB) → features.py (Drive 시세로 지표·점수)
 ## 추가 (2026-10-30)
 - `quotes-detail@1`의 `fund.ext`(선택, 관심·분석 종목만): `{ts, fwdPe, pe, peg, pm, om, roe, rg, eg, de, cr, tAvg, tMin, tMax, sector, industry}`. 비율은 % 단위, `de`는 Yahoo 방식(150=150%). 데스크가 Twelve Data 통계·목표가 대신 사용.
 - 판정 기록 `insight/hist-YYYYMMDD.items[sym]`: `{v,p,sc,at,b,lv}` — `b`=기록 시점 SPY 가격, `lv`={buy,stop,sell}. 주간 복기가 SPY 대비 초과수익과 가격대 도달에 쓴다.
+
+### 상태 파일 `claude_status.json` (`claude-bridge/status@1`)
+- 위치: 브릿지 폴더. 스케줄이 매 실행 끝에 덮어쓴다(없으면 생성, 정리 대상 아님). 필드: `lastCheckAt`(ISO UTC), `result`(한 줄, 200자 이내).
+- 앱: `fetchLatestAnalysis`가 함께 읽어 `ST.status`로 보관, `statusNote()`가 표시. `schedStale`이 Berlin 시간 기준 평일 30시간·주말/월요일 08시 전 80시간 초과 시 경고.
