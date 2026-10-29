@@ -2098,7 +2098,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.70.0';
+    const APP_VERSION = '1.71.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -10428,6 +10428,7 @@ CHT|Chunghwa Telecom ADR|M
       entry.price = market.price;
       entry.change = market.change;
       Object.assign(entry, screenerTechFields(market.history, market));
+      entry.hist = market.history;   // 일봉 OHLCV 보관 — 기술적 분석·시세 내보내기용(메모리 한정, 동기화 제외)
       entry.pe = pick(fx.pe);
       entry.peg = pick(fx.peg);
       entry.roe = pick(fx.roe);
@@ -10448,7 +10449,8 @@ CHT|Chunghwa Telecom ADR|M
     const screenerQueue = [];
     let screenerActive = 0;
     let screenerDoneSinceRender = 0;
-    const SCREENER_CONCURRENCY = 5;
+    // 동시 요청 수: 기본 8. 브라우저 콘솔에서 scrConcTest() 로 프록시가 견디는 수를 재고, localStorage 'pentanalyst_scr_conc' 에 저장하면 반영된다.
+    const SCREENER_CONCURRENCY = (function () { try { const n = parseInt(localStorage.getItem('pentanalyst_scr_conc'), 10); return n >= 1 && n <= 30 ? n : 8; } catch (e) { return 8; } })();
     // Worker 최신 버전에서만 채워지는 값들 (옛 Worker가 배포돼 있으면 모두 비어 있음)
     const SCREENER_NEW_FUND_FIELDS = ['beta', 'roa', 'grossMargin', 'opMargin', 'profitMargin', 'revGrowth', 'epsGrowth', 'de', 'currentRatio', 'fcf', 'insiderPct', 'instPct', 'payout', 'numAnalysts', 'country'];
 
@@ -10514,7 +10516,9 @@ CHT|Chunghwa Telecom ADR|M
             const [market, f] = await Promise.all([fetchRealYahooFinanceData(entry.ticker, '1y'), fetchFundamentals(entry.ticker)]);
             if (market && market.notFound) entry.missing = true;
             else if (market) applyLiveToEntry(entry, market, f);
+            else if (!entry.retried) { entry.retried = true; screenerQueue.push(entry); }   // 빈 응답은 한 번만 재시도(뒤로 보냄)
           } catch (e) { /* 실패한 종목은 빈칸으로 둔다 */ }
+          if (screenerQueue.includes(entry)) { screenerActive--; pumpScreener(); return; }
           entry.loaded = true;
           entry.loading = false;
           screenerActive--;
@@ -10569,6 +10573,27 @@ CHT|Chunghwa Telecom ADR|M
       screenerRevState.running = false;
       runScreenerFilter();
     }
+
+    // 동시 요청 한계 측정: scrConcTest() — 레벨마다 서로 다른 종목을 동시에 요청해 성공 수·소요 시간을 표로 보여준다.
+    async function scrConcTest(levels = [5, 10, 15, 20, 30]) {
+      if (!getProxyUrl()) { showToast('프록시 필요', '설정에서 자체 프록시를 연결해 주세요.', 'info'); return; }
+      const pool = SCREENER_MASTER_DATA.map(e => e.ticker);
+      const rows = []; let k = 0;
+      for (const n of levels) {
+        const syms = Array.from({ length: n }, () => pool[k++ % pool.length]);
+        const t0 = performance.now();
+        const res = await Promise.all(syms.map(s => fetchJsonWithTimeout(`${getProxyUrl()}/api/chart?symbol=${encodeURIComponent(s)}&range=5d&interval=1d&_=${Date.now()}`, 10000).then(() => 1, err => (err && err.status) || 0)));
+        const ok = res.filter(r => r === 1).length;
+        rows.push({ 동시요청: n, 성공: ok, 실패: n - ok, 초: +((performance.now() - t0) / 1000).toFixed(1), 오류코드: [...new Set(res.filter(r => r !== 1))].join(',') });
+        if (ok < n) break;                          // 실패가 나오면 더 올리지 않는다
+        await new Promise(r => setTimeout(r, 1500));
+      }
+      console.table(rows);
+      const best = rows.filter(r => r.실패 === 0).pop();
+      showToast('동시 요청 테스트', best ? `${best.동시요청}건까지 실패 없음 (콘솔 표 참고). 적용: localStorage.setItem('pentanalyst_scr_conc', ${Math.min(best.동시요청, 12)})` : '5건에서도 실패가 있었어요. 콘솔 표를 확인하세요.', 'info');
+      return rows;
+    }
+    window.scrConcTest = scrConcTest;
 
     function loadAllScreener() {
       if (!getProxyUrl()) {
