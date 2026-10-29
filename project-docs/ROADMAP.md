@@ -4,9 +4,9 @@
 
 | ID | 항목 | 원칙 근거 | 상태 |
 |---|---|---|---|
-| R-1 | 규칙 점수/판정을 앱 한 곳으로 단일화, 스케줄 Python은 앱 점수를 입력으로 받거나 제거 | 계산은 앱 | 제안 |
-| R-2 | UI 라벨 분리: "규칙 점수"(앱) vs "Claude 리서치 코멘트"(데스크). 현재 "Claude 판정" 표기 정정 | 오해 방지 | 제안 |
-| R-3 | 데스크 분석 탭의 `tech()`/`techSignals`/`fundSignals`/`scenarios` 및 이식 차트 엔진 감량 → 앱 데이터를 받아 표시, Claude는 해석만 | 중복 제거 | 제안 |
+| R-1 | 규칙 점수/판정을 앱 한 곳으로 단일화, 스케줄 Python은 앱 점수를 입력으로 받거나 제거 | 계산은 앱 | **결정(A안)** · 구현 전 |
+| R-2 | UI 라벨 분리: "규칙 점수"(앱) vs "Claude 리서치 코멘트"(데스크). 현재 "Claude 판정" 표기 정정 | 오해 방지 | **결정** · 구현 전 |
+| R-3 | 데스크 분석 탭의 `tech()`/`techSignals`/`fundSignals`/`scenarios` 및 이식 차트 엔진 감량 → 앱 데이터를 받아 표시, Claude는 해석만 | 중복 제거 | **결정** · 구현 전 |
 | R-4 | Twelve Data 의존 축소: Worker의 `fundamentals`/`deep`/`revisions`/`calendar`로 대체 가능한 범위 조사 | 수집은 앱 | 제안(조사 선행) |
 | R-5 | quotes 파일에서 memo/thesis/qty/entry/buy/stop/target/group 제거 또는 옵트인 | 최소 개인정보 | 제안 |
 | R-6 | 사후 검증 강화: 벤치마크 대비 초과수익, 손절/목표 도달 기준, 앱 `taSignalBacktest` 활용 | 어떤 신호가 유효한지 측정 | 제안 |
@@ -14,3 +14,27 @@
 | R-8 | 분석 파일 누적 정리, 폴더 id 고정, 스케줄 실패 상태를 앱/데스크에 표시 | 운영 안정성 | 제안 |
 | R-9 | 앱 Gemini 호출 지점 13곳 중 실사용·템플릿 여부 점검, 쓰지 않는 AI UI 정리 | 앱 AI 얕음 | 제안(조사 선행) |
 | R-10 | 데스크 고유 가치 강화: 실적·이벤트 리서치 깊이, 규칙 점수에 대한 Claude 반론/보강, 차트 이미지 분석 | Claude 고유 | 제안 |
+
+## R-1 설계 메모 (앱 코드 대조 결과, 2026-10-29)
+스케줄 Python 점수(`features.py score`)의 입력이 앱에 이미 있는지 대조했다.
+
+| Python 점수 입력 | 앱에 있는가 | 위치 |
+|---|---|---|
+| 200일선 이격 / 50일선 이격 / 20일선 이격 | 있음 | `taSignalsLite` stats `sma200Diff`/`sma50Diff`/`sma20Diff`, 스크리너 `sma200Pct`/`sma50Pct`/`sma20Pct` |
+| RSI14 | 있음 | stats `rsi14`, 스크리너 `rsi` |
+| 3개월 수익률 | 있음 | 스크리너 `perf3m` (signals stats에는 없음) |
+| ATR | 있음 | stats `atrPct`, 위험 계산기의 ATR 손절(2×ATR) |
+| PER / PEG / 컨센서스 | 있음 | 스크리너 `pe`/`fpe`/`peg`/`recMean`/`targetUpside` (Worker fundamentals·deep) |
+| 지지선 / 매수가 / 손절 / 목표 (SMA20·50·200, 20·60일 저점 기준) | **없음** (규칙 형태로는) | 앱은 ATR 손절 프리셋만 있음 → 신규 구현 필요 |
+| 실적 발표일 | 불명 | Worker `calendar` 라우트가 대체 가능한지 확인 필요 (KNOWN_GAPS) |
+| 눌림목 판정 | 정의가 다름 | 앱 `pullback` 칩은 EMA20±1ATR·RSI 40~55, Python은 지지선 거리 ≤4%. 하나로 정해야 함 |
+
+결론: 점수 입력은 대부분 앱에 있다. 새로 만들 것은 (1) 지지/매수/손절/목표 계산, (2) 점수·verdict 규칙 함수, (3) 이를 담은 브릿지 필드, (4) 눌림목 정의 통일이다. 규칙 함수는 `// @@PURE-START/END` 같은 순수 함수 구간에 두면 테스트하기 쉽다(앱의 `scoreOf` 주변 관례).
+
+### R-1 / R-2 / R-3 구현 순서 (제안)
+1. 앱: 규칙 점수·지지/손절/목표 함수 추가 (신규 `signals` 확장 또는 별도 순수 함수), 눌림목 정의 확정
+2. 앱 브릿지: quotes 파일에 규칙 결과 필드 추가 (R-5의 개인정보 제거도 이때 함께)
+3. 앱 UI: 'Claude 분석' 탭에서 "규칙 신호"와 "Claude 리서치/의견"을 분리 표시 (R-2)
+4. 스케줄: Python 점수 대신 앱 값을 읽도록 변경, Claude는 리서치·의견만 작성, `analysis@1`에 선택 필드 추가
+5. 데스크: 분석 탭에서 점수·시나리오 제거 → 앱 점수 표시 + Claude 해석 버튼 (R-3 1단계), 차트 동결(2단계), 저널 정리(3단계)
+6. 스케줄 Python 제거, ARCHITECTURE/DECISIONS 갱신
