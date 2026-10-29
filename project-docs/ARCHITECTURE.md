@@ -72,3 +72,7 @@ bridge/scripts(DB) → features.py (Drive 시세로 지표·점수)
 ## 6. 장단점 요약
 **장점**: 브릿지 방향 분리·버전화·선택 필드, 앱 쪽 방어(이스케이프·같은 id 덮어쓰기·최소 스코프), 앱 데이터 우선·일봉 재활용, 앱 폴백 체인, 데스크 무인 자동화, 차트 이미지·매크로 해석·웹 스크리너는 Claude 고유.
 **단점**: 판정 3중화·라벨 혼동 / 데스크의 지표·차트·저널 중복 / Twelve Data 잔여 의존 / 앱 Gemini 얕음(템플릿+무그라운딩) / 메모·수량 등 불필요한 개인정보 내보내기 / 분석 파일 누적·무음 실패 / 적중 검증 부재(`taSignalBacktest` 미연결) / 시나리오 확률 오해 소지.
+
+## 추가 (2026-10-30)
+- `quotes-detail@1`의 `fund.ext`(선택, 관심·분석 종목만): `{ts, fwdPe, pe, peg, pm, om, roe, rg, eg, de, cr, tAvg, tMin, tMax, sector, industry}`. 비율은 % 단위, `de`는 Yahoo 방식(150=150%). 데스크가 Twelve Data 통계·목표가 대신 사용.
+- 판정 기록 `insight/hist-YYYYMMDD.items[sym]`: `{v,p,sc,at,b,lv}` — `b`=기록 시점 SPY 가격, `lv`={buy,stop,sell}. 주간 복기가 SPY 대비 초과수익과 가격대 도달에 쓴다.

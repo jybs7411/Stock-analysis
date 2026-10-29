@@ -2104,7 +2104,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.81.0';
+    const APP_VERSION = '1.82.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -27101,7 +27101,7 @@ ${input}
     // 인증: GAUTH 의 별도 토큰(getBridgeToken) — 기존 로그인·동기화 권한 요청은 건드리지 않는다.
     const BRIDGE = (function () {
       const FOLDER = '주식데스크-브릿지', QFILE = 'pentanalyst_quotes.json';
-      const K = { cache: 'pentanalyst_bridge_analysis_v1', qid: 'pentanalyst_bridge_quotes_id', qlast: 'pentanalyst_bridge_quotes_last', did: 'pentanalyst_bridge_detail_id', dlast: 'pentanalyst_bridge_detail_last', earn: 'pentanalyst_bridge_earn_v1', priv: 'pentanalyst_bridge_priv', desk: 'pentanalyst_bridge_desk_url', granted: 'pentanalyst_bridge_granted' };
+      const K = { cache: 'pentanalyst_bridge_analysis_v1', qid: 'pentanalyst_bridge_quotes_id', qlast: 'pentanalyst_bridge_quotes_last', did: 'pentanalyst_bridge_detail_id', dlast: 'pentanalyst_bridge_detail_last', earn: 'pentanalyst_bridge_earn_v1', fx: 'pentanalyst_bridge_fx_v1', priv: 'pentanalyst_bridge_priv', desk: 'pentanalyst_bridge_desk_url', granted: 'pentanalyst_bridge_granted' };
       const DFILE = 'pentanalyst_quotes_detail.json';
       const DESK_URL = 'https://claude.ai/artifact/QFtKAXr7iBT1q8LGJJDw61';
       const DETAIL_EVERY_MS = 3 * 3600 * 1000, LIVE_EVERY_MS = 30 * 60 * 1000, OHLCV_BARS = 130, WATCH_BARS = 400, CLOSE_BARS = 63;
@@ -27221,6 +27221,33 @@ ${input}
           return todo.length;
         } catch (e) { return 0; }
       }
+      // 관심·분석 종목의 재무 요약(R-4): 데스크 분석 탭이 Twelve Data 통계·목표가 호출 대신 이걸 쓰도록 앱 Worker(/api/fundamentals)에서 받아
+      // 전용 캐시(pentanalyst_bridge_fx_v1, 동기화 제외)에 1일 보관한다. 비율은 % 단위(12.3 = 12.3%), 부채비율은 Yahoo 방식(150 = 150%).
+      const FX_TTL = 864e5, FX_MAX = 40;
+      async function fillFundamentals(syms, say) {
+        const out = {};
+        try {
+          if (typeof fetchFundamentals !== 'function' || !getProxyUrl()) return out;
+          let store = {}; try { const c = JSON.parse(ls.get(K.fx) || 'null'); if (isObj(c)) store = c; } catch (e) { /* 캐시 없음 */ }
+          const now = Date.now(), todo = syms.filter(s => !(store[s] && now - store[s].ts < FX_TTL)).slice(0, FX_MAX);
+          for (let i = 0; i < todo.length; i += 4) {
+            if (say && i % 20 === 0) say(`재무 요약 ${todo.length}종목 받는 중… ${i}`);
+            await Promise.all(todo.slice(i, i + 4).map(async s => {
+              try {
+                const f = await fetchFundamentals(s); if (!f) return; // 실패는 기록하지 않아 다음에 다시 시도
+                const o = { ts: now };
+                [['fwdPe', 'forwardPe'], ['pe', 'pe'], ['peg', 'peg'], ['pm', 'profitMargin'], ['om', 'opMargin'], ['roe', 'roe'], ['rg', 'revGrowth'], ['eg', 'epsGrowth'], ['de', 'debtToEquity'], ['cr', 'currentRatio'], ['tAvg', 'targetAvg'], ['tMin', 'targetMin'], ['tMax', 'targetMax']].forEach(([k, src]) => { const v = r2(f[src]); if (v !== null) o[k] = v; });
+                if (f.sector) o.sector = String(f.sector); if (f.industry) o.industry = String(f.industry);
+                store[s] = o;
+              } catch (e) { /* 건너뜀 */ }
+            }));
+          }
+          const keep = {}; Object.keys(store).forEach(k => { if (now - store[k].ts < 7 * 864e5) keep[k] = store[k]; });
+          ls.set(K.fx, JSON.stringify(keep));
+          syms.forEach(s => { if (keep[s]) out[s] = keep[s]; });
+        } catch (e) { /* 재무 요약 없이 계속 */ }
+        return out;
+      }
       function ruleOf(e, rc) {
         try {
           if (typeof RuleEngine === 'undefined' || !rc) return null;
@@ -27290,6 +27317,10 @@ ${input}
               } catch (e) { /* 기존(130봉/종가) 데이터 유지 */ }
             }));
           }
+        }
+        if (withDetail) { // 재무 요약(R-4): 관심·분석 종목만
+          const fxm = await fillFundamentals([...new Set([...wsyms, ...analysisSyms()])].filter(s => detail[s]), say);
+          Object.keys(fxm).forEach(s => { const d = detail[s]; d.fund = Object.assign(d.fund || {}, { ext: fxm[s] }); });
         }
         const lists = {}; arr(ws.lists).forEach(l => { if (l && l.id) lists[l.id] = l.name; });
         const items = {};
