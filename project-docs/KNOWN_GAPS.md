@@ -10,11 +10,11 @@
 - `mod-watch` 알림 엔진, `mod-revision`, `fetchDeep`/`fetchFundamentals` 상세, GSYNC 병합 세부, 불단왕 엔진 세부, `mod-sim`/`mod-exit`/`mod-risk`
 - Worker의 stale 캐시(`X-Cache: STALE`)를 UI가 사용자에게 표시하는지
 - Worker 데이터가 Twelve Data 대체에 충분한지 (R-4 선행 조사)
-- 앱 Gemini 13개 호출 지점의 실제 사용 빈도
+- (해소) AI 호출은 종목분석·시장만 남기고 나머지 제거함(v1.81.0)
 
 **스케줄/브릿지**
-- 스케줄 작업 실패 시 알림 경로 (현재 푸시/메일 꺼짐)
-- 분석 파일 누적량과 폴더 검색 비용
+- (부분 해소) 실패는 앱 Claude 분석 탭의 상태 안내로 확인(v1.83.0). 푸시/메일은 꺼져 있음. 첫 실행 뒤 실제 표시 확인 필요
+- (해소) 분석 파일은 최신 10개만 유지(R-8)
 
 **R-1 구현 전 확인 필요 (2026-10-29 추가)**
 - (부분 해소) 앱에 실적일 경로가 있다: `fetchDeep(sym).earnings.nextDate`(Yahoo calendarEvents, 관심종목 탭이 12시간 캐시)와 Worker `/api/calendar?type=earnings`(최대 70일 구간). 남은 확인: 스크리너 400종목 전체에 대해 `nextDate`를 얻는 비용·정확도, Python `ev.json`의 '출처 불일치' 표시와의 대응.
