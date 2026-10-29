@@ -88,6 +88,29 @@ t('일봉 59개면 가격대 없음', RE.levels(genHist(1, 59, 100, 5000), 50, 2
 t('NaN 입력 무시', RE.score({ rsi: NaN, sma200Pct: NaN }).score, 0);
 t('UNDERPERFORM 은 감점 없음(기존 규칙 유지)', RE.score({ consensus: 'UNDERPERFORM' }).score, 0);
 t('STRONG BUY +1', RE.score({ consensus: 'STRONG BUY' }).score, 1);
+// 독립 리뷰(2026-10-29) 지적 반영: 입력 방어
+t('컨센서스 부분 문자열은 점수 없음', RE.score({ consensus: 'Hold (no buy)' }).score, 0);
+t('컨센서스 SELL -1', RE.score({ consensus: 'sell' }).score, -1);
+t('컨센서스 STRONG_BUY 표기', RE.score({ consensus: 'strong_buy' }).score, 1);
+t('부분 cfg 병합', RE.score({ sma200Pct: 5 }, { pts200: 3 }).score, 3);
+t('pullbackAction(null) 예외 없음', RE.pullbackAction(null, 5, null, null), 'wait_support');
+t('isPullbackCandidate(null)', RE.isPullbackCandidate(null, 30), false);
+t('없는 날짜 2026-02-31', RE.daysUntil('2026-02-31', '2026-02-01'), null);
+t('없는 날짜 2026-13-45', RE.daysUntil('2026-13-45', '2026-02-01'), null);
+t('가격 0 이하면 가격대 없음', RE.levels(genHist(2, 120, 100, 5000), -5, 2), null);
+{
+  const h = genHist(3, 120, 100, 5000), last = h[h.length - 1].close;
+  const bad = RE.levels(h, last, -3), def = RE.levels(h, last, 2.5);
+  t('음수 ATR 은 기본값', bad && bad.stop, def && def.stop);
+  const big = RE.levels(h, last, 900);
+  t('손절 하한 0', big === null || big.stop === null || big.stop >= 0, true);
+  t('hasSma200 (120봉)', def && def.hasSma200, false);
+  t('점수가 NaN 이면 bad_score', RE.verdict({ price: 10 }, NaN, null, null).reason, 'bad_score');
+  const ev = RE.evaluate({ price: last, rsi: 50, sma200Pct: 5 }, h, { nextEarnings: '2026-11-02' });
+  t('today 누락 → earnings_unknown', ev.flags.includes('earnings_unknown'), true);
+  t('inputsMissing 에 결측 키', ev.inputsMissing.includes('perf3m') && !ev.inputsMissing.includes('rsi'), true);
+}
+t('가격대 정확 일치 비율 유지', exactLv >= 130, true);
 
 console.log(`케이스 ${golden.cases.length}개 · 경계격자 ${(golden.verdictCases||[]).length}+${(golden.pullbackCases||[]).length} · 검사 ${checks}건 · 가격대 정확 일치 ${exactLv}/${lvCount} · 실패 ${fail}건`);
 process.exit(fail ? 1 : 0);
