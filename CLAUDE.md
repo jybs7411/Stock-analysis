@@ -21,6 +21,13 @@
 - 항목 삭제는 `GSYNC`의 `COLLS`에 등록된 컬렉션(관심종목·장부·불단왕 일지·스크리너 노트)만 삭제 표시(툼스톤)로 전파한다. 새 목록형 데이터는 `COLLS`에 경로·id 필드를 추가하면 된다.
 - 새 데이터 키는 자동 포함된다. 제외할 키(캐시·화면 배치·기기 고유값)는 `GSYNC`의 `EXCLUDE` 정규식에, 항목 단위로 합쳐야 하는 키는 `MERGERS`에 추가한다.
 
+## 브릿지 (Claude 아티팩트 "주식 데스크" 연동)
+- `BRIDGE`(`<script id="mod-bridge">`)는 백업 동기화가 아니라 Claude 아티팩트와의 데이터 교환이라 `GSYNC`와 별개다. 캐시·파일 id 키(`pentanalyst_bridge_*`)는 `GSYNC`의 `EXCLUDE`로 동기화에서 제외한다.
+- 인증은 `GAUTH`를 공유하되, 로그인·동기화 권한(`SCOPE`)은 건드리지 않고 `GAUTH.getBridgeToken`이 `drive.readonly`+`drive.file`을 필요할 때만 추가 동의로 받는다.
+- 읽기: 드라이브 폴더 `주식데스크-브릿지`(이름으로 검색)의 `claude_analysis_YYYYMMDD-HHMM.json` 중 최신(TEST 제외) → 'Claude 분석' 탭(`claude`, 표시 전용). 외부 파일이므로 `<b><i><br>`만 허용하고 나머지는 이스케이프, 링크는 http(s)만.
+- 쓰기: 드라이브 루트 `pentanalyst_quotes.json`(`claude-bridge/quotes@1`)을 같은 파일 id로 덮어쓴다(제목 변경 금지). 스크리너가 받아 둔 일봉(`SCREENER_MASTER_DATA[].hist`)을 우선 쓰고, 없는 종목만 `fetchSpark`로 채운다.
+- 규격: 분석 파일은 모든 최상위 필드가 선택(`macro`/`screens`/`pullbacks`/`alerts`)이며 없으면 해당 카드를 숨긴다. 스키마를 바꾸면 웹의 Claude 쪽에도 알린다.
+
 ## 버전 규칙
 - 앱 버전은 `index.html`의 `const APP_VERSION`(메인 스크립트, `switchAppTab` 위)이 단일 출처이며 화면 맨 아래 푸터(`#appVersion`)에 표시된다.
 - **앱을 수정(업데이트)할 때마다 `APP_VERSION`을 올린다.** 기능 추가·동작 변경은 minor(1.1.0→1.2.0), 버그 수정·문구 수정은 patch(1.1.0→1.1.1).

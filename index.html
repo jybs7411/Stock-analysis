@@ -950,6 +950,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       <button type="button" role="tab" aria-selected="false" aria-controls="view-fx" onclick="switchAppTab('fx')" id="tabBtn-fx" title="환율" class="subtab hidden"><i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-calendar" onclick="switchAppTab('calendar')" id="tabBtn-calendar" title="금융 달력" class="subtab hidden"><i class="fa-solid fa-calendar-days text-rose-400"></i><span>금융 달력</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-bdwtools" onclick="switchAppTab('bdwtools')" id="tabBtn-bdwtools" title="손절·포지션 크기 계산기와 매매일지" class="subtab hidden"><i class="fa-solid fa-calculator text-orange-400"></i><span>계산기 · 매매일지</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-claude" onclick="switchAppTab('claude')" id="tabBtn-claude" title="Claude 아티팩트가 정리한 거시·스크리너·눌림목·알림 스캔" class="subtab hidden"><i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i><span>Claude 분석</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-bdw" onclick="switchAppTab('bdw')" id="tabBtn-bdw" title="불단왕 매매법" class="subtab hidden"><i class="fa-solid fa-fire text-orange-400"></i><span>불단왕</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-prevday" onclick="switchAppTab('prevday')" id="tabBtn-prevday" title="전일 복기" class="subtab hidden"><i class="fa-solid fa-clock-rotate-left text-violet-400"></i><span>전일 복기</span></button>
     </div>
@@ -1166,6 +1167,10 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
     <div id="view-sim" class="hidden space-y-4">
       <div id="simRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
+    </div>
+
+    <div id="view-claude" class="hidden space-y-4">
+      <div id="claudeRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
     </div>
 
     <div id="view-watch" class="hidden space-y-4">
@@ -2092,13 +2097,14 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       fx: { on: 'bg-emerald-950 text-emerald-300 border-emerald-700/80 shadow-md shadow-emerald-950/50' },
       market: { on: 'bg-sky-950 text-sky-300 border-sky-700/80 shadow-md shadow-sky-950/50' },
       calendar: { on: 'bg-rose-950 text-rose-300 border-rose-700/80 shadow-md shadow-rose-950/50' },
-      multi: { on: 'bg-fuchsia-950 text-fuchsia-300 border-fuchsia-700/80 shadow-md shadow-fuchsia-950/50' }
+      multi: { on: 'bg-fuchsia-950 text-fuchsia-300 border-fuchsia-700/80 shadow-md shadow-fuchsia-950/50' },
+      claude: { on: 'bg-indigo-950 text-indigo-300 border-indigo-700/80 shadow-md shadow-indigo-950/50' }
     };
     const TAB_HOOKS = {};
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.71.1';
+    const APP_VERSION = '1.72.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2173,7 +2179,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
     // 허브(상단 5개) → 보조 탭(둘째 줄). 탭 id·view-<id>·TAB_HOOKS 는 그대로, 내비게이션만 묶는다.
     const APP_HUBS = [
-      { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch', 'holdings', 'bdwtools'] },
+      { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch', 'holdings', 'bdwtools', 'claude'] },
       { id: 'analyze', label: '분석', short: '분석', icon: 'fa-users-viewfinder text-cyan-400', on: APP_TABS.analysis.on, tabs: ['analysis', 'multi', 'prevday'] },
       { id: 'sim', label: '모의투자', short: '모의', icon: 'fa-gamepad text-teal-400', on: APP_TABS.sim.on, tabs: ['sim'] },
       { id: 'discover', label: '발굴', short: '발굴', icon: 'fa-filter text-amber-400', on: APP_TABS.screener.on, tabs: ['screener', 'revision'] },
@@ -3287,8 +3293,36 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
       function getUser() { return currentUser; }
 
+      // 브릿지(Claude 아티팩트 연동)용 별도 토큰: 드라이브 읽기 + 앱이 만든 파일 쓰기. 로그인·동기화 권한 요청(SCOPE)은 건드리지 않고, 필요할 때만 추가 동의를 받는다.
+      const BRIDGE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file';
+      let bridgeToken = null, bridgeExp = 0, bridgeInflight = null;
+      function getBridgeToken(interactive) {
+        if (bridgeToken && Date.now() < bridgeExp - 60000) return Promise.resolve(bridgeToken);
+        const cid = getClientId();
+        if (!cid) return Promise.reject(new Error('no_client_id'));
+        if (!interactive && document.visibilityState === 'hidden') return Promise.reject(new Error('silent_skipped'));
+        if (bridgeInflight) return bridgeInflight;
+        const p = loadGis().then(google => new Promise((resolve, reject) => {
+          try {
+            google.accounts.oauth2.initTokenClient({
+              client_id: cid, scope: BRIDGE_SCOPE,
+              callback: resp => {
+                if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
+                if (!google.accounts.oauth2.hasGrantedAllScopes(resp, ...BRIDGE_SCOPE.split(' '))) { reject(new Error('구글 권한이 추가됐어요. 권한 허용 창에서 드라이브 항목을 모두 체크해 주세요.')); return; }
+                bridgeToken = resp.access_token; bridgeExp = Date.now() + (Number(resp.expires_in) || 3500) * 1000;
+                resolve(bridgeToken);
+              },
+              error_callback: err => reject(new Error((err && (err.message || err.type)) || '권한 요청이 취소되었습니다.'))
+            }).requestAccessToken({ prompt: interactive ? '' : 'none' });
+          } catch (err) { reject(err); }
+        }));
+        bridgeInflight = p;
+        const clear = () => { if (bridgeInflight === p) bridgeInflight = null; };
+        p.then(clear, clear);
+        return p;
+      }
       const hasToken = () => !!accessToken && Date.now() < tokenExpiresAt - 30000, tokenLeft = () => accessToken ? tokenExpiresAt - Date.now() : 0;
-      return { init, login, logout, syncToCloud, loadFromCloud, renderAuthUI, getUser, isConfigured, getToken, hasToken, tokenLeft };
+      return { init, login, logout, syncToCloud, loadFromCloud, renderAuthUI, getUser, isConfigured, getToken, getBridgeToken, hasToken, tokenLeft };
     })();
 
     // ===== 통합 Google Drive 동기화 (GSYNC) =====
@@ -3304,7 +3338,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       const FILE = 'pentanalyst_sync.json';
       const META_KEY = 'pentanalyst_sync_meta_v1', BAK_KEY = 'pentanalyst_sync_backup_v1', LAST_KEY = 'pentanalyst_sync_last', FID_KEY = 'pentanalyst_sync_fid', DIRTY_KEY = 'pentanalyst_sync_dirty', EV_KEY = 'pentanalyst_sync_ev_v1', EV_TTL = 60 * 86400000;
       // 동기화에서 뺄 키: 로그인·기기 고유값, 다시 받아오면 되는 캐시, 화면 배치
-      const EXCLUDE = /^pentanalyst_(gauth_user|gdrive_client_id|gdrive_last_backup|cal_sync_last|sync_.*|watch_cache_v1|cal_yf_v1|hub_last_v1|gemini_cool|scr_snap|scr_earn|rev_snap_v1|dock_v1|chart_split|multi_side)$/;
+      const EXCLUDE = /^pentanalyst_(gauth_user|gdrive_client_id|gdrive_last_backup|cal_sync_last|sync_.*|watch_cache_v1|cal_yf_v1|hub_last_v1|gemini_cool|scr_snap|scr_earn|bridge_.*|rev_snap_v1|dock_v1|chart_split|multi_side)$/;
       const inScope = k => typeof k === 'string' && k.indexOf('pentanalyst_') === 0 && !EXCLUDE.test(k);
       const rawGet = Storage.prototype.getItem, rawSet = Storage.prototype.setItem;
       const ls = { get: k => { try { return rawGet.call(localStorage, k); } catch (e) { return null; } }, set: (k, v) => { try { rawSet.call(localStorage, k, v); return true; } catch (e) { return false; } } };
@@ -27098,6 +27132,294 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         if (cur && window.SIM_UI) window.SIM_UI.follow(cur);
       }, 2000);
       layout();
+    })();
+  </script>
+
+  <script id="mod-bridge">
+    // ===== BRIDGE: Claude 아티팩트("주식 데스크")와 구글 드라이브로 데이터를 주고받는다 (백업 동기화 GSYNC와는 별개) =====
+    // 읽기: 드라이브 폴더 '주식데스크-브릿지'의 claude_analysis_YYYYMMDD-HHMM.json 중 최신 → 'Claude 분석' 탭 (표시 전용)
+    // 쓰기: 드라이브 루트 pentanalyst_quotes.json 하나를 계속 덮어쓴다 (drive.file: 앱이 만든 파일만 접근)
+    // 인증: GAUTH 의 별도 토큰(getBridgeToken) — 기존 로그인·동기화 권한 요청은 건드리지 않는다.
+    const BRIDGE = (function () {
+      const FOLDER = '주식데스크-브릿지', QFILE = 'pentanalyst_quotes.json';
+      const K = { cache: 'pentanalyst_bridge_analysis_v1', qid: 'pentanalyst_bridge_quotes_id', qlast: 'pentanalyst_bridge_quotes_last', granted: 'pentanalyst_bridge_granted' };
+      const QUOTES_EVERY_MS = 3 * 3600 * 1000, OHLCV_BARS = 130, CLOSE_BARS = 63;
+      const ST = { busy: false, sending: false, msg: '', need: false, data: null, file: '', fetchedAt: 0, pbSort: 'rsi', pbFlags: {} };
+      const esc = v => escapeHtml(v);
+      const ls = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 저장 불가 */ } } };
+      const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+      const arr = v => (Array.isArray(v) ? v : []);
+      const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+      const r2 = v => (Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
+
+      // 외부 파일은 신뢰하지 않는다: 전부 이스케이프한 뒤 <b> <i> <br> 만 되살린다
+      function rich(s) {
+        return esc(s == null ? '' : s).replace(/&lt;(\/?)(b|i)&gt;/gi, (m, a, t) => `<${a}${t.toLowerCase()}>`).replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+      }
+      function link(u, t) {
+        const url = String(u || '');
+        if (!/^https?:\/\//i.test(url)) return esc(t || u || '');
+        return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline">${esc(t || url)}</a>`;
+      }
+      function ago(ms) {
+        const h = (Date.now() - ms) / 3600000;
+        if (!Number.isFinite(h)) return '';
+        return h < 1 ? `${Math.max(1, Math.round(h * 60))}분 전` : h < 48 ? `${Math.round(h)}시간 전` : `${Math.round(h / 24)}일 전`;
+      }
+
+      // ---------- Drive ----------
+      async function token(interactive) {
+        const t = await GAUTH.getBridgeToken(interactive);
+        ls.set(K.granted, '1');
+        return t;
+      }
+      async function dget(t, url) {
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${t}` } });
+        if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error((j.error && j.error.message) || `Drive 오류 (${r.status})`); }
+        return r;
+      }
+      const qenc = s => encodeURIComponent(s);
+      async function fetchLatestAnalysis(t) {
+        const fr = await (await dget(t, `https://www.googleapis.com/drive/v3/files?q=${qenc(`name = '${FOLDER}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`)}&fields=files(id)&pageSize=5`)).json();
+        const folder = fr.files && fr.files[0];
+        if (!folder) return { missingFolder: true };
+        const lr = await (await dget(t, `https://www.googleapis.com/drive/v3/files?q=${qenc(`'${folder.id}' in parents and name contains 'claude_analysis_' and trashed = false`)}&fields=files(id,name)&pageSize=200&orderBy=name%20desc`)).json();
+        const f = arr(lr.files).filter(x => /^claude_analysis_\d{8}-\d{4}\.json$/.test(x.name)).sort((a, b) => (a.name < b.name ? 1 : -1))[0];
+        if (!f) return { empty: true };
+        const data = await (await dget(t, `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`)).json();
+        return { name: f.name, data };
+      }
+      function validate(d) { return isObj(d) && (d.schema == null || /^claude-bridge\/analysis@/.test(String(d.schema))) ? d : null; }
+
+      function loadCache() {
+        try { const c = JSON.parse(ls.get(K.cache) || 'null'); if (c && validate(c.data)) { ST.data = c.data; ST.file = c.file || ''; ST.fetchedAt = c.fetchedAt || 0; } } catch (e) { /* 캐시 없음 */ }
+      }
+      async function refresh(interactive) {
+        if (ST.busy) return;
+        if (!GAUTH.isConfigured()) { ST.msg = '설정에서 구글 Client ID를 먼저 입력해 주세요.'; render(); return; }
+        ST.busy = true; ST.msg = ''; render();
+        try {
+          const t = await token(!!interactive);
+          const r = await fetchLatestAnalysis(t);
+          if (r.missingFolder) ST.msg = `드라이브에서 '${FOLDER}' 폴더를 찾지 못했어요. Claude가 첫 분석 파일을 만들면 나타나요.`;
+          else if (r.empty) ST.msg = '폴더에 분석 파일(claude_analysis_날짜-시각.json)이 아직 없어요.';
+          else if (!validate(r.data)) ST.msg = '분석 파일 형식을 읽을 수 없어요.';
+          else { ST.data = r.data; ST.file = r.name; ST.fetchedAt = Date.now(); ls.set(K.cache, JSON.stringify({ file: r.name, fetchedAt: ST.fetchedAt, data: r.data })); }
+          ST.need = false;
+        } catch (e) {
+          if (!interactive) ST.need = true; else ST.msg = `불러오기 실패: ${e.message || e}`;
+        }
+        ST.busy = false; render();
+      }
+
+      // ---------- 시세 내보내기 ----------
+      function watchState() { try { const w = JSON.parse(ls.get('pentanalyst_watch_v1') || 'null'); return isObj(w) ? w : { items: {}, lists: [] }; } catch (e) { return { items: {}, lists: [] }; } }
+      function analysisSyms() {
+        const d = ST.data || {}, s = new Set();
+        arr(d.screens).forEach(x => arr(x && x.rows).forEach(r => r && r.sym && s.add(String(r.sym).toUpperCase())));
+        arr(d.pullbacks && d.pullbacks.rows).forEach(r => r && r.s && s.add(String(r.s).toUpperCase()));
+        arr(d.alerts && d.alerts.results).forEach(r => r && r.sym && s.add(String(r.sym).toUpperCase()));
+        return [...s];
+      }
+      const pick = (o, ks) => { const out = {}; ks.forEach(k => { const v = r2(o[k]); if (v !== null) out[k] = v; }); return out; };
+      function fromEntry(e) {
+        const h = e.hist, n = h.length, last = h[n - 1], prev = n > 1 ? h[n - 2].close : null;
+        const price = num(e.price) != null ? e.price : last.close;
+        const bars = h.slice(-OHLCV_BARS);
+        return {
+          name: e.name || '', sector: e.sector || '',
+          price: r2(price), prev: r2(prev), chgPct: prev ? r2((price / prev - 1) * 100) : null, asOf: last.date || null,
+          closes: { t: h.slice(-CLOSE_BARS).map(b => b.t), c: h.slice(-CLOSE_BARS).map(b => b.close) },
+          ohlcv: { t: bars.map(b => b.t), o: bars.map(b => b.open), h: bars.map(b => b.high), l: bars.map(b => b.low), c: bars.map(b => b.close), v: bars.map(b => b.volume) },
+          tech: pick(e, ['rsi', 'sma20Pct', 'sma50Pct', 'sma200Pct', 'atrPct', 'fromHigh52', 'fromLow52', 'relVol', 'perf1w', 'perf1m', 'perf3m', 'perf6m', 'perf1y']),
+          fund: Object.assign(pick(e, ['pe', 'peg', 'roe', 'marketCapVal']), e.consensus ? { consensus: e.consensus } : {})
+        };
+      }
+      async function buildQuotes(say) {
+        const ws = watchState(), wsyms = Object.keys(ws.items || {});
+        const want = new Set([...wsyms, ...analysisSyms(), 'SPY', 'QQQ', 'IWM', 'DIA']);
+        const master = typeof SCREENER_MASTER_DATA !== 'undefined' ? SCREENER_MASTER_DATA : [];
+        if (master.length && getProxyUrl()) {
+          const pend = master.filter(e => !e.loaded && !e.missing);
+          if (pend.length) {
+            say(`스크리너 ${pend.length}종목 불러오는 중…`); enqueueScreener(pend, false);
+            const t0 = Date.now();
+            while (master.some(e => !e.loaded && !e.missing) && Date.now() - t0 < 90000) await new Promise(r => setTimeout(r, 500));
+          }
+        }
+        const quotes = {};
+        master.forEach(e => { if (!e.missing && Array.isArray(e.hist) && e.hist.length) quotes[e.ticker] = fromEntry(e); });
+        const rest = [...want].filter(s => !quotes[s]);
+        const failed = [];
+        if (rest.length) {
+          say(`나머지 ${rest.length}종목 시세 받는 중…`);
+          const sp = await fetchSpark(rest, '3mo', '1d').catch(() => null);
+          rest.forEach(s => {
+            const q = sp && sp[s];
+            if (!q || !Array.isArray(q.c) || !q.c.length) { failed.push(s); return; }
+            const price = num(q.price) != null ? q.price : q.c[q.c.length - 1];
+            quotes[s] = { price: r2(price), prev: r2(q.prev), chgPct: q.prev ? r2((price / q.prev - 1) * 100) : null, currency: q.currency || undefined, asOf: new Date().toISOString(), closes: { t: q.t, c: q.c } };
+          });
+        }
+        const lists = {}; arr(ws.lists).forEach(l => { if (l && l.id) lists[l.id] = l.name; });
+        const items = {};
+        wsyms.forEach(s => {
+          const it = ws.items[s] || {}, tg = it.target || {};
+          items[s] = { buy: tg.buy ?? null, stop: tg.stop ?? null, target: tg.goal ?? null, qty: it.qty ?? null, entry: it.entry ?? null, memo: it.note || '', thesis: it.thesis || '', group: arr(it.lists).map(id => lists[id]).filter(Boolean).join(', ') };
+        });
+        return { schema: 'claude-bridge/quotes@1', exportedAt: new Date().toISOString(), source: 'yahoo via pentanalyst worker', count: Object.keys(quotes).length, failed, quotes, watchlist: { items } };
+      }
+      async function uploadQuotes(t, json) {
+        const body = JSON.stringify(json), H = { Authorization: `Bearer ${t}` };
+        let id = ls.get(K.qid);
+        if (!id) { // 다른 기기에서 이미 만들었을 수 있으니 이름으로 먼저 찾는다
+          const fr = await (await dget(t, `https://www.googleapis.com/drive/v3/files?q=${qenc(`name = '${QFILE}' and trashed = false`)}&fields=files(id)&pageSize=1`)).json();
+          id = fr.files && fr.files[0] && fr.files[0].id;
+        }
+        if (id) {
+          const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`, { method: 'PATCH', headers: Object.assign({ 'Content-Type': 'application/json; charset=UTF-8' }, H), body });
+          if (r.ok) { ls.set(K.qid, id); return; }
+          if (r.status !== 404) throw new Error(`업로드 실패 (${r.status})`);
+        }
+        const b = '-------pentbridge';
+        const multi = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: QFILE, mimeType: 'application/json' })}\r\n--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${body}\r\n--${b}--`;
+        const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: Object.assign({ 'Content-Type': `multipart/related; boundary=${b}` }, H), body: multi });
+        if (!r.ok) throw new Error(`업로드 실패 (${r.status})`);
+        ls.set(K.qid, (await r.json()).id);
+      }
+      async function sendQuotes(interactive) {
+        if (ST.sending) return;
+        ST.sending = true; ST.msg = ''; render();
+        const say = m => { ST.msg = m; render(); };
+        try {
+          const t = await token(!!interactive);
+          const json = await buildQuotes(say);
+          say(`${json.count}종목 업로드 중…`);
+          await uploadQuotes(t, json);
+          ls.set(K.qlast, String(Date.now()));
+          ST.msg = '';
+          showToast('Claude에 시세 전달', `${json.count}종목을 드라이브(${QFILE})에 올렸어요.${json.failed.length ? ` 못 받은 ${json.failed.length}종목 제외.` : ''}`, 'success');
+        } catch (e) {
+          ST.msg = '';
+          showToast('시세 내보내기 실패', String(e.message || e), 'error');
+        }
+        ST.sending = false; render();
+      }
+      function autoSend() {
+        if (ls.get(K.granted) !== '1' || !GAUTH.getUser()) return;
+        if (Date.now() - (Number(ls.get(K.qlast)) || 0) < QUOTES_EVERY_MS) return;
+        sendQuotes(false);
+      }
+
+      // ---------- 화면 ----------
+      const TILE = { warn: 'border-amber-600/60 text-amber-300', bad: 'border-rose-600/60 text-rose-300', good: 'border-emerald-600/60 text-emerald-300', '': 'border-slate-700 text-slate-200' };
+      const sym = s => `<button type="button" data-act="open" data-sym="${esc(s)}" class="font-mono-numbers font-bold text-cyan-300 hover:underline">${esc(s)}</button>`;
+      const card = (title, icon, body, right) => `<section class="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-3"><div class="flex items-center justify-between gap-2"><h3 class="font-bold text-slate-100"><i class="fa-solid ${icon} mr-2 text-slate-400"></i>${title}</h3>${right || ''}</div>${body}</section>`;
+
+      function macroCard(m) {
+        const tiles = arr(m.tiles).map(t => `<div class="rounded-lg border bg-slate-950/60 p-2.5 ${TILE[t && t.c] || TILE['']}"><div class="text-[11px] text-slate-400">${esc(t && t.k)}</div><div class="font-bold">${esc(t && t.v)}</div>${t && t.n ? `<div class="text-[11px] text-slate-400 mt-0.5">${esc(t.n)}</div>` : ''}</div>`).join('');
+        const read = arr(m.read).map(x => `<li class="text-sm text-slate-300 leading-relaxed">${rich(x)}</li>`).join('');
+        const cal = arr(m.cal).map(c => `<li class="text-xs text-slate-400"><span class="font-mono-numbers text-slate-300">${esc(c && c.d)}</span> ${esc(c && c.e)}</li>`).join('');
+        const src = arr(m.src).map(s => `<li>${link(s && s.u, s && s.t)}</li>`).join('');
+        return card('거시 브리핑', 'fa-globe', `
+          ${m.headline ? `<p class="text-sm text-slate-200 leading-relaxed">${rich(m.headline)}</p>` : ''}
+          ${tiles ? `<div class="grid grid-cols-2 md:grid-cols-4 gap-2">${tiles}</div>` : ''}
+          ${read ? `<ul class="list-disc pl-5 space-y-1.5">${read}</ul>` : ''}
+          ${m.sectors ? `<p class="text-sm text-slate-300">${rich(m.sectors)}</p>` : ''}
+          ${cal ? `<div><div class="text-xs font-bold text-slate-400 mb-1">일정</div><ul class="space-y-0.5">${cal}</ul></div>` : ''}
+          ${m.caveat ? `<p class="text-[11px] text-slate-500">${rich(m.caveat)}</p>` : ''}
+          ${src ? `<ul class="text-[11px] space-y-0.5">${src}</ul>` : ''}`, m.asOf ? `<span class="text-xs text-slate-500">${esc(m.asOf)} 기준</span>` : '');
+      }
+      function screensCard(list) {
+        const body = list.map((s, i) => {
+          const rows = arr(s && s.rows).map(r => r && `<tr class="border-t border-slate-800 align-top"><td class="py-1.5 pr-2">${sym(r.sym)}<div class="text-[11px] text-slate-500">${esc(r.name)}</div></td><td class="py-1.5 pr-2 text-xs text-slate-400">${esc(r.sector)}</td><td class="py-1.5 text-xs text-slate-300">${esc(r.why)}${r.risk ? `<div class="text-rose-300/80 mt-0.5">리스크: ${esc(r.risk)}</div>` : ''}${arr(r.m).length ? `<div class="flex flex-wrap gap-1 mt-1">${arr(r.m).map(c => `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-[11px] text-slate-300">${esc(c)}</span>`).join('')}</div>` : ''}</td></tr>`).join('');
+          const src = arr(s && s.sources).map(x => `<li>${link(x && x.u, x && x.t)}</li>`).join('');
+          return `<details class="rounded-lg border border-slate-800 bg-slate-950/50" ${i === 0 ? 'open' : ''}><summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-200">${esc(s && s.title)} <span class="text-xs font-normal text-slate-500">${arr(s && s.rows).length}종목${s && s.asOf ? ` · ${esc(s.asOf)}` : ''}</span></summary><div class="px-3 pb-3 space-y-2">
+            ${s && s.summary ? `<p class="text-sm text-slate-300">${rich(s.summary)}</p>` : ''}${s && s.method ? `<p class="text-[11px] text-slate-500">방법: ${esc(s.method)}</p>` : ''}
+            ${rows ? `<div class="overflow-x-auto"><table class="w-full text-left"><tbody>${rows}</tbody></table></div>` : ''}
+            ${s && s.caveat ? `<p class="text-[11px] text-slate-500">${esc(s.caveat)}</p>` : ''}${src ? `<ul class="text-[11px]">${src}</ul>` : ''}</div></details>`;
+        }).join('');
+        return card('스크리너 결과', 'fa-filter', `<div class="space-y-2">${body}</div>`);
+      }
+      function pullbackCard(p) {
+        let rows = arr(p.rows).filter(r => r && r.s);
+        const F = ST.pbFlags;
+        rows = rows.filter(r => (!F.a || r.a) && (!F.r || r.r) && (!F.m || r.m));
+        const key = ST.pbSort;
+        rows.sort((x, y) => key === 's' ? String(x.s).localeCompare(String(y.s)) : (num(x.rsi) ?? 999) - (num(y.rsi) ?? 999));
+        const chip = (k, t) => `<button type="button" data-act="pbflag" data-k="${k}" class="px-2 py-0.5 rounded border text-[11px] ${F[k] ? 'border-cyan-500 text-cyan-300 bg-cyan-950' : 'border-slate-700 text-slate-400'}">${t}</button>`;
+        const sortBtn = (k, t) => `<button type="button" data-act="pbsort" data-k="${k}" class="px-2 py-0.5 rounded border text-[11px] ${key === k ? 'border-amber-500 text-amber-300' : 'border-slate-700 text-slate-400'}">${t}</button>`;
+        const tr = rows.map(r => `<tr class="border-t border-slate-800"><td class="py-1 pr-2">${sym(r.s)}</td><td class="py-1 pr-2 text-xs text-slate-400">${esc(r.n)}</td><td class="py-1 pr-2 text-right font-mono-numbers text-xs">${num(r.rsi) != null ? r.rsi : '–'}</td><td class="py-1 text-center text-xs">${r.a ? '<span class="text-emerald-400">200일선↑</span> ' : ''}${r.r ? '<span class="text-sky-400">ROE↑</span> ' : ''}${r.m ? '<span class="text-amber-300">대형</span>' : ''}</td></tr>`).join('');
+        return card('눌림목', 'fa-arrow-trend-down', `
+          ${p.scope ? `<p class="text-xs text-slate-400">${esc(p.scope)}${p.universe ? ` · ${esc(p.universe)}` : ''}</p>` : ''}
+          <div class="flex flex-wrap items-center gap-1.5"><span class="text-[11px] text-slate-500">정렬</span>${sortBtn('rsi', 'RSI 낮은 순')}${sortBtn('s', '티커')}<span class="text-[11px] text-slate-500 ml-2">필터</span>${chip('a', '200일선 위')}${chip('r', 'ROE 12%↑')}${chip('m', '시총 $200B↑')}</div>
+          <div class="overflow-x-auto max-h-96"><table class="w-full text-left"><thead class="text-[11px] text-slate-500"><tr><th>종목</th><th>이름</th><th class="text-right">RSI14</th><th class="text-center">조건</th></tr></thead><tbody>${tr || '<tr><td colspan="4" class="py-3 text-xs text-slate-500">조건에 맞는 종목이 없어요.</td></tr>'}</tbody></table></div>
+          ${p.fields ? `<p class="text-[11px] text-slate-500">${esc(p.fields)}</p>` : ''}`, `<span class="text-xs text-slate-500">${esc(p.asOf || '')} · ${rows.length}/${arr(p.rows).length}</span>`);
+      }
+      const VERDICT = { buy: ['매수', 'text-emerald-300 border-emerald-700'], sell: ['매도', 'text-rose-300 border-rose-700'], hold: ['관망', 'text-slate-300 border-slate-600'] };
+      function alertsCard(a) {
+        const rows = arr(a.results).filter(Boolean).map(r => {
+          const v = VERDICT[String(r.verdict || '').toLowerCase()] || [esc(r.verdict || '–'), 'text-slate-300 border-slate-600'];
+          const lv = isObj(r.levels) ? ['buy', 'sell', 'stop'].filter(k => num(r.levels[k]) > 0).map(k => `${{ buy: '매수', sell: '매도', stop: '손절' }[k]} ${r.levels[k]}`).join(' · ') : '';
+          return `<li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-slate-800 pt-1.5">${sym(r.sym)}<span class="px-1.5 py-0.5 rounded border text-[11px] ${v[1]}">${v[0]}</span>${lv ? `<span class="text-xs text-slate-400">${esc(lv)}</span>` : ''}${r.note ? `<span class="text-xs text-slate-300 basis-full">${esc(r.note)}</span>` : ''}</li>`;
+        }).join('');
+        return card('알림 스캔', 'fa-bell', `${a.summary ? `<p class="text-sm text-slate-300">${rich(a.summary)}</p>` : ''}${rows ? `<ul class="space-y-1.5">${rows}</ul>` : '<p class="text-xs text-slate-500">스캔 결과가 아직 없어요.</p>'}`, a.asOf ? `<span class="text-xs text-slate-500">${esc(a.asOf)}</span>` : '');
+      }
+
+      function render() {
+        const root = document.getElementById('claudeRoot');
+        if (!root) return;
+        const d = ST.data, cards = [];
+        if (d) {
+          if (isObj(d.macro) && (d.macro.headline || arr(d.macro.tiles).length || arr(d.macro.read).length)) cards.push(macroCard(d.macro));
+          if (arr(d.screens).length) cards.push(screensCard(arr(d.screens).filter(isObj)));
+          if (isObj(d.pullbacks) && arr(d.pullbacks.rows).length) cards.push(pullbackCard(d.pullbacks));
+          if (isObj(d.alerts) && (arr(d.alerts.results).length || d.alerts.summary)) cards.push(alertsCard(d.alerts));
+        }
+        const when = d ? `${ST.file ? esc(ST.file) : ''}${d.generatedAt ? ` · 생성 ${esc(ago(Date.parse(d.generatedAt)))}` : ''}${ST.fetchedAt ? ` · 확인 ${esc(ago(ST.fetchedAt))}` : ''}` : '';
+        const btn = 'px-3 py-1.5 rounded-lg border text-xs font-semibold disabled:opacity-50';
+        root.innerHTML = `
+          <div class="space-y-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" data-act="refresh" class="${btn} border-cyan-700 text-cyan-300 bg-cyan-950/50" ${ST.busy ? 'disabled' : ''}><i class="fa-solid fa-rotate mr-1 ${ST.busy ? 'fa-spin' : ''}"></i>새로고침</button>
+              <button type="button" data-act="send" class="${btn} border-amber-700 text-amber-300 bg-amber-950/40" ${ST.sending ? 'disabled' : ''}><i class="fa-solid fa-paper-plane mr-1"></i>Claude에 시세 보내기</button>
+              <span class="text-[11px] text-slate-500">${when}</span>
+            </div>
+            ${ST.need ? `<div class="rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-200">구글 권한(드라이브 읽기·시세 파일 쓰기)이 필요해요. <button type="button" data-act="grant" class="${btn} ml-2 border-amber-600 text-amber-200">권한 허용 / 다시 로그인</button></div>` : ''}
+            ${ST.msg ? `<div class="rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm text-slate-300">${esc(ST.msg)}</div>` : ''}
+            <p class="text-[11px] text-slate-500">Claude가 정리한 참고 자료이며 투자 권유가 아니에요. 표시 전용이고, 이 화면의 내용으로 주문·매매가 실행되지 않아요.</p>
+            ${cards.join('') || (!ST.need && !ST.msg && !ST.busy ? '<div class="text-sm text-slate-500 py-10 text-center">아직 받은 분석이 없어요. 새로고침을 눌러 보세요.</div>' : '')}
+          </div>`;
+      }
+
+      function onClick(e) {
+        const el = e.target.closest('[data-act]');
+        if (!el || !el.closest('#claudeRoot')) return;
+        const a = el.dataset.act;
+        if (a === 'open') quickSearch(el.dataset.sym);
+        else if (a === 'refresh') refresh(true);
+        else if (a === 'grant') refresh(true).then(() => ST.data && autoSend());
+        else if (a === 'send') sendQuotes(true);
+        else if (a === 'pbsort') { ST.pbSort = el.dataset.k; render(); }
+        else if (a === 'pbflag') { ST.pbFlags[el.dataset.k] = !ST.pbFlags[el.dataset.k]; render(); }
+      }
+
+      let started = false;
+      function init() {
+        loadCache();
+        document.addEventListener('click', onClick);
+        TAB_HOOKS.claude = () => { render(); if (!ST.data && ls.get(K.granted) === '1' && GAUTH.getUser()) refresh(false); };
+        render();
+        // 앱을 열면 한 번: 이미 권한을 준 적이 있을 때만 조용히 분석을 받고, 시세는 3시간 간격으로 보낸다
+        const boot = () => {
+          if (started) return; started = true;
+          if (ls.get(K.granted) === '1' && GAUTH.getUser()) refresh(false).then(autoSend);
+        };
+        setTimeout(boot, 4000);
+        window.addEventListener('gauth-changed', () => setTimeout(boot, 1500));
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+      return { refresh, sendQuotes, buildQuotes };
     })();
   </script>
 
