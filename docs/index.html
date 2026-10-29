@@ -2086,7 +2086,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.80.0';
+    const APP_VERSION = '1.81.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -13715,14 +13715,6 @@ CHT|Chunghwa Telecom ADR|M
                   <div id="bdwChecklist"></div>
                   <div id="bdwInterview"></div>
                   <div id="bdwCoin"></div>
-                  <div class="rounded-xl border border-purple-900/50 bg-purple-950/10 px-4 py-3 space-y-2">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                      <div class="text-sm font-bold text-white"><i class="fa-solid fa-wand-magic-sparkles mr-1.5 text-purple-300"></i>AI 해설 <span class="text-xs font-normal text-slate-400">(선택)</span></div>
-                      <button id="bdwAiBtn" type="button" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-purple-600/30" title="Gemini를 호출합니다 (호출 1회당 소액 과금)"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI 해설 생성</span></button>
-                    </div>
-                    <p class="text-[11px] text-slate-500 leading-relaxed">위에서 계산한 사실(사이클·근거 중첩·손절/목표·체크리스트)만 Gemini에 보내 문장으로 풀어 달라고 요청합니다. <strong class="text-slate-400">버튼을 누를 때만 호출되며 호출 1회당 소액이 과금됩니다.</strong> AI 없이도 이 탭의 모든 기능은 동작합니다.</p>
-                    <div id="bdwAiOut" class="hidden rounded-xl bg-slate-950/60 border border-purple-900/50 px-4 py-3 text-sm text-slate-200 leading-relaxed space-y-2"></div>
-                  </div>
                 </section>
                 <p class="text-[10px] text-slate-500 leading-relaxed">※ 교육·참고용 규칙 점검이며 투자 권유가 아닙니다. 강의는 코인 선물 중심이라 코인 전용 항목은 ‘코인 전용’으로 표시했습니다. 임계값(이격 ATR, 박스·급등 기준, RSI 단계, 손익비 1:${BDW_MIN_RR} 등)은 이 앱의 가정이며 불장단타왕의 실제 기준이 아닙니다. 데이터는 Yahoo Finance(자체 프록시)의 지연·누락 가능한 값이고 마지막 봉은 진행 중일 수 있습니다. 4시간봉은 같은 거래일 안의 60분봉 4개를 묶어 만든 값입니다.</p>
               </div>
@@ -13754,7 +13746,6 @@ CHT|Chunghwa Telecom ADR|M
             });
             $bdw('bdwAcct').addEventListener('input', () => { const v = parseFloat($bdw('bdwAcct').value); BDW.account = bdwOk(v) && v > 0 ? v : null; bdwSavePrefs(); bdwRenderSizing(); });
             $bdw('bdwRiskPct').addEventListener('input', () => { const v = parseFloat($bdw('bdwRiskPct').value); BDW.riskPct = bdwOk(v) && v > 0 && v <= 100 ? v : null; bdwSavePrefs(); bdwRenderSizing(); });
-            $bdw('bdwAiBtn').addEventListener('click', bdwRunAi);
             bdwBindChart();
         }
         function bdwVpFull() { return BDW.vpFull === null ? bdwSetup().vp === 'full' : BDW.vpFull; }
@@ -13846,7 +13837,6 @@ CHT|Chunghwa Telecom ADR|M
                 BDW.ticker = ticker; $bdw('bdwTicker').value = ticker; bdwSavePrefs(); bdwRenderQuick();
                 appSetSymbol(ticker, 'bdw');   // 다른 탭이 열릴 때 이 종목을 따라간다
                 BDW.an = {}; BDW.raw = {}; BDW.src = {}; BDW.res = null; BDW.fund = null; BDW.rs = null; BDW.turnover = null; BDW.view = {}; BDW.aiText = ''; BDW.name = '';
-                const out = $bdw('bdwAiOut'); if (out) { out.classList.add('hidden'); out.innerHTML = ''; }
                 const hasProxy = !!getProxyUrl();
                 BDW.prog = {};
                 BDW_FETCHES.forEach(f => { BDW.prog[f.src] = { st: f.intraday && !hasProxy ? 'noproxy' : 'wait', msg: f.intraday && !hasProxy ? '분봉은 자체 프록시(Cloudflare Worker)가 있어야 받을 수 있습니다' : '' }; });
@@ -13900,7 +13890,6 @@ CHT|Chunghwa Telecom ADR|M
                 bdwAssemble();
                 if (!Object.keys(BDW.raw).length) { bdwSetStatus(Object.values(BDW.prog).some(p => p.st === 'short') ? 'short' : 'fail', ticker); return; }
                 bdwAnalyzeAndRender();
-                if (BDW.res && canAutoAiSub() && !BDW.aiBusy) bdwRunAi();
             } catch (e) {
                 console.error('불단왕 분석 실패', e);
                 if (seq === BDW.seq) bdwSetStatus('fail', raw);
@@ -14181,31 +14170,6 @@ CHT|Chunghwa Telecom ADR|M
             const a = BDW.an[S.main];
             if (a && a.ok) { const pt = bdwPatternItems(a); if (pt.length) { L.push('[감지된 패턴]'); pt.forEach(p => L.push(`- ${p.title}: ${p.text}`)); } }
             return L.join('\n');
-        }
-        function bdwBuildAiPrompt() {
-            return `당신은 주식 차트 공부를 돕는 교육용 해설자입니다. 아래는 코드가 불장단타왕 매매법(이평선 사이클, VPVR 매물대, VWMA100, RSI 다이버전스·트랩, 근거 중첩 체크리스트)의 규칙으로 계산한 사실입니다.\n\n규칙:\n- 아래 사실에 없는 수치·뉴스·전망을 지어내지 마세요. 모르면 모른다고 하세요.\n- 매수·매도 권유나 수익 보장 표현을 쓰지 말고, 규칙이 무엇을 가리키는지와 어떤 점이 불확실한지를 설명하세요.\n- 코인 전용 항목은 주식에 해당하지 않는다고 짧게만 언급하세요.\n- 한국어로 6~10문장, 필요하면 짧은 글머리표. 마지막에 '교육용 설명이며 투자 권유가 아닙니다'를 한 줄 덧붙이세요.\n\n${bdwFactsText()}`;
-        }
-        function bdwMdLite(t) {
-            const esc = bdwEsc(t).replace(/\*\*(.+?)\*\*/g, '<strong class="text-white">$1</strong>');
-            const lines = esc.split(/\n+/).filter(Boolean);
-            let html = '', list = false;
-            lines.forEach(l => { const m = l.match(/^\s*[-*•]\s+(.*)$/); if (m) { if (!list) { html += '<ul class="list-disc pl-5 space-y-1">'; list = true; } html += `<li>${m[1]}</li>`; } else { if (list) { html += '</ul>'; list = false; } html += `<p>${l.replace(/^#+\s*/, '')}</p>`; } });
-            return html + (list ? '</ul>' : '');
-        }
-        async function bdwRunAi() {
-            if (!BDW.res || BDW.aiBusy) return;
-            if (!getStoredApiKey('gemini_key')) { showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 해설을 생성할 수 있습니다.', 'info'); openApiSettingsModal(); return; }
-            BDW.aiBusy = true;
-            const btn = $bdw('bdwAiBtn'), lab = btn.querySelector('span'), out = $bdw('bdwAiOut'), res = BDW.res;
-            btn.disabled = true; lab.textContent = 'AI 해설 생성 중...';
-            out.classList.remove('hidden'); out.innerHTML = '<span class="text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Gemini에 계산된 사실을 보내 해설을 받는 중...</span>';
-            try {
-                const r = await callGemini(bdwBuildAiPrompt());
-                if (BDW.res !== res) return;
-                if (!r || r.error || !r.text) { out.innerHTML = `<span class="text-rose-300">AI 해설을 받지 못했습니다${r && r.error ? `: ${bdwEsc(r.error)}` : ''}. 위의 규칙 기반 판독은 그대로 사용할 수 있습니다.</span>`; return; }
-                BDW.aiText = r.text;
-                out.innerHTML = bdwMdLite(r.text) + '<p class="text-[10px] text-slate-500 pt-2">※ AI가 쓴 문장입니다. 계산된 사실을 바탕으로 하지만 해석은 틀릴 수 있으며 투자 권유가 아닙니다.</p>';
-            } finally { BDW.aiBusy = false; btn.disabled = false; lab.textContent = BDW.aiText ? 'AI 해설 다시 생성' : 'AI 해설 생성'; }
         }
 
         // =====================================================================
@@ -15477,14 +15441,6 @@ CHT|Chunghwa Telecom ADR|M
       if (d.marketText) L.push(`--- 시장 맥락 ---\n${d.marketText}`);
       return L.join('\n');
     }
-    function pdBuildAiPrompt(d) {
-      return `당신은 Al Brooks 스타일의 프라이스 액션을 쉽게 설명하는 교육용 해설자입니다.
-아래는 프로그램이 5분봉에서 '계산한 사실'입니다. 이 사실만을 근거로 하루의 흐름을 한국어로 해설해 주세요.
-규칙: (1) 아래에 없는 숫자·뉴스·실적·이벤트를 지어내지 말 것 (2) 참가자의 심리는 가격·거래량으로부터의 '추정'임을 어조로 드러낼 것 ("~했을 가능성이 있습니다") (3) 투자 권유·매수/매도 지시 금지, 다음 거래일은 '관찰 포인트'를 조건문으로만 (4) 600단어 이내.
-구성: ① 하루 한 문단 요약 ② 시장(SPY·QQQ·IWM·VIX)과의 관계 ③ 핵심 변곡 3~5개를 시각과 함께 '심리 해석'과 '기술적 이유'로 구분해 설명 ④ 이 날의 교훈 1~2줄 ⑤ 다음 거래일 관찰 포인트(조건문).
-
-${pdFactsText(d)}`;
-    }
     // 아주 단순한 마크다운(굵게·목록)만 안전하게 렌더
     function pdMdLite(text) {
       const lines = String(text || '').split(/\r?\n/);
@@ -15603,20 +15559,11 @@ ${pdFactsText(d)}`;
               <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-globe text-violet-400"></i>같은 날의 시장 <span class="text-xs font-normal text-slate-400">(각 지수의 그날 5분봉 유형 포함)</span></h4>
               <div id="pdMarket" class="space-y-2"></div>
             </section>
-            <section class="bg-[#0b0e13] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <h4 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>AI 해설 <span class="text-xs font-normal text-slate-400">(선택)</span></h4>
-                <button id="pdAiBtn" type="button" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-purple-600/30" title="Gemini를 호출합니다 (호출 1회당 소액 과금)"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI 해설 생성</span></button>
-              </div>
-              <p class="text-[11px] text-slate-500 leading-relaxed">위에서 계산한 사실(요약·해설 항목·시장 맥락)만 Gemini에 보내 문장으로 풀어 달라고 요청합니다. <strong class="text-slate-400">버튼을 누를 때만 호출되며 호출 1회당 소액이 과금됩니다.</strong> AI 없이도 이 탭의 모든 기능은 동작합니다.</p>
-              <div id="pdAiOut" class="hidden rounded-xl bg-slate-950/60 border border-purple-900/50 px-4 py-3 text-sm text-slate-200 leading-relaxed space-y-2"></div>
-            </section>
             <p class="text-[10px] text-slate-500 leading-relaxed">※ 교육·참고용 설명이며 투자 권유가 아닙니다. 규칙(임계값)은 단순한 휴리스틱이라 같은 하루를 사람이 다르게 해석할 수 있고, 5분봉 데이터는 Yahoo Finance 제공 값입니다(지연·누락 가능). 시각은 모두 해당 거래소 현지 시각입니다.</p>
           </div>
         </div>`;
       $pd('pdForm').addEventListener('submit', e => { e.preventDefault(); PD.userTicker = true; pdAnalyze($pd('pdTicker').value); });
       $pd('pdDateSel').addEventListener('change', e => pdRecompute(e.target.value));
-      $pd('pdAiBtn').addEventListener('click', pdRunAi);
       const ov = $pd('pdOver');
       ov.addEventListener('pointermove', pdOnMove); ov.addEventListener('pointerdown', pdOnMove); ov.addEventListener('pointerleave', pdOnLeave); ov.addEventListener('click', pdOnClick);
       if (window.ResizeObserver) new ResizeObserver(() => pdResize()).observe($pd('pdChartBox'));
@@ -15704,7 +15651,6 @@ ${pdFactsText(d)}`;
       pdStatus('ok');
       $pd('pdBody').classList.remove('hidden');
       pdRenderAll();
-      if (canAutoAiSub() && !PD.aiBusy && PD.aiKey !== `${d.ticker}|${d.date}`) pdRunAi();
     }
     // 섹터 ETF (선택): 프록시의 재무 API 에서 섹터를 얻어 대응 ETF 의 같은 날 움직임을 덧붙인다. 실패하면 조용히 생략.
     async function pdLoadSector(seq) {
@@ -15732,7 +15678,6 @@ ${pdFactsText(d)}`;
       sel.classList.toggle('hidden', d.pick.complete.length < 2);
       pdRenderNote(); pdRenderCards(); pdRenderClass(); pdRenderLegend(); pdRenderCommentary(); pdRenderMarket();
       $pd('pdChartTitle').textContent = `${d.ticker} · ${d.date} (${pdDow(d.date)}) · 5분봉 · ${d.sum.start}~${d.sum.end}${d.tz ? ' · ' + d.tz : ''}`;
-      const ai = $pd('pdAiOut'); if (ai) { ai.classList.toggle('hidden', !(PD.aiText && PD.aiKey === `${d.ticker}|${d.date}`)); if (!ai.classList.contains('hidden')) ai.innerHTML = pdMdLite(PD.aiText); }
       requestAnimationFrame(() => pdDrawChart());
     }
 
@@ -15884,29 +15829,6 @@ ${pdFactsText(d)}`;
     }
     const pdFind = (arr, sym) => arr.find(m => m.sym === sym) || { sym, ok: false, reason: '' };
 
-    // ---------- AI 해설 (버튼을 눌렀을 때만 호출) ----------
-    async function pdRunAi() {
-      const d = PD.data;
-      if (!d || PD.aiBusy) return;
-      if (!getStoredApiKey('gemini_key')) {
-        showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 해설을 생성할 수 있습니다.', 'info');
-        openApiSettingsModal();
-        return;
-      }
-      PD.aiBusy = true;
-      const btn = $pd('pdAiBtn'), lab = btn.querySelector('span'), out = $pd('pdAiOut');
-      btn.disabled = true; lab.textContent = 'AI 해설 생성 중...';
-      out.classList.remove('hidden'); out.innerHTML = '<span class="text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Gemini에 계산된 사실을 보내 해설을 받는 중...</span>';
-      try {
-        const r = await callGemini(pdBuildAiPrompt(d));
-        if (!PD.data || PD.data !== d) return;
-        if (!r || r.error || !r.text) { out.innerHTML = `<span class="text-rose-300">AI 해설을 받지 못했습니다${r && r.error ? `: ${escapeHtml(r.error)}` : ''}. 위의 규칙 기반 해설은 그대로 사용할 수 있습니다.</span>`; return; }
-        PD.aiText = r.text; PD.aiKey = `${d.ticker}|${d.date}`;
-        out.innerHTML = pdMdLite(r.text) + '<p class="text-[10px] text-slate-500 pt-2">※ AI가 쓴 문장입니다. 계산된 사실을 바탕으로 하지만 해석은 틀릴 수 있으며 투자 권유가 아닙니다.</p>';
-      } finally {
-        PD.aiBusy = false; btn.disabled = false; lab.textContent = PD.aiText ? 'AI 해설 다시 생성' : 'AI 해설 생성';
-      }
-    }
 
     // ---------- 세션 차트 (자체 캔버스 렌더러) ----------
     function pdNice(range, target) {
@@ -16894,36 +16816,6 @@ ${pdFactsText(d)}`;
         const dot = t => t === 'up' ? 'bg-emerald-400' : t === 'down' ? 'bg-rose-400' : 'bg-slate-500';
         el.innerHTML = `<ul class="space-y-2.5">${r.lines.map(l => `<li class="flex gap-2.5"><span class="mt-1.5 w-2 h-2 rounded-full shrink-0 ${dot(l.tone)}"></span><div class="min-w-0"><div class="text-[11px] font-bold text-slate-200">${fxEsc(l.k)}</div><div class="text-[11px] text-slate-300 leading-relaxed">${fxEsc(l.text)}</div></div></li>`).join('')}</ul>`;
     }
-    function fxRenderAi() {
-        const el = fxById('fxAiOut');
-        if (!el) return;
-        const a = fxS.ai;
-        if (a.busy) { el.innerHTML = '<span class="text-cyan-300"><i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 해설 생성 중...</span>'; return; }
-        el.innerHTML = a.text && a.sym === fxC.sym ? `<div class="rounded-lg bg-slate-950/60 border border-slate-800 p-3 text-[11px] text-slate-200 leading-relaxed whitespace-pre-line">${fxEsc(a.text)}</div><p class="text-[10px] text-slate-500 mt-1">AI 생성 문장 · 위 계산 결과만 근거로 요청했지만 검증되지 않았습니다.</p>` : '';
-    }
-    function fxAiPrompt() {
-        const f = fxS.readout.facts, p = fxPair(fxC.sym), fmt = fxFmtRate, num = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : '없음';
-        return `당신은 환율 교육용 해설가입니다. 아래는 웹앱이 일봉 데이터로 직접 계산한 사실입니다.
-통화쌍: ${fxLabel(p, fxS.x100)} (${p.ko})
-- 현재가 ${fmt(f.last)}, 추세 배열: ${f.trend || '판정 불가'} (SMA20 ${f.s20 ? fmt(f.s20) : '없음'}, SMA50 ${f.s50 ? fmt(f.s50) : '없음'}, SMA200 ${f.s200 ? fmt(f.s200) : '없음'})
-- RSI(14) ${num(f.rsi, 1)}, MACD 히스토그램 ${num(f.macdHist, 5)}${f.macdCross ? ' (' + f.macdCross + ')' : ''}, 최근 20봉 변화 ${num(f.d20)}%
-- 52주 범위 ${f.lo52 ? fmt(f.lo52) : '없음'} ~ ${f.hi52 ? fmt(f.hi52) : '없음'}, 범위 내 위치 ${f.pos !== null && f.pos !== undefined ? Math.round(f.pos * 100) + '%' : '없음'}
-- ATR(14) ${num(f.atrPct)}% (최근 1년 대비 ${f.atrRank !== undefined ? Math.round(f.atrRank) + '분위' : '없음'})
-- 가까운 저항 ${f.resistance ? fmt(f.resistance) : '없음'}, 가까운 지지 ${f.support ? fmt(f.support) : '없음'}
-규칙: 한국어 4~6문장. 위 수치만 근거로 쓰고 새로운 수치·뉴스·금리·경제지표를 만들어내지 말 것. 방향을 단정하거나 매수/매도를 권유하지 말고, "일반적으로 ~로 해석한다" 식으로 쓸 것. 마지막 문장은 "교육용 해설이며 투자 권유가 아닙니다."`;
-    }
-    async function fxRunAi() {
-        if (fxS.ai.busy) return;
-        if (!getStoredApiKey('gemini_key')) { showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 해설을 사용할 수 있습니다.', 'info'); openApiSettingsModal(); return; }
-        if (!fxS.readout || !fxS.readout.ok || fxS.readoutSym !== fxC.sym) { showToast('데이터 없음', '현재 상태 계산이 끝난 뒤에 눌러 주세요.', 'warning'); return; }
-        const sym = fxC.sym;
-        fxS.ai = { sym, text: '', busy: true }; fxRenderAi();
-        let r = null;
-        try { r = await callGemini(fxAiPrompt()); } catch (e) { r = { error: e.message }; }
-        fxS.ai = { sym, text: r && r.text ? r.text.trim() : '', busy: false };
-        if (!r || r.error || !r.text) showToast('AI 해설 실패', (r && r.error) || '응답이 없습니다.', 'warning');
-        fxRenderAi();
-    }
 
     // ---------------------------------------------------------------------------
     // 5) 자체 경량 캔버스 차트 (메인의 CH 엔진과 무관) — 캔들/라인 · SMA · 볼린저 · RSI · 크로스헤어 · 줌/팬 · 터치
@@ -17332,11 +17224,6 @@ ${pdFactsText(d)}`;
                     ${fxTitle('fa-stethoscope', '현재 상태 (규칙 기반)', '선택한 통화쌍의 일봉 데이터에서 계산한 사실을 규칙에 따라 서술합니다.')}
                     <div id="fxReadoutBody"></div>
                     <p class="text-[10px] text-slate-500 leading-relaxed border-t border-slate-800 pt-2">※ 과거 가격에서 계산한 사실의 서술이며 방향 예측·투자 권유가 아닙니다. 지지/저항은 과거 스윙 고저점일 뿐 반드시 지켜지지 않습니다.</p>
-                    <div class="space-y-2">
-                        <button data-act="ai" id="fxAiBtn" class="px-3 py-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-700/60 text-xs text-indigo-200 transition"><i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>AI 해설</button>
-                        <p class="text-[10px] text-slate-500">버튼을 누를 때만 위 계산 결과를 Gemini 로 보내 해설을 생성합니다 (내 API 키의 사용량이 소모됩니다).</p>
-                        <div id="fxAiOut"></div>
-                    </div>
                 </section>
             </div>
             <section id="fxStrengthSec" class="${FX_CARD}"></section>
@@ -17369,7 +17256,7 @@ ${pdFactsText(d)}`;
         const changed = sym !== fxC.sym;
         fxC.sym = sym; fxLsSet('sel', sym);
         if (changed) { fxS.readoutSym = null; fxS.readout = null; fxS.ai = { sym: null, text: '', busy: false }; }
-        fxRenderBoard(); fxRenderChartHead(); fxRenderReadout(); fxRenderAi(); fxUpdateLev();
+        fxRenderBoard(); fxRenderChartHead(); fxRenderReadout(); fxUpdateLev();
         if (changed) { fxLoadChart(); fxLoadReadout(); }
     }
     async function fxLoadReadout(force) {
@@ -17407,7 +17294,6 @@ ${pdFactsText(d)}`;
         } else if (act === 'zoom') {
             if (arg === 'reset') fxResetView(); else fxZoom(arg === 'in' ? 0.8 : 1.25, 1);
         } else if (act === 'qs') { if (typeof quickSearch === 'function') quickSearch(arg); }
-        else if (act === 'ai') fxRunAi();
     }
     function fxOnChange(e) {
         const id = e.target.id;
@@ -17448,7 +17334,7 @@ ${pdFactsText(d)}`;
             root.addEventListener('input', fxOnInput);
             window.addEventListener('resize', () => { if (activeAppTab === 'fx') fxChartResize(); });
             fxS.timer = setInterval(() => { if (activeAppTab === 'fx' && !document.hidden && fxS.auto) fxRefreshLive(); }, FX_REFRESH_MS);
-            fxRenderAll(); fxRenderReadout(); fxRenderAi();
+            fxRenderAll(); fxRenderReadout();
             fxLoadAll(); fxLoadChart(); fxLoadReadout();
         } else {
             // 다시 열릴 때: 숨겨져 있던 동안 크기를 못 쟀으므로 다시 맞추고, 데이터가 오래됐으면 갱신
@@ -22424,28 +22310,7 @@ ${input}
       }
 
       const SCEN = { good: ['🟢 호재 시나리오', 'border-emerald-700/40 bg-emerald-950/20', 'text-emerald-300'], bad: ['🔴 악재 시나리오', 'border-rose-700/40 bg-rose-950/20', 'text-rose-300'], neutral: ['⚪ 중립 시나리오', 'border-slate-700 bg-slate-800/40', 'text-slate-300'] };
-      function aiHtml(i) {
-        const e = C.detail[i]; if (!e) return '';
-        const id = evId(e), st = C.aiState[id] || (store().ai[id] ? { data: store().ai[id].data, ts: store().ai[id].ts, grounded: store().ai[id].grounded } : null);
-        const btn = (label) => `<button type="button" onclick="calAnalyze(${i})" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition"><i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>${label}</button>`;
-        if (!st) return `<div class="border-t border-slate-800 pt-3 flex flex-wrap items-center gap-3">${btn('AI로 이 이벤트 분석하기')}<span class="text-[11px] text-slate-500">Gemini가 최신 정보를 검색해 호재·악재 시나리오를 정리해 줍니다.</span></div>`;
-        if (st.busy) return '<div class="border-t border-slate-800 pt-3 text-sm text-violet-300"><i class="fa-solid fa-spinner fa-spin mr-2"></i>AI가 최신 정보를 찾아 분석하는 중... (최대 1분)</div>';
-        if (st.err) return `<div class="border-t border-slate-800 pt-3 space-y-2"><div class="text-sm text-rose-300">${esc(st.err)}</div>${btn('다시 시도')}</div>`;
-        const d = st.data || {}, sc = Array.isArray(d.scenarios) ? d.scenarios : [];
-        const list = a => (Array.isArray(a) ? a : []).map(x => `<li>${esc(x)}</li>`).join('');
-        const when = st.ts ? new Date(st.ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-        return `<div class="border-t border-slate-800 pt-3 space-y-3">
-          <div class="flex flex-wrap items-center gap-2"><span class="text-sm font-black text-violet-300">🤖 AI 분석</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded border ${st.grounded ? 'border-emerald-600/50 text-emerald-300' : 'border-amber-600/50 text-amber-300'}">${st.grounded ? '🔎 구글 검색 반영' : '⚠ 검색 없이 일반 지식 기반 (최신 수치 미반영)'}</span>
-            <span class="text-[10px] text-slate-500">${esc(when)}</span><span class="flex-1"></span>${btn('다시 분석')}</div>
-          ${d.headline ? `<p class="text-sm font-bold text-white leading-relaxed">${esc(d.headline)}</p>` : ''}
-          ${d.context ? `<p class="text-[13px] text-slate-300 leading-relaxed"><b class="text-white">지금 상황</b> ${esc(d.context)}</p>` : ''}
-          <div class="grid gap-2">${sc.map(s => { const S = SCEN[s.type] || SCEN.neutral; return `<div class="rounded-xl border ${S[1]} p-3 space-y-1"><div class="text-xs font-bold ${S[2]}">${S[0]}</div>
-            ${s.when ? `<p class="text-[13px] text-slate-200"><b>이런 결과가 나오면</b> ${esc(s.when)}</p>` : ''}${s.effect ? `<p class="text-[13px] text-slate-300"><b>시장 반응</b> ${esc(s.effect)}</p>` : ''}${s.assets ? `<p class="text-[12px] text-slate-400"><b>영향 자산·업종</b> ${esc(s.assets)}</p>` : ''}</div>`; }).join('')}</div>
-          ${Array.isArray(d.watch) && d.watch.length ? `<div><div class="text-xs font-bold text-white mb-1">👀 발표 때 이 숫자·발언을 보세요</div><ul class="list-disc pl-5 text-[13px] text-slate-300 space-y-0.5">${list(d.watch)}</ul></div>` : ''}
-          ${d.tip ? `<p class="text-[13px] text-cyan-200 bg-cyan-950/20 border border-cyan-800/40 rounded-lg px-3 py-2">💡 초보자 팁: ${esc(d.tip)}</p>` : ''}
-          <p class="text-[10px] text-slate-500">AI 분석은 틀릴 수 있습니다. 숫자는 공식 발표로 확인하세요. ${FOOT}</p></div>`;
-      }
+      function aiHtml() { return ''; }   // AI 이벤트 분석 UI 제거(사용자 요청, v1.81.0)
 
       function detailHtml() {
         if (!C.sel) return '<div class="text-sm text-slate-500 text-center py-6">달력에서 날짜를 누르면 그날의 일정을 자세히 볼 수 있어요.</div>';
@@ -22499,7 +22364,6 @@ ${input}
               <button type="button" onclick="calGo(1)" aria-label="다음 달" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200"><i class="fa-solid fa-chevron-right"></i></button>
               <button type="button" onclick="calToday()" class="px-3 h-9 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200">오늘</button>
               <span class="flex-1"></span>
-              <button type="button" onclick="calAiMonth()" ${C.monthBusy ? 'disabled' : ''} title="한 번 검색하면 올해 남은 일정이 저장됩니다" class="px-3 h-9 rounded-lg text-xs font-bold bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white"><i class="fa-solid ${C.monthBusy ? 'fa-spinner fa-spin' : 'fa-magnifying-glass'} mr-1.5"></i>${searched ? '다시 검색' : 'AI 일정 검색 (1회 저장)'}</button></div>
             ${C.monthMsg ? `<div class="text-[11px] text-violet-300">${esc(C.monthMsg)}</div>` : savedNote}
             ${missingFomc}
             ${yfBarHtml()}
@@ -22542,71 +22406,12 @@ ${input}
       window.calAgendaToggle = function () { C.agendaAll = !C.agendaAll; render(); };
       window.calOnlyHigh = function (v) { C.onlyHigh = !!v; render(); };
 
-      window.calAnalyze = async function (i) {
-        const e = C.detail[i]; if (!e) return;
-        if (!hasAnyGeminiKey()) { showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 분석을 볼 수 있습니다.', 'info'); if (typeof openApiSettingsModal === 'function') openApiSettingsModal(); return; }
-        const id = evId(e), T = TYPES[e.type], past = e.date < todayKey();
-        C.aiState[id] = { busy: true }; const slot = () => document.getElementById(`calAi-${i}`); if (slot()) slot().innerHTML = aiHtml(i);
-        const body = `당신은 주식 초보자를 돕는 교육용 시장 해설자입니다.
-이벤트: ${titleOf(e)} (${e.date}, 미국 현지 기준)${e.note ? `\n이벤트 설명: ${e.note}` : ''}
-이벤트 유형 개요: ${T.what}
-오늘 날짜: ${todayKey()}
-${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반응을 요약하고, 시나리오는 "실제로 어땠는지"를 중심으로 쓰세요.' : '이 이벤트는 아직 발표 전입니다.'}`;
-        const rules = `규칙: 확인되지 않은 숫자는 지어내지 말고 "확인 불가"라고 쓰세요. 매수·매도 권유, 목표가, 단정적 전망은 금지합니다. 어려운 용어는 괄호로 쉽게 풀어 쓰세요. 초보자가 이해하도록 짧고 쉬운 문장으로 쓰세요.
-반드시 아래 형식의 JSON 객체 하나만 출력하세요 (코드블록·설명 없이):
-{"headline":"초보자용 한 줄 요약","context":"지금 상황 2문장 (직전 발표값·시장 예상·최근 분위기. 모르면 확인 불가)","scenarios":[{"type":"good","when":"이런 결과가 나오면(구체적 기준)","effect":"시장 반응","assets":"영향받는 자산·업종"},{"type":"bad","when":"","effect":"","assets":""},{"type":"neutral","when":"","effect":"","assets":""}],"watch":["발표 때 볼 숫자·발언 2~3개"],"tip":"초보자가 지켜야 할 태도 한 줄"}`;
-        const prompt = `${body}\n구글 검색으로 직전 발표값, 시장 예상치(컨센서스), 최근 시장 분위기를 확인한 뒤 분석하세요.\n${rules}`;
-        const fallback = `${body}\n지금은 검색을 쓸 수 없습니다. 최신 수치는 "확인 불가"로 쓰고, 일반적인 원리 중심으로 분석하세요.\n${rules}`;
-        try {
-          const r = await callGemini(prompt, { grounding: true, fallbackPrompt: fallback });
-          const data = r && r.text ? extractJson(r.text) : null;
-          if (!r || r.error || !data) C.aiState[id] = { err: `AI 분석을 받지 못했습니다${r && r.error ? ` (${r.error})` : ''}. 잠시 후 다시 시도해 주세요.` };
-          else {
-            const grounded = !!(r.grounded && !r.fallback), ts = Date.now();
-            C.aiState[id] = { data, grounded, ts };
-            const s = store(); s.ai[id] = { data, grounded, ts }; saveStore(s);
-          }
-        } catch (err) { C.aiState[id] = { err: 'AI 호출 중 오류가 발생했습니다.' }; }
-        if (slot()) slot().innerHTML = aiHtml(i);
-      };
 
       // 한 번 검색으로 '올해 남은 달 전체'(미래 연도면 그 해 전체)를 가져와 월별로 저장한다. 저장분은 브라우저에 남아 다시 검색하지 않아도 된다.
       function searchRange() {
         const now = new Date(), startM = C.y === now.getFullYear() ? now.getMonth() : (C.y > now.getFullYear() ? 0 : -1);
         return startM < 0 ? null : { from: startM, to: 11 };
       }
-      window.calAiMonth = async function () {
-        if (C.monthBusy) return;
-        if (!hasAnyGeminiKey()) { showToast('Gemini 키 필요', '설정에서 Gemini API 키를 입력하면 AI 일정 검색을 쓸 수 있습니다.', 'info'); if (typeof openApiSettingsModal === 'function') openApiSettingsModal(); return; }
-        const y = C.y, rg = searchRange();
-        if (!rg) { C.monthMsg = '이미 지난 해는 검색하지 않아요.'; render(); return; }
-        const pre = mm => `${y}-${pad(mm + 1)}`;
-        C.monthBusy = true; C.monthMsg = `AI가 구글 검색으로 ${y}년 ${rg.from + 1}월~12월 일정을 찾는 중... (최대 1분, 결과는 저장됩니다)`; render();
-        const prompt = `오늘은 ${todayKey()}입니다. 구글 검색으로 ${y}년 ${rg.from + 1}월부터 12월까지 예정된, 미국 주식시장에 영향을 줄 만한 주요 일정의 "정확한 날짜"를 찾아 주세요.
-포함: FOMC 회의 결정일, CPI·고용보고서(비농업 고용)·PCE·GDP 발표일(BLS·BEA 공식 일정), 시가총액 상위 대형주(애플·마이크로소프트·엔비디아·알파벳·아마존·메타·테슬라 등)의 실적 발표일, 그 밖의 큰 이벤트(정책 시한, 주요 컨퍼런스 등).
-규칙: 공식적으로 확정·발표된 일정만 쓰고 날짜를 모르면 제외하세요(추측 금지). 최대 60개. 날짜는 미국 현지 기준 YYYY-MM-DD. 제목과 설명은 한국어로 쉽게.
-반드시 아래 형식의 JSON 객체 하나만 출력하세요 (코드블록 없이):
-{"events":[{"date":"YYYY-MM-DD","type":"fomc|cpi|nfp|pce|gdp|other","title":"제목","level":"high|mid|low","note":"한 줄 설명"}]}`;
-        let msg = '';
-        try {
-          const r = await callGemini(prompt, { grounding: true, fallbackPrompt: '검색을 쓸 수 없습니다. 이 요청에는 {"events":[]} 만 출력하세요.' });
-          const data = r && r.text ? extractJson(r.text) : null;
-          if (!r || r.error) msg = `AI 일정 검색에 실패했습니다${r && r.error ? ` (${r.error})` : ''}.`;
-          else if (!r.grounded || r.fallback) msg = '구글 검색을 쓸 수 없어 일정을 검색하지 못했습니다. 설정에서 검색 Grounding(유료 키)을 켠 뒤 한 번만 실행하면 결과가 저장됩니다.';
-          else if (!data || !Array.isArray(data.events)) msg = 'AI 응답을 해석하지 못했습니다. 다시 시도해 주세요.';
-          else {
-            const byMonth = {};
-            for (let mm = rg.from; mm <= 11; mm++) byMonth[pre(mm)] = [];   // 일정이 없는 달도 '검색 완료'로 기록
-            data.events.filter(a => a && /^\d{4}-\d{2}-\d{2}$/.test(String(a.date)) && byMonth[String(a.date).slice(0, 7)] && a.title)
-              .slice(0, 60).forEach(a => byMonth[String(a.date).slice(0, 7)].push({ date: a.date, type: ['fomc', 'cpi', 'nfp', 'pce', 'gdp'].includes(a.type) ? a.type : 'other', title: String(a.title).slice(0, 60), level: LV[a.level] ? a.level : 'mid', note: String(a.note || '').slice(0, 160) }));
-            const st = store(), ts = Date.now(); let n = 0;
-            Object.keys(byMonth).forEach(k => { st.month[k] = { ts, events: byMonth[k] }; n += byMonth[k].length; });
-            saveStore(st);
-            msg = n ? `✓ AI가 ${y}년 ${rg.from + 1}월~12월 일정 ${n}개를 찾아 저장했어요. 다시 검색하지 않아도 계속 남아 있습니다. (날짜는 공식 발표로 한 번 더 확인하세요)` : '추가로 확인된 일정이 없습니다. (검색 완료로 기록했어요)';
-          }
-        } catch (err) { msg = 'AI 일정 검색 중 오류가 발생했습니다.'; }
-        C.monthBusy = false; C.monthMsg = msg; autoKeepSel(); render();
-      };
       function autoKeepSel() { if (!C.sel) autoSelect(); }
 
       window.calSyncNow = function () { SYNC.run(false); render(); };
