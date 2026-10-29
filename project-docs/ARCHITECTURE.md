@@ -26,7 +26,7 @@
 - 쓰기(같은 파일 id로 PATCH, `drive.file`): `pentanalyst_quotes.json`(경량, `LIVE_EVERY_MS` 30분) / `pentanalyst_quotes_detail.json`(종가 63, OHLCV 130, 관심종목 400, `DETAIL_EVERY_MS` 3시간). 스크리너 일봉 재활용, 없는 종목만 `fetchSpark`. 장 상태 `usOpenNow`로 전송 판단.
 - 관심종목 내보내기에 memo/thesis/qty/entry/buy/stop/target/group이 포함됨 (→ ROADMAP R-5).
 
-**규칙 엔진 `mod-rules` (v1.75.0~)**: `window.RuleEngine` — 순수 함수(`score`/`levels`/`verdict`/`evaluate`/`pullbackAction`/`daysUntil`), 임계값은 `CFG` 한 곳. 기존 Python 규칙(`features.py score`·`insight.py verdict`)과 동작이 같게 이식했고, `tools/gen-rules-golden.py`(Python 원문을 oracle로 포함) → `tools/rules-golden.json` → `node tools/test-rules.mjs`로 대조한다. v1.76.0부터 브릿지 `quotes-detail`의 종목별 `rule` 필드로 내보낸다(아래 4. 스키마). 판정은 buy/hold/avoid(매수 금지); 'sell'(비중 축소 검토)은 화면에서 보유 종목에만. v1.77.0부터 'Claude 분석' 탭 카드에 출처 배지('규칙 신호 · 앱 계산' / 'Claude 리서치')를 붙이고, 보유 종목의 avoid/sell은 '비중 축소 검토'로 표시한다(`heldSet`, 화면 전용).
+**규칙 엔진 `mod-rules` (v1.75.0~)**: `window.RuleEngine` — 순수 함수(`score`/`levels`/`verdict`/`evaluate`/`pullbackAction`/`daysUntil`), 임계값은 `CFG` 한 곳. 기존 Python 규칙(`features.py score`·`insight.py verdict`)과 동작이 같게 이식했고, `tools/gen-rules-golden.py`(Python 원문을 oracle로 포함) → `tools/rules-golden.json` → `node tools/test-rules.mjs`로 대조한다. v1.76.0부터 브릿지 `quotes-detail`의 종목별 `rule` 필드로 내보낸다(아래 4. 스키마). 판정은 buy/hold/avoid(매수 금지); 'sell'(비중 축소 검토)은 화면에서 보유 종목에만. v1.77.0부터 'Claude 분석' 탭 카드에 출처 배지('규칙 신호 · 앱 계산' / 'Claude 리서치')를 붙이고, 보유 종목의 avoid/sell은 '비중 축소 검토'로 표시한다(`heldSet`, 화면 전용). v1.78.0부터 브릿지 내보내기 전에 `fillEarnings`가 매수 후보 종목의 실적일을 `fetchDeep`으로 채운다(캐시 `pentanalyst_bridge_earn_v1`, 동기화 제외).
 
 ## 2. 주식 데스크 (Claude 아티팩트, 약 607KB 단일 HTML)
 URL: claude.ai/artifact/QFtKAXr7iBT1q8LGJJDw61. 런타임: `window.claude.use('db'|'mcp'|'sample'|'user'|'downloads')`.

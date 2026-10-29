@@ -2086,7 +2086,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.77.0';
+    const APP_VERSION = '1.78.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -27278,7 +27278,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
     // 인증: GAUTH 의 별도 토큰(getBridgeToken) — 기존 로그인·동기화 권한 요청은 건드리지 않는다.
     const BRIDGE = (function () {
       const FOLDER = '주식데스크-브릿지', QFILE = 'pentanalyst_quotes.json';
-      const K = { cache: 'pentanalyst_bridge_analysis_v1', qid: 'pentanalyst_bridge_quotes_id', qlast: 'pentanalyst_bridge_quotes_last', did: 'pentanalyst_bridge_detail_id', dlast: 'pentanalyst_bridge_detail_last', desk: 'pentanalyst_bridge_desk_url', granted: 'pentanalyst_bridge_granted' };
+      const K = { cache: 'pentanalyst_bridge_analysis_v1', qid: 'pentanalyst_bridge_quotes_id', qlast: 'pentanalyst_bridge_quotes_last', did: 'pentanalyst_bridge_detail_id', dlast: 'pentanalyst_bridge_detail_last', earn: 'pentanalyst_bridge_earn_v1', desk: 'pentanalyst_bridge_desk_url', granted: 'pentanalyst_bridge_granted' };
       const DFILE = 'pentanalyst_quotes_detail.json';
       const DESK_URL = 'https://claude.ai/artifact/QFtKAXr7iBT1q8LGJJDw61';
       const DETAIL_EVERY_MS = 3 * 3600 * 1000, LIVE_EVERY_MS = 30 * 60 * 1000, OHLCV_BARS = 130, WATCH_BARS = 400, CLOSE_BARS = 63;
@@ -27366,6 +27366,38 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
         try { const c = JSON.parse(ls.get('pentanalyst_watch_cache_v1') || 'null'); if (c && isObj(c.earn)) earn = c.earn; } catch (e) { /* 캐시 없음 */ }
         return { earn, today: new Date().toISOString().slice(0, 10), now: Date.now() };
       }
+      // 실적일 보충(결정 B): 매수 후보가 될 만한 종목(실적 없이 계산한 점수가 매수 최소 점수 이상)만 fetchDeep 으로 다음 실적일을 받아
+      // 전용 캐시(pentanalyst_bridge_earn_v1, 동기화 제외)에 3일간 보관한다. 관심종목 탭 캐시가 더 최근이면 그쪽을 쓴다.
+      const EARN_TTL = 3 * 864e5, EARN_MAX = 60;
+      async function fillEarnings(master, rc, say) {
+        try {
+          if (typeof RuleEngine === 'undefined' || typeof fetchDeep !== 'function' || !getProxyUrl()) return 0;
+          let store = {}; try { const c = JSON.parse(ls.get(K.earn) || 'null'); if (isObj(c)) store = c; } catch (e) { /* 캐시 없음 */ }
+          const minSc = RuleEngine.CFG.buyMinScore, need = [];
+          master.forEach(e => {
+            if (e.missing || !Array.isArray(e.hist) || e.hist.length < RuleEngine.CFG.minBars) return;
+            const w = rc.earn[e.ticker], c = store[e.ticker], t = Math.max(w && num(w.asOf) != null ? w.asOf : 0, c && num(c.asOf) != null ? c.asOf : 0);
+            if (t && rc.now - t < EARN_TTL) return;
+            const r = RuleEngine.forEntry(e, { nextEarnings: null, today: rc.today });
+            if (r && r.v !== 'avoid' && r.sc >= minSc) need.push(e.ticker);
+          });
+          const todo = need.slice(0, EARN_MAX);
+          for (let i = 0; i < todo.length; i += 4) {
+            if (say && i % 20 === 0) say(`후보 ${todo.length}종목 실적일 확인 중… ${i}`);
+            await Promise.all(todo.slice(i, i + 4).map(async s => {
+              try {
+                const d = await fetchDeep(s); if (!d) return; // 실패는 기록하지 않아 다음에 다시 시도
+                const nd = d.earnings && d.earnings.nextDate ? String(d.earnings.nextDate).slice(0, 10) : null;
+                store[s] = { asOf: Date.now(), nextDate: nd };
+              } catch (e) { /* 건너뜀 */ }
+            }));
+          }
+          const keep = {}; Object.keys(store).forEach(k => { if (rc.now - store[k].asOf < 14 * 864e5) keep[k] = store[k]; });
+          ls.set(K.earn, JSON.stringify(keep));
+          Object.keys(keep).forEach(k => { const w = rc.earn[k]; if (!w || !(num(w.asOf) != null && w.asOf >= keep[k].asOf)) rc.earn[k] = keep[k]; });
+          return todo.length;
+        } catch (e) { return 0; }
+      }
       function ruleOf(e, rc) {
         try {
           if (typeof RuleEngine === 'undefined' || !rc) return null;
@@ -27403,6 +27435,7 @@ ${past ? '이 이벤트는 이미 지났습니다. 실제 결과와 시장 반�
           }
         }
         const quotes = {}, detail = {}, rc = ruleCtx();
+        if (master.length) await fillEarnings(master, rc, say);
         master.forEach(e => { if (!e.missing && Array.isArray(e.hist) && e.hist.length) { const f = fromEntry(e, now, rc); quotes[e.ticker] = f.light; detail[e.ticker] = f.detail; } });
         const rest = [...want].filter(s => !quotes[s]);
         const failed = [];
