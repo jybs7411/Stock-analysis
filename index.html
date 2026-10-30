@@ -2104,7 +2104,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.83.0';
+    const APP_VERSION = '1.83.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3112,18 +3112,32 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       // 조용한(silent) 갱신은 prompt:'none' 팝업이 모바일에서 로그인 창을 깜빡이게 하므로
       // ① 동시 호출은 하나로 합치고(single-flight) ② 시도 간격을 두며 ③ 백그라운드 탭에선 시도하지 않는다.
       const SILENT_COOLDOWN_MS = 30 * 60 * 1000;
+      const PAGE_T0 = Date.now();
+      const TOKEN_KEY = 'pentanalyst_gauth_tok';   // 토큰 재사용용(약 1시간짜리, 동기화 제외 — GSYNC EXCLUDE 참고): 새로고침·재실행 때 로그인 팝업이 다시 뜨지 않게 한다
+      const TRY_KEY = 'pa_gauth_try';              // 조용한 갱신 시도 시각(새로고침해도 쿨다운 유지)
       let lastSilentTry = 0;
+      try { lastSilentTry = +sessionStorage.getItem(TRY_KEY) || 0; } catch (e) {}
       let inflight = null;
+      function saveToken() { try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ t: accessToken, exp: tokenExpiresAt })); } catch (e) {} }
+      function restoreToken() {
+        try {
+          const o = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
+          if (o && o.t && o.exp > Date.now() + 120000) { accessToken = o.t; tokenExpiresAt = o.exp; }
+          else localStorage.removeItem(TOKEN_KEY);
+        } catch (e) {}
+      }
       function getToken(interactive, force) {   // force: 사용자 조작(클릭) 직후의 조용한 갱신 — 쿨다운을 건너뛴다(팝업이 허용되는 순간이라)
         if (accessToken && Date.now() < tokenExpiresAt - 60000) return Promise.resolve(accessToken);
         const cid = getClientId();
         if (!cid) return Promise.reject(new Error('no_client_id'));
         if (inflight) return inflight;
         if (!interactive) {
-          if (document.visibilityState === 'hidden' || (!force && Date.now() - lastSilentTry < SILENT_COOLDOWN_MS)) {
+          // 앱을 연 직후 5분간은 자동으로 팝업을 띄우지 않는다(저장된 토큰이 없으면 첫 클릭 때 갱신)
+          if (document.visibilityState === 'hidden' || (!force && (Date.now() - PAGE_T0 < 5 * 60000 || Date.now() - lastSilentTry < SILENT_COOLDOWN_MS))) {
             return Promise.reject(new Error('silent_skipped'));
           }
           lastSilentTry = Date.now();
+          try { sessionStorage.setItem(TRY_KEY, String(lastSilentTry)); } catch (e) {}
         }
         const p = requestToken(interactive, cid);
         inflight = p;
@@ -3141,6 +3155,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
                 if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
                 accessToken = resp.access_token;
                 tokenExpiresAt = Date.now() + (Number(resp.expires_in) || 3500) * 1000;
+                saveToken();
                 resolve(accessToken);
               },
               error_callback: (err) => reject(new Error((err && (err.message || err.type)) || '로그인이 취소되었습니다.'))
@@ -3190,7 +3205,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         accessToken = null;
         tokenExpiresAt = 0;
         currentUser = null;
-        try { localStorage.removeItem(USER_KEY); } catch (e) {}
+        try { localStorage.removeItem(USER_KEY); localStorage.removeItem(TOKEN_KEY); } catch (e) {}
         renderAuthUI(); notifyChange();
         showToast('로그아웃', '계정에서 로그아웃되었습니다.', 'info');
       }
@@ -3200,6 +3215,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           const raw = localStorage.getItem(USER_KEY);
           if (raw) currentUser = JSON.parse(raw);
         } catch (e) {}
+        if (currentUser) restoreToken();
         renderAuthUI();
         // 이전에 로그인했다면 조용히 토큰을 갱신해 최신 설정을 불러온다(실패해도 무시, 버튼으로 수동 동기화 가능)
         if (currentUser && isConfigured()) notifyChange();   // 통합 동기화(GSYNC)가 이 이벤트를 받아 불러오기를 시작한다
@@ -3338,7 +3354,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       const FILE = 'pentanalyst_sync.json';
       const META_KEY = 'pentanalyst_sync_meta_v1', BAK_KEY = 'pentanalyst_sync_backup_v1', LAST_KEY = 'pentanalyst_sync_last', FID_KEY = 'pentanalyst_sync_fid', DIRTY_KEY = 'pentanalyst_sync_dirty', EV_KEY = 'pentanalyst_sync_ev_v1', EV_TTL = 60 * 86400000;
       // 동기화에서 뺄 키: 로그인·기기 고유값, 다시 받아오면 되는 캐시, 화면 배치
-      const EXCLUDE = /^pentanalyst_(gauth_user|gdrive_client_id|gdrive_last_backup|cal_sync_last|sync_.*|watch_cache_v1|cal_yf_v1|hub_last_v1|gemini_cool|scr_snap|scr_earn|bridge_.*|rev_snap_v1|dock_v1|chart_split|multi_side)$/;
+      const EXCLUDE = /^pentanalyst_(gauth_user|gauth_tok|gdrive_client_id|gdrive_last_backup|cal_sync_last|sync_.*|watch_cache_v1|cal_yf_v1|hub_last_v1|gemini_cool|scr_snap|scr_earn|bridge_.*|rev_snap_v1|dock_v1|chart_split|multi_side)$/;
       const inScope = k => typeof k === 'string' && k.indexOf('pentanalyst_') === 0 && !EXCLUDE.test(k);
       const rawGet = Storage.prototype.getItem, rawSet = Storage.prototype.setItem;
       const ls = { get: k => { try { return rawGet.call(localStorage, k); } catch (e) { return null; } }, set: (k, v) => { try { rawSet.call(localStorage, k, v); return true; } catch (e) { return false; } } };
