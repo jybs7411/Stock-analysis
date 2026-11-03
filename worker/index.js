@@ -477,9 +477,11 @@ async function fetchQuotes(symbols, retry = true) {
 }
 
 function parseSymbols(url, max) {
-  const list = (url.searchParams.get('symbols') || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
-  const uniq = [...new Set(list)];
-  if (!uniq.length || uniq.length > max || !uniq.every(x => SYMBOL_RE.test(x))) return null;
+  // 공백·슬래시는 야후 표기(PBR A → PBR-A)로 바꾸고, 형식이 안 맞는 심볼은 버린다.
+  // (예전에는 하나라도 틀리면 요청 전체를 400 으로 거부해서, 한 종목 때문에 일괄 시세가 통째로 실패했다.)
+  const list = (url.searchParams.get('symbols') || '').split(',').map(x => x.trim().toUpperCase().replace(/[\s/]+/g, '-')).filter(Boolean);
+  const uniq = [...new Set(list)].filter(x => SYMBOL_RE.test(x));
+  if (!uniq.length || uniq.length > max) return null;
   return uniq;
 }
 

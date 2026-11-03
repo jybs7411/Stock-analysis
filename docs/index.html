@@ -2086,7 +2086,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.83.1';
+    const APP_VERSION = '1.83.2';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -27309,9 +27309,11 @@ ${input}
         const failed = [];
         if (rest.length) {
           say(`나머지 ${rest.length}종목 시세 받는 중…`);
-          const sp = await fetchSpark(rest, '3mo', '1d').catch(() => null);
+          // 야후 표기로 바꿔 요청한다(공백·슬래시 → '-': PBR A → PBR-A). 형식이 안 맞는 심볼 하나가 일괄 요청 전체를 막지 않도록 미리 걸러내고, 결과는 원래 심볼로 되돌려 담는다.
+          const yOf = s => String(s).trim().toUpperCase().replace(/[\s/]+/g, '-'), yOk = y => /^[A-Z0-9.\-^=]{1,15}$/.test(y);
+          const sp = await fetchSpark([...new Set(rest.map(yOf).filter(yOk))], '3mo', '1d').catch(() => null);
           rest.forEach(s => {
-            const q = sp && sp[s];
+            const q = sp && sp[yOf(s)];
             if (!q || !Array.isArray(q.c) || !q.c.length) { failed.push(s); return; }
             const price = num(q.price) != null ? q.price : q.c[q.c.length - 1];
             quotes[s] = { price: r2(price), prev: r2(q.prev), chgPct: q.prev ? r2((price / q.prev - 1) * 100) : null, currency: q.currency || undefined, asOf: now };
