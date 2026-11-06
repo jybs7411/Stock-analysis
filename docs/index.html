@@ -2086,7 +2086,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.83.2';
+    const APP_VERSION = '1.83.3';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2254,6 +2254,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       if (LAZY_TAB[tab]) loadLazyMod(LAZY_TAB[tab]);
       if (!tabBackBusy && tab !== activeAppTab) { TAB_HIST.push(activeAppTab); if (TAB_HIST.length > 30) TAB_HIST.shift(); }
       activeAppTab = tab;
+      try { sessionStorage.setItem('pentanalyst_active_tab', tab); } catch (e) { /* 저장 불가 */ }
       syncBackBtn();
       const hub = hubOf(tab);
       try { const m = JSON.parse(localStorage.getItem(HUB_LAST_KEY) || '{}'); m[hub.id] = tab; localStorage.setItem(HUB_LAST_KEY, JSON.stringify(m)); } catch (e) { /* 저장 불가 */ }
@@ -3112,15 +3113,11 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (accessToken && Date.now() < tokenExpiresAt - 60000) return Promise.resolve(accessToken);
         const cid = getClientId();
         if (!cid) return Promise.reject(new Error('no_client_id'));
-        if (inflight) return inflight;
         if (!interactive) {
-          // 앱을 연 직후 5분간은 자동으로 팝업을 띄우지 않는다(저장된 토큰이 없으면 첫 클릭 때 갱신)
-          if (document.visibilityState === 'hidden' || (!force && (Date.now() - PAGE_T0 < 5 * 60000 || Date.now() - lastSilentTry < SILENT_COOLDOWN_MS))) {
-            return Promise.reject(new Error('silent_skipped'));
-          }
-          lastSilentTry = Date.now();
-          try { sessionStorage.setItem(TRY_KEY, String(lastSilentTry)); } catch (e) {}
+          // 비대화형(자동/백그라운드) 갱신 시에는 GIS prompt:'none' 팝업 창을 띄우지 않고 대기 상태 유지
+          return Promise.reject(new Error('silent_skipped'));
         }
+        if (inflight) return inflight;
         const p = requestToken(interactive, cid);
         inflight = p;
         const clear = () => { if (inflight === p) inflight = null; };
@@ -3298,7 +3295,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (bridgeToken && Date.now() < bridgeExp - 60000) return Promise.resolve(bridgeToken);
         const cid = getClientId();
         if (!cid) return Promise.reject(new Error('no_client_id'));
-        if (!interactive && document.visibilityState === 'hidden') return Promise.reject(new Error('silent_skipped'));
+        if (!interactive) return Promise.reject(new Error('silent_skipped'));
         if (bridgeInflight) return bridgeInflight;
         const p = loadGis().then(google => new Promise((resolve, reject) => {
           try {
@@ -3591,7 +3588,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           let remote = await fetchRemote(token), migrated = false;
           if (!remote && !fileId) { remote = await readLegacy(token); migrated = !!remote; }
           let changed = [];
-          if (remote && opt.apply) { changed = applyRemote(remote); if (changed.length) { try { window.dispatchEvent(new CustomEvent('gsync-applied', { detail: { keys: changed } })); } catch (e) { /* 무시 */ } if (canReload()) frozen = true; } }
+          if (remote && opt.apply) { changed = applyRemote(remote); if (changed.length) { try { window.dispatchEvent(new CustomEvent('gsync-applied', { detail: { keys: changed } })); } catch (e) { /* 무시 */ } } }
           const payload = localPayload(remote, !!opt.apply);
           const same = remote && !migrated && JSON.stringify(remote.keys) === JSON.stringify(payload.keys) && JSON.stringify(remote.ev || {}) === JSON.stringify(payload.ev);
           if (!same) await writeRemote(token, payload, !!opt.keepalive);
@@ -3603,7 +3600,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           const msg = (e && e.message) || '';
           if (!e.silentToken && !/silent_skipped|no_client_id/.test(msg)) { lastErr = msg || '동기화 실패'; if (!opt.quiet) toast('동기화 실패', lastErr, 'error'); }
           pending = true;
-        } finally { busy = false; emit(); if (frozen) reloadSoon(); }
+        } finally { busy = false; emit(); }
         return ok;
       }
 
@@ -3632,16 +3629,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       }
       let started = false;
       function startup() { if (!user()) return Promise.resolve(false); return run({ apply: true, quiet: true }).then(ok => { if (ok) started = true; return ok; }); }
-      // 앱을 연 직후엔 브라우저가 로그인 갱신 팝업을 막는 일이 잦다 — 첫 클릭·키 입력 때(팝업이 허용되는 순간) 바로 동기화한다
-      let lastGesture = 0;
-      function onGesture() {
-        if (started) { ['pointerdown', 'keydown'].forEach(t => document.removeEventListener(t, onGesture, true)); return; }
-        if (busy || !user() || Date.now() - lastGesture < 60000) return;
-        lastGesture = Date.now();
-        run({ apply: true, quiet: true, gesture: true }).then(ok => { if (ok) started = true; });
-      }
-      ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, onGesture, true));
-      // 앱을 연 직후 조용한 로그인 갱신이 막혔으면(쿨다운·백그라운드) 보이는 동안 다시 시도한다
+      // 앱을 연 직후 토큰이 살아 있으면 조용히 동기화하고, 만료되었으면 보이는 동안 주기적으로 확인한다
       setInterval(() => { if (!started && !busy && user() && document.visibilityState === 'visible') startup(); }, 10 * 60000);
 
       // ---------- 상태 표시 (설정 창·관심종목·브리핑·달력의 동기화 자리) ----------
@@ -11736,9 +11724,15 @@ CHT|Chunghwa Telecom ADR|M
       renderMetricGuide();
       initScreenerHeaderTips();
       renderRecentSearches();
-      // 관심종목이 있으면 그 화면에서 시작 (매일 쓰는 '내 종목 현황'이 첫 화면)
-      try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); if (w && w.items && Object.keys(w.items).length) switchAppTab('watch'); } catch (e) { /* 저장값 없음 */ }
-      try { if (localStorage.getItem('pentanalyst_start_tab') === 'market') switchAppTab('market'); } catch (e) { /* 저장값 없음 */ } // 시장 탭 브리핑을 첫 화면으로(시장 탭 우상단 옵션)
+      // 이전에 보고 있던 탭이 있으면(세션 내) 그 탭을 복원하고, 없으면 관심종목/시장 탭으로 시작
+      let restoredTab = '';
+      try { restoredTab = sessionStorage.getItem('pentanalyst_active_tab') || ''; } catch (e) { /* 저장값 없음 */ }
+      if (restoredTab && APP_TABS[restoredTab]) {
+        switchAppTab(restoredTab);
+      } else {
+        try { const w = JSON.parse(localStorage.getItem('pentanalyst_watch_v1') || 'null'); if (w && w.items && Object.keys(w.items).length) switchAppTab('watch'); } catch (e) { /* 저장값 없음 */ }
+        try { if (localStorage.getItem('pentanalyst_start_tab') === 'market') switchAppTab('market'); } catch (e) { /* 저장값 없음 */ } // 시장 탭 브리핑을 첫 화면으로(시장 탭 우상단 옵션)
+      }
       runScreenerFilter();
       // 프록시가 있으면 백그라운드로 스크리너 전체 종목 큐잉 및 시장 탭 사전 로딩
       if (getProxyUrl()) {
