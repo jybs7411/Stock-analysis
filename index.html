@@ -2104,7 +2104,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.84.0';
+    const APP_VERSION = '1.84.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -26987,15 +26987,33 @@ ${input}
       }
 
       function chartSvg(cur) {
-        const st = load(), pts = st.snaps.filter(s => s.eq && num(s.eq[cur])).map(s => ({ t: s.t, v: (s.eq[cur] / st.start[cur] - 1) * 100 }));
-        pts.push({ t: Date.now(), v: (equity(cur) / st.start[cur] - 1) * 100 });
+        const st = load(), pts = st.snaps.filter(s => s.eq && num(s.eq[cur])).map(s => ({ t: s.t, v: (s.eq[cur] / st.start[cur] - 1) * 100, e: s.eq[cur] }));
+        pts.push({ t: Date.now(), v: (equity(cur) / st.start[cur] - 1) * 100, e: equity(cur) });
         if (pts.length < 2) return '<div class="text-xs text-slate-500 py-6 text-center">거래가 쌓이면 자산 곡선이 그려져요.</div>';
-        const W = 640, H = 170, P = 8, t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1;
-        const lo = Math.min(0, ...pts.map(p => p.v)), hi = Math.max(0, ...pts.map(p => p.v)), rng = hi - lo || 1;
-        const X = t => P + (t1 === t0 ? 0 : (t - t0) / (t1 - t0)) * (W - 2 * P), Y = v => P + (1 - (v - lo) / rng) * (H - 2 * P);
-        const line = pts.map(p => `${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' '), last = pts[pts.length - 1].v, col = last >= 0 ? '#34d399' : '#fb7185';
-        return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-44" role="img" aria-label="자산 곡선"><line x1="${P}" x2="${W - P}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="#475569" stroke-dasharray="4 4"/><polygon points="${P},${Y(0).toFixed(1)} ${line} ${X(t1).toFixed(1)},${Y(0).toFixed(1)}" fill="${col}" fill-opacity=".12"/><polyline points="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/></svg>
-          <div class="flex justify-between text-[11px] text-slate-500"><span>${dayStr(t0)}</span><span>기준선 0% = 시작 원금 · 현재 ${pct(last)}</span><span>${dayStr(t1)}</span></div>`;
+        const W = 640, H = 230, PL = 50, PR = 14, PT = 12, PB = 26, t0 = pts[0].t, t1 = pts[pts.length - 1].t > t0 ? pts[pts.length - 1].t : t0 + 1;
+        let lo = Math.min(0, ...pts.map(p => p.v)), hi = Math.max(0, ...pts.map(p => p.v));
+        if (hi - lo < 1) { hi += .5; lo -= .5; }
+        // y 눈금: 보기 좋은 간격(1·2·5 × 10^n)으로 4~6줄
+        const raw = (hi - lo) / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), stp = [1, 2, 2.5, 5, 10].map(m => m * mag).find(x => x >= raw) || raw;
+        const yLo = Math.floor(lo / stp) * stp, yHi = Math.ceil(hi / stp) * stp, rng = yHi - yLo || 1;
+        const X = t => PL + (t - t0) / (t1 - t0) * (W - PL - PR), Y = v => PT + (1 - (v - yLo) / rng) * (H - PT - PB);
+        const dec = stp < 1 ? 1 : 0, fy = v => (v > 0 ? '+' : '') + v.toFixed(dec) + '%';
+        let grid = '';
+        for (let v = yLo; v <= yHi + stp / 2; v += stp) {
+          const y = Y(v).toFixed(1), z = Math.abs(v) < stp / 1000;
+          grid += `<line x1="${PL}" x2="${W - PR}" y1="${y}" y2="${y}" stroke="${z ? '#94a3b8' : '#334155'}" stroke-width="${z ? 1.2 : .7}" ${z ? 'stroke-dasharray="5 4"' : ''}/><text x="${PL - 6}" y="${(+y + 3.5).toFixed(1)}" text-anchor="end" font-size="10.5" fill="${z ? '#cbd5e1' : '#94a3b8'}">${z ? '0%' : fy(v)}</text>`;
+        }
+        // x 눈금: 날짜 5개 안팎(시작·끝 포함), 양끝은 안쪽 정렬
+        const nx = Math.min(5, Math.max(2, pts.length)), xs = Array.from({ length: nx }, (_, i) => t0 + (t1 - t0) * i / (nx - 1));
+        const xl = xs.map((t, i) => `<line x1="${X(t).toFixed(1)}" x2="${X(t).toFixed(1)}" y1="${PT}" y2="${H - PB}" stroke="#1e293b" stroke-width=".6"/><text x="${X(t).toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === nx - 1 ? 'end' : 'middle'}" font-size="10.5" fill="#94a3b8">${dayStr(t)}</text>`).join('');
+        const line = pts.map(p => `${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' '), L = pts[pts.length - 1], last = L.v, col = last >= 0 ? '#34d399' : '#fb7185';
+        const mx = pts.reduce((a, p) => p.v > a.v ? p : a), mn = pts.reduce((a, p) => p.v < a.v ? p : a);
+        const tag = (p, c, up) => `<circle cx="${X(p.t).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3" fill="${c}"/><text x="${Math.min(W - PR - 2, Math.max(PL + 2, X(p.t))).toFixed(1)}" y="${(Y(p.v) + (up ? -7 : 14)).toFixed(1)}" text-anchor="middle" font-size="10" fill="${c}">${fy(p.v)}</text>`;
+        const dots = pts.length <= 40 ? pts.map(p => `<circle cx="${X(p.t).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="2" fill="${col}"><title>${dayStr(p.t)} · ${pct(p.v)}</title></circle>`).join('') : '';
+        const ext = (mx !== L && mx.v > 0 ? tag(mx, '#34d399', true) : '') + (mn !== L && mn.v < 0 ? tag(mn, '#fb7185', false) : '');
+        const base = Y(0).toFixed(1);
+        return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-56" role="img" aria-label="자산 곡선"><line x1="${PL}" x2="${PL}" y1="${PT}" y2="${H - PB}" stroke="#475569"/><line x1="${PL}" x2="${W - PR}" y1="${H - PB}" y2="${H - PB}" stroke="#475569"/>${grid}${xl}<polygon points="${X(t0).toFixed(1)},${base} ${line} ${X(t1).toFixed(1)},${base}" fill="${col}" fill-opacity=".13"/><polyline points="${line}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>${dots}${ext}<circle cx="${X(L.t).toFixed(1)}" cy="${Y(L.v).toFixed(1)}" r="4.5" fill="${col}" stroke="#0f172a" stroke-width="1.5"/></svg>
+          <div class="flex flex-wrap justify-between gap-x-3 text-[11px] text-slate-400"><span>세로축: 시작 원금 대비 수익률(0% = 원금) · 가로축: 날짜</span><span>현재 <b class="${tone(last)}">${pct(last)}</b> · 자산 ${money(L.e, cur)}</span></div>`;
       }
       function statsHtml() {
         const cur = V.cur, A = analyze(cur), ins = insights(cur, A);
