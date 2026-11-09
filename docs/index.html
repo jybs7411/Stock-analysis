@@ -2086,7 +2086,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.83.3';
+    const APP_VERSION = '1.84.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -26826,13 +26826,144 @@ ${input}
         const os = openOrders(); if (!os.length) return '';
         return `<div class="${card}"><div class="font-bold text-white text-sm mb-2">체결 대기 주문 <span class="text-[11px] font-normal text-slate-400">· 앱이 열려 있는 동안 30초마다 확인해요</span></div>` + os.map(o => `<div class="flex items-center gap-2 py-1.5 border-t border-slate-800 text-xs"><span class="font-bold ${o.side === 'buy' ? 'text-rose-400' : 'text-blue-400'}">${o.side === 'buy' ? '매수' : '매도'}</span><span class="text-white font-semibold">${esc(o.sym)}</span><span class="text-slate-300">${fmtN(o.qty, 0)}주 @ ${price$(o.limit, o.cur)}</span><span class="text-slate-500 ml-auto">현재 ${price$(lastPrice(o.sym), o.cur)}</span><button type="button" data-act="cancel" data-id="${o.id}" class="min-h-8 px-2.5 rounded-lg bg-slate-800 text-slate-200">취소</button></div>`).join('') + '</div>';
       }
-      function tradeHtml() { return `<div class="grid lg:grid-cols-[22rem_1fr] gap-4 mt-3"><div>${ticketHtml()}</div><div class="space-y-4 min-w-0"><div id="simOpen">${openOrdersHtml()}</div><div id="simPos">${posHtml()}</div></div></div>`; }
+      // ---------- 인터랙티브 차트 — 고른 종목의 캔들에 내가 사고판 지점(▲매수·▼매도)·평단·대기 주문을 표시 ----------
+      // 휠=확대/축소, 드래그=좌우 이동, 마우스 올리기=십자선+그 봉의 내 거래 내역, 더블클릭=처음 보기. 차트 자체 의존: fetchRealYahooFinanceData.
+      const CHD = {};   // 'SYM|iv' → { bars, t } (5분 캐시)
+      const CV = { iv: 'D', key: '', bars: null, err: null, busy: false, tok: 0, n: 120, off: 0, hover: -1, my: 0, drag: null, L: null, ro: null };
+      const CV_CFG = { D: ['2y', '1d', '일'], W: ['5y', '1wk', '주'], '60m': ['3mo', '60m', '1시간'], '5m': ['5d', '5m', '5분'] };
+      const CV_NV = { D: 130, W: 104, '60m': 120, '5m': 120 };
+      const CV_UP = '#10b981', CV_DN = '#f43f5e', CV_BUY = '#fbbf24', CV_SELL = '#38bdf8';
+      function chartHtml() {
+        const ivb = k => `<button type="button" data-act="civ" data-v="${k}" class="min-h-8 px-2.5 rounded-lg text-xs font-bold border ${CV.iv === k ? 'bg-teal-950 text-teal-300 border-teal-700' : 'bg-slate-900 text-slate-400 border-slate-800'}">${CV_CFG[k][2]}</button>`;
+        return `<div class="${card} mt-3"><div class="flex flex-wrap items-center gap-1.5 mb-2"><div class="font-bold text-white text-sm mr-auto min-w-0 truncate"><i class="fa-solid fa-chart-column text-teal-400 mr-1.5"></i><span id="simChTitle">차트</span></div>${Object.keys(CV_CFG).map(ivb).join('')}<button type="button" data-act="cvreset" title="처음 보기(더블클릭)" class="min-h-8 w-8 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"><i class="fa-solid fa-rotate-left"></i></button></div>
+          <div id="simChWrap" class="relative w-full h-72 sm:h-80 select-none"><canvas id="simChCv" class="absolute left-0 top-0" style="touch-action:pan-y;cursor:crosshair"></canvas><div id="simChMsg" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400 pointer-events-none text-center px-6"></div><div id="simChTip" class="hidden absolute z-10 pointer-events-none rounded-lg border border-slate-700 bg-slate-950/95 px-2.5 py-1.5 text-[11px] text-slate-200 shadow-xl max-w-[16rem]"></div></div>
+          <div id="simChLeg" class="mt-1.5 text-[11px] text-slate-500 leading-relaxed"></div></div>`;
+      }
+      function chartReset() { const len = CV.bars ? CV.bars.length : 0; CV.n = Math.min(CV_NV[CV.iv] || 120, Math.max(len, 10)); CV.off = 0; CV.hover = -1; }
+      async function chartLoad(key, sym) {
+        const c = CHD[key], mine = ++CV.tok;
+        if (c && Date.now() - c.t < 5 * 60000) { CV.bars = c.bars; CV.err = null; chartReset(); chartDraw(); return; }
+        CV.bars = null; CV.err = null; CV.busy = true; chartDraw();
+        try {
+          const cfg = CV_CFG[CV.iv], r = await fetchRealYahooFinanceData(sym, cfg[0], cfg[1]), h = r && Array.isArray(r.history) ? r.history : [];
+          if (mine !== CV.tok) return;
+          if (!h.length) throw new Error('차트 데이터를 받지 못했어요. 잠시 후 다시 시도해 주세요.');
+          CHD[key] = { bars: h, t: Date.now() }; CV.bars = h;
+        } catch (e) { if (mine !== CV.tok) return; CV.err = String(e && e.message || e); }
+        CV.busy = false; chartReset(); chartDraw();
+      }
+      function chartMount() {
+        const cv = root && root.querySelector('#simChCv'); if (!cv) return;
+        cv.addEventListener('pointerdown', cvDown); cv.addEventListener('pointermove', cvMove); cv.addEventListener('pointerup', cvUp); cv.addEventListener('pointercancel', cvUp);
+        cv.addEventListener('pointerleave', () => { if (!CV.drag) { CV.hover = -1; chartDraw(); } });
+        cv.addEventListener('wheel', cvWheel, { passive: false }); cv.addEventListener('dblclick', () => { chartReset(); chartDraw(); });
+        if (CV.ro) CV.ro.disconnect();
+        if (typeof ResizeObserver === 'function') { CV.ro = new ResizeObserver(() => chartDraw()); CV.ro.observe(cv.parentElement); }
+        const key = T.sym + '|' + CV.iv;
+        if (!T.sym) { CV.key = ''; CV.bars = null; CV.err = null; CV.busy = false; chartDraw(); return; }
+        if (CV.key === key && (CV.bars || CV.busy)) { chartDraw(); return; }
+        CV.key = key; chartLoad(key, T.sym);
+      }
+      // 이 종목의 체결 내역을 봉 번호별로 묶는다 (체결 시각 이하의 마지막 봉). 차트 범위보다 오래된 건 outside 로 센다
+      function chartMarks(bars) {
+        const by = {}, all = load().orders.filter(o => o.status === 'filled' && o.sym === T.sym).sort((a, b) => a.t1 - b.t1); let outside = 0;
+        all.forEach(o => {
+          const ms = o.t1; if (!bars.length || ms < bars[0].t * 1000) { outside++; return; }
+          let lo = 0, hi = bars.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (bars[m].t * 1000 <= ms) lo = m; else hi = m - 1; }
+          (by[lo] = by[lo] || []).push(o);
+        });
+        return { by, total: all.length, outside };
+      }
+      function chartDraw() {
+        const cv = root && root.querySelector('#simChCv'); if (!cv || !cv.isConnected) return;
+        const wrap = cv.parentElement, W = wrap.clientWidth, H = wrap.clientHeight; if (!W || !H) return;
+        const msg = root.querySelector('#simChMsg'), tip = root.querySelector('#simChTip'), ttl = root.querySelector('#simChTitle'), leg = root.querySelector('#simChLeg');
+        const dpr = window.devicePixelRatio || 1;
+        if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + 'px'; cv.style.height = H + 'px'; }
+        const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+        const bars = CV.bars, cur = T.cur || curOfSym(T.sym || ''), dg = cur === 'KRW' ? 0 : 2;
+        ttl.textContent = T.sym ? `${T.sym}${T.name && T.name !== T.sym ? ' · ' + T.name : ''}` : '차트';
+        tip.classList.add('hidden'); CV.L = null;
+        if (!T.sym || !bars) { msg.textContent = !T.sym ? '종목을 검색하거나 보유 종목을 누르면 차트와 내 매매 지점이 나와요.' : CV.err ? CV.err : '차트를 불러오는 중…'; leg.textContent = ''; return; }
+        msg.textContent = '';
+        const len = bars.length, PL = 4, PR = 66, PT = 24, PB = 20, pw = W - PL - PR;
+        const n = Math.min(CV.n, len); CV.off = Math.max(0, Math.min(CV.off, len - n));
+        const end = len - CV.off, start = end - n, slot = pw / n;
+        const volH = Math.round((H - PT - PB) * 0.15), ph = H - PT - PB - volH - 6, pb = PT + ph;
+        let lo = Infinity, hi = -Infinity, vmax = 0;
+        for (let i = start; i < end; i++) { const b = bars[i]; lo = Math.min(lo, b.low); hi = Math.max(hi, b.high); vmax = Math.max(vmax, b.volume || 0); }
+        const padv = (hi - lo) * 0.08 || hi * 0.02 || 1; lo -= padv; hi += padv;
+        const X = i => PL + (i - start + 0.5) * slot, Y = v => PT + (1 - (v - lo) / (hi - lo)) * ph, fp = v => fmtN(v, dg);
+        const lbl = b => CV.iv === 'D' || CV.iv === 'W' ? b.date : `${b.date.slice(5)} ${b.hm || ''}`;
+        g.font = '10px system-ui,sans-serif'; g.textBaseline = 'middle';
+        // 격자·가격축
+        g.strokeStyle = 'rgba(100,116,139,.18)'; g.fillStyle = '#94a3b8'; g.lineWidth = 1; g.textAlign = 'left';
+        for (let k = 0; k <= 5; k++) { const v = lo + (hi - lo) * k / 5, y = Math.round(Y(v)) + .5; g.beginPath(); g.moveTo(PL, y); g.lineTo(W - PR, y); g.stroke(); g.fillText(fp(v), W - PR + 4, y); }
+        // 시간축
+        g.textAlign = 'center'; g.textBaseline = 'alphabetic'; let lastX = -1e9;
+        for (let i = start; i < end; i++) { const x = X(i); if (x - lastX >= 96 && x >= PL + 44) { g.fillText(lbl(bars[i]), x, H - 5); lastX = x; } }
+        // 캔들·거래량
+        const bw = Math.max(1, Math.min(slot * 0.72, 18));
+        for (let i = start; i < end; i++) {
+          const b = bars[i], x = X(i), up = b.close >= b.open, c = up ? CV_UP : CV_DN;
+          if (vmax > 0 && b.volume) { g.fillStyle = up ? 'rgba(16,185,129,.28)' : 'rgba(244,63,94,.28)'; const vh = Math.max(1, b.volume / vmax * volH); g.fillRect(x - bw / 2, H - PB - vh, bw, vh); }
+          g.strokeStyle = c; g.fillStyle = c; g.lineWidth = 1; g.beginPath(); g.moveTo(Math.round(x) + .5, Y(b.high)); g.lineTo(Math.round(x) + .5, Y(b.low)); g.stroke();
+          const yo = Y(b.open), yc = Y(b.close); g.fillRect(x - bw / 2, Math.min(yo, yc), bw, Math.max(1, Math.abs(yo - yc)));
+        }
+        // 평단·대기 주문 가로선
+        const hline = (v, col, text) => { if (!num(v) || v < lo || v > hi) return; const y = Math.round(Y(v)) + .5; g.save(); g.strokeStyle = col; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(PL, y); g.lineTo(W - PR, y); g.stroke(); g.restore(); g.font = 'bold 10px system-ui,sans-serif'; const tw = g.measureText(text).width + 8; g.fillStyle = col; g.fillRect(W - PR + 1, y - 7, Math.min(tw, PR - 1), 14); g.fillStyle = '#0f172a'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(text, W - PR + 5, y + .5); g.font = '10px system-ui,sans-serif'; };
+        const pos = positions().find(p => p.sym === T.sym);
+        if (pos) hline(pos.avg, CV_BUY, '평단 ' + fp(pos.avg));
+        openOrders().filter(o => o.sym === T.sym).forEach(o => hline(o.limit, o.side === 'buy' ? '#fb7185' : '#60a5fa', (o.side === 'buy' ? '매수대기 ' : '매도대기 ') + fp(o.limit)));
+        const lp = lastPrice(T.sym); if (num(lp) && lp >= lo && lp <= hi) { const y = Math.round(Y(lp)) + .5; g.strokeStyle = 'rgba(226,232,240,.35)'; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(PL, y); g.lineTo(W - PR, y); g.stroke(); g.setLineDash([]); g.fillStyle = '#e2e8f0'; g.fillRect(W - PR + 1, y - 7, PR - 1, 14); g.fillStyle = '#0f172a'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(fp(lp), W - PR + 5, y + .5); }
+        // 내 매매 마커: 체결가 점 + 봉 바깥쪽 삼각형(▲매수는 저가 아래, ▼매도는 고가 위) + 수량
+        const mk = chartMarks(bars);
+        Object.keys(mk.by).forEach(ix => {
+          const i = +ix; if (i < start || i >= end) return; const b = bars[i], x = X(i); let kb = 0, ks = 0;
+          mk.by[ix].forEach(o => {
+            const buy = o.side === 'buy', col = buy ? CV_BUY : CV_SELL, sz = Math.max(5, Math.min(7, slot * 0.5 + 3));
+            const py = Y(o.price); g.fillStyle = col; g.strokeStyle = '#0f172a'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, py, 2.5, 0, 7); g.fill(); g.stroke();
+            const ty = buy ? Y(b.low) + 5 + kb++ * 17 : Y(b.high) - 5 - ks++ * 17, dir = buy ? 1 : -1;
+            g.beginPath(); g.moveTo(x, ty); g.lineTo(x - sz, ty + dir * sz * 1.5); g.lineTo(x + sz, ty + dir * sz * 1.5); g.closePath(); g.fillStyle = col; g.fill(); g.stroke();
+            if (slot >= 9) { g.font = 'bold 10px system-ui,sans-serif'; g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = dir > 0 ? 'top' : 'bottom'; g.fillText(`${buy ? '매수' : '매도'} ${fmtN(o.qty, 0)}`, x, ty + dir * (sz * 1.5 + 2)); g.font = '10px system-ui,sans-serif'; }
+          });
+        });
+        // 십자선·툴팁
+        const hv = CV.hover;
+        if (hv >= start && hv < end) {
+          const b = bars[hv], x = X(hv); g.strokeStyle = 'rgba(203,213,225,.5)'; g.setLineDash([3, 3]); g.lineWidth = 1; g.beginPath(); g.moveTo(Math.round(x) + .5, PT); g.lineTo(Math.round(x) + .5, H - PB); if (CV.my >= PT && CV.my <= pb) { g.moveTo(PL, Math.round(CV.my) + .5); g.lineTo(W - PR, Math.round(CV.my) + .5); } g.stroke(); g.setLineDash([]);
+          if (CV.my >= PT && CV.my <= pb) { const v = lo + (1 - (CV.my - PT) / ph) * (hi - lo); g.fillStyle = '#334155'; g.fillRect(W - PR + 1, CV.my - 7, PR - 1, 14); g.fillStyle = '#f1f5f9'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(fp(v), W - PR + 5, CV.my + .5); }
+          const ch = hv > 0 ? (b.close / bars[hv - 1].close - 1) * 100 : null, trades = mk.by[hv] || [];
+          tip.innerHTML = `<div class="font-bold text-white">${esc(lbl(b))}</div><div class="tabular-nums">시 ${fp(b.open)} · 고 ${fp(b.high)} · 저 ${fp(b.low)} · 종 ${fp(b.close)}${ch == null ? '' : ` <span class="${tone(ch)}">${pct(ch)}</span>`}</div>${b.volume ? `<div class="text-slate-400">거래량 ${fmtN(b.volume, 0)}</div>` : ''}`
+            + trades.map(o => `<div class="mt-1 pt-1 border-t border-slate-800"><b style="color:${o.side === 'buy' ? CV_BUY : CV_SELL}">${o.side === 'buy' ? '▲ 매수' : '▼ 매도'}</b> ${fmtN(o.qty, 0)}주 @ ${price$(o.price, o.cur)} <span class="text-slate-500">${dtStr(o.t1)}</span>${o.side === 'sell' && num(o.pnl) ? `<div class="${tone(o.pnl)} font-semibold">${money(o.pnl, o.cur, true)} (${pct(o.pct)})</div>` : ''}<div class="text-slate-400">${esc(o.tag || '')}${o.memo ? ' · ' + esc(o.memo) : ''}</div></div>`).join('');
+          tip.classList.remove('hidden'); const tw = tip.offsetWidth; tip.style.left = Math.max(2, Math.min(W - tw - 2, x + 12 + tw > W - PR ? x - tw - 12 : x + 12)) + 'px'; tip.style.top = '6px';
+        }
+        CV.L = { PL, PR, pw, slot, start, end, n, len };
+        const bn = Object.values(mk.by).reduce((a, l) => a + l.filter(o => o.side === 'buy').length, 0), sn = Object.values(mk.by).reduce((a, l) => a + l.filter(o => o.side === 'sell').length, 0);
+        leg.innerHTML = `<span style="color:${CV_BUY}">▲ 매수 ${bn}</span> · <span style="color:${CV_SELL}">▼ 매도 ${sn}</span>${mk.total === 0 ? ' <span class="text-slate-400">— 이 종목은 아직 체결 내역이 없어요.</span>' : ''}${mk.outside ? ` <span class="text-amber-400">· 차트 범위보다 오래된 ${mk.outside}건은 일·주 봉으로 보면 나와요</span>` : ''} · 노란 점선=평단 · 휠 확대 · 드래그 이동 · 더블클릭 처음으로`;
+      }
+      let cvRaf = 0; const cvSoon = () => { if (!cvRaf) cvRaf = requestAnimationFrame(() => { cvRaf = 0; chartDraw(); }); };
+      function cvPos(e) { const r = e.currentTarget.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+      function cvDown(e) { if (!CV.L) return; const p = cvPos(e); CV.drag = { x: p.x, off: CV.off, moved: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (er) { /* 무시 */ } }
+      function cvMove(e) {
+        const L = CV.L; if (!L) return; const p = cvPos(e); CV.my = p.y;
+        if (CV.drag) { const d = Math.round((p.x - CV.drag.x) / L.slot); if (d) CV.drag.moved = true; CV.off = Math.max(0, Math.min(CV.drag.off + d, L.len - L.n)); }
+        CV.hover = Math.max(L.start, Math.min(L.end - 1, L.start + Math.floor((p.x - L.PL) / L.slot))); cvSoon();
+      }
+      function cvUp(e) { CV.drag = null; if (e.pointerType === 'touch') return; }
+      function cvWheel(e) {
+        const L = CV.L; if (!L) return; e.preventDefault(); const p = cvPos(e);
+        const frac = Math.max(0, Math.min(1, (p.x - L.PL) / L.pw)), anchor = L.start + frac * L.n;
+        const nn = Math.max(15, Math.min(L.len, Math.round(L.n * (e.deltaY > 0 ? 1.15 : 1 / 1.15)) || L.n));
+        const st = anchor - frac * nn; CV.n = nn; CV.off = Math.max(0, Math.min(Math.round(L.len - (st + nn)), L.len - nn)); CV.my = p.y; cvSoon();
+      }
+      function tradeHtml() { return `${chartHtml()}<div class="grid lg:grid-cols-[22rem_1fr] gap-4 mt-3"><div>${ticketHtml()}</div><div class="space-y-4 min-w-0"><div id="simOpen">${openOrdersHtml()}</div><div id="simPos">${posHtml()}</div></div></div>`; }
 
       function logHtml() {
         const os = load().orders.filter(o => o.status !== 'open').slice().sort((a, b) => (b.t1 || b.t0) - (a.t1 || a.t0));
         if (!os.length) return `<div class="${card} mt-3 text-center text-sm text-slate-400">아직 거래 기록이 없어요.</div>`;
         const rows = os.map(o => `<tr class="border-t border-slate-800 align-top"><td class="py-2 pr-2 text-slate-400 whitespace-nowrap">${dtStr(o.t1 || o.t0)}</td><td class="pr-2 font-bold ${o.side === 'buy' ? 'text-rose-400' : 'text-blue-400'}">${o.side === 'buy' ? '매수' : '매도'}${o.status === 'cancelled' ? '<span class="text-slate-500 font-normal"> (취소)</span>' : ''}</td>
-          <td class="pr-2"><div class="font-bold text-white">${esc(o.sym)}</div><div class="text-[11px] text-slate-400 truncate max-w-[8rem]">${esc(o.name)}</div></td><td class="text-right pr-2">${fmtN(o.qty, 0)}</td><td class="text-right pr-2">${o.status === 'filled' ? price$(o.price, o.cur) : '—'}</td>
+          <td class="pr-2"><button type="button" data-act="pick" data-sym="${esc(o.sym)}" title="차트에서 내 매매 지점 보기" class="text-left"><div class="font-bold text-white underline decoration-dotted">${esc(o.sym)}</div><div class="text-[11px] text-slate-400 truncate max-w-[8rem]">${esc(o.name)}</div></button></td><td class="text-right pr-2">${fmtN(o.qty, 0)}</td><td class="text-right pr-2">${o.status === 'filled' ? price$(o.price, o.cur) : '—'}</td>
           <td class="text-right pr-2 ${tone(o.pnl)} font-semibold">${o.side === 'sell' && o.status === 'filled' ? money(o.pnl, o.cur, true) + `<div class="text-[11px]">${pct(o.pct)}</div>` : ''}</td><td class="text-slate-300">${V.editId === o.id ? `<div class="flex flex-wrap gap-1.5 items-center"><select id="simEdTag" class="${inp} !min-h-9 !w-auto">${TAGS.map(t => `<option ${o.tag === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><input id="simEdMemo" type="text" maxlength="200" value="${esc(o.memo)}" placeholder="메모" class="${inp} !min-h-9 !w-44"><button type="button" data-act="editsave" data-id="${o.id}" class="min-h-9 px-3 rounded-lg bg-teal-600 text-white text-xs font-bold">저장</button><button type="button" data-act="editcancel" class="min-h-9 px-3 rounded-lg bg-slate-800 text-slate-200 text-xs">취소</button></div>` : `<span class="text-[11px] text-slate-400">${esc(o.tag)}</span>${o.memo ? `<div>${esc(o.memo)}</div>` : ''}${o.status === 'filled' ? `<button type="button" data-act="editlog" data-id="${o.id}" title="이유·메모 수정" class="ml-1 text-[11px] text-cyan-400 hover:text-cyan-300"><i class="fa-solid fa-pen"></i> 수정</button>` : ''}`}</td></tr>`).join('');
         return `<div class="${card} mt-3 overflow-x-auto"><table class="w-full text-xs text-slate-200 min-w-[640px]"><thead><tr class="text-[11px] text-slate-400"><th class="text-left font-semibold">일시</th><th class="text-left font-semibold">구분</th><th class="text-left font-semibold">종목</th><th class="text-right font-semibold pr-2">수량</th><th class="text-right font-semibold pr-2">체결가</th><th class="text-right font-semibold pr-2">실현손익</th><th class="text-left font-semibold">이유·메모 <span class="font-normal text-slate-500">(수정 가능)</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
       }
@@ -26888,12 +27019,12 @@ ${input}
         if (!root) return;
         const body = V.sub === 'trade' ? tradeHtml() : V.sub === 'log' ? logHtml() : statsHtml();
         root.innerHTML = `<div id="simHead">${headHtml()}</div>${V.cfg ? cfgHtml() : ''}${subNav()}${body}`;
-        if (V.sub === 'trade') updateTicket();
+        if (V.sub === 'trade') { updateTicket(); chartMount(); }
       }
       function renderLive() {   // 입력 중인 주문창은 건드리지 않고 숫자만 갱신
         if (root) {
           const h = root.querySelector('#simHead'); if (h) h.innerHTML = headHtml();
-          if (V.sub === 'trade') { const p = root.querySelector('#simPos'), o = root.querySelector('#simOpen'); if (p) p.innerHTML = posHtml(); if (o) o.innerHTML = openOrdersHtml(); }
+          if (V.sub === 'trade') { const p = root.querySelector('#simPos'), o = root.querySelector('#simOpen'); if (p) p.innerHTML = posHtml(); if (o) o.innerHTML = openOrdersHtml(); chartDraw(); }
           else if (V.sub === 'stats') renderMain();
         }
         if (dock) { const dh = dock.querySelector('#simDockHead'); if (dh) dh.innerHTML = dockHeadHtml(); }
@@ -26949,7 +27080,9 @@ ${input}
         else if (act === 'cfg') { V.cfg = !V.cfg; render(); }
         else if (act === 'side') { T.side = b.dataset.v; render(); }
         else if (act === 'sug') pickSymbol(b.dataset.sym, b.dataset.name);
-        else if (act === 'pick') pickSymbol(b.dataset.sym, (st.meta[b.dataset.sym] || {}).name);
+        else if (act === 'civ') { CV.iv = b.dataset.v; CV.key = ''; renderMain(); }
+        else if (act === 'cvreset') { chartReset(); chartDraw(); }
+        else if (act === 'pick') { V.sub = 'trade'; pickSymbol(b.dataset.sym, (st.meta[b.dataset.sym] || {}).name); }
         else if (act === 'analyze') { if (T.sym && typeof quickSearch === 'function') quickSearch(T.sym); }
         else if (act === 'riskchk') riskCheckAll();
         else if (act === 'sellpos') { const s = b.dataset.sym; T.side = 'sell'; T.type = 'market'; T.qty = String(Math.max(0, held(s) - openSellQty(s))); pickSymbol(s, (st.meta[s] || {}).name).then(() => { const t = ctx.querySelector('#simSym'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' }); }); }
@@ -27003,7 +27136,7 @@ ${input}
       }
       // 동기화로 받은 계좌가 메모리에 남은 옛 계좌(S)에 가려지지 않게, 클라우드에서 적용되면 저장소에서 다시 읽어 화면을 갱신한다
       window.addEventListener('gsync-applied', e => { if (!e.detail || !e.detail.keys.includes(KEY)) return; S = null; load(); if (inited) { if (root) render(); if (dock) renderDock(); } });
-      function onOpen() { init(); if (!root) return; const st = load(); if (!st.orders.length && Object.keys(st.lots).length === 0 && !T.sym) V.sub = 'trade'; render(); refresh(); }
+      function onOpen() { init(); if (!root) return; const st = load(); if (!st.orders.length && Object.keys(st.lots).length === 0 && !T.sym) V.sub = 'trade'; render(); refresh(); if (!T.sym) { const p0 = positions()[0]; if (p0) pickSymbol(p0.sym, p0.name); } }
       if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.sim = onOpen;
       if (typeof APP_SYM_APPLY !== 'undefined') APP_SYM_APPLY.sim = sym => { if (sym && sym !== T.sym) { T.sym = sym; T.name = ''; T.cur = curOfSym(sym); if (CURS.includes(T.cur)) V.cur = T.cur; pickSymbol(sym, ''); } };
       window.SIM_UI = { mountDock, refresh: () => { init(); return refresh(); }, follow: sym => { if (sym && sym !== T.sym) pickSymbol(sym, ''); } };
