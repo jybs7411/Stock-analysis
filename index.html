@@ -1387,6 +1387,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
             <button type="button" id="btnLog" onclick="chToggleLog()" title="로그 스케일">로그</button>
             <button type="button" id="btnAuto" onclick="chToggleAuto()" title="가격 자동 스케일">자동</button>
             <button type="button" id="btnPrev" onclick="chTogglePrev()" title="분봉 차트에 전일 고가·저가·종가 수평선 표시" class="hidden">전일선</button>
+            <button type="button" id="btnExt" onclick="chToggleExt()" title="프리마켓·애프터마켓(장외) 분봉 포함 — 미국 종목 분봉에서만. 장외 봉은 흐리게 표시" class="hidden">장외</button>
             <button type="button" id="btnMagnet" onclick="chToggleMagnet()" title="그림을 그릴 때 캔들의 시·고·저·종가에 달라붙기"><i class="fa-solid fa-magnet mr-1 text-[10px]"></i>자석</button>
             <span class="flex-1"></span>
             <button type="button" id="btnSnap" onclick="chSnapshot()" title="차트를 PNG 이미지로 저장" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white"><i class="fa-solid fa-camera"></i></button>
@@ -2104,7 +2105,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.84.1';
+    const APP_VERSION = '1.85.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3971,6 +3972,10 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (gaps[gaps.length >> 1] >= 20 * 3600) intraday = false;
       }
       const gmtoffset = Number.isFinite(meta.gmtoffset) ? meta.gmtoffset : 0;
+      // 정규장 시각대(현지 시각의 하루 중 초) — 이 밖의 분봉은 프리·애프터마켓(장외)으로 표시
+      const reg = meta.currentTradingPeriod && meta.currentTradingPeriod.regular;
+      const regS = reg && Number.isFinite(reg.start) ? ((reg.start + gmtoffset) % 86400 + 86400) % 86400 : null;
+      const regE = reg && Number.isFinite(reg.end) ? ((reg.end + gmtoffset) % 86400 + 86400) % 86400 : null;
 
       const history = [];
       for (let i = 0; i < ts.length; i++) {
@@ -3991,6 +3996,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (intraday) {
           const iso = new Date((ts[i] + gmtoffset) * 1000).toISOString();
           bar.dt = ts[i] + gmtoffset; bar.date = iso.slice(0, 10); bar.hm = iso.slice(11, 16);
+          if (regS != null && regE != null && regS < regE) { const sod = ((ts[i] + gmtoffset) % 86400 + 86400) % 86400; if (sod < regS || sod >= regE) bar.ext = true; }
         }
         history.push(bar);
       }
@@ -4026,13 +4032,13 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
     // 1순위: 자체 프록시(/api/chart). 2순위: 공개 CORS 프록시(병렬 경쟁). 모두 실패 시 null.
     // 프록시가 404(존재하지 않는 티커)를 돌려주면 { notFound: true }.
-    async function fetchRealYahooFinanceData(ticker, range = '1y', interval = '1d') {
+    async function fetchRealYahooFinanceData(ticker, range = '1y', interval = '1d', ext = false) {
       const sym = ticker.trim().toUpperCase();
       const proxy = getProxyUrl();
 
       if (proxy) {
         try {
-          const json = await fetchJsonWithTimeout(`${proxy}/api/chart?symbol=${encodeURIComponent(sym)}&range=${range}&interval=${interval}`, 10000);
+          const json = await fetchJsonWithTimeout(`${proxy}/api/chart?symbol=${encodeURIComponent(sym)}&range=${range}&interval=${interval}${ext ? '&prepost=1' : ''}`, 10000);
           const parsed = parseYahooChart(json, sym, interval);
           if (parsed) return parsed;
         } catch (err) {
@@ -4041,7 +4047,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         }
       }
 
-      const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=${interval}&includePrePost=false`;
+      const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=${interval}&includePrePost=${ext ? 'true' : 'false'}`;
       const publicProxies = [
         { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, wrapped: true },
         { url: `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`, wrapped: false },
@@ -8198,6 +8204,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         const col = (barCol && barCol[i]) || (up ? CH_UP : CH_DN);
         const yH = sc.yOf(c.high), yL = sc.yOf(c.low), yO = sc.yOf(c.open), yC = sc.yOf(c.close);
         ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+        ctx.globalAlpha = c.ext ? 0.4 : 1; // 장외(프리·애프터) 봉은 흐리게
         const xc = Math.round(x) + 0.5;
         if (CH.type === 'bars') {
           ctx.beginPath(); ctx.moveTo(xc, yH); ctx.lineTo(xc, yL);
@@ -8213,6 +8220,7 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         if (CH.type === 'hollow' && c.close > c.open) { ctx.fillStyle = '#000000'; ctx.fillRect(x0, top, bodyW, bh); ctx.strokeRect(x0 + 0.5, top + 0.5, Math.max(1, bodyW - 1), Math.max(1, bh - 1)); }
         else ctx.fillRect(x0, top, bodyW, bh);
       }
+      ctx.globalAlpha = 1;
     }
 
     function chDrawMarkers(ctx, sc, markers, i0, i1) {
@@ -8643,8 +8651,9 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
       const ig = chEl('ivIntraGroup'); if (ig) ig.classList.toggle('bg-slate-800', chIsIntra());
       const sel = chEl('chartTypeSel'); if (sel) sel.value = CH.type;
       const tog = (id, on) => { const b = chEl(id); if (b) b.className = `px-2.5 py-1 rounded-lg border transition ${on ? 'bg-cyan-950 border-cyan-600 text-cyan-300 font-semibold' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'}`; };
-      tog('btnLog', CH.log); tog('btnAuto', CH.auto); tog('btnMagnet', CH.magnet); tog('btnPrev', CH.showPrev);
+      tog('btnLog', CH.log); tog('btnAuto', CH.auto); tog('btnMagnet', CH.magnet); tog('btnPrev', CH.showPrev); tog('btnExt', CH.ext);
       const pv = chEl('btnPrev'); if (pv) pv.classList.toggle('hidden', !chIsIntra());
+      const xb = chEl('btnExt'); if (xb) xb.classList.toggle('hidden', !chIsIntra());
       Object.keys(CH_TOOLS).forEach(k => { const b = chEl(`tool-${k}`); if (b) b.className = `w-8 h-8 grid place-items-center rounded-lg border transition ${CH.tool === k ? 'bg-cyan-950 text-cyan-300 border-cyan-600' : 'text-slate-400 hover:text-white hover:bg-slate-800 border-transparent'}`; });
       const box = chEl('proChartContainer'); if (box) box.style.touchAction = CH.tool === 'cursor' ? 'pan-y' : 'none';
       if (!CH.noPreset) chRenderPresetCards();
@@ -8669,13 +8678,23 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
 
     // 해당 주기에서 의미 있는 기간 키 (프리셋이 남긴 범위가 새 주기에 맞지 않으면 기본값으로)
     function chVisibleRangesFor(iv) { return CH_IV[iv].intraday ? ['1D', '5D', '1M', '3M', '6M', 'ALL'] : Object.keys(CH_RANGES).filter(k => k !== '1D' && k !== '5D'); }
+    // 장외(프리·애프터마켓) 봉 포함 토글 — 분봉에서만. 기본 꺼짐(정규장만). 다시 받아 오므로 분봉 캐시를 비운다
+    async function chToggleExt() {
+      if (!chIsIntra() || CH.loading) return;
+      const iv = CH.interval, keep = CH.hist;
+      CH.ext = !CH.ext;
+      Object.keys(CH.sets).forEach(k => { if (CH_IV[k] && CH_IV[k].intraday) delete CH.sets[k]; });
+      CH.interval = null;
+      await chSetInterval(iv);
+      if (CH.interval == null) { CH.ext = !CH.ext; CH.interval = iv; CH.sets[iv] = keep; CH.hist = keep; chSyncToolbar(); }
+    }
     async function chSetInterval(iv) {
       const C = CH;
       if (!CH_IV[iv] || iv === CH.interval || CH.loading) return;
       if (!CH.sets[iv]) {
         CH.loading = true; chEl('chartLoading').classList.remove('hidden');
         let res = null;
-        try { res = await fetchRealYahooFinanceData(CH.ticker, CH_IV[iv].range, CH_IV[iv].iv); } catch (e) { res = null; }
+        try { res = await fetchRealYahooFinanceData(CH.ticker, CH_IV[iv].range, CH_IV[iv].iv, !!(CH.ext && CH_IV[iv].intraday)); } catch (e) { res = null; }
         chUse(C);
         CH.loading = false; chEl('chartLoading').classList.add('hidden');
         if (!res || res.notFound || !res.history || res.history.length < 5) { showToast('차트 데이터 없음', `${CH_IV[iv].name} 데이터를 불러오지 못했습니다.${CH_IV[iv].intraday ? ' 분봉은 최신 자체 프록시(Worker)가 필요하며, 거래일이 아닌 종목이나 지원하지 않는 종목은 비어 있을 수 있습니다.' : ''}`, 'warning'); return; }

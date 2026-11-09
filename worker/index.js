@@ -1015,6 +1015,7 @@ export default {
       if (url.pathname === '/api/chart') {
         const range = RANGES.has(url.searchParams.get('range')) ? url.searchParams.get('range') : '1y';
         const interval = INTERVALS.has(url.searchParams.get('interval')) ? url.searchParams.get('interval') : '1d';
+        const prepost = url.searchParams.get('prepost') === '1'; // 프리·애프터마켓 봉 포함(분봉에서만 의미)
         return await cached(request, ctx, 60, async () => {
           // 야후가 실패(네트워크·4xx·5xx)하면 일/주/월봉에 한해 Stooq 로 대체한다
           const fallback = async () => {
@@ -1025,7 +1026,7 @@ export default {
             return res;
           };
           const upstream = await fetch(
-            `${YAHOO}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includePrePost=false`,
+            `${YAHOO}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includePrePost=${prepost}`,
             { headers: { 'User-Agent': UA } }
           ).catch(() => null);
           if (!upstream || !upstream.ok) {
