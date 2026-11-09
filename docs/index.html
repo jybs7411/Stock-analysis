@@ -2087,7 +2087,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.85.0';
+    const APP_VERSION = '1.85.1';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2255,6 +2255,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       if (LAZY_TAB[tab]) loadLazyMod(LAZY_TAB[tab]);
       if (!tabBackBusy && tab !== activeAppTab) { TAB_HIST.push(activeAppTab); if (TAB_HIST.length > 30) TAB_HIST.shift(); }
       activeAppTab = tab;
+      if (tab === 'analysis' && typeof refreshRecentQuotes === 'function') setTimeout(() => refreshRecentQuotes(false), 0);
       try { sessionStorage.setItem('pentanalyst_active_tab', tab); } catch (e) { /* 저장 불가 */ }
       syncBackBtn();
       const hub = hubOf(tab);
@@ -2735,6 +2736,34 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       }
       if (!fromBackfill && list.some(r => !r.sector && !r.sf)) backfillRecentSectors();
     }
+
+    // 최근 검색 종목의 등락률 자동 갱신 — 검색 시점 값만 남지 않도록 주기적으로 시세를 다시 받는다 (자체 프록시 필요)
+    let recentQuoting = false, recentQuotedAt = 0;
+    async function refreshRecentQuotes(force) {
+      if (recentQuoting || document.hidden || activeAppTab !== 'analysis') return;
+      if (!force && Date.now() - recentQuotedAt < 25000) return;
+      const list = loadRecentSearches();
+      if (!list.length) return;
+      recentQuoting = true; recentQuotedAt = Date.now();
+      try {
+        const qs = await fetchQuotes(list.map(r => r.symbol));
+        if (qs && qs.length) {
+          const m = new Map(qs.filter(q => q && q.symbol && Number.isFinite(Number(q.changePct))).map(q => [String(q.symbol).toUpperCase(), q]));
+          let changed = false;
+          const fresh = loadRecentSearches().map(r => {
+            const q = m.get(r.symbol.toUpperCase()); if (!q) return r;
+            const ch = `${q.changePct >= 0 ? '+' : ''}${Number(q.changePct).toFixed(2)}%`;
+            if (ch === r.change) return r;
+            changed = true; return { ...r, change: ch, price: Number.isFinite(Number(q.price)) ? Number(q.price) : r.price };
+          });
+          if (changed) { saveRecentSearches(fresh); renderRecentSearches(true); }
+        }
+      } catch (e) { /* 다음 주기에 재시도 */ }
+      recentQuoting = false;
+    }
+    setInterval(() => refreshRecentQuotes(false), 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshRecentQuotes(false); });
+    setTimeout(() => refreshRecentQuotes(true), 1500);
 
     // ===== 회사명/티커 검색 (Yahoo 검색 — 전 세계 거래소, 자동완성) =====
     const searchCache = new Map();
