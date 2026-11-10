@@ -1369,7 +1369,6 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
             <button type="button" id="btnLog" onclick="chToggleLog()" title="로그 스케일">로그</button>
             <button type="button" id="btnAuto" onclick="chToggleAuto()" title="가격 자동 스케일">자동</button>
             <button type="button" id="btnPrev" onclick="chTogglePrev()" title="분봉 차트에 전일 고가·저가·종가 수평선 표시" class="hidden">전일선</button>
-            <button type="button" id="btnExt" onclick="chToggleExt()" title="프리마켓·애프터마켓(장외) 분봉 포함 — 미국 종목 분봉에서만. 장외 봉은 흐리게 표시" class="hidden">장외</button>
             <button type="button" id="btnMagnet" onclick="chToggleMagnet()" title="그림을 그릴 때 캔들의 시·고·저·종가에 달라붙기"><i class="fa-solid fa-magnet mr-1 text-[10px]"></i>자석</button>
             <span class="flex-1"></span>
             <button type="button" id="btnSnap" onclick="chSnapshot()" title="차트를 PNG 이미지로 저장" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white"><i class="fa-solid fa-camera"></i></button>
@@ -1384,6 +1383,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
               <canvas id="chartOverlay" class="absolute left-0 top-0 pointer-events-none"></canvas>
               <div id="chartLegend" class="absolute top-1.5 left-2 z-10 text-[11px] font-mono-numbers space-y-0.5 pointer-events-none"></div>
               <div id="subLegends" class="absolute inset-0 z-10 pointer-events-none text-[11px] font-mono-numbers"></div>
+              <div class="absolute z-20 bottom-8 right-16 text-[11px]"><button type="button" id="btnExt" onclick="chToggleExt()" title="프리마켓·애프터마켓(장외) 분봉 포함 — 미국 종목 분봉에서만. 장외 봉은 흐리게 표시" class="hidden">장외</button></div>
               <div id="studyEditor" class="hidden absolute z-30 top-24 left-3 w-60 bg-slate-900 border border-slate-600 rounded-xl p-3 shadow-2xl"></div>
               <div id="chartLoading" class="hidden absolute inset-0 z-30 grid place-items-center bg-slate-950/60 text-sm text-cyan-300"><span><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>차트 데이터 불러오는 중...</span></div>
               <div id="chartEmpty" class="hidden absolute inset-0 z-20 grid place-items-center text-sm text-slate-500">표시할 시세 데이터가 없습니다. (설정에서 자체 프록시를 연결하세요)</div>
@@ -2087,7 +2087,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.85.1';
+    const APP_VERSION = '1.85.2';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
