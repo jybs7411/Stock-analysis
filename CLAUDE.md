@@ -42,6 +42,10 @@
 ## 규칙 엔진 (`mod-rules`) 변경 시
 - 순수 함수 모음이다(DOM·네트워크 금지). 임계값은 `CFG` 한 곳에 둔다. 규칙을 바꾸면 `python3 tools/gen-rules-golden.py`로 골든(`tools/rules-golden.json`)을 다시 만들고 `node tools/test-rules.mjs`가 통과해야 한다. 규칙을 바꾸는 이유는 `project-docs/DECISIONS.md`에 남긴다.
 
+## 전망 엔진 (`mod-forecast`) 변경 시
+- 순수 함수 모음이다(DOM·네트워크 금지). 임계값은 `CFG` 한 곳. 바꾸면 `node tools/test-forecast.mjs`가 통과해야 한다(미래 참조 없음·무작위 걸음에서 예측력 없음 검사 포함). 화면은 검증 결과를 넘어서는 확신을 말하지 않는다.
+- 예측 아레나(`mod-game`)의 경험치는 매매 횟수·수익이 아니라 점검·기록·보정에만 준다. 잠근 예측은 수정·삭제 기능을 만들지 않는다.
+
 ## 탭 간 종목 동기화
 - 어느 탭에서든 종목을 고르면 `appSetSymbol(sym, 탭id)`로 공용 '현재 종목'(`APP_SYM`)을 갱신한다. 다른 탭은 열릴 때 `APP_SYM_APPLY[탭id]`로 그 종목에 맞춘다(`switchAppTab` → `appSyncTab`).
 - 새 탭/모듈이 종목을 다룬다면: 종목이 확정되는 지점에서 `appSetSymbol`을 호출하고, `APP_SYM_APPLY.<탭id>`를 등록한다.
@@ -60,6 +64,9 @@
 | `mod-valcalc` | 밸류에이션 계산기 `window.valCalcRender` | val |
 | `mod-signals` | 신호 엔진 `window.taSignalsLite` (관심종목·스크리너용) | — |
 | `mod-rules` | 규칙 엔진 `window.RuleEngine` (규칙 점수·판정·지지/매수/손절/목표, 순수 함수) | — |
+| `mod-forecast` | 전망 엔진 `window.Forecast` (변동성·유사 국면·워크포워드 검증, 순수 함수) | — |
+| `mod-forecast-ui` | 종목 분석 탭 '확률 전망' 카드 `forecastRender` | forecast |
+| `mod-game` | 예측 아레나 탭(`arena`): 예측 채점·퀘스트·레벨 `window.GAME` | nx- (CSS) |
 | `mod-watch` | 관심종목 탭(저장·알림·리스크) | watch / wl |
 
 모듈은 메인 스크립트의 공용 헬퍼만 호출하고 자기 DOM 루트(#fxRoot, #multiRoot, #watchRoot…) 안에서만 작동한다. 수정 대상 모듈만 열 것.

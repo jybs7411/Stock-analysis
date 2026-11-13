@@ -190,7 +190,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="fa/css/all.min.css">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
     body {
       font-family: 'Inter', sans-serif;
     }
@@ -831,6 +831,104 @@ html[data-theme="light"] body [style*="color: #fb923c" i]{color:#b45304 !importa
 html[data-theme="light"] body [style*="color:#fbbf24" i]{color:#b48303 !important}
 html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !important}
 /* LIGHT-THEME:END */
+    /* ===== NX 스킨 (v1.86.0): 오로라 배경 · 유리 질감 카드 · 네온 강조. 색을 바꾸는 규칙은 어두운 테마에만 걸고, .nx-* 부품은 공통(밝은 테마용 덮어쓰기는 맨 아래) ===== */
+    :root { --nx-cyan: #22d3ee; --nx-violet: #a78bfa; --nx-line: rgba(120,160,220,.16); --nx-grad: linear-gradient(90deg, #22d3ee, #818cf8); }
+    h1, h2, h3, .hubtab, #hdrBrand, .nx-tag, .nx-btn { font-family: 'Space Grotesk', 'Inter', sans-serif; }
+    ::selection { background: rgba(34,211,238,.35); color: #fff; }
+    html[data-theme="dark"] body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(62rem 36rem at 10% -10%, rgba(34,211,238,.14), transparent 62%),
+        radial-gradient(54rem 34rem at 98% 2%, rgba(139,92,246,.15), transparent 62%),
+        radial-gradient(50rem 30rem at 50% 120%, rgba(56,189,248,.09), transparent 60%),
+        linear-gradient(rgba(148,163,184,.032) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148,163,184,.032) 1px, transparent 1px);
+      background-size: auto, auto, auto, 44px 44px, 44px 44px; }
+    html[data-theme="dark"] #appBar, html[data-theme="dark"] #tabNav { background: rgba(2,4,9,.72); -webkit-backdrop-filter: blur(16px) saturate(150%); backdrop-filter: blur(16px) saturate(150%); border-color: var(--nx-line); }
+    html[data-theme="dark"] #tabNav.is-stuck { box-shadow: 0 12px 30px -18px rgba(34,211,238,.35); }
+    html[data-theme="dark"] main section.bg-\[\#0b0e13\], html[data-theme="dark"] #marketRoot .mk-card {
+      background: linear-gradient(180deg, rgba(16,22,33,.88), rgba(7,10,16,.92)); border-color: var(--nx-line);
+      box-shadow: 0 1px 0 rgba(255,255,255,.045) inset, 0 22px 44px -28px rgba(0,0,0,.95); }
+    html[data-theme="dark"] .hubtab[aria-selected="true"] { position: relative; box-shadow: 0 0 0 1px rgba(255,255,255,.04) inset, 0 10px 26px -14px currentColor; }
+    html[data-theme="dark"] .hubtab[aria-selected="true"]::after { content: ''; position: absolute; left: 18%; right: 18%; bottom: -1px; height: 2px; border-radius: 2px; background: currentColor; box-shadow: 0 0 12px currentColor; }
+    html[data-theme="dark"] .subtab.is-on { background: linear-gradient(90deg, rgba(34,211,238,.16), rgba(129,140,248,.16)); border-color: rgba(34,211,238,.4); color: #e0f2fe; }
+    html[data-theme="dark"] #hdrLeft > div:first-child, html[data-theme="dark"] #navMini > button:first-child { box-shadow: 0 0 22px rgba(34,211,238,.45), 0 0 0 1px rgba(255,255,255,.12) inset; }
+    html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(34,211,238,.45), rgba(129,140,248,.45)); border-radius: 9999px; }
+    main > [id^="view-"]:not(.hidden) { animation: nx-fade .28s ease both; }
+    @keyframes nx-fade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes nx-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    @keyframes nx-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes nx-spin { to { transform: rotate(360deg); } }
+
+    .nx-card { position: relative; border: 1px solid var(--nx-line); border-radius: 1rem; background: linear-gradient(180deg, rgba(16,22,33,.88), rgba(7,10,16,.92)); box-shadow: 0 1px 0 rgba(255,255,255,.045) inset, 0 22px 44px -28px rgba(0,0,0,.95); }
+    .nx-glow::before { content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+      background: linear-gradient(125deg, rgba(34,211,238,.75), rgba(129,140,248,.3) 38%, transparent 58%, rgba(244,114,182,.45));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+    .nx-tile { background: rgba(2,6,12,.55); border: 1px solid rgba(120,160,220,.13); border-radius: .75rem; padding: .75rem .875rem; min-width: 0; }
+    .nx-plot { background: rgba(0,0,0,.4); }
+    html[data-theme="light"] .nx-plot { background: #fff; border-color: #cbd5e1; }
+    .nx-tag { font-size: 10px; letter-spacing: .22em; padding: .15rem .5rem; border-radius: 9999px; color: #a5f3fc; border: 1px solid rgba(34,211,238,.35); background: rgba(34,211,238,.08); font-weight: 700; }
+    .nx-grad-text { background: linear-gradient(90deg, #67e8f9, #a78bfa); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .nx-meter { position: relative; height: .5rem; border-radius: 9999px; background: rgba(148,163,184,.16); }
+    .nx-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--nx-grad); box-shadow: 0 0 12px rgba(34,211,238,.45); transition: width .5s cubic-bezier(.2,.8,.2,1); }
+    .nx-meter > i { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #e2e8f0; border-radius: 1px; }
+    .nx-meter-sm { height: .3rem; }
+    .nx-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: .75rem; background: rgba(2,6,12,.6); border: 1px solid var(--nx-line); }
+    .nx-seg button { padding: .35rem .8rem; border-radius: .55rem; font-size: .75rem; font-weight: 700; color: #94a3b8; min-height: 0 !important; transition: color .15s, background .15s; }
+    .nx-seg button:hover { color: #fff; }
+    .nx-seg button.is-on { color: #00131a; background: var(--nx-grad); }
+    .nx-seg button:disabled { opacity: .35; cursor: not-allowed; }
+    .nx-btn { display: inline-flex; align-items: center; gap: .5rem; padding: .5rem .9rem; border-radius: .75rem; font-size: .8rem; font-weight: 700; color: #00131a; background: var(--nx-grad); box-shadow: 0 0 0 1px rgba(255,255,255,.1) inset, 0 10px 26px -12px rgba(34,211,238,.75); transition: transform .15s, filter .15s; white-space: nowrap; }
+    .nx-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .nx-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; filter: none; }
+    .nx-btn-ghost { background: rgba(34,211,238,.08); color: #a5f3fc; border: 1px solid rgba(34,211,238,.35); box-shadow: none; }
+    .nx-chip { padding: .4rem .8rem; border-radius: .65rem; font-size: .75rem; font-weight: 700; color: #cbd5e1; background: rgba(2,6,12,.55); border: 1px solid rgba(120,160,220,.22); transition: all .15s; }
+    .nx-chip:hover { border-color: rgba(34,211,238,.55); color: #fff; }
+    .nx-chip.is-on { color: #00131a; background: var(--nx-grad); border-color: transparent; box-shadow: 0 8px 22px -12px rgba(34,211,238,.8); }
+    .nx-chip-up.is-on { background: linear-gradient(90deg, #34d399, #22d3ee); }
+    .nx-chip-down.is-on { background: linear-gradient(90deg, #fb7185, #f472b6); }
+    .nx-skel { border-radius: .75rem; background: linear-gradient(100deg, rgba(148,163,184,.06) 30%, rgba(34,211,238,.16) 50%, rgba(148,163,184,.06) 70%); background-size: 200% 100%; animation: nx-shimmer 1.4s linear infinite; }
+    .nx-ring { --p: 0; width: 4.75rem; height: 4.75rem; border-radius: 50%; flex: none; display: grid; place-items: center; background: conic-gradient(#22d3ee calc(var(--p) * 1%), rgba(148,163,184,.16) 0); box-shadow: 0 0 30px -6px rgba(34,211,238,.65); }
+    .nx-ring > div { width: 4rem; height: 4rem; border-radius: 50%; background: #05080d; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .15rem; }
+    .nx-quest { border: 1px solid rgba(120,160,220,.16); border-radius: .85rem; padding: .75rem; background: rgba(2,6,12,.5); transition: border-color .2s; }
+    .nx-quest.is-done { border-color: rgba(52,211,153,.4); background: rgba(6,40,30,.35); }
+    .nx-quest-ic { width: 2.1rem; height: 2.1rem; border-radius: .6rem; display: grid; place-items: center; flex: none; color: #fcd34d; background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.3); }
+    .nx-quest.is-done .nx-quest-ic { color: #6ee7b7; background: rgba(52,211,153,.12); border-color: rgba(52,211,153,.4); }
+    .nx-row { border: 1px solid rgba(120,160,220,.12); border-radius: .75rem; padding: .6rem .75rem; background: rgba(2,6,12,.45); }
+    .nx-result { font-size: 11px; font-weight: 800; padding: .1rem .5rem; border-radius: 9999px; }
+    .nx-result.is-hit { color: #6ee7b7; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.4); }
+    .nx-result.is-miss { color: #fda4af; background: rgba(244,63,94,.12); border: 1px solid rgba(244,63,94,.4); }
+    .nx-badge { display: flex; flex-direction: column; align-items: center; gap: .35rem; padding: .7rem .3rem; border-radius: .8rem; border: 1px dashed rgba(120,160,220,.22); color: #5b6b82; text-align: center; font-size: 11px; font-weight: 600; line-height: 1.25; }
+    .nx-badge i { font-size: 1.15rem; }
+    .nx-badge.is-on { border-style: solid; border-color: rgba(232,121,249,.45); color: #f5d0fe; background: radial-gradient(circle at 50% 0, rgba(232,121,249,.2), transparent 70%); }
+    .nx-badge.is-on i { color: #f0abfc; filter: drop-shadow(0 0 8px rgba(232,121,249,.7)); }
+    .nx-hud { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .65rem; border-radius: 9999px; border: 1px solid rgba(34,211,238,.35); background: rgba(34,211,238,.07); color: #e2e8f0; font-size: 11px; cursor: pointer; white-space: nowrap; transition: background .15s, box-shadow .15s; }
+    .nx-hud:hover { background: rgba(34,211,238,.14); box-shadow: 0 0 18px -4px rgba(34,211,238,.6); }
+    .nx-hudbar { width: 2.5rem; height: .3rem; border-radius: 9999px; background: rgba(148,163,184,.22); overflow: hidden; }
+    .nx-hudbar > span { display: block; height: 100%; background: var(--nx-grad); }
+    .nx-hudfire { color: #fb923c; font-weight: 700; display: inline-flex; gap: .2rem; align-items: center; }
+    .nx-levelup { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; background: radial-gradient(circle, rgba(34,211,238,.2), rgba(0,0,0,.86) 60%); animation: nx-fade .3s ease; cursor: pointer; transition: opacity .4s; }
+    .nx-levelup.is-out { opacity: 0; }
+    .nx-levelup-card { display: flex; flex-direction: column; align-items: center; gap: .5rem; animation: nx-pop .6s cubic-bezier(.2,1.4,.3,1); }
+    .nx-levelup-ring { position: relative; width: 6rem; height: 6rem; border-radius: 50%; display: grid; place-items: center; font-size: 2.2rem; color: #67e8f9; border: 2px solid rgba(34,211,238,.7); box-shadow: 0 0 60px rgba(34,211,238,.6), inset 0 0 30px rgba(167,139,250,.4); }
+    .nx-levelup-ring::after { content: ''; position: absolute; inset: -10px; border-radius: 50%; border: 2px dashed rgba(167,139,250,.6); animation: nx-spin 6s linear infinite; }
+    @media (max-width: 639px) { #gameHud .nx-hudbar { display: none; } #gameHud { order: 3; padding: .3rem .55rem; } }
+    @media (prefers-reduced-motion: reduce) { main > [id^="view-"]:not(.hidden), .nx-skel, .nx-levelup, .nx-levelup-card, .nx-levelup-ring::after { animation: none !important; } .nx-meter > span, .nx-btn { transition: none; } }
+    html[data-theme="light"] .nx-card { background: #fff; border-color: #cbd5e1; box-shadow: 0 4px 14px rgba(15,23,42,.08); }
+    html[data-theme="light"] .nx-tile, html[data-theme="light"] .nx-row, html[data-theme="light"] .nx-quest, html[data-theme="light"] .nx-seg { background: #f8fafc; border-color: #cbd5e1; }
+    html[data-theme="light"] .nx-quest.is-done { background: #ecfdf5; border-color: #6ee7b7; }
+    html[data-theme="light"] .nx-chip { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+    html[data-theme="light"] .nx-chip.is-on, html[data-theme="light"] .nx-seg button.is-on { color: #00131a; }
+    html[data-theme="light"] .nx-seg button { color: #475569; }
+    html[data-theme="light"] .nx-ring > div { background: #fff; }
+    html[data-theme="light"] .nx-meter { background: #e2e8f0; }
+    html[data-theme="light"] .nx-meter > i { background: #0f172a; }
+    html[data-theme="light"] .nx-tag, html[data-theme="light"] .nx-btn-ghost { color: #0e7490; }
+    html[data-theme="light"] .nx-grad-text { background-image: linear-gradient(90deg, #0891b2, #6d28d9); }
+    html[data-theme="light"] .nx-hud { color: #0f172a; }
+    html[data-theme="light"] .nx-badge { color: #94a3b8; border-color: #cbd5e1; }
+    html[data-theme="light"] .nx-badge.is-on { color: #86198f; }
+    html[data-theme="light"] .nx-badge.is-on i { color: #c026d3; }
+    html[data-theme="light"] .nx-result.is-hit { color: #047857; } html[data-theme="light"] .nx-result.is-miss { color: #be123c; }
   </style>
 </head>
 <body class="bg-[#000000] text-slate-100 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-white">
@@ -876,6 +974,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
               <span>Fool 원본</span>
             </a>
           </div>
+          <div id="gameHud" role="button" tabindex="0" translate="no" class="nx-hud" aria-label="예측 아레나 열기 (레벨·경험치)" onclick="switchAppTab('arena')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchAppTab('arena')}"></div>
           <button
             onclick="openApiSettingsModal()"
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-500 text-slate-300 hover:text-cyan-300 transition shadow"
@@ -931,6 +1030,8 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       <button type="button" role="tab" aria-selected="false" aria-controls="view-market" onclick="switchAppTab('market')" id="tabBtn-market" title="시장 · 매크로" class="subtab hidden"><i class="fa-solid fa-earth-americas text-sky-400"></i><span>시장·매크로</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-fx" onclick="switchAppTab('fx')" id="tabBtn-fx" title="환율" class="subtab hidden"><i class="fa-solid fa-money-bill-transfer text-emerald-400"></i><span>환율</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-calendar" onclick="switchAppTab('calendar')" id="tabBtn-calendar" title="금융 달력" class="subtab hidden"><i class="fa-solid fa-calendar-days text-rose-400"></i><span>금융 달력</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-sim" onclick="switchAppTab('sim')" id="tabBtn-sim" title="모의투자 (가상 계좌)" class="subtab hidden"><i class="fa-solid fa-gamepad text-teal-400"></i><span>모의투자</span></button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="view-arena" onclick="switchAppTab('arena')" id="tabBtn-arena" title="예측 아레나 — 예측을 걸고 채점받기 · 퀘스트 · 레벨" class="subtab hidden"><i class="fa-solid fa-bullseye text-cyan-400"></i><span>예측 아레나</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-bdwtools" onclick="switchAppTab('bdwtools')" id="tabBtn-bdwtools" title="손절·포지션 크기 계산기와 매매일지" class="subtab hidden"><i class="fa-solid fa-calculator text-orange-400"></i><span>계산기 · 매매일지</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-claude" onclick="switchAppTab('claude')" id="tabBtn-claude" title="Claude 아티팩트가 정리한 거시·스크리너·눌림목·알림 스캔" class="subtab hidden"><i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i><span>Claude 분석</span></button>
       <button type="button" role="tab" aria-selected="false" aria-controls="view-bdw" onclick="switchAppTab('bdw')" id="tabBtn-bdw" title="불단왕 매매법" class="subtab hidden"><i class="fa-solid fa-fire text-orange-400"></i><span>불단왕</span></button>
@@ -1149,6 +1250,10 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
     <div id="view-sim" class="hidden space-y-4">
       <div id="simRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
+    </div>
+
+    <div id="view-arena" class="hidden space-y-4">
+      <div id="arenaRoot"><div class="text-sm text-slate-500 py-10 text-center">준비 중...</div></div>
     </div>
 
     <div id="view-claude" class="hidden space-y-4">
@@ -1473,6 +1578,11 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           <div id="indList" class="px-5 py-4 overflow-y-auto"></div>
         </div>
       </div>
+
+      <!-- 확률 전망 (mod-forecast 계산 → mod-forecast-ui 표시) -->
+      <section id="forecastSection" class="hidden">
+        <div id="forecastBody"></div>
+      </section>
 
       <!-- Deep analysis (Yahoo Finance via own proxy) -->
       <section id="deepSection" class="hidden space-y-4">
@@ -2081,13 +2191,14 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       market: { on: 'bg-sky-950 text-sky-300 border-sky-700/80 shadow-md shadow-sky-950/50' },
       calendar: { on: 'bg-rose-950 text-rose-300 border-rose-700/80 shadow-md shadow-rose-950/50' },
       multi: { on: 'bg-fuchsia-950 text-fuchsia-300 border-fuchsia-700/80 shadow-md shadow-fuchsia-950/50' },
-      claude: { on: 'bg-indigo-950 text-indigo-300 border-indigo-700/80 shadow-md shadow-indigo-950/50' }
+      claude: { on: 'bg-indigo-950 text-indigo-300 border-indigo-700/80 shadow-md shadow-indigo-950/50' },
+      arena: { on: 'bg-cyan-950 text-cyan-300 border-cyan-700/80 shadow-md shadow-cyan-950/50' }
     };
     const TAB_HOOKS = {};
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.85.2';
+    const APP_VERSION = '1.86.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -2164,7 +2275,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     const APP_HUBS = [
       { id: 'home', label: '내 종목', short: '관심', icon: 'fa-star text-yellow-400', on: APP_TABS.watch.on, tabs: ['watch', 'holdings', 'bdwtools', 'claude'] },
       { id: 'analyze', label: '분석', short: '분석', icon: 'fa-users-viewfinder text-cyan-400', on: APP_TABS.analysis.on, tabs: ['analysis', 'multi', 'prevday'] },
-      { id: 'sim', label: '모의투자', short: '모의', icon: 'fa-gamepad text-teal-400', on: APP_TABS.sim.on, tabs: ['sim'] },
+      { id: 'sim', label: '모의투자', short: '모의', icon: 'fa-gamepad text-teal-400', on: APP_TABS.sim.on, tabs: ['sim', 'arena'] },
       { id: 'discover', label: '발굴', short: '발굴', icon: 'fa-filter text-amber-400', on: APP_TABS.screener.on, tabs: ['screener', 'revision'] },
       { id: 'market', label: '시장', short: '시장', icon: 'fa-earth-americas text-sky-400', on: APP_TABS.market.on, tabs: ['market', 'fx', 'calendar'] },
       { id: 'method', label: '매매법', short: '매매법', icon: 'fa-book-open text-orange-400', on: APP_TABS.bdw.on, tabs: ['bdw'] }
@@ -2276,12 +2387,13 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         const mb = document.getElementById(`mtabBtn-${h.id}`); if (mb) mb.classList.toggle('is-on', on);
       });
       if (tab === 'analysis' && currentAnalysisData) {
-        setTimeout(() => { chResizeAll(true); renderMiniTrendPreview(); }, 50);
+        setTimeout(() => { chResizeAll(true); renderMiniTrendPreview(); if (window.forecastRedraw) window.forecastRedraw(); }, 50);
       } else if (tab === 'screener') {
         runScreenerFilter();
       }
       appSyncTab(tab);
       if (TAB_HOOKS[tab]) { try { TAB_HOOKS[tab](); } catch (e) { console.error(`탭(${tab}) 초기화 실패`, e); } }
+      if (window.GAME) { try { window.GAME.emit('tab', tab); } catch (e) { /* 게임 기록 실패는 무시 */ } }
     }
 
     // ===== 탭 오른쪽 검색 버튼 / 맨 위로 버튼 =====
@@ -3486,6 +3598,19 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           if (ra > lb && ra > rb) return l;   // 계좌 초기화가 상대의 마지막 거래보다 나중이면 초기화한 쪽이 이긴다(초기화가 되살아나지 않게)
           if (rb > la && rb > ra) return r;
           return (lb > la || (lb === la && B.orders.length > A.orders.length)) ? r : l;
+        },
+        pentanalyst_game_v1(l, r) {   // 예측 아레나: 지급 내역·예측·배지를 항목 단위로 합친다 (경험치는 지급 내역의 합이라 중복되지 않는다)
+          const A = jparse(l), B = jparse(r); if (!isObj(A) || !isObj(B) || !isObj(A.grants) || !isObj(B.grants) || !Array.isArray(A.calls) || !Array.isArray(B.calls)) return null;
+          const out = Object.assign({}, B, A), mx = (x, y) => { const o = Object.assign({}, y || {}); Object.keys(x || {}).forEach(k => { o[k] = Math.max(+x[k] || 0, +o[k] || 0); }); return o; };
+          out.grants = mx(A.grants, B.grants); out.arch = mx(A.arch, B.arch);
+          Object.keys(out.arch).forEach(m => Object.keys(out.grants).forEach(k => { if (k.slice(0, 7) === m) delete out.grants[k]; }));   // 한쪽이 이미 달별 합계로 접은 달은 낱개 내역을 버린다
+          const cm = new Map(); A.calls.concat(B.calls).forEach(c => { if (!c || c.id == null) return; const p = cm.get(c.id); if (!p || (!p.res && c.res)) cm.set(c.id, c); });
+          out.calls = Array.from(cm.values()).sort((x, y) => (x.t0 || 0) - (y.t0 || 0));
+          out.badges = Object.assign({}, B.badges || {}, A.badges || {}); Object.keys(B.badges || {}).forEach(k => { if (A.badges && A.badges[k]) out.badges[k] = Math.min(A.badges[k], B.badges[k]); });
+          out.days = Object.assign({}, B.days || {}); Object.keys(A.days || {}).forEach(d => { const x = A.days[d], y = out.days[d]; out.days[d] = y ? { c: mx(x.c, y.c), syms: Array.from(new Set([].concat(x.syms || [], y.syms || []))).slice(0, 20) } : x; });
+          const sa = A.streak || {}, sb = B.streak || {}, pick = (sb.last || '') > (sa.last || '') || ((sb.last || '') === (sa.last || '') && (sb.n || 0) > (sa.n || 0)) ? sb : sa;
+          out.streak = { last: pick.last || '', n: pick.n || 0, best: Math.max(sa.best || 0, sb.best || 0) };
+          return JSON.stringify(out);
         },
         pentanalyst_scr_notes: unionJson, pentanalyst_scr_analyzed: unionJson, pentanalyst_screener_presets: unionJson
       };
@@ -4707,6 +4832,8 @@ Return STRICT JSON ONLY (no markdown fences, no commentary):
         renderDeepAnalysis(deep);
         renderValCalcCard();
         renderRiskSizerCard();
+        if (typeof window.forecastRender === 'function') window.forecastRender(upperTicker, history, activeCurrency);
+        if (market && window.GAME) window.GAME.emit('analyze', upperTicker);
         updateAiButton();
         if (market && !opts.noRecord) recordSearch(upperTicker, market, currentAnalysisData.name, currentAnalysisData.sector);
 
@@ -23181,6 +23308,267 @@ ${input}
     })();
   </script>
 
+  <script id="mod-forecast">
+    // ===== 전망 엔진 — window.Forecast =====
+    // 일봉만으로 '앞으로 h거래일 수익률의 분포'를 추정하고, 같은 방법을 과거 각 시점에 다시 적용해(그 시점 이후 데이터는 쓰지 않음) 얼마나 맞았는지 함께 돌려주는 순수 함수 모음.
+    // DOM·네트워크·저장소를 쓰지 않는다. 문구는 만들지 않는다(id·숫자만) — 화면 문구는 mod-forecast-ui 가 붙인다. 임계값은 CFG 한 곳.
+    // 방법 (project-docs/ARCHITECTURE.md '전망 엔진'):
+    //  1) 변동성: 일간 로그수익률의 EWMA 분산(λ)을 장기 분산 쪽으로 되돌려(ρ) h일 변동성을 만든다 — 변동성은 실제로 예측이 되는 양이다.
+    //  2) 분포 모양: 과거 h일 수익률을 '그때의 예상 변동성'으로 나눈 표준화 잔차의 경험 분포(정규분포 가정 없음, 두꺼운 꼬리 반영)를 지금 변동성으로 다시 키운다.
+    //  3) 중심(기울기): 과거 평균 수익률을 그대로 잇지 않는다. 시장 장기 평균과 종목 자체 평균(상·하한)을 반반 섞은 값 + 유사 국면 기울기 × w.
+    //  4) 유사 국면(k-최근접): 추세·모멘텀·RSI·변동성 비율·낙폭이 지금과 가장 비슷했던 과거 날들의 이후 h일 수익률.
+    //  5) 워크포워드 검증: 구간 적중률(50%·80% 구간에 실제 값이 들어간 비율), 방향 Brier 점수를 '과거 상승 비율만 말하는 기준선'과 비교.
+    //     검증에서 구간이 좁았으면(넓었으면) 그만큼 폭을 보정한다(kappa). w 는 검증에서 유사 국면 기울기가 실제로 도움이 된 만큼만(0~1, 표본이 적으면 더 줄임) 준다 — 도움이 안 됐으면 0 이 되어 방향 확률은 기준선에 머문다.
+    // 한계: 가격·거래량 이외 정보(실적·뉴스·금리)는 쓰지 않는다. 검증은 이 종목의 지난 몇 년이라 표본이 작고, 과거에 맞았다고 앞으로도 맞는다는 보장은 없다.
+    (function () {
+      const num = v => typeof v === 'number' && Number.isFinite(v);
+      const CFG = Object.freeze({
+        version: 1,
+        horizons: [5, 21, 63],                       // 검증까지 하는 기간 (1주·1개월·3개월)
+        coneH: [1, 2, 3, 5, 10, 15, 21, 30, 42, 63], // 부채꼴(콘)을 그릴 기간
+        qs: [5, 10, 25, 50, 75, 90, 95],
+        lambda: 0.94, rho: 0.97, volInit: 20,
+        warm: 252, minCand: 150, minBars: 150,
+        kMin: 20, kMax: 60,
+        muMkt: 0.07 / 252, muCap: 0.30 / 252,
+        shrinkN: 30, evalStep: 5,
+        kappaMin: 0.85, kappaMax: 1.6,               // 구간 폭 보정 계수의 허용 범위
+        callBand: 0.05,                              // 방향 판정: 상승 확률이 50%에서 이만큼 벗어날 때만 '방향을 말했다'고 센다
+        volHiPct: 70, volLoPct: 30
+      });
+
+      function prep(history) {
+        const hs = (Array.isArray(history) ? history : []).filter(b => b && num(b.close) && b.close > 0);
+        const n = hs.length, c = new Array(n), hi = new Array(n), lo = new Array(n), lc = new Array(n), r = new Array(n).fill(0);
+        for (let i = 0; i < n; i++) {
+          c[i] = hs[i].close; hi[i] = num(hs[i].high) ? hs[i].high : c[i]; lo[i] = num(hs[i].low) ? hs[i].low : c[i];
+          lc[i] = Math.log(c[i]); if (i) r[i] = lc[i] - lc[i - 1];
+        }
+        // v[i]: i일 종가까지의 수익률로 만든 '다음 날' 분산 예상. lrv[i]: i일까지의 평균 제곱수익률(장기 분산)
+        const v = new Array(n).fill(null), lrv = new Array(n).fill(null), K = CFG.volInit;
+        let s2 = 0;
+        for (let i = 1; i < n; i++) {
+          s2 += r[i] * r[i];
+          if (i === K) v[i] = s2 / K;
+          else if (i > K) v[i] = CFG.lambda * v[i - 1] + (1 - CFG.lambda) * r[i] * r[i];
+          if (i >= K) lrv[i] = s2 / i;
+        }
+        const P = new Array(n + 1).fill(0);
+        for (let i = 0; i < n; i++) P[i + 1] = P[i] + c[i];
+        const sma = (i, p) => i + 1 >= p ? (P[i + 1] - P[i + 1 - p]) / p : null;
+        // RSI(14, Wilder)
+        const rsi = new Array(n).fill(null);
+        let ag = 0, al = 0;
+        for (let i = 1; i < n; i++) {
+          const d = c[i] - c[i - 1], g = d > 0 ? d : 0, l = d < 0 ? -d : 0;
+          if (i <= 14) { ag += g / 14; al += l / 14; if (i === 14) rsi[i] = al === 0 ? 100 : 100 - 100 / (1 + ag / al); }
+          else { ag = (ag * 13 + g) / 14; al = (al * 13 + l) / 14; rsi[i] = al === 0 ? 100 : 100 - 100 / (1 + ag / al); }
+        }
+        // 252일 고가 (단조 덱)
+        const hh = new Array(n).fill(null), dq = [];
+        for (let i = 0; i < n; i++) {
+          while (dq.length && hi[dq[dq.length - 1]] <= hi[i]) dq.pop();
+          dq.push(i); if (dq[0] <= i - 252) dq.shift();
+          hh[i] = hi[dq[0]];
+        }
+        const R2 = new Array(n + 1).fill(0);
+        for (let i = 0; i < n; i++) R2[i + 1] = R2[i] + r[i] * r[i];
+        const rv = (i, p) => i >= p ? Math.sqrt((R2[i + 1] - R2[i + 1 - p]) / p) : null;
+        // 유사 국면 특징 (i >= warm 부터)
+        const F = new Array(n).fill(null);
+        for (let i = CFG.warm; i < n; i++) {
+          const s200 = sma(i, 200), s50 = sma(i, 50), v20 = rv(i, 20), v120 = rv(i, 120);
+          if (!num(s200) || !num(s50) || !num(rsi[i]) || !v120) continue;
+          F[i] = [c[i] / s200 - 1, c[i] / s50 - 1, lc[i] - lc[i - 63], lc[i] - lc[i - 21], rsi[i] / 100, v20 / v120, c[i] / hh[i] - 1];
+        }
+        return { hs, n, c, lc, r, v, lrv, sma, F, hh };
+      }
+
+      // h일 동안의 하루 평균 변동성(로그수익률 표준편차) 예상 — i일 종가 시점
+      function sigH(D, i, h) {
+        if (!num(D.v[i]) || !num(D.lrv[i])) return null;
+        const rho = CFG.rho, w = rho * (1 - Math.pow(rho, h)) / (h * (1 - rho));
+        return Math.sqrt(Math.max(D.lrv[i] + (D.v[i] - D.lrv[i]) * w, 1e-10));
+      }
+      // 표준화 잔차 z[j] = (j → j+h 로그수익률) / (j 시점 예상 변동성 × √h)
+      function zSeries(D, h) {
+        const z = new Array(D.n).fill(null), sq = Math.sqrt(h);
+        for (let j = CFG.volInit; j + h < D.n; j++) { const s = sigH(D, j, h); if (s) z[j] = (D.lc[j + h] - D.lc[j]) / (s * sq); }
+        return z;
+      }
+      const quant = (sorted, p) => {
+        const m = sorted.length; if (!m) return null;
+        const x = (m - 1) * p / 100, a = Math.floor(x), b = Math.min(m - 1, a + 1);
+        return sorted[a] + (sorted[b] - sorted[a]) * (x - a);
+      };
+      // t 시점에 쓸 수 있는(결과가 이미 나온) 잔차만 모아 평균을 뺀 뒤 정렬
+      function zSample(z, t, h) {
+        const a = [];
+        for (let j = CFG.volInit; j <= t - h; j++) if (z[j] !== null) a.push(z[j]);
+        if (a.length < 60) return null;
+        const m = a.reduce((x, y) => x + y, 0) / a.length;
+        for (let i = 0; i < a.length; i++) a[i] -= m;
+        return a.sort((x, y) => x - y);
+      }
+      function drift(D, t, opts) {
+        if (opts && opts.noDrift) return 0;
+        const own = t > 0 ? (D.lc[t] - D.lc[0]) / t : 0;
+        return 0.5 * CFG.muMkt + 0.5 * Math.max(-CFG.muCap, Math.min(CFG.muCap, own));
+      }
+
+      // 유사 국면: t 와 특징이 가장 가까운 과거 k 일 (서로 h/2 봉 이상 떨어진 것만)
+      function analog(D, t, h) {
+        const ft = D.F[t]; if (!ft) return null;
+        const idx = [];
+        for (let j = CFG.warm; j <= t - h; j++) if (D.F[j]) idx.push(j);
+        if (idx.length < CFG.minCand) return null;
+        const nf = ft.length, mu = new Array(nf).fill(0), sd = new Array(nf).fill(0);
+        for (const j of idx) for (let f = 0; f < nf; f++) mu[f] += D.F[j][f];
+        for (let f = 0; f < nf; f++) mu[f] /= idx.length;
+        for (const j of idx) for (let f = 0; f < nf; f++) { const d = D.F[j][f] - mu[f]; sd[f] += d * d; }
+        for (let f = 0; f < nf; f++) sd[f] = Math.sqrt(sd[f] / idx.length) || 1;
+        let all = 0, up = 0;
+        const cand = idx.map(j => {
+          let d = 0; for (let f = 0; f < nf; f++) { const x = (D.F[j][f] - ft[f]) / sd[f]; d += x * x; }
+          const ret = D.lc[j + h] - D.lc[j]; all += ret; if (ret > 0) up++;
+          return { j, d, ret };
+        }).sort((a, b) => a.d - b.d);
+        const k = Math.max(CFG.kMin, Math.min(CFG.kMax, Math.round(Math.sqrt(idx.length) * 1.2))), gap = Math.max(3, Math.floor(h / 2)), pick = [];
+        for (const cnd of cand) {
+          if (pick.length >= k) break;
+          if (pick.every(p => Math.abs(p.j - cnd.j) >= gap)) pick.push(cnd);
+        }
+        const m = pick.reduce((a, p) => a + p.ret, 0) / pick.length, ups = pick.filter(p => p.ret > 0).length;
+        return { n: pick.length, pUpRaw: (ups + 1) / (pick.length + 2), mean: m, tilt: m - all / idx.length, base: up / idx.length, picks: pick.map(p => p.j) };
+      }
+
+      // h 하나에 대한 워크포워드 검증 + 현재 시점 전망
+      function horizon(D, h, opts) {
+        const z = zSeries(D, h), t = D.n - 1, sq = Math.sqrt(h);
+        const out = { h, ok: false };
+        const dist = (tt, center) => {
+          const zs = zSample(z, tt, h), s = sigH(D, tt, h);
+          if (!zs || !s) return null;
+          return { zs, scale: s * sq, center };
+        };
+        const pUpOf = d => { let k = 0; const thr = -d.center / d.scale; for (const x of d.zs) if (x > thr) k++; return k / d.zs.length; };
+        // --- 검증 ---
+        const ev = [];
+        for (let tt = CFG.warm + CFG.minCand + h; tt + h < D.n; tt += CFG.evalStep) {
+          const c0 = h * drift(D, tt, opts), d = dist(tt, c0); if (!d) continue;
+          const a = analog(D, tt, h), ret = D.lc[tt + h] - D.lc[tt];
+          const q = p => d.center + d.scale * quant(d.zs, p);
+          const u = (ret - c0) / d.scale, q10 = quant(d.zs, 10), q90 = quant(d.zs, 90);
+          ev.push({ tt, ret, c0, need: u >= 0 ? (q90 > 0 ? u / q90 : 1) : (q10 < 0 ? u / q10 : 1), in50: ret >= q(25) && ret <= q(75), in80: ret >= q(10) && ret <= q(90), a, y: ret > 0 ? 1 : 0 });
+        }
+        let val = null, w = 0, kappa = 1;
+        if (ev.length >= 20) {
+          const m = ev.length, nEff = Math.max(1, Math.floor((ev[m - 1].tt - ev[0].tt + h) / h));
+          const withA = ev.filter(e => e.a);
+          let bM = 0, bB = 0, hit = 0, hitN = 0, sxy = 0, sxx = 0;
+          for (const e of withA) {
+            bM += (e.a.pUpRaw - e.y) ** 2; bB += (e.a.base - e.y) ** 2;
+            if (Math.abs(e.a.pUpRaw - 0.5) >= CFG.callBand) { hitN++; if ((e.a.pUpRaw > 0.5) === (e.y === 1)) hit++; }
+            sxy += e.a.tilt * (e.ret - e.c0); sxx += e.a.tilt * e.a.tilt;
+          }
+          const na = withA.length;
+          // 구간 폭 보정: 검증에서 80% 구간이 실제로 80%를 담으려면 폭을 몇 배 해야 했는지(need 의 80% 분위) — 표본이 적으면 1 쪽으로 줄인다
+          const k80 = quant(ev.map(e => e.need).sort((x, y) => x - y), 80);
+          kappa = Math.max(CFG.kappaMin, Math.min(CFG.kappaMax, 1 + (k80 - 1) * nEff / (nEff + CFG.shrinkN)));
+          if (na >= 20 && sxx > 0) w = Math.max(0, Math.min(1, sxy / sxx)) * nEff / (nEff + CFG.shrinkN);
+          val = {
+            n: m, nEff, from: D.hs[ev[0].tt].date || null, to: D.hs[ev[m - 1].tt].date || null,
+            cover50: ev.filter(e => e.in50).length / m * 100, cover80: ev.filter(e => e.in80).length / m * 100,
+            upRate: ev.filter(e => e.y).length / m * 100,
+            dirN: na, brier: na ? bM / na : null, brierBase: na ? bB / na : null,
+            skill: na && bB > 0 ? 1 - bM / bB : null,
+            hit: hitN ? hit / hitN * 100 : null, hitN, kappa
+          };
+        }
+        // --- 현재 ---
+        const a = analog(D, t, h), c0 = h * drift(D, t, opts), center = c0 + (a ? w * a.tilt : 0), d = dist(t, center);
+        if (!d) return out;
+        d.scale *= kappa;
+        const q = {}; CFG.qs.forEach(p => { q[p] = d.center + d.scale * quant(d.zs, p); });
+        let base = null; { let up = 0, k = 0; for (let j = CFG.volInit; j + h <= t; j++) { k++; if (D.lc[j + h] > D.lc[j]) up++; } base = k ? up / k : null; }
+        return {
+          h, ok: true, q, price: Object.fromEntries(CFG.qs.map(p => [p, D.c[t] * Math.exp(q[p])])),
+          pUp: pUpOf(d), base, center, sigma: d.scale, w, kappa,
+          analog: a ? { n: a.n, pUpRaw: a.pUpRaw, mean: a.mean, tilt: a.tilt, picks: a.picks } : null, val
+        };
+      }
+
+      // 국면: 추세(200일선·50일선) × 변동성(최근 1년 중 백분위) + 과거 같은 국면의 이후 21일 성적
+      function regime(history) {
+        const D = history && history.lc ? history : prep(history), t = D.n - 1;
+        if (D.n < CFG.warm + 30) return null;
+        const cls = i => {
+          const s200 = D.sma(i, 200), s50 = D.sma(i, 50); if (!num(s200) || !num(s50) || !num(D.v[i])) return null;
+          const trend = D.c[i] > s200 && s50 > s200 ? 'up' : D.c[i] < s200 && s50 < s200 ? 'down' : 'mixed';
+          let below = 0, k = 0; for (let j = Math.max(CFG.volInit, i - 251); j <= i; j++) if (num(D.v[j])) { k++; if (D.v[j] <= D.v[i]) below++; }
+          const vp = k ? below / k * 100 : 50;
+          return { trend, vol: vp >= CFG.volHiPct ? 'high' : vp <= CFG.volLoPct ? 'low' : 'mid', volPct: vp };
+        };
+        const now = cls(t); if (!now) return null;
+        const H = 21, same = [], allR = [];
+        let since = 0;
+        for (let i = t - 1; i >= 200; i--) { const x = cls(i); if (x && x.trend === now.trend) since++; else break; }
+        for (let i = 200; i + H <= t; i++) {
+          const x = cls(i); if (!x) continue;
+          const ret = D.lc[i + H] - D.lc[i]; allR.push(ret);
+          if (x.trend === now.trend && (x.vol === 'high') === (now.vol === 'high')) same.push(ret);
+        }
+        const st = a => a.length ? { n: a.length, nEff: Math.max(1, Math.round(a.length / H)), avg: (Math.exp(a.reduce((x, y) => x + y, 0) / a.length) - 1) * 100, up: a.filter(x => x > 0).length / a.length * 100 } : null;
+        return {
+          id: now.trend + '_' + now.vol, trend: now.trend, vol: now.vol, volPct: now.volPct, days: since,
+          dd: (D.c[t] / D.hh[t] - 1) * 100, vs200: (D.c[t] / D.sma(t, 200) - 1) * 100,
+          sigmaAnnual: Math.sqrt(D.v[t] * 252) * 100, same: st(same), all: st(allR), horizon: H
+        };
+      }
+
+      // 전체 실행. history: 일봉 [{date,high,low,close}] 오래된 것 → 최신. opts: { noDrift: 환율·지수 선물 등 장기 기울기를 넣지 않을 때 }
+      function run(history, opts) {
+        const D = prep(history), t = D.n - 1;
+        if (D.n < CFG.minBars) return { ok: false, reason: 'short', bars: D.n, need: CFG.minBars };
+        const hz = {}; CFG.horizons.forEach(h => { hz[h] = horizon(D, h, opts); });
+        if (!CFG.horizons.some(h => hz[h].ok)) return { ok: false, reason: 'short', bars: D.n, need: CFG.minBars };
+        // 콘: 기간별 5·25·50·75·95% 가격. 유사 국면 기울기는 검증한 기간 사이를 선형 보간
+        const tiltAt = h => {
+          const pts = [[0, 0]].concat(CFG.horizons.filter(x => hz[x].ok).map(x => [x, hz[x].center - x * drift(D, t, opts)]));
+          for (let i = 1; i < pts.length; i++) if (h <= pts[i][0]) return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * (h - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]);
+          return pts[pts.length - 1][1];
+        };
+        const kappaAt = h => {
+          const pts = CFG.horizons.filter(x => hz[x].ok).map(x => [x, hz[x].kappa]);
+          if (!pts.length || h <= pts[0][0]) return pts.length ? pts[0][1] : 1;
+          for (let i = 1; i < pts.length; i++) if (h <= pts[i][0]) return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * (h - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]);
+          return pts[pts.length - 1][1];
+        };
+        const cone = [];
+        for (const h of CFG.coneH) {
+          const zs = zSample(zSeries(D, h), t, h), s = sigH(D, t, h); if (!zs || !s) continue;
+          const ctr = h * drift(D, t, opts) + tiltAt(h), sc = s * Math.sqrt(h) * kappaAt(h), row = { d: h };
+          [5, 25, 50, 75, 95].forEach(p => { row['p' + p] = D.c[t] * Math.exp(ctr + sc * quant(zs, p)); });
+          cone.push(row);
+        }
+        return {
+          ok: true, cv: CFG.version, bars: D.n, asOf: D.hs[t].date || null, price: D.c[t],
+          sigmaAnnual: num(D.v[t]) ? Math.sqrt(D.v[t] * 252) * 100 : null,
+          horizons: hz, cone, regime: regime(D)
+        };
+      }
+
+      // 예측 채점: 확률 p(0~1)로 '오른다'에 건 예측의 Brier 점수와 게임 점수(0~100, 50% 로만 말하면 75점)
+      function scoreCall(pUp, wentUp) {
+        if (!num(pUp)) return null;
+        const p = Math.max(0, Math.min(1, pUp)), b = (p - (wentUp ? 1 : 0)) ** 2;
+        return { brier: b, points: Math.round((1 - b) * 100) };
+      }
+
+      window.Forecast = { CFG, run, regime, scoreCall, _prep: prep, _analog: analog, _sigH: sigH };
+    })();
+  </script>
+
   <script id="mod-risk">
     // ===== 포지션 사이징 공용 모듈 — window.RiskKit =====
     //  RiskKit.cfg() / saveCfg({equity, riskPct})  — 계좌 크기·1회 허용 손실(%)을 탭 간에 공유(localStorage)
@@ -27207,6 +27595,539 @@ ${input}
       if (typeof APP_SYM_APPLY !== 'undefined') APP_SYM_APPLY.sim = sym => { if (sym && sym !== T.sym) { T.sym = sym; T.name = ''; T.cur = curOfSym(sym); if (CURS.includes(T.cur)) V.cur = T.cur; pickSymbol(sym, ''); } };
       window.SIM_UI = { mountDock, refresh: () => { init(); return refresh(); }, follow: sym => { if (sym && sym !== T.sym) pickSymbol(sym, ''); } };
       window.SIM_DEBUG = { editOrder, load, placeOrder, positions, analyze, insights, fillOrder, Q, T, V, equity, reset: () => { S = fresh(); save(); } };
+    })();
+  </script>
+
+  <script id="mod-forecast-ui">
+    // ===== 확률 전망 카드 (종목 분석 탭) — window.forecastRender(sym, history, currency) · window.forecastFor(sym) =====
+    // mod-forecast(window.Forecast, 순수 계산)의 결과를 #forecastBody 에 그린다. 숫자는 '과거 빈도·검증 결과'로만 말하고, 방향 예측력이 확인되지 않으면 그렇게 적는다.
+    // 의존: Forecast · fetchRealYahooFinanceData · escapeHtml · switchAppTab · appSetSymbol (메인 스크립트), GAME(있으면 이벤트 기록).
+    (function () {
+      const num = v => typeof v === 'number' && Number.isFinite(v);
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const HN = { 5: '1주', 21: '1개월', 63: '3개월' };
+      const TREND = { up: '상승 추세', down: '하락 추세', mixed: '추세 혼조' }, VOL = { high: '변동성 높음', mid: '변동성 보통', low: '변동성 낮음' };
+      const TREND_TONE = { up: 'text-emerald-300 border-emerald-700/60 bg-emerald-950/40', down: 'text-rose-300 border-rose-700/60 bg-rose-950/40', mixed: 'text-amber-300 border-amber-700/60 bg-amber-950/40' };
+      const CSYM = { USD: '$', KRW: '₩', EUR: '€', JPY: '¥', GBP: '£' };
+      const fmtP = (v, cur) => { if (!num(v)) return '—'; const d = cur === 'KRW' || cur === 'JPY' ? 0 : v < 10 ? 3 : 2; return (CSYM[cur] || '') + v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+      const pct = (v, d = 1) => num(v) ? `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}%` : '—';
+      const noDriftSym = s => /=X$|=F$|^\^VIX/i.test(s);
+      const ST = { sym: '', cur: 'USD', f: null, h: 21, hist: null, key: '', mkt: null, mktAt: 0, mktBusy: false };
+      const MEM = {};   // 아레나용: 종목별 전망 (10분)
+
+      const compute = (sym, history) => window.Forecast.run(history, { noDrift: noDriftSym(sym) });
+
+      // 시장(SPY) 국면 — 30분에 한 번
+      async function marketRegime() {
+        if (ST.mkt && Date.now() - ST.mktAt < 30 * 60000) return ST.mkt;
+        if (ST.mktBusy) return ST.mkt;
+        ST.mktBusy = true;
+        try {
+          const d = await fetchRealYahooFinanceData('SPY', '5y');
+          if (d && d.history && d.history.length > 300) { ST.mkt = window.Forecast.regime(d.history); ST.mktAt = Date.now(); }
+        } catch (e) { /* 시장 국면 없이 표시 */ }
+        ST.mktBusy = false;
+        return ST.mkt;
+      }
+
+      window.forecastFor = async function (sym) {
+        sym = String(sym || '').trim().toUpperCase();
+        const m = MEM[sym];
+        if (m && Date.now() - m.at < 10 * 60000) return m;
+        const d = await fetchRealYahooFinanceData(sym, '5y');
+        if (!d || d.notFound || !d.history || !d.history.length) return null;
+        const f = compute(sym, d.history), last = d.history[d.history.length - 1];
+        return (MEM[sym] = { at: Date.now(), sym, name: d.name || sym, cur: d.currency || 'USD', price: d.price || last.close, date: last.date, f });
+      };
+
+      function regimeChip(r, label) {
+        if (!r) return '';
+        return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold ${TREND_TONE[r.trend]}"><span class="text-slate-400 font-normal">${label}</span>${TREND[r.trend]} · ${VOL[r.vol]}</span>`;
+      }
+      function regimeLine(r, who) {
+        if (!r || !r.same) return '';
+        const s = r.same, a = r.all;
+        return `<li><b class="text-slate-200">${who}</b> <span>— ${TREND[r.trend]}(${r.days}거래일째), ${VOL[r.vol]}(최근 1년 중 ${r.volPct.toFixed(0)}번째 백분위), 1년 고점 대비 ${pct(r.dd)}.</span> ${s.nEff < 5 ? `<span class="text-slate-500">과거에 같은 국면이 거의 없어(겹치지 않는 표본 약 ${s.nEff}개) 이후 성적은 참고하기 어렵습니다.</span>` : `과거 같은 국면의 이후 ${r.horizon}거래일: 평균 <b class="${s.avg >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${pct(s.avg)}</b>, 상승 ${s.up.toFixed(0)}% <span class="text-slate-500">(겹치지 않는 표본 약 ${s.nEff}개${a ? ` · 전체 기간 평균 ${pct(a.avg)}, 상승 ${a.up.toFixed(0)}%` : ''})</span>`}</li>`;
+      }
+
+      function tiles(z, cur, f) {
+        const up = z.pUp * 100, base = num(z.base) ? z.base * 100 : null, P = z.price, q = z.q, e = x => (Math.exp(x) - 1) * 100;
+        const edge = z.w >= 0.05 && z.analog;
+        const tile = (label, big, sub, tone, span) => `<div class="nx-tile ${span || ''}"><div class="text-[11px] text-slate-400 font-semibold">${label}</div><div class="font-mono-numbers text-lg sm:text-xl font-bold ${tone || 'text-white'} leading-tight mt-1 whitespace-nowrap">${big}</div><div class="text-[11px] text-slate-500 mt-1 leading-snug">${sub}</div></div>`;
+        return `<div class="grid grid-cols-2 gap-2.5">
+          <div class="nx-tile col-span-2">
+            <div class="flex items-baseline justify-between gap-2"><span class="text-[11px] text-slate-400 font-semibold">${HN[z.h]} 뒤 지금보다 높을 확률</span><span class="text-[11px] text-slate-500">과거 ${HN[z.h]} 상승 비율 ${base === null ? '—' : base.toFixed(0) + '%'}</span></div>
+            <div class="flex items-end gap-3 mt-1"><span class="font-mono-numbers text-4xl font-extrabold nx-grad-text leading-none">${up.toFixed(0)}%</span><span class="text-[11px] ${edge ? 'text-cyan-300' : 'text-slate-400'} pb-1 leading-snug">${edge ? `유사 국면 기울기 반영 (가중 ${(z.w * 100).toFixed(0)}%)` : '방향 신호 없음 — 과거 평균 수준'}</span></div>
+            <div class="nx-meter mt-2" role="img" aria-label="상승 확률 ${up.toFixed(0)}%"><span style="width:${Math.max(2, Math.min(100, up)).toFixed(1)}%"></span>${base === null ? '' : `<i style="left:${Math.max(0, Math.min(100, base)).toFixed(1)}%" title="과거 상승 비율"></i>`}</div>
+          </div>
+          ${tile('예상 범위 (80%)', `${fmtP(P[10], cur)} ~ ${fmtP(P[90], cur)}`, `${pct(e(q[10]))} ~ ${pct(e(q[90]))} · 10번 중 8번은 이 안`, '', 'col-span-2')}
+          ${tile('가운데 절반 (50%)', `${fmtP(P[25], cur)} ~ ${fmtP(P[75], cur)}`, `${pct(e(q[25]))} ~ ${pct(e(q[75]))} · 2번 중 1번은 이 안`, '', 'col-span-2')}
+          ${tile('중앙값', fmtP(P[50], cur), `지금 대비 ${pct(e(q[50]))}`, e(q[50]) >= 0 ? 'text-emerald-300' : 'text-rose-300')}
+          ${tile('변동성 (연율)', num(f.sigmaAnnual) ? f.sigmaAnnual.toFixed(0) + '%' : '—', num(f.sigmaAnnual) ? `하루 ±${(f.sigmaAnnual / Math.sqrt(252)).toFixed(1)}% 안팎` : '')}
+        </div>`;
+      }
+
+      function validation(z) {
+        const v = z.val;
+        if (!v) return `<div class="nx-tile text-xs text-slate-400 leading-relaxed">일봉 이력이 짧아 과거 검증을 하지 못했습니다. 구간은 변동성만으로 계산한 값이니 참고만 하세요.</div>`;
+        const bar = (label, got, want) => {
+          const okk = Math.abs(got - want) <= 8;
+          return `<div><div class="flex justify-between text-[11px]"><span class="text-slate-300">${label}</span><span class="font-mono-numbers ${okk ? 'text-emerald-300' : 'text-amber-300'}">${got.toFixed(0)}% <span class="text-slate-500">/ 목표 ${want}%</span></span></div><div class="nx-meter nx-meter-sm mt-1"><span style="width:${Math.min(100, got).toFixed(1)}%"></span><i style="left:${want}%"></i></div></div>`;
+        };
+        const rangeOk = Math.abs(v.cover80 - 80) <= 8 && Math.abs(v.cover50 - 50) <= 10;
+        const dirOk = num(v.skill) && v.skill > 0.02 && v.nEff >= 30 && z.w >= 0.05;
+        const chip = (t, tone) => `<span class="inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-bold ${tone}">${t}</span>`;
+        return `<div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          <div class="nx-tile space-y-2.5">
+            <div class="flex items-center justify-between gap-2"><span class="text-xs font-bold text-slate-100">구간 검증</span>${chip(rangeOk ? '구간 신뢰도 양호' : '구간 신뢰도 낮음', rangeOk ? 'text-emerald-300 border-emerald-700/60 bg-emerald-950/40' : 'text-amber-300 border-amber-700/60 bg-amber-950/40')}</div>
+            ${bar('50% 구간에 실제 값이 들어간 비율', v.cover50, 50)}
+            ${bar('80% 구간에 실제 값이 들어간 비율', v.cover80, 80)}
+            <p class="text-[11px] text-slate-500 leading-relaxed">과거 ${v.n}개 시점(${esc(v.from || '')} ~ ${esc(v.to || '')})에서 그날까지의 데이터만으로 구간을 만들고 실제 결과와 비교했습니다. 지금 구간은 이 결과로 폭을 ${z.kappa > 1.02 ? `${((z.kappa - 1) * 100).toFixed(0)}% 넓혀` : z.kappa < 0.98 ? `${((1 - z.kappa) * 100).toFixed(0)}% 좁혀` : '그대로 두어'} 보정했습니다.</p>
+          </div>
+          <div class="nx-tile space-y-2">
+            <div class="flex items-center justify-between gap-2"><span class="text-xs font-bold text-slate-100">방향 검증</span>${chip(dirOk ? '방향 신호 약하게 있음' : '방향 예측력 확인 안 됨', dirOk ? 'text-cyan-300 border-cyan-700/60 bg-cyan-950/40' : 'text-slate-300 border-slate-600 bg-slate-800/60')}</div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div><div class="font-mono-numbers text-lg font-bold text-white">${num(v.hit) ? v.hit.toFixed(0) + '%' : '—'}</div><div class="text-[11px] text-slate-500">유사 국면 방향 적중 (${v.hitN}회)</div></div>
+              <div><div class="font-mono-numbers text-lg font-bold text-slate-300">${v.upRate.toFixed(0)}%</div><div class="text-[11px] text-slate-500">늘 '상승'이라고만 했을 때</div></div>
+              <div><div class="font-mono-numbers text-lg font-bold ${num(v.skill) && v.skill > 0 ? 'text-emerald-300' : 'text-rose-300'}">${num(v.skill) ? pct(v.skill * 100) : '—'}</div><div class="text-[11px] text-slate-500">기준선 대비 정확도</div></div>
+            </div>
+            <p class="text-[11px] text-slate-500 leading-relaxed">${dirOk ? '이 종목에서는 유사 국면이 과거 평균보다 조금 더 잘 맞았습니다. 그만큼만 확률에 반영했습니다.' : '이 종목에서는 유사 국면이 "과거 상승 비율"만 말하는 기준선보다 낫지 않았습니다. 그래서 방향 확률을 기준선 근처에 두었습니다 — 방향이 아니라 범위를 보세요.'} 겹치지 않는 표본은 약 ${v.nEff}개뿐입니다.</p>
+          </div>
+        </div>`;
+      }
+
+      function draw() {
+        const cv = document.getElementById('forecastCanvas'), f = ST.f;
+        if (!cv || !f || !f.ok || !ST.hist) return;
+        const box = cv.parentNode, W = box.clientWidth, H = box.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+        if (!W || !H) return;
+        cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+        const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+        const NH = 126, hist = ST.hist.slice(-NH).map(b => b.close), cone = f.cone, maxD = cone[cone.length - 1].d, last = f.price;
+        const padL = 8, padR = 58, padT = 14, padB = 22, iw = W - padL - padR, ih = H - padT - padB;
+        const xH = iw * 0.58, xOf = i => padL + (hist.length > 1 ? i / (hist.length - 1) : 0) * xH, xD = d => padL + xH + d / maxD * (iw - xH);
+        let lo = Math.min(...hist, ...cone.map(c => c.p5)), hi = Math.max(...hist, ...cone.map(c => c.p95));
+        const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+        const y = v => padT + (hi - v) / (hi - lo) * ih;
+        g.font = '11px "JetBrains Mono", monospace'; g.textBaseline = 'middle';
+        // 격자 + 가격 눈금
+        g.strokeStyle = 'rgba(148,163,184,0.10)'; g.fillStyle = '#7d8ba1'; g.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) { const v = lo + (hi - lo) * i / 4, yy = Math.round(y(v)) + 0.5; g.beginPath(); g.moveTo(padL, yy); g.lineTo(W - padR, yy); g.stroke(); g.fillText(fmtP(v, ST.cur), W - padR + 6, yy); }
+        // 밴드
+        const band = (a, b, fill) => {
+          g.beginPath(); g.moveTo(xD(0), y(last));
+          cone.forEach(c => g.lineTo(xD(c.d), y(c[b])));
+          for (let i = cone.length - 1; i >= 0; i--) g.lineTo(xD(cone[i].d), y(cone[i][a]));
+          g.closePath(); g.fillStyle = fill; g.fill();
+        };
+        const gr = g.createLinearGradient(xD(0), 0, xD(maxD), 0); gr.addColorStop(0, 'rgba(34,211,238,0.30)'); gr.addColorStop(1, 'rgba(167,139,250,0.10)');
+        band('p5', 'p95', gr);
+        const gr2 = g.createLinearGradient(xD(0), 0, xD(maxD), 0); gr2.addColorStop(0, 'rgba(34,211,238,0.50)'); gr2.addColorStop(1, 'rgba(167,139,250,0.28)');
+        band('p25', 'p75', gr2);
+        // 중앙값
+        g.setLineDash([5, 4]); g.strokeStyle = '#e2e8f0'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(xD(0), y(last)); cone.forEach(c => g.lineTo(xD(c.d), y(c.p50))); g.stroke(); g.setLineDash([]);
+        // 과거 종가
+        const hg = g.createLinearGradient(0, padT, 0, padT + ih); hg.addColorStop(0, 'rgba(34,211,238,0.22)'); hg.addColorStop(1, 'rgba(34,211,238,0)');
+        g.beginPath(); hist.forEach((v, i) => i ? g.lineTo(xOf(i), y(v)) : g.moveTo(xOf(i), y(v))); g.lineTo(xOf(hist.length - 1), padT + ih); g.lineTo(xOf(0), padT + ih); g.closePath(); g.fillStyle = hg; g.fill();
+        g.beginPath(); hist.forEach((v, i) => i ? g.lineTo(xOf(i), y(v)) : g.moveTo(xOf(i), y(v))); g.strokeStyle = '#22d3ee'; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
+        // 오늘·기간 표시
+        g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+        const mark = (d, label, on) => {
+          const xx = Math.round(xD(d)) + 0.5;
+          g.strokeStyle = on ? 'rgba(226,232,240,0.55)' : 'rgba(148,163,184,0.18)'; g.setLineDash(on ? [] : [2, 3]); g.beginPath(); g.moveTo(xx, padT); g.lineTo(xx, padT + ih); g.stroke(); g.setLineDash([]);
+          g.fillStyle = on ? '#e2e8f0' : '#7d8ba1'; g.font = (on ? 'bold ' : '') + '11px Inter, sans-serif';
+          g.textAlign = d === 0 || d === maxD ? 'right' : d === 5 ? 'left' : 'center'; g.fillText(label, xx + (d === 0 ? -4 : d === 5 ? 4 : 0), H - 6);
+        };
+        mark(0, '오늘', false); [5, 21, 63].forEach(d => mark(d, HN[d], d === ST.h));
+        g.beginPath(); g.arc(xD(0), y(last), 4, 0, Math.PI * 2); g.fillStyle = '#22d3ee'; g.fill(); g.lineWidth = 2; g.strokeStyle = '#000'; g.stroke();
+        // 선택 기간의 80% 구간 끝점
+        const z = f.horizons[ST.h];
+        if (z && z.ok) [[z.price[90], '#a5f3fc'], [z.price[10], '#c4b5fd']].forEach(([v, col]) => { g.beginPath(); g.arc(xD(ST.h), y(v), 3, 0, Math.PI * 2); g.fillStyle = col; g.fill(); });
+      }
+
+      function render() {
+        const sec = document.getElementById('forecastSection'), body = document.getElementById('forecastBody');
+        if (!sec || !body) return;
+        const f = ST.f;
+        const head = right => `<div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="text-base lg:text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-cyan-300"></i>확률 전망 <span class="nx-tag">FORECAST LAB</span></h3><p class="text-xs text-slate-400 mt-1">${esc(ST.sym)} · 한 점을 맞히는 예측이 아니라, 과거에 검증해 본 '범위와 확률'입니다.</p></div>${right || ''}</div>`;
+        sec.classList.remove('hidden');
+        if (!f) { body.innerHTML = `<div class="nx-card nx-glow p-5 lg:p-6 space-y-3">${head()}<div class="nx-skel h-56"></div><p class="text-xs text-slate-500">5년 일봉으로 변동성·유사 국면·워크포워드 검증을 계산하는 중…</p></div>`; return; }
+        if (!f.ok) { body.innerHTML = `<div class="nx-card p-5 lg:p-6 space-y-3">${head()}<p class="text-sm text-slate-400">일봉이 ${f.bars}개뿐이라 전망을 계산하지 않았습니다 (최소 ${f.need}개 필요). 상장한 지 얼마 안 된 종목은 과거 표본이 없어 범위를 믿기 어렵습니다.</p></div>`; return; }
+        if (!f.horizons[ST.h] || !f.horizons[ST.h].ok) ST.h = [21, 5, 63].find(h => f.horizons[h] && f.horizons[h].ok);
+        const z = f.horizons[ST.h];
+        const seg = `<div class="nx-seg" role="tablist" aria-label="전망 기간">${[5, 21, 63].map(h => `<button type="button" role="tab" aria-selected="${h === ST.h}" ${f.horizons[h] && f.horizons[h].ok ? '' : 'disabled'} onclick="forecastSetH(${h})" class="${h === ST.h ? 'is-on' : ''}">${HN[h]}</button>`).join('')}</div>`;
+        const a = z.analog;
+        body.innerHTML = `<div class="nx-card nx-glow p-5 lg:p-6 space-y-4">
+          ${head(seg)}
+          <div class="flex flex-wrap gap-2">${regimeChip(f.regime, '종목')}${regimeChip(ST.mkt, '시장(SPY)')}</div>
+          <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            <div class="lg:col-span-3 min-w-0 flex flex-col">
+              <div class="relative h-64 lg:h-auto lg:flex-1 lg:min-h-[19rem] rounded-xl border border-slate-800/80 nx-plot overflow-hidden"><canvas id="forecastCanvas" role="img" aria-label="최근 종가와 앞으로 3개월의 예상 범위"></canvas></div>
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-slate-400"><span><i class="inline-block w-3 h-0.5 bg-cyan-400 align-middle mr-1"></i>종가</span><span><i class="inline-block w-3 h-2 rounded-sm align-middle mr-1" style="background:rgba(34,211,238,.5)"></i>50% 구간</span><span><i class="inline-block w-3 h-2 rounded-sm align-middle mr-1" style="background:rgba(34,211,238,.22)"></i>90% 구간</span><span><i class="inline-block w-3 border-t border-dashed border-slate-200 align-middle mr-1"></i>중앙값</span></div>
+            </div>
+            <div class="lg:col-span-2">${tiles(z, ST.cur, f)}</div>
+          </div>
+          ${a ? `<p class="text-xs text-slate-300 leading-relaxed"><i class="fa-solid fa-clone text-violet-300 mr-1.5"></i>추세·모멘텀·RSI·변동성·낙폭이 지금과 가장 비슷했던 과거 <b class="text-white">${a.n}일</b>을 찾았습니다. 그 뒤 ${HN[z.h]} 동안 오른 경우는 <b class="text-white">${Math.round((a.pUpRaw * (a.n + 2) - 1) / a.n * 100)}%</b>, 평균 수익률은 <b class="${a.mean >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${pct((Math.exp(a.mean) - 1) * 100)}</b>였습니다.</p>` : ''}
+          <details class="group" ${ST.open ? 'open' : ''} ontoggle="forecastToggled(this.open)">
+            <summary class="cursor-pointer select-none text-xs font-bold text-cyan-300 hover:text-cyan-200 flex items-center gap-1.5"><i class="fa-solid fa-chevron-right text-[10px] transition-transform group-open:rotate-90"></i>이 전망은 과거에 얼마나 맞았나 (워크포워드 검증) · 시장 국면</summary>
+            <div class="space-y-3 mt-3">
+              ${validation(z)}
+              <ul class="text-xs text-slate-400 leading-relaxed space-y-1.5 list-disc pl-4">${regimeLine(f.regime, esc(ST.sym))}${regimeLine(ST.mkt, '시장(SPY)')}</ul>
+            </div>
+          </details>
+          <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 pt-3">
+            <p class="text-[11px] text-slate-500 leading-relaxed max-w-3xl">가격·거래량만으로 계산합니다(실적·뉴스·금리는 모릅니다). 과거에 맞았다고 앞으로도 맞는다는 보장은 없으며 투자 권유가 아닙니다. 기준일 ${esc(f.asOf || '')} · 일봉 ${f.bars}개.</p>
+            <button type="button" onclick="forecastToArena()" class="nx-btn"><i class="fa-solid fa-bullseye"></i>내 예측 걸고 엔진과 겨루기</button>
+          </div>
+        </div>`;
+        requestAnimationFrame(draw);
+      }
+
+      window.forecastSetH = function (h) { ST.h = h; render(); if (window.GAME) window.GAME.emit('forecast', ST.sym); };
+      window.forecastToggled = function (open) { ST.open = !!open; if (open && window.GAME) window.GAME.emit('validate', ST.sym); };
+      window.forecastToArena = function () { if (ST.sym && typeof appSetSymbol === 'function') appSetSymbol(ST.sym, 'analysis'); if (typeof switchAppTab === 'function') switchAppTab('arena'); };
+
+      window.forecastRender = function (sym, history, cur) {
+        const sec = document.getElementById('forecastSection');
+        if (!sec || !window.Forecast) return;
+        sym = String(sym || '').toUpperCase();
+        if (!Array.isArray(history) || !history.length) { sec.classList.add('hidden'); return; }
+        const last = history[history.length - 1], key = `${sym}|${history.length}|${last.date}|${last.close}`;
+        ST.cur = cur || 'USD';
+        if (key === ST.key && ST.f) { render(); return; }
+        ST.sym = sym; ST.key = key; ST.hist = history; ST.f = null;
+        render();
+        setTimeout(() => {
+          if (ST.key !== key) return;
+          try { ST.f = compute(sym, history); } catch (e) { console.error('전망 계산 실패', e); ST.f = { ok: false, bars: history.length, need: window.Forecast.CFG.minBars }; }
+          MEM[sym] = { at: Date.now(), sym, name: sym, cur: ST.cur, price: last.close, date: last.date, f: ST.f };
+          render();
+          if (!/^SPY$/.test(sym)) marketRegime().then(() => { if (ST.key === key) render(); });
+        }, 60);
+      };
+      window.forecastRedraw = () => requestAnimationFrame(draw);
+      let rz = null;
+      window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(draw, 120); });
+    })();
+  </script>
+
+  <script id="mod-game">
+    // ===== 예측 아레나 (게임화) — window.GAME =====
+    // 매매 횟수나 수익이 아니라 '과정'에 점수를 준다: 매일 점검(퀘스트), 방향·확신도를 미리 걸어 두는 예측, 그리고 그 예측의 보정(calibration).
+    // 예측은 Brier 점수로 채점한다 — 확신도를 부풀리면 틀렸을 때 크게 깎이므로 '아는 만큼만 말하는' 쪽이 이긴다. 같은 문제를 전망 엔진(mod-forecast)·기준선도 풀어 성적을 나란히 보여 준다.
+    // 저장: localStorage 'pentanalyst_game_v1' (GSYNC 가 자동 동기화, 항목 단위 합치기는 GSYNC MERGERS). 경험치는 '지급 내역(grants)'의 합이라 두 기기에서 합쳐도 중복되지 않는다.
+    // 의존: Forecast · forecastFor · fetchRealYahooFinanceData · showToast · switchAppTab · appSetSymbol · APP_SYM · APP_SYM_APPLY · TAB_HOOKS (메인 스크립트).
+    (function () {
+      const KEY = 'pentanalyst_game_v1';
+      const num = v => typeof v === 'number' && Number.isFinite(v);
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const dayStr = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+      const today = () => dayStr(Date.now());
+      const toast = (a, b, c) => { if (typeof showToast === 'function') showToast(a, b, c || 'info'); };
+      const HN = { 5: '1주', 21: '1개월' }, CONFS = [55, 65, 75, 85, 95], MAX_PER_DAY = 5;
+      const CSYM = { USD: '$', KRW: '₩', EUR: '€', JPY: '¥', GBP: '£' };
+      const fmtP = (v, cur) => { if (!num(v)) return '—'; const d = cur === 'KRW' || cur === 'JPY' ? 0 : v < 10 ? 3 : 2; return (CSYM[cur] || '') + v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+      const pct = (v, d = 1) => num(v) ? `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}%` : '—';
+
+      const RANKS = [[1, '견습 관측자', 'fa-seedling'], [3, '차트 항해사', 'fa-compass'], [6, '신호 분석관', 'fa-satellite-dish'], [10, '전략가', 'fa-chess-knight'], [15, '퀀트 조종사', 'fa-rocket'], [21, '시장 설계자', 'fa-atom'], [30, '오라클', 'fa-eye']];
+      const QUESTS = [
+        { id: 'analyze', ev: 'analyze', need: 1, xp: 30, icon: 'fa-users-viewfinder', t: '종목 하나 깊게 보기', d: '분석 탭에서 종목 1개를 분석합니다.' },
+        { id: 'analyze3', ev: 'sym', need: 3, xp: 50, icon: 'fa-layer-group', t: '서로 다른 3종목 비교', d: '오늘 서로 다른 종목 3개를 분석합니다.' },
+        { id: 'call', ev: 'call', need: 1, xp: 40, icon: 'fa-bullseye', t: '예측 1건 걸기', d: '방향과 확신도를 미리 적어 둡니다.' },
+        { id: 'validate', ev: 'validate', need: 1, xp: 30, icon: 'fa-vial-circle-check', t: '검증 결과 읽기', d: '확률 전망 카드의 "과거에 얼마나 맞았나"를 펼쳐 봅니다.' },
+        { id: 'market', ev: 'tab:market', need: 1, xp: 25, icon: 'fa-earth-americas', t: '시장 날씨 확인', d: '시장 탭에서 오늘의 장세를 확인합니다.' },
+        { id: 'watch', ev: 'tab:watch', need: 1, xp: 25, icon: 'fa-star', t: '관심종목 점검', d: '관심종목 탭을 열어 알림·가격 계획을 확인합니다.' },
+        { id: 'calendar', ev: 'tab:calendar', need: 1, xp: 25, icon: 'fa-calendar-days', t: '이번 주 일정 확인', d: '금융 달력에서 실적·지표 발표를 확인합니다.' },
+        { id: 'screener', ev: 'tab:screener', need: 1, xp: 25, icon: 'fa-filter', t: '후보 발굴', d: '스크리너에서 새 후보를 찾아봅니다.' },
+        { id: 'journal', ev: 'tab:bdwtools', need: 1, xp: 25, icon: 'fa-pen-to-square', t: '매매일지 돌아보기', d: '계산기·매매일지 탭을 엽니다.' },
+        { id: 'sim', ev: 'tab:sim', need: 1, xp: 25, icon: 'fa-gamepad', t: '모의 계좌 점검', d: '모의투자 계좌의 보유 종목과 성과를 확인합니다.' }
+      ];
+      const BADGES = [
+        { id: 'first', icon: 'fa-flag-checkered', t: '첫 예측', d: '예측을 처음 걸었습니다.', ok: s => s.calls.length >= 1 },
+        { id: 'ten', icon: 'fa-list-check', t: '기록하는 습관', d: '예측 10건을 걸었습니다.', ok: s => s.calls.length >= 10 },
+        { id: 'res10', icon: 'fa-scale-balanced', t: '검증된 표본', d: '채점된 예측이 10건입니다.', ok: (s, m) => m.n >= 10 },
+        { id: 'sharp', icon: 'fa-crosshairs', t: '5연속 적중', d: '방향을 5번 연속 맞혔습니다.', ok: (s, m) => m.bestRun >= 5 },
+        { id: 'calib', icon: 'fa-gauge-high', t: '보정의 달인', d: '10건 이상에서 평균 80점 이상.', ok: (s, m) => m.n >= 10 && m.me >= 80 },
+        { id: 'beat', icon: 'fa-robot', t: '엔진을 이기다', d: '10건 이상에서 전망 엔진보다 평균 점수가 높습니다.', ok: (s, m) => m.nModel >= 10 && m.meVsModel > m.model },
+        { id: 'humble', icon: 'fa-feather', t: '겸손한 확신', d: '확신도 95%를 걸지 않고 20건을 채웠습니다.', ok: s => s.calls.length >= 20 && s.calls.every(c => c.conf < 0.95) },
+        { id: 'streak3', icon: 'fa-fire', t: '3일 연속', d: '3일 연속으로 접속했습니다.', ok: s => s.streak.best >= 3 },
+        { id: 'streak7', icon: 'fa-fire-flame-curved', t: '7일 연속', d: '7일 연속으로 접속했습니다.', ok: s => s.streak.best >= 7 },
+        { id: 'streak30', icon: 'fa-meteor', t: '30일 연속', d: '30일 연속으로 접속했습니다.', ok: s => s.streak.best >= 30 },
+        { id: 'quests5', icon: 'fa-medal', t: '퀘스트 올클리어 ×5', d: '하루 퀘스트 3개를 모두 끝낸 날이 5일입니다.', ok: s => Object.keys(s.grants).filter(k => /\|qall$/.test(k)).length >= 5 },
+        { id: 'lv5', icon: 'fa-star', t: '레벨 5', d: '레벨 5에 도달했습니다.', ok: s => levelOf(xpOf(s)).lv >= 5 },
+        { id: 'lv10', icon: 'fa-crown', t: '레벨 10', d: '레벨 10에 도달했습니다.', ok: s => levelOf(xpOf(s)).lv >= 10 }
+      ];
+
+      // ---------- 상태 ----------
+      let S = null;
+      const fresh = () => ({ v: 1, grants: {}, arch: {}, days: {}, streak: { last: '', n: 0, best: 0 }, calls: [], badges: {} });
+      function load() {
+        if (S) return S;
+        try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); S = o && typeof o === 'object' && o.grants && Array.isArray(o.calls) ? Object.assign(fresh(), o) : fresh(); } catch (e) { S = fresh(); }
+        if (!S.streak || typeof S.streak !== 'object') S.streak = { last: '', n: 0, best: 0 };
+        return S;
+      }
+      function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 저장 불가: 이번 접속에만 유지 */ } }
+      const xpOf = s => Object.values(s.grants).reduce((a, b) => a + (+b || 0), 0) + Object.values(s.arch || {}).reduce((a, b) => a + (+b || 0), 0);
+      // 레벨 L 에 필요한 누적 경험치 = 50·L·(L−1)  (2레벨 100, 3레벨 300, 4레벨 600 …)
+      function levelOf(xp) {
+        const lv = Math.max(1, Math.floor((1 + Math.sqrt(1 + 4 * xp / 50)) / 2)), lo = 50 * lv * (lv - 1), hi = 50 * (lv + 1) * lv;
+        const rank = RANKS.filter(r => r[0] <= lv).pop();
+        return { lv, lo, hi, into: xp - lo, span: hi - lo, rank: rank[1], icon: rank[2], next: (RANKS.find(r => r[0] > lv) || null) };
+      }
+      function grant(key, xp, why) {
+        const s = load(); if (s.grants[key] !== undefined || !(xp > 0)) return false;
+        const before = levelOf(xpOf(s)).lv;
+        s.grants[key] = Math.round(xp); save();
+        const after = levelOf(xpOf(s));
+        if (why) toast(`+${Math.round(xp)} XP`, why, 'success');
+        if (after.lv > before) levelUp(after);
+        hud();
+        return true;
+      }
+      // 석 달 넘은 지급 내역은 달별 합계로 접는다 (키: 'YYYY-MM-DD|…')
+      function compact() {
+        const s = load(), cut = dayStr(Date.now() - 100 * 86400000).slice(0, 7);
+        let ch = false;
+        Object.keys(s.grants).forEach(k => { const m = k.slice(0, 7); if (/^\d{4}-\d\d$/.test(m) && m < cut) { s.arch[m] = (s.arch[m] || 0) + s.grants[k]; delete s.grants[k]; ch = true; } });
+        Object.keys(s.days).sort().slice(0, -45).forEach(d => { delete s.days[d]; ch = true; });
+        if (ch) save();
+      }
+      function dayRec() { const s = load(), d = today(); return s.days[d] || (s.days[d] = { c: {}, syms: [] }); }
+      function checkIn() {
+        const s = load(), d = today();
+        if (s.streak.last === d) return;
+        s.streak.n = s.streak.last === dayStr(Date.now() - 86400000) ? s.streak.n + 1 : 1;
+        s.streak.last = d; s.streak.best = Math.max(s.streak.best || 0, s.streak.n);
+        save();
+        grant(`${d}|in`, 10 + Math.min(10, s.streak.n - 1) * 2, s.streak.n > 1 ? `${s.streak.n}일 연속 접속` : '오늘의 접속 보상');
+      }
+      // 오늘의 퀘스트 3개 (날짜로 정해지므로 모든 기기에서 같다)
+      function questsOf(d) {
+        let h = 2166136261; for (let i = 0; i < d.length; i++) { h ^= d.charCodeAt(i); h = Math.imul(h, 16777619); }
+        const pool = QUESTS.slice(), out = [];
+        // 예측 걸기는 매일 포함 — 이 탭의 핵심 습관
+        out.push(pool.splice(pool.findIndex(q => q.id === 'call'), 1)[0]);
+        while (out.length < 3) { h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; out.push(pool.splice(h % pool.length, 1)[0]); }
+        return out;
+      }
+      const progress = (q, r) => q.ev === 'sym' ? r.syms.length : (r.c[q.ev] || 0);
+      function checkQuests() {
+        const d = today(), r = dayRec(), qs = questsOf(d);
+        let done = 0;
+        qs.forEach(q => { if (progress(q, r) >= q.need) { done++; grant(`${d}|q|${q.id}`, q.xp, `퀘스트 완료: ${q.t}`); } });
+        if (done === qs.length) grant(`${d}|qall`, 40, '오늘의 퀘스트를 모두 끝냈습니다');
+      }
+      function metrics() {
+        const s = load(), res = s.calls.filter(c => c.res).sort((a, b) => a.res.t - b.res.t);
+        const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+        let run = 0, bestRun = 0; res.forEach(c => { run = c.res.ok ? run + 1 : 0; bestRun = Math.max(bestRun, run); });
+        const wm = res.filter(c => num(c.res.mPts));
+        return {
+          n: res.length, hit: res.length ? res.filter(c => c.res.ok).length / res.length * 100 : null, me: avg(res.map(c => c.res.pts)), bestRun, run,
+          nModel: wm.length, model: avg(wm.map(c => c.res.mPts)), meVsModel: avg(wm.map(c => c.res.pts)),
+          modelHit: wm.length ? wm.filter(c => (c.mUp > 0.5) === c.res.up).length / wm.length * 100 : null,
+          base: avg(res.filter(c => num(c.res.bPts)).map(c => c.res.bPts)), open: s.calls.filter(c => !c.res).length
+        };
+      }
+      function checkBadges() {
+        const s = load(), m = metrics();
+        BADGES.forEach(b => {
+          if (s.badges[b.id]) return;
+          let got = false; try { got = !!b.ok(s, m); } catch (e) { got = false; }
+          if (got) { s.badges[b.id] = Date.now(); save(); grant(`${today()}|b|${b.id}`, 60, `배지 획득: ${b.t}`); }
+        });
+      }
+      function emit(type, arg) {
+        load(); checkIn();
+        const r = dayRec(), k = type === 'tab' ? `tab:${arg}` : type;
+        r.c[k] = (r.c[k] || 0) + 1;
+        if (type === 'analyze' && arg) { const sym = String(arg).toUpperCase(); if (!r.syms.includes(sym) && r.syms.length < 20) r.syms.push(sym); }
+        save(); checkQuests(); checkBadges();
+        if (document.getElementById('view-arena') && !document.getElementById('view-arena').classList.contains('hidden') && type !== 'tab') render();
+      }
+
+      // ---------- 예측 ----------
+      const T = { sym: '', info: null, busy: false, err: '', dir: '', conf: 65, h: 5 };
+      async function pick(sym) {
+        sym = String(sym || '').trim().toUpperCase(); if (!sym) return;
+        T.sym = sym; T.info = null; T.err = ''; T.busy = true; T.dir = ''; render();
+        try { const info = await window.forecastFor(sym); if (T.sym !== sym) return; if (info) T.info = info; else T.err = '시세를 불러오지 못했습니다. 티커를 확인해 주세요.'; }
+        catch (e) { if (T.sym === sym) T.err = '시세를 불러오지 못했습니다.'; }
+        if (T.sym === sym) { T.busy = false; render(); }
+      }
+      function lock() {
+        const s = load(), i = T.info;
+        if (!i || !T.dir) { toast('방향을 고르세요', '오를지 내릴지 먼저 선택해 주세요.', 'warning'); return; }
+        const d = today();
+        if (s.calls.filter(c => dayStr(c.t0) === d).length >= MAX_PER_DAY) { toast('오늘은 여기까지', `예측은 하루 ${MAX_PER_DAY}건까지입니다. 많이 거는 것보다 잘 고르는 쪽이 점수에 유리합니다.`, 'warning'); return; }
+        if (s.calls.some(c => !c.res && c.sym === i.sym && c.h === T.h)) { toast('이미 진행 중', `${i.sym} ${HN[T.h]} 예측이 아직 채점 전입니다.`, 'warning'); return; }
+        const z = i.f && i.f.ok && i.f.horizons[T.h] && i.f.horizons[T.h].ok ? i.f.horizons[T.h] : null;
+        const call = { id: Date.now() * 1000 + Math.floor(Math.random() * 1000), sym: i.sym, name: i.name, cur: i.cur, dir: T.dir, conf: T.conf / 100, h: T.h, t0: Date.now(), d0: i.date, p0: i.price, mUp: z ? +z.pUp.toFixed(4) : null, base: z && num(z.base) ? +z.base.toFixed(4) : null, lo: z ? +z.price[10].toFixed(4) : null, hi: z ? +z.price[90].toFixed(4) : null, res: null };
+        s.calls.push(call); save();
+        grant(`${d}|c|${call.id}`, 10, '예측을 걸었습니다 — 결과는 기간이 지나면 채점됩니다');
+        T.dir = ''; emit('call', i.sym); render();
+      }
+      let resolving = false;
+      async function resolveDue() {
+        const s = load();
+        const due = s.calls.filter(c => !c.res && Date.now() - c.t0 >= c.h * 86400000);
+        if (!due.length || resolving || typeof fetchRealYahooFinanceData !== 'function') return;
+        resolving = true;
+        let done = 0;
+        try {
+          const syms = [...new Set(due.map(c => c.sym))];
+          for (const sym of syms) {
+            let d = null; try { d = await fetchRealYahooFinanceData(sym, '1y'); } catch (e) { d = null; }
+            const h = d && d.history; if (!h || !h.length) continue;
+            due.filter(c => c.sym === sym).forEach(c => {
+              let i0 = -1; for (let i = h.length - 1; i >= 0; i--) if (h[i].date <= c.d0) { i0 = i; break; }
+              if (i0 < 0 || i0 + c.h > h.length - 1) return;   // 아직 h거래일이 지나지 않았다
+              const bar = h[i0 + c.h], up = bar.close > c.p0, FC = window.Forecast;
+              const me = FC.scoreCall(c.dir === 'up' ? c.conf : 1 - c.conf, up), mo = FC.scoreCall(c.mUp, up), ba = FC.scoreCall(c.base, up);
+              c.res = { t: Date.now(), d1: bar.date, p1: bar.close, up, ok: (c.dir === 'up') === up, pts: me.points, mPts: mo ? mo.points : null, bPts: ba ? ba.points : null, inRange: num(c.lo) && num(c.hi) ? bar.close >= c.lo && bar.close <= c.hi : null };
+              done++;
+              save();
+              grant(`${c.d0}|r|${c.id}`, Math.max(5, me.points - 50), `${c.sym} ${HN[c.h]} 예측 채점: ${c.res.ok ? '적중' : '빗나감'} · ${me.points}점`);
+            });
+          }
+        } finally { resolving = false; }
+        if (done) { checkBadges(); hud(); render(); }
+      }
+
+      // ---------- 화면 ----------
+      function hud() {
+        const el = document.getElementById('gameHud'); if (!el) return;
+        const s = load(), L = levelOf(xpOf(s));
+        el.innerHTML = `<i class="fa-solid ${L.icon} text-cyan-300"></i><b class="font-mono-numbers">Lv.${L.lv}</b><span class="nx-hudbar"><span style="width:${(L.into / L.span * 100).toFixed(0)}%"></span></span>${s.streak.n > 1 ? `<span class="nx-hudfire"><i class="fa-solid fa-fire"></i>${s.streak.n}</span>` : ''}`;
+        el.title = `${L.rank} · 레벨 ${L.lv} · 다음 레벨까지 ${L.hi - xpOf(s)} XP`;
+      }
+      function levelUp(L) {
+        const o = document.createElement('div');
+        o.className = 'nx-levelup'; o.setAttribute('role', 'status');
+        o.innerHTML = `<div class="nx-levelup-card"><div class="nx-levelup-ring"><i class="fa-solid ${L.icon}"></i></div><div class="text-[11px] tracking-[0.35em] text-cyan-300 font-bold">LEVEL UP</div><div class="text-4xl font-extrabold text-white font-mono-numbers">Lv.${L.lv}</div><div class="text-sm text-slate-300">${L.rank}</div></div>`;
+        document.body.appendChild(o);
+        o.addEventListener('click', () => o.remove());
+        setTimeout(() => { o.classList.add('is-out'); setTimeout(() => o.remove(), 400); }, 2400);
+      }
+      function playerCard(s, m) {
+        const xp = xpOf(s), L = levelOf(xp);
+        const stat = (v, l) => `<div class="text-center"><div class="font-mono-numbers text-lg font-bold text-white">${v}</div><div class="text-[11px] text-slate-400">${l}</div></div>`;
+        return `<section class="nx-card nx-glow p-5 lg:p-6">
+          <div class="flex flex-col md:flex-row md:items-center gap-5">
+            <div class="flex items-center gap-4 min-w-0">
+              <div class="nx-ring" style="--p:${(L.into / L.span * 100).toFixed(1)}"><div><i class="fa-solid ${L.icon} text-cyan-300 text-lg"></i><b class="font-mono-numbers text-xl text-white leading-none">${L.lv}</b></div></div>
+              <div class="min-w-0">
+                <div class="text-[11px] tracking-[0.3em] text-cyan-300 font-bold">PREDICTION ARENA</div>
+                <h2 class="text-xl lg:text-2xl font-extrabold text-white truncate">${L.rank}</h2>
+                <div class="text-xs text-slate-400 mt-0.5"><span class="font-mono-numbers text-slate-200">${xp.toLocaleString('en-US')}</span> XP · 다음 레벨까지 <span class="font-mono-numbers text-slate-200">${(L.hi - xp).toLocaleString('en-US')}</span>${L.next ? ` · Lv.${L.next[0]}에서 '${L.next[1]}'` : ''}</div>
+                <div class="nx-meter mt-2 w-full md:w-80"><span style="width:${(L.into / L.span * 100).toFixed(1)}%"></span></div>
+              </div>
+            </div>
+            <div class="grid grid-cols-4 gap-3 md:ml-auto shrink-0">
+              ${stat(`<i class="fa-solid fa-fire text-orange-400 text-sm mr-1"></i>${s.streak.n || 0}`, '연속 접속')}
+              ${stat(s.calls.length, '건 예측')}
+              ${stat(num(m.hit) ? m.hit.toFixed(0) + '%' : '—', '방향 적중')}
+              ${stat(num(m.me) ? m.me.toFixed(0) : '—', '평균 점수')}
+            </div>
+          </div>
+        </section>`;
+      }
+      function questCard() {
+        const d = today(), r = dayRec(), qs = questsOf(d), s = load();
+        const all = !!s.grants[`${d}|qall`];
+        return `<section class="nx-card p-5 space-y-3">
+          <div class="flex items-center justify-between gap-2"><h3 class="text-sm font-bold text-white"><i class="fa-solid fa-list-check text-amber-300 mr-2"></i>오늘의 퀘스트</h3><span class="text-[11px] ${all ? 'text-emerald-300' : 'text-slate-400'}">${all ? '모두 완료 · 보너스 +40 XP 받음' : '3개를 모두 끝내면 보너스 +40 XP'}</span></div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">${qs.map(q => {
+            const p = Math.min(q.need, progress(q, r)), ok = p >= q.need;
+            return `<div class="nx-quest ${ok ? 'is-done' : ''}"><div class="flex items-start gap-3"><span class="nx-quest-ic"><i class="fa-solid ${ok ? 'fa-check' : q.icon}"></i></span><div class="min-w-0 flex-1"><div class="flex items-center justify-between gap-2"><b class="text-sm text-slate-100 truncate">${q.t}</b><span class="font-mono-numbers text-[11px] ${ok ? 'text-emerald-300' : 'text-amber-300'} shrink-0">+${q.xp} XP</span></div><p class="text-[11px] text-slate-400 leading-snug mt-0.5">${q.d}</p><div class="nx-meter nx-meter-sm mt-2"><span style="width:${(p / q.need * 100).toFixed(0)}%"></span></div></div></div></div>`;
+          }).join('')}</div>
+        </section>`;
+      }
+      function newCallCard() {
+        const i = T.info, s = load(), left = MAX_PER_DAY - s.calls.filter(c => dayStr(c.t0) === today()).length;
+        const chip = (on, label, click, extra) => `<button type="button" onclick="${click}" class="nx-chip ${on ? 'is-on' : ''} ${extra || ''}">${label}</button>`;
+        const reward = c => { const w = Math.round((1 - (1 - c / 100) ** 2) * 100), l = Math.round((1 - (c / 100) ** 2) * 100); return `맞으면 <b class="text-emerald-300">${w}점</b> · 틀리면 <b class="text-rose-300">${l}점</b>`; };
+        return `<section class="nx-card p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-bold text-white"><i class="fa-solid fa-bullseye text-cyan-300 mr-2"></i>새 예측 걸기</h3><span class="text-[11px] text-slate-400">오늘 남은 횟수 ${Math.max(0, left)} / ${MAX_PER_DAY}</span></div>
+          <form onsubmit="event.preventDefault(); GAME.pick(this.sym.value)" class="flex gap-2">
+            <input name="sym" value="${esc(T.sym)}" placeholder="티커 (예: AAPL, 005930.KS)" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="예측할 종목 티커" class="flex-1 min-w-0 bg-black/50 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono-numbers focus:border-cyan-400 outline-none">
+            <button type="submit" class="nx-btn nx-btn-ghost">불러오기</button>
+          </form>
+          ${T.busy ? '<div class="nx-skel h-24"></div>' : T.err ? `<p class="text-xs text-rose-300">${esc(T.err)}</p>` : !i ? '<p class="text-xs text-slate-400 leading-relaxed">종목을 불러온 뒤 방향·기간·확신도를 정하고 잠그면, 기간이 지난 뒤 자동으로 채점됩니다. 전망 엔진의 확률은 잠근 뒤에 공개됩니다 — 먼저 스스로 판단해 보세요.</p>' : `
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1"><b class="text-lg text-white font-mono-numbers">${esc(i.sym)}</b><span class="text-xs text-slate-400 truncate">${esc(i.name)}</span><span class="font-mono-numbers text-sm text-cyan-300 ml-auto">${fmtP(i.price, i.cur)}</span></div>
+            <div class="space-y-3">
+              <div><div class="text-[11px] text-slate-400 font-semibold mb-1.5">기간</div><div class="flex gap-2">${[5, 21].map(h => chip(T.h === h, `${HN[h]} (${h}거래일)`, `GAME.set('h',${h})`)).join('')}</div></div>
+              <div><div class="text-[11px] text-slate-400 font-semibold mb-1.5">${HN[T.h]} 뒤 종가는 지금(${fmtP(i.price, i.cur)})보다…</div><div class="grid grid-cols-2 gap-2">${chip(T.dir === 'up', '<i class="fa-solid fa-arrow-trend-up mr-1.5"></i>높다', "GAME.set('dir','up')", 'nx-chip-up py-3 text-sm')}${chip(T.dir === 'down', '<i class="fa-solid fa-arrow-trend-down mr-1.5"></i>낮다', "GAME.set('dir','down')", 'nx-chip-down py-3 text-sm')}</div></div>
+              <div><div class="flex items-baseline justify-between gap-2 mb-1.5"><span class="text-[11px] text-slate-400 font-semibold">확신도</span><span class="text-[11px] text-slate-400">${reward(T.conf)}</span></div><div class="flex flex-wrap gap-2">${CONFS.map(c => chip(T.conf === c, c + '%', `GAME.set('conf',${c})`)).join('')}</div></div>
+              <button type="button" onclick="GAME.lock()" class="nx-btn w-full justify-center py-2.5" ${T.dir ? '' : 'disabled'}><i class="fa-solid fa-lock"></i>예측 잠그기</button>
+              <p class="text-[11px] text-slate-500 leading-relaxed">점수 = (1 − (확신도 − 결과)²) × 100. 동전 던지기(50%)는 늘 75점입니다. 확신도를 실제 적중률보다 높게 걸면 장기적으로 점수가 깎입니다. 잠근 예측은 고치거나 지울 수 없습니다.</p>
+            </div>`}
+        </section>`;
+      }
+      function callRows() {
+        const s = load(), open = s.calls.filter(c => !c.res).sort((a, b) => b.t0 - a.t0), res = s.calls.filter(c => c.res).sort((a, b) => b.res.t - a.res.t).slice(0, 30);
+        const dirTxt = c => `<span class="${c.dir === 'up' ? 'text-emerald-300' : 'text-rose-300'} font-bold"><i class="fa-solid ${c.dir === 'up' ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} mr-1"></i>${c.dir === 'up' ? '높다' : '낮다'} ${(c.conf * 100).toFixed(0)}%</span>`;
+        const model = c => num(c.mUp) ? `엔진: 높을 확률 ${(c.mUp * 100).toFixed(0)}%` : '엔진: 이력 부족';
+        const sym = c => `<button type="button" onclick="quickSearch('${esc(c.sym)}')" class="font-mono-numbers font-bold text-cyan-300 hover:text-cyan-200" title="분석 열기">${esc(c.sym)}</button>`;
+        const openHtml = open.length ? open.map(c => {
+          const days = Math.max(0, Math.ceil((c.t0 + c.h * 1.45 * 86400000 - Date.now()) / 86400000));
+          return `<li class="nx-row"><div class="flex flex-wrap items-center gap-x-3 gap-y-1">${sym(c)}<span class="text-[11px] text-slate-400">${HN[c.h]}</span>${dirTxt(c)}<span class="text-[11px] text-slate-400 font-mono-numbers">진입 ${fmtP(c.p0, c.cur)} · ${esc(c.d0)}</span><span class="ml-auto text-[11px] text-slate-400">${days ? `채점까지 약 ${days}일` : '곧 채점'}</span></div><div class="text-[11px] text-slate-500 mt-1">${model(c)}${num(c.lo) ? ` · 엔진의 80% 구간 ${fmtP(c.lo, c.cur)} ~ ${fmtP(c.hi, c.cur)}` : ''}</div></li>`;
+        }).join('') : '<li class="text-xs text-slate-500 py-3">진행 중인 예측이 없습니다.</li>';
+        const resHtml = res.length ? res.map(c => {
+          const r = c.res, chg = (r.p1 / c.p0 - 1) * 100;
+          return `<li class="nx-row"><div class="flex flex-wrap items-center gap-x-3 gap-y-1"><span class="nx-result ${r.ok ? 'is-hit' : 'is-miss'}">${r.ok ? '적중' : '빗나감'}</span>${sym(c)}<span class="text-[11px] text-slate-400">${HN[c.h]}</span>${dirTxt(c)}<span class="text-[11px] font-mono-numbers ${chg >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${fmtP(c.p0, c.cur)} → ${fmtP(r.p1, c.cur)} (${pct(chg)})</span><span class="ml-auto font-mono-numbers text-sm font-bold text-white">${r.pts}점</span></div><div class="text-[11px] text-slate-500 mt-1">${esc(c.d0)} → ${esc(r.d1)} · 엔진 ${num(r.mPts) ? r.mPts + '점' : '—'} · 기준선 ${num(r.bPts) ? r.bPts + '점' : '—'}${r.inRange === null ? '' : ` · 엔진 80% 구간 ${r.inRange ? '안' : '밖'}`}</div></li>`;
+        }).join('') : '<li class="text-xs text-slate-500 py-3">아직 채점된 예측이 없습니다. 1주 예측은 5거래일 뒤에 채점됩니다.</li>';
+        return `<section class="nx-card p-5 space-y-3"><h3 class="text-sm font-bold text-white"><i class="fa-solid fa-hourglass-half text-violet-300 mr-2"></i>진행 중 <span class="text-slate-500 font-normal">(${open.length})</span></h3><ul class="space-y-2">${openHtml}</ul></section>
+          <section class="nx-card p-5 space-y-3"><h3 class="text-sm font-bold text-white"><i class="fa-solid fa-clipboard-check text-emerald-300 mr-2"></i>채점 결과 <span class="text-slate-500 font-normal">(최근 30건)</span></h3><ul class="space-y-2">${resHtml}</ul></section>`;
+      }
+      function scoreboard(m) {
+        const rows = [
+          { who: '나', icon: 'fa-user-astronaut', tone: 'text-cyan-300', pts: m.me, hit: m.hit, n: m.n },
+          { who: '전망 엔진', icon: 'fa-robot', tone: 'text-violet-300', pts: m.model, hit: m.modelHit, n: m.nModel },
+          { who: '기준선 (과거 상승 비율)', icon: 'fa-chart-simple', tone: 'text-slate-300', pts: m.base, hit: null, n: m.n },
+          { who: '동전 던지기', icon: 'fa-coins', tone: 'text-slate-400', pts: m.n ? 75 : null, hit: m.n ? 50 : null, n: m.n }
+        ].sort((a, b) => (b.pts === null ? -1 : b.pts) - (a.pts === null ? -1 : a.pts));
+        return `<section class="nx-card p-5 space-y-3">
+          <h3 class="text-sm font-bold text-white"><i class="fa-solid fa-ranking-star text-amber-300 mr-2"></i>성적표 — 같은 문제를 누가 더 잘 풀었나</h3>
+          <div class="space-y-2">${rows.map((r, i) => `<div class="nx-row flex items-center gap-3"><span class="font-mono-numbers text-xs text-slate-500 w-4">${num(r.pts) ? i + 1 : '·'}</span><i class="fa-solid ${r.icon} ${r.tone} w-5 text-center"></i><span class="text-sm text-slate-100 flex-1 min-w-0 truncate">${r.who}</span><span class="text-[11px] text-slate-400 w-20 text-right">${num(r.hit) ? '적중 ' + r.hit.toFixed(0) + '%' : ''}</span><span class="font-mono-numbers text-sm font-bold text-white w-14 text-right">${num(r.pts) ? r.pts.toFixed(1) : '—'}</span></div>`).join('')}</div>
+          <p class="text-[11px] text-slate-500 leading-relaxed">${m.n < 20 ? `채점된 예측이 ${m.n}건입니다. 20건이 넘기 전에는 운과 실력을 구분할 수 없으니 순위에 큰 의미를 두지 마세요.` : `채점된 예측 ${m.n}건 기준입니다. 표본이 여전히 작으니 참고용으로만 보세요.`} 엔진과 기준선의 점수는 내가 예측을 건 순간에 저장해 둔 확률로 계산합니다(나중에 바꿀 수 없음).</p>
+        </section>`;
+      }
+      function badgeCard() {
+        const s = load();
+        return `<section class="nx-card p-5 space-y-3"><h3 class="text-sm font-bold text-white"><i class="fa-solid fa-award text-fuchsia-300 mr-2"></i>배지 <span class="text-slate-500 font-normal">(${Object.keys(s.badges).length} / ${BADGES.length})</span></h3>
+          <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-2">${BADGES.map(b => `<div class="nx-badge ${s.badges[b.id] ? 'is-on' : ''}" title="${esc(b.d)}"><i class="fa-solid ${b.icon}"></i><span>${b.t}</span></div>`).join('')}</div>
+        </section>`;
+      }
+      function render() {
+        const root = document.getElementById('arenaRoot'); if (!root) return;
+        const s = load(), m = metrics();
+        const act = document.activeElement, keep = act && act.name === 'sym' && root.contains(act) ? act.value : null;
+        root.innerHTML = `<div class="space-y-4">${playerCard(s, m)}${questCard()}
+          <div class="grid grid-cols-1 lg:grid-cols-5 gap-4"><div class="lg:col-span-3 space-y-4">${newCallCard()}${callRows()}</div><div class="lg:col-span-2 space-y-4">${scoreboard(m)}${badgeCard()}
+            <section class="nx-card p-5 text-[11px] text-slate-500 leading-relaxed space-y-1.5"><p><b class="text-slate-300">왜 게임인가</b> — 예측을 미리 적고 나중에 채점받는 것이 판단력을 기르는 가장 확실한 방법이기 때문입니다. 경험치는 매매 횟수나 수익이 아니라 점검·기록·보정에만 줍니다.</p><p>실제 돈이 오가지 않으며 투자 권유가 아닙니다. 기록은 이 기기에 저장되고, 구글 계정을 연결하면 다른 기기와 동기화됩니다.</p></section>
+          </div></div></div>`;
+        if (keep !== null) { const inp = root.querySelector('input[name=sym]'); if (inp) { inp.value = keep; inp.focus(); } }
+      }
+
+      window.GAME = {
+        emit, pick, lock, render, hud,
+        set(k, v) { if (k === 'h' || k === 'conf') T[k] = +v; else if (k === 'dir') T.dir = v; render(); },
+        state: () => JSON.parse(JSON.stringify(load())), metrics, levelOf, questsOf
+      };
+      function onOpen() {
+        load(); checkIn(); compact();
+        if (!T.sym && typeof APP_SYM !== 'undefined' && APP_SYM.sym) pick(APP_SYM.sym); else render();
+        resolveDue();
+      }
+      if (typeof TAB_HOOKS !== 'undefined') TAB_HOOKS.arena = onOpen;
+      if (typeof APP_SYM_APPLY !== 'undefined') APP_SYM_APPLY.arena = sym => { if (sym && sym !== T.sym) pick(sym); };
+      // 다른 기기에서 동기화로 값이 바뀌면 다시 읽는다
+      window.addEventListener('storage', e => { if (e.key === KEY) { S = null; hud(); } });
+      window.addEventListener('gsync-applied', e => { const k = e.detail && e.detail.keys; if (!k || k.includes(KEY)) { S = null; hud(); if (typeof activeAppTab !== 'undefined' && activeAppTab === 'arena') render(); } });
+      const boot = () => { load(); checkIn(); hud(); setTimeout(resolveDue, 9000); };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
     })();
   </script>
 
