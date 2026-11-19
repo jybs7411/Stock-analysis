@@ -970,7 +970,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
         <!-- 데이터 연결 상태(초록 점, 마우스를 올리면 상세) · 외부 확인 링크 · API 설정 -->
         <div id="hdrTools" class="flex items-center gap-2 text-xs">
-          <div id="liveFeedStatusBadge" class="relative group flex items-center justify-center w-6 h-6 cursor-help" tabindex="0" aria-label="동기화 상태">
+          <div id="liveFeedStatusBadge" class="relative group flex items-center justify-center w-6 h-6 cursor-pointer" tabindex="0" aria-label="동기화 상태 (눌러서 상세 보기)" onclick="GSYNC.openPanel()">
             <span id="liveFeedDot" role="img" aria-label="동기화 상태" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
             <div class="pointer-events-none absolute left-0 top-full mt-2 z-[60] hidden group-hover:block group-focus:block whitespace-nowrap px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-[11px] shadow-xl">
               <span class="block text-[10px] text-slate-500 mb-0.5">동기화 상태</span>
@@ -2216,7 +2216,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.87.0';
+    const APP_VERSION = '1.88.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3493,16 +3493,21 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       const FILE = 'pentanalyst_sync.json';
       const META_KEY = 'pentanalyst_sync_meta_v1', BAK_KEY = 'pentanalyst_sync_backup_v1', LAST_KEY = 'pentanalyst_sync_last', FID_KEY = 'pentanalyst_sync_fid', DIRTY_KEY = 'pentanalyst_sync_dirty', MT_KEY = 'pentanalyst_sync_mt', LOG_KEY = 'pentanalyst_sync_log_v1', EV_KEY = 'pentanalyst_sync_ev_v1', EV_TTL = 60 * 86400000;
       // 동기화에서 뺄 키: 로그인·기기 고유값, 다시 받아오면 되는 캐시, 화면 배치
-      const EXCLUDE = /^pentanalyst_(gauth_user|gauth_tok|gdrive_client_id|gdrive_last_backup|cal_sync_last|sync_.*|watch_cache_v1|cal_yf_v1|hub_last_v1|gemini_cool|scr_snap|scr_earn|bridge_.*|rev_snap_v1|dock_v1|chart_split|multi_side)$/;
+      const EXCLUDE = /^pentanalyst_(gauth_user|gauth_tok|gdrive_client_id|gdrive_last_backup|cal_sync_last|sync_.*|watch_cache_v1|cal_yf_v1|hub_last_v1|gemini_cool|scr_snap|scr_earn|bridge_.*|rev_snap_v1|dock_v1|chart_split|multi_side|theme|start_tab|recent_mode|mk_pane|mk_auto|scr_conc|multichart|watch_dbl|hide_gbanner)$/;   // 기기마다 달라야 하는 화면 설정(테마·시작 탭·패널 배치 등)은 다른 기기를 덮어쓰지 않게 제외
       const inScope = k => typeof k === 'string' && k.indexOf('pentanalyst_') === 0 && !EXCLUDE.test(k);
       const rawGet = Storage.prototype.getItem, rawSet = Storage.prototype.setItem;
       const ls = { get: k => { try { return rawGet.call(localStorage, k); } catch (e) { return null; } }, set: (k, v) => { try { rawSet.call(localStorage, k, v); return true; } catch (e) { return false; } } };
       const jparse = s => { try { return JSON.parse(s); } catch (e) { return null; } };
       const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
-      let remoteMt = '', hist = jparse(ls.get(LOG_KEY)) || [], seenMt = ls.get(MT_KEY) || '', dirtySince = dirty0() ? Date.now() : 0, retryN = 0, retryTimer = null, lastPoll = 0, offline = false;
+      let remoteMt = '', rmap = null, lastRemoteDevices = {}, frozenBanner = false, hist = jparse(ls.get(LOG_KEY)) || [], seenMt = ls.get(MT_KEY) || '', dirtySince = dirty0() ? Date.now() : 0, retryN = 0, retryTimer = null, lastPoll = 0, offline = false;
       let ev = jparse(ls.get(EV_KEY)) || {}, evTimer = null, lastApply = { removed: 0, skipped: 0 }, meta = jparse(ls.get(META_KEY)) || {}, dirty = ls.get(DIRTY_KEY) === '1', busy = false, waiting = false, applying = false, timer = null, metaTimer = null, frozen = false, fileId = ls.get(FID_KEY) || '', lastErr = '', pending = false;
       const S = { last: +ls.get(LAST_KEY) || 0 };
 
+      const DEV_KEY = 'pentanalyst_sync_dev';
+      const dev = (function () { let d = jparse(ls.get(DEV_KEY)); if (!d || !d.id) { const ua = navigator.userAgent || ''; const os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : '기기'; const br = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Firefox\//.test(ua) ? 'Firefox' : ''; d = { id: Math.random().toString(36).slice(2, 10), name: os + (br ? ' · ' + br : '') }; ls.set(DEV_KEY, JSON.stringify(d)); } return d; })();
+      const hash = str => { let x = 5381; for (let i = 0; i < str.length; i++) x = ((x << 5) + x + str.charCodeAt(i)) | 0; return x; };
+      // 화면에 바로 다시 그리는 모듈이 있는 키(모의투자·예측 아레나). 나머지는 받은 뒤 새로고침해야 화면·메모리가 새 값을 쓴다
+      const HOT = /^pentanalyst_(sim_v1|game_v1|cal_v1|rev_v1|draw_.*|recent_searches)$/;
       function dirty0() { return ls.get(DIRTY_KEY) === '1'; }
       const auth = () => (typeof GAUTH !== 'undefined' ? GAUTH : null);
       const user = () => { const a = auth(); return a && a.getUser ? a.getUser() : null; };
@@ -3736,7 +3741,10 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           else if ((r.t || 0) > keys[k].t) keys[k] = r;
         });
         const lim = Date.now() - EV_TTL, evOut = {}; Object.keys(ev).forEach(x => { if ((ev[x].at || 0) >= lim) evOut[x] = ev[x]; });
-        return { v: 2, app: 'PentAnalyst', savedAt: Date.now(), keys, ev: evOut };
+        const devs = {}, dl = Date.now() - 90 * 86400000;
+        if (remote && isObj(remote.devices)) Object.keys(remote.devices).forEach(id => { const d = remote.devices[id]; if (d && (d.at || 0) >= dl) devs[id] = d; });
+        devs[dev.id] = { name: dev.name, at: Date.now() };
+        return { v: 2, app: 'PentAnalyst', savedAt: Date.now(), keys, ev: evOut, devices: devs };
       }
       // 클라우드 값을 로컬에 반영(불러오기). 바뀐 키 목록을 돌려준다.
       function applyRemote(remote) {
@@ -3765,9 +3773,9 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
       function toast(a, b, c) { try { showToast(a, b, c || 'info'); } catch (e) { /* 무시 */ } }
       function canReload() { let last = 0; try { last = +sessionStorage.getItem('pa_sync_reload') || 0; } catch (e) { /* 무시 */ } return Date.now() - last >= 60000; }   // 새로고침 반복 방지
-      function reloadSoon() {
+      function reloadSoon(sum) {
         try { sessionStorage.setItem('pa_sync_reload', String(Date.now())); } catch (e) { /* 무시 */ }
-        toast('다른 기기의 최신 데이터 적용', `화면에 반영하려고 잠시 후 새로고침합니다.${lastApply.removed ? ` 다른 기기에서 지운 ${lastApply.removed}개 항목도 반영했어요(설정 창에서 되돌릴 수 있어요).` : ''}`, 'success');
+        toast('다른 기기의 최신 데이터 적용', `${sum ? sum + ' — ' : ''}화면에 반영하려고 잠시 후 새로고침합니다.${lastApply.removed ? ` 다른 기기에서 지운 ${lastApply.removed}개 항목도 반영했어요(설정 창에서 되돌릴 수 있어요).` : ''}`, 'success');
         if (lastApply.skipped) toast('삭제 항목 유지', `다른 기기의 대량 삭제 ${lastApply.skipped}개는 반영하지 않고 유지했어요.`, 'info');
         setTimeout(() => location.reload(), 1600);
       }
@@ -3800,20 +3808,31 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         try {
           let token; try { token = await auth().getToken(!!opt.interactive, !!opt.gesture); } catch (e) { if (!opt.interactive) { waiting = true; e.silentToken = true; } throw e; }
           waiting = false;
-          remoteMt = '';
-          let remote = await fetchRemote(token), migrated = false;
-          if (!remote && !fileId) { remote = await readLegacy(token); migrated = !!remote; }
-          let changed = [];
-          if (remote && opt.apply) { changed = applyRemote(remote); if (changed.length) { try { window.dispatchEvent(new CustomEvent('gsync-applied', { detail: { keys: changed } })); } catch (e) { /* 무시 */ } } }
-          const payload = localPayload(remote, !!opt.apply);
-          const same = remote && !migrated && JSON.stringify(remote.keys) === JSON.stringify(payload.keys) && JSON.stringify(remote.ev || {}) === JSON.stringify(payload.ev);
+          let remote, migrated = false, changed = [], payload, same, behind = false;
+          // 다른 기기가 읽은 직후~쓰기 직전에 올렸다면(수정 시각이 달라졌다면) 다시 읽어 합친 뒤 쓴다 (동시에 쓰다 서로 덮어쓰는 것을 막음)
+          for (let attempt = 0; attempt < 3; attempt++) {
+            remoteMt = ''; migrated = false;
+            remote = await fetchRemote(token); if (remote && isObj(remote.devices)) lastRemoteDevices = remote.devices;
+            if (!remote && !fileId) { remote = await readLegacy(token); migrated = !!remote; }
+            if (remote && opt.apply) { const c = applyRemote(remote); c.forEach(k => { if (changed.indexOf(k) < 0) changed.push(k); }); }
+            payload = localPayload(remote, !!opt.apply);
+            same = remote && !migrated && JSON.stringify(remote.keys) === JSON.stringify(payload.keys) && JSON.stringify(remote.ev || {}) === JSON.stringify(payload.ev);
+            if (!opt.apply && remote) behind = Object.keys(remote.keys).some(k => inScope(k) && remote.keys[k] && typeof remote.keys[k].v === 'string' && ls.get(k) !== remote.keys[k].v);
+            if (same || !fileId || !remoteMt || opt.keepalive || attempt === 2) break;
+            let cur = ''; try { cur = await getMeta(token, fileId); } catch (e) { break; }
+            if (!cur || cur === remoteMt) break;
+            log('쓰기 직전에 다른 기기가 먼저 저장해 다시 합칩니다');
+          }
+          if (changed.length) { try { window.dispatchEvent(new CustomEvent('gsync-applied', { detail: { keys: changed } })); } catch (e) { /* 무시 */ } }
           if (!same) await writeRemote(token, payload, !!opt.keepalive);
           ls.set(META_KEY, JSON.stringify(meta));
-          if (!remoteMt && remote) remoteMt = '';
           if (same && remoteMt) setMt(remoteMt);
           S.last = Date.now(); ls.set(LAST_KEY, String(S.last)); setDirty(false); dirtySince = 0; pending = false; ok = true; retryN = 0; clearTimeout(retryTimer);
+          lastRemoteDevices = payload.devices || lastRemoteDevices;
+          rmap = {}; Object.keys(payload.keys).forEach(k => { rmap[k] = hash(payload.keys[k].v); });
           log(`${opt.apply ? '불러오기+저장' : '저장'} 성공 (${Object.keys(payload.keys).length}개 키${changed.length ? ', 반영 ' + changed.length : ''}${same ? ', 변경 없음' : ''})`);
-          if (opt.notify && changed.length) toast('다른 기기의 변경 반영', `${changed.length}개 항목을 최신으로 받아왔어요.`, 'info');
+          if (changed.length) afterApply(changed, opt, grpSummary(changed));
+          else if (behind && !opt.chained && !opt.keepalive) setTimeout(() => run({ apply: true, quiet: true, notify: true, chained: true }), 500);   // 올리기만 한 기기도 클라우드의 새 값을 받아온다
           if (!opt.quiet) toast(opt.apply ? '불러오기 완료' : '저장 완료', `${Object.keys(payload.keys).length}개 항목을 내 Google Drive와 맞췄어요.`, 'success');
           if (migrated) toast('동기화 통합', '예전 방식으로 나뉘어 저장돼 있던 설정·관심종목·브리핑·일정을 하나로 합쳤어요.', 'info');
         } catch (e) {
@@ -3824,6 +3843,74 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         return ok;
       }
 
+      // ---------- 탭(데이터 묶음)별 분류·상태 ----------
+      const GROUPS = [
+        ['관심종목 탭', /^pentanalyst_watch_v1$|^pentanalyst_risk_cfg$|^pentanalyst_exit_cfg$/],
+        ['장부 탭', /^pentanalyst_ledger_/],
+        ['불단왕 탭', /^pentanalyst_bdw_/],
+        ['스크리너', /^pentanalyst_(scr_|screener_)/],
+        ['모의투자', /^pentanalyst_sim_/],
+        ['예측 아레나', /^pentanalyst_game_/],
+        ['시장·브리핑', /^pentanalyst_(brief_|briefing_|mk_)/],
+        ['일정 탭', /^pentanalyst_cal_/],
+        ['밸류에이션·복기', /^pentanalyst_(valcalc_|rev_)/],
+        ['차트 그림', /^pentanalyst_draw_/],
+        ['환율 탭', /^pentanalyst_fx_/],
+        ['설정·API 키·검색 기록', /^pentanalyst_(gemini_|auto_ai|bt_cost|proxy_url|lang|recent_searches|quotes|settings)/]
+      ];
+      const groupOf = k => { for (const g of GROUPS) if (g[1].test(k)) return g[0]; return '기타'; };
+      function grpSummary(keys) { const c = {}; keys.forEach(k => { const g = groupOf(k); c[g] = (c[g] || 0) + 1; }); return Object.keys(c).map(g => `${g} ${c[g]}`).join(', '); }
+      function groupStats() {
+        const out = {};
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i); if (!inScope(k)) continue; const v = ls.get(k); if (v == null) continue;
+          const g = groupOf(k), o = out[g] || (out[g] = { n: 0, pend: 0, t: 0, bytes: 0 });
+          o.n++; o.bytes += v.length; o.t = Math.max(o.t, meta[k] || 0);
+          if (rmap && rmap[k] !== hash(v)) o.pend++;
+        }
+        return out;
+      }
+      // 다른 기기의 값을 받은 뒤: 화면에 바로 반영되는 키만이면 그대로 두고, 아니면 새로고침해야 메모리에 남은 옛 값이 새 값을 덮어쓰지 않는다
+      function afterApply(changed, opt, sum) {
+        const needReload = changed.filter(k => !HOT.test(k));
+        if (!needReload.length) { if (opt.notify) toast('다른 기기의 변경 반영', sum + ' 항목을 받아왔어요.', 'info'); return; }
+        if (opt.startup || opt.manual) { if (canReload()) { lastApply.sum = sum; reloadSoon(sum); return; } }
+        frozen = true; showBanner(sum);   // 열려 있는 동안엔 옛 메모리가 새 값을 덮어쓰지 못하게 막고, 새로고침을 안내한다
+      }
+      function showBanner(sum) {
+        if (frozenBanner) return; frozenBanner = true;
+        const el = document.createElement('div'); el.id = 'gsyncBanner';
+        el.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;max-width:92vw';
+        el.className = 'flex items-center gap-3 px-4 py-2.5 rounded-xl bg-sky-950 border border-sky-500/60 text-sky-100 text-xs shadow-2xl';
+        el.innerHTML = `<i class="fa-solid fa-cloud-arrow-down text-sky-300"></i><span>다른 기기에서 바뀐 내용을 받았어요${sum ? ' (' + escapeHtml(sum) + ')' : ''}. 새로고침하면 화면에 반영돼요.</span><button type="button" class="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold" onclick="location.reload()">새로고침</button>`;
+        document.body.appendChild(el);
+      }
+      document.addEventListener('visibilitychange', () => { if (frozen && document.visibilityState === 'hidden') { try { location.reload(); } catch (e) { /* 무시 */ } } });
+
+      // ---------- 동기화 상세 창: 탭별 동기화 상태·기기 목록·기록 ----------
+      function openPanel() {
+        closePanel();
+        const ov = document.createElement('div'); ov.id = 'gsyncPanel';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px';
+        ov.onclick = e => { if (e.target === ov) closePanel(); };
+        const st = groupStats(), names = GROUPS.map(g => g[0]).concat(['기타']).filter(n => st[n]);
+        const ago = t => { if (!t) return '-'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.round(m / 60) + '시간 전' : Math.round(m / 1440) + '일 전'; };
+        const rows = names.map(n => { const o = st[n]; const state = !rmap ? '<span class="text-slate-400">확인 전</span>' : o.pend ? `<span class="text-amber-300">${o.pend}개 대기</span>` : '<span class="text-emerald-300">동기화됨</span>'; return `<tr class="border-t border-slate-800"><td class="py-1.5 pr-2 text-slate-200">${escapeHtml(n)}</td><td class="pr-2 text-slate-400">${o.n}개</td><td class="pr-2 text-slate-400">${(o.bytes / 1024).toFixed(o.bytes > 10240 ? 0 : 1)}KB</td><td class="pr-2 text-slate-400">${ago(o.t)}</td><td>${state}</td></tr>`; }).join('');
+        const lastDev = {}; let devs = []; try { devs = Object.keys(lastRemoteDevices).map(id => Object.assign({ id }, lastRemoteDevices[id])).sort((a, b) => (b.at || 0) - (a.at || 0)); } catch (e) { /* 무시 */ }
+        const devRows = devs.length ? devs.map(d => `<li class="flex justify-between"><span>${escapeHtml(d.name || '기기')}${d.id === dev.id ? ' <b class="text-cyan-300">(이 기기)</b>' : ''}</span><span class="text-slate-400">${ago(d.at)} 저장</span></li>`).join('') : '<li class="text-slate-400">동기화하면 이 클라우드를 쓰는 기기가 여기에 보여요.</li>';
+        const logRows = hist.slice(0, 8).map(h => `<li><span class="text-slate-500">${timeTxt(h.t)}</span> ${escapeHtml(h.m)}</li>`).join('') || '<li class="text-slate-500">기록 없음</li>';
+        ov.innerHTML = `<div class="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl bg-slate-900 border border-slate-700 p-4 text-xs text-slate-200 space-y-3">
+          <div class="flex items-center justify-between"><strong class="text-sm text-white"><i class="fa-brands fa-google-drive text-cyan-400 mr-1.5"></i>동기화 상세</strong><button type="button" onclick="GSYNC.closePanel()" class="text-slate-400 hover:text-white px-2">✕</button></div>
+          <div>${statusHtml()}</div>
+          <div class="flex gap-2"><button type="button" onclick="GSYNC.panelRun(false)" class="flex-1 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-bold">지금 동기화 (받고 올리기)</button><button type="button" onclick="GSYNC.restoreBackup()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700">덮어쓴 내용 되돌리기</button></div>
+          <div><div class="text-[11px] text-slate-400 mb-1">탭별 상태 (이 기기 데이터 ↔ 마지막으로 맞춘 클라우드)</div><table class="w-full text-[11px]"><thead><tr class="text-slate-500 text-left"><th class="font-normal">탭</th><th class="font-normal">항목</th><th class="font-normal">크기</th><th class="font-normal">마지막 변경</th><th class="font-normal">상태</th></tr></thead><tbody>${rows}</tbody></table>
+          <p class="text-[10px] text-slate-500 mt-1.5">테마·시작 탭·패널 배치·캐시는 기기마다 다르게 쓰므로 동기화하지 않아요. "대기"는 이 기기에서 바꾼 뒤 아직 올리지 못한 항목이에요.</p></div>
+          <div><div class="text-[11px] text-slate-400 mb-1">이 클라우드를 쓰는 기기</div><ul class="space-y-1 text-[11px]">${devRows}</ul></div>
+          <div><div class="text-[11px] text-slate-400 mb-1">최근 동기화 기록</div><ul class="space-y-0.5 text-[11px]">${logRows}</ul></div></div>`;
+        document.body.appendChild(ov);
+      }
+      function closePanel() { const e = document.getElementById('gsyncPanel'); if (e) e.remove(); }
+      function panelRun() { run({ apply: true, manual: true, interactive: true, gesture: true }).then(() => { openPanel(); }); }
       // 변경이 이어지면 90초 뒤로 계속 미루되, 첫 변경 후 5분이 지나면 반드시 올린다(끊임없이 편집해도 저장이 밀리지 않게)
       function schedule() { clearTimeout(timer); if (!user()) return; const wait = Math.max(3000, Math.min(90000, (dirtySince || Date.now()) + 300000 - Date.now())); timer = setTimeout(() => run({ quiet: true }), wait); }
       // 다른 기기가 올린 변경을 주기적으로(보이는 동안 3분마다·탭 복귀 시) 수정 시각만 확인해 받아온다. 이 기기에 올릴 변경이 있으면 건드리지 않는다
@@ -3861,7 +3948,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (user()) run({ quiet: true }).then(go, go); else setTimeout(go, 800);
       }
       let started = false;
-      function startup() { if (!user()) return Promise.resolve(false); return run({ apply: true, quiet: true }).then(ok => { if (ok) started = true; return ok; }); }
+      function startup() { if (!user()) return Promise.resolve(false); return run({ apply: true, quiet: true, startup: true }).then(ok => { if (ok) started = true; return ok; }); }
       // 앱을 연 직후 토큰이 살아 있으면 조용히 동기화하고, 만료되었으면 보이는 동안 주기적으로 확인한다
       setInterval(() => { if (!started && !busy && user() && document.visibilityState === 'visible') startup(); }, 10 * 60000);
 
@@ -3888,8 +3975,8 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
       return {
         saveNow: silent => run({ quiet: !!silent, interactive: !silent }),
-        loadNow: silent => run({ apply: true, quiet: !!silent, interactive: !silent }),
-        startup, flush, restoreBackup, statusHtml, renderBadges, isOn: () => !!user(), last: () => S.last, lastText: () => timeTxt(S.last), isDirty: () => dirty,
+        loadNow: silent => run({ apply: true, manual: !silent, quiet: !!silent, interactive: !silent }),
+        startup, flush, restoreBackup, openPanel, closePanel, panelRun, groupStats, statusHtml, renderBadges, isOn: () => !!user(), last: () => S.last, lastText: () => timeTxt(S.last), isDirty: () => dirty,
         backups: () => jparse(ls.get(BAK_KEY)) || {}, history: () => hist.slice()
       };
     })();
