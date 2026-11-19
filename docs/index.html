@@ -2198,7 +2198,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     let activeAppTab = 'analysis';
 
     // 앱 버전: 업데이트할 때마다 올린다 (화면 맨 아래에 표시).
-    const APP_VERSION = '1.86.0';
+    const APP_VERSION = '1.87.0';
     (function () { const el = document.getElementById('appVersion'); if (el) el.textContent = `PentAnalyst v${APP_VERSION}`; })();
 
     // ===== 미국장 개장/폐장 시계 (헤더) =====
@@ -3473,7 +3473,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
     //    지운 뒤 다시 추가한 항목은 되살아난다. 안전장치: 60일 지난 표시는 버림 / 다른 기기의 대량 삭제(절반 넘게, 5개 이상)는 이 기기에서 확인 후 반영 / 지워진 값은 백업에 남겨 '되돌리기' 가능.
     const GSYNC = (function () {
       const FILE = 'pentanalyst_sync.json';
-      const META_KEY = 'pentanalyst_sync_meta_v1', BAK_KEY = 'pentanalyst_sync_backup_v1', LAST_KEY = 'pentanalyst_sync_last', FID_KEY = 'pentanalyst_sync_fid', DIRTY_KEY = 'pentanalyst_sync_dirty', EV_KEY = 'pentanalyst_sync_ev_v1', EV_TTL = 60 * 86400000;
+      const META_KEY = 'pentanalyst_sync_meta_v1', BAK_KEY = 'pentanalyst_sync_backup_v1', LAST_KEY = 'pentanalyst_sync_last', FID_KEY = 'pentanalyst_sync_fid', DIRTY_KEY = 'pentanalyst_sync_dirty', MT_KEY = 'pentanalyst_sync_mt', LOG_KEY = 'pentanalyst_sync_log_v1', EV_KEY = 'pentanalyst_sync_ev_v1', EV_TTL = 60 * 86400000;
       // 동기화에서 뺄 키: 로그인·기기 고유값, 다시 받아오면 되는 캐시, 화면 배치
       const EXCLUDE = /^pentanalyst_(gauth_user|gauth_tok|gdrive_client_id|gdrive_last_backup|cal_sync_last|sync_.*|watch_cache_v1|cal_yf_v1|hub_last_v1|gemini_cool|scr_snap|scr_earn|bridge_.*|rev_snap_v1|dock_v1|chart_split|multi_side)$/;
       const inScope = k => typeof k === 'string' && k.indexOf('pentanalyst_') === 0 && !EXCLUDE.test(k);
@@ -3481,15 +3481,18 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       const ls = { get: k => { try { return rawGet.call(localStorage, k); } catch (e) { return null; } }, set: (k, v) => { try { rawSet.call(localStorage, k, v); return true; } catch (e) { return false; } } };
       const jparse = s => { try { return JSON.parse(s); } catch (e) { return null; } };
       const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+      let remoteMt = '', hist = jparse(ls.get(LOG_KEY)) || [], seenMt = ls.get(MT_KEY) || '', dirtySince = dirty0() ? Date.now() : 0, retryN = 0, retryTimer = null, lastPoll = 0, offline = false;
       let ev = jparse(ls.get(EV_KEY)) || {}, evTimer = null, lastApply = { removed: 0, skipped: 0 }, meta = jparse(ls.get(META_KEY)) || {}, dirty = ls.get(DIRTY_KEY) === '1', busy = false, waiting = false, applying = false, timer = null, metaTimer = null, frozen = false, fileId = ls.get(FID_KEY) || '', lastErr = '', pending = false;
       const S = { last: +ls.get(LAST_KEY) || 0 };
 
+      function dirty0() { return ls.get(DIRTY_KEY) === '1'; }
       const auth = () => (typeof GAUTH !== 'undefined' ? GAUTH : null);
       const user = () => { const a = auth(); return a && a.getUser ? a.getUser() : null; };
       const emit = () => { try { window.dispatchEvent(new CustomEvent('gsync-changed')); } catch (e) { /* 무시 */ } renderBadges(); };
       function saveMeta() { clearTimeout(metaTimer); metaTimer = setTimeout(() => { ls.set(META_KEY, JSON.stringify(meta)); }, 400); }
       function setDirty(v) { dirty = v; ls.set(DIRTY_KEY, v ? '1' : '0'); }
-      function touch(k) { meta[k] = Date.now(); saveMeta(); if (!dirty) setDirty(true); schedule(); }
+      function touch(k) { meta[k] = Date.now(); saveMeta(); if (!dirty) setDirty(true); if (!dirtySince) dirtySince = Date.now(); schedule(); }
+      function log(m) { hist.unshift({ t: Date.now(), m }); if (hist.length > 15) hist.length = 15; ls.set(LOG_KEY, JSON.stringify(hist)); }
 
       // localStorage 쓰기를 가로채 '무엇이 언제 바뀌었는지' 기록한다 (값이 같으면 무시)
       Storage.prototype.setItem = function (k, v) {
@@ -3623,16 +3626,36 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
 
       // ---------- Drive 입출력 ----------
       const AUTH_H = t => ({ Authorization: `Bearer ${t}` });
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      // 일시적 오류(429·5xx·네트워크 끊김)는 짧게 기다렸다 다시 시도한다 (앱 종료 중 keepalive 요청은 한 번만)
+      async function dfetch(url, init, tries) {
+        tries = tries || 3;
+        for (let i = 0; ; i++) {
+          try {
+            const res = await fetch(url, init);
+            if ((res.status === 429 || res.status >= 500) && i < tries - 1) { const ra = +res.headers.get('Retry-After'); await sleep(Math.min(ra > 0 ? ra * 1000 : 800 * Math.pow(2, i), 8000) + Math.random() * 300); continue; }
+            return res;
+          } catch (e) { if (i >= tries - 1) throw e; await sleep(800 * Math.pow(2, i) + Math.random() * 300); }
+        }
+      }
+      async function getMeta(token, id) {   // 수정 시각만 가볍게 확인 (다른 기기가 올렸는지 보는 용도)
+        const r = await dfetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=modifiedTime`, { headers: AUTH_H(token) }, 2);
+        if (!r.ok) return '';
+        const j = await r.json().catch(() => ({})); return j.modifiedTime || '';
+      }
+      function setMt(mt) { if (mt) { seenMt = mt; ls.set(MT_KEY, mt); } }
       async function findFile(token, name) {
         const q = encodeURIComponent(`name = '${name}'`);
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id,modifiedTime)`, { headers: AUTH_H(token) });
+        const res = await dfetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id,modifiedTime)`, { headers: AUTH_H(token) });
         if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error((j.error && j.error.message) || `Drive 조회 실패 (${res.status})`); }
         const d = await res.json(); return (d.files && d.files[0]) || null;
       }
       async function readFile(token, id) {
-        const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, { headers: AUTH_H(token) });
+        const r = await dfetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, { headers: AUTH_H(token) });
         if (!r.ok) throw new Error(`불러오기 실패 (${r.status})`);
-        return r.json().catch(() => null);
+        const txt = await r.text();
+        if (!txt.trim()) return null;   // 빈 파일은 새로 쓴다
+        try { return JSON.parse(txt); } catch (e) { throw new Error('클라우드 동기화 파일이 손상돼 있어 덮어쓰지 않았어요. Drive 앱 데이터의 버전 기록에서 복구하거나 관리자에게 문의하세요.'); }   // 읽지 못한 파일을 빈 값으로 보고 덮어쓰지 않는다
       }
       // 예전 방식(설정·관심종목·브리핑·일정 파일 4개)에서 한 번 가져온다
       async function readLegacy(token) {
@@ -3651,7 +3674,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         if (!f) f = await findFile(token, FILE);
         if (f) {
           fileId = f.id; ls.set(FID_KEY, fileId);
-          try { const d = await readFile(token, f.id); if (d && isObj(d.keys)) return d; }
+          try { const mt = f.modifiedTime || await getMeta(token, f.id); const d = await readFile(token, f.id); if (d && d.v > 2) throw new Error('클라우드 데이터가 더 새로운 버전의 앱으로 저장돼 있어요. 새로고침해 앱을 최신으로 업데이트한 뒤 다시 시도하세요.'); if (d && isObj(d.keys)) { remoteMt = mt; return d; } }
           catch (e) { if (!/\(404\)/.test((e && e.message) || '')) throw e; fileId = ''; ls.set(FID_KEY, ''); const f2 = await findFile(token, FILE); if (f2) { fileId = f2.id; ls.set(FID_KEY, fileId); const d = await readFile(token, f2.id); if (d && isObj(d.keys)) return d; } }
         }
         return null;
@@ -3661,16 +3684,16 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         const ka = keepalive && content.length < 60000;
         let res;
         if (fileId) {
-          res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, { method: 'PATCH', keepalive: ka, headers: Object.assign({ 'Content-Type': 'application/json; charset=UTF-8' }, AUTH_H(token)), body: content });
+          res = await dfetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,modifiedTime`, { method: 'PATCH', keepalive: ka, headers: Object.assign({ 'Content-Type': 'application/json; charset=UTF-8' }, AUTH_H(token)), body: content }, ka ? 1 : 3);
           if (res.status === 404) { fileId = ''; ls.set(FID_KEY, ''); }
         }
         if (!fileId) {
           const bd = 'PentSync' + Math.random().toString(36).slice(2);
           const m = JSON.stringify({ name: FILE, parents: ['appDataFolder'], mimeType: 'application/json' });
-          res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: Object.assign({ 'Content-Type': `multipart/related; boundary=${bd}` }, AUTH_H(token)),
-            body: [`--${bd}`, 'Content-Type: application/json; charset=UTF-8', '', m, `--${bd}`, 'Content-Type: application/json', '', content, `--${bd}--`].join('\r\n') });
-          if (res.ok) { const j = await res.json().catch(() => ({})); if (j.id) { fileId = j.id; ls.set(FID_KEY, fileId); } }
-        }
+          res = await dfetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime', { method: 'POST', headers: Object.assign({ 'Content-Type': `multipart/related; boundary=${bd}` }, AUTH_H(token)),
+            body: [`--${bd}`, 'Content-Type: application/json; charset=UTF-8', '', m, `--${bd}`, 'Content-Type: application/json', '', content, `--${bd}--`].join('\r\n') }, ka ? 1 : 3);
+          if (res.ok) { const j = await res.json().catch(() => ({})); if (j.id) { fileId = j.id; ls.set(FID_KEY, fileId); } if (j.modifiedTime) setMt(j.modifiedTime); }
+        } else if (res && res.ok) { const j = await res.clone().json().catch(() => ({})); if (j.modifiedTime) setMt(j.modifiedTime); }
         if (!res.ok) throw new Error(`저장 실패 (${res.status})`);
       }
 
@@ -3732,14 +3755,34 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       }
 
       // opt: { apply: 클라우드 데이터를 이 기기에 반영할지, interactive: 로그인 창 허용, quiet: 알림 생략, keepalive: 앱 종료 중 }
+      // 같은 브라우저의 여러 탭이 동시에 Drive에 쓰지 않도록 탭 간 잠금을 건다 (다른 탭이 동기화 중이면 건너뜀)
       async function run(opt) {
         opt = opt || {};
         if (!user() || busy) return false;
+        if (navigator.locks && !opt.keepalive) {
+          try {
+            return await navigator.locks.request('pentanalyst_gsync', { ifAvailable: true }, lock => {
+              if (!lock) { if (!opt.quiet) toast('다른 창에서 동기화 중', '잠시 후 다시 시도하세요.', 'info'); pending = true; return false; }
+              return runInner(opt);
+            });
+          } catch (e) { /* 잠금을 못 쓰면 그냥 진행 */ }
+        }
+        return runInner(opt);
+      }
+      function scheduleRetry() {   // 실패하면 30초→1분→2분… 최대 10분 간격으로 조용히 다시 시도한다
+        clearTimeout(retryTimer); if (!user()) return;
+        retryN++; const d = Math.min(30000 * Math.pow(2, retryN - 1), 600000);
+        retryTimer = setTimeout(() => { if (document.visibilityState === 'visible' || dirty) run({ quiet: true, apply: !started }); else scheduleRetry(); }, d);
+      }
+      async function runInner(opt) {
+        if (navigator.onLine === false) { offline = true; pending = true; emit(); return false; }   // 오프라인: 오류로 치지 않고 연결되면 다시 시도
+        offline = false;
         busy = true; lastErr = ''; emit();
         let ok = false;
         try {
           let token; try { token = await auth().getToken(!!opt.interactive, !!opt.gesture); } catch (e) { if (!opt.interactive) { waiting = true; e.silentToken = true; } throw e; }
           waiting = false;
+          remoteMt = '';
           let remote = await fetchRemote(token), migrated = false;
           if (!remote && !fileId) { remote = await readLegacy(token); migrated = !!remote; }
           let changed = [];
@@ -3748,18 +3791,35 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
           const same = remote && !migrated && JSON.stringify(remote.keys) === JSON.stringify(payload.keys) && JSON.stringify(remote.ev || {}) === JSON.stringify(payload.ev);
           if (!same) await writeRemote(token, payload, !!opt.keepalive);
           ls.set(META_KEY, JSON.stringify(meta));
-          S.last = Date.now(); ls.set(LAST_KEY, String(S.last)); setDirty(false); pending = false; ok = true;
+          if (!remoteMt && remote) remoteMt = '';
+          if (same && remoteMt) setMt(remoteMt);
+          S.last = Date.now(); ls.set(LAST_KEY, String(S.last)); setDirty(false); dirtySince = 0; pending = false; ok = true; retryN = 0; clearTimeout(retryTimer);
+          log(`${opt.apply ? '불러오기+저장' : '저장'} 성공 (${Object.keys(payload.keys).length}개 키${changed.length ? ', 반영 ' + changed.length : ''}${same ? ', 변경 없음' : ''})`);
+          if (opt.notify && changed.length) toast('다른 기기의 변경 반영', `${changed.length}개 항목을 최신으로 받아왔어요.`, 'info');
           if (!opt.quiet) toast(opt.apply ? '불러오기 완료' : '저장 완료', `${Object.keys(payload.keys).length}개 항목을 내 Google Drive와 맞췄어요.`, 'success');
           if (migrated) toast('동기화 통합', '예전 방식으로 나뉘어 저장돼 있던 설정·관심종목·브리핑·일정을 하나로 합쳤어요.', 'info');
         } catch (e) {
           const msg = (e && e.message) || '';
-          if (!e.silentToken && !/silent_skipped|no_client_id/.test(msg)) { lastErr = msg || '동기화 실패'; if (!opt.quiet) toast('동기화 실패', lastErr, 'error'); }
+          if (!e.silentToken && !/silent_skipped|no_client_id/.test(msg)) { lastErr = msg || '동기화 실패'; log('실패: ' + lastErr); if (!opt.quiet) toast('동기화 실패', lastErr, 'error'); if (!opt.keepalive) scheduleRetry(); }
           pending = true;
         } finally { busy = false; emit(); }
         return ok;
       }
 
-      function schedule() { clearTimeout(timer); if (!user()) return; timer = setTimeout(() => run({ quiet: true }), 90000); }
+      // 변경이 이어지면 90초 뒤로 계속 미루되, 첫 변경 후 5분이 지나면 반드시 올린다(끊임없이 편집해도 저장이 밀리지 않게)
+      function schedule() { clearTimeout(timer); if (!user()) return; const wait = Math.max(3000, Math.min(90000, (dirtySince || Date.now()) + 300000 - Date.now())); timer = setTimeout(() => run({ quiet: true }), wait); }
+      // 다른 기기가 올린 변경을 주기적으로(보이는 동안 3분마다·탭 복귀 시) 수정 시각만 확인해 받아온다. 이 기기에 올릴 변경이 있으면 건드리지 않는다
+      async function poll(force) {
+        if (busy || dirty || !user() || !fileId || document.visibilityState !== 'visible' || navigator.onLine === false) return;
+        if (!force && Date.now() - lastPoll < 60000) return;
+        const a = auth(); if (!(a && a.hasToken && a.hasToken())) return;
+        lastPoll = Date.now();
+        try { const mt = await getMeta(await a.getToken(false), fileId); if (mt && seenMt && mt !== seenMt) run({ apply: true, quiet: true, notify: true }); } catch (e) { /* 다음에 다시 */ }
+      }
+      setInterval(poll, 3 * 60000);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { if (pending && !busy) run({ quiet: true, apply: !started }); else poll(); } });
+      window.addEventListener('online', () => { offline = false; if (user() && (pending || dirty)) run({ quiet: true, apply: !started }); else poll(true); renderBadges(); });
+      window.addEventListener('offline', () => { offline = true; renderBadges(); });
       // 앱을 닫거나 화면이 숨겨질 때: 아직 못 올린 변경이 있고 로그인 토큰이 살아 있으면 마지막으로 한 번 올린다
       function flush() {
         if (!dirty || busy || !user()) return;
@@ -3792,9 +3852,10 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
       function statusHtml() {
         if (!user()) return '<span class="text-slate-400"><i class="fa-brands fa-google-drive mr-1"></i>Google 로그인하면 모든 데이터가 Drive로 한 번에 동기화돼요.</span>';
         if (busy) return '<span class="text-sky-300"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Drive 동기화 중…</span>';
+        if (offline || navigator.onLine === false) return '<span class="text-slate-300"><i class="fa-solid fa-plane mr-1"></i>오프라인 — 연결되면 자동으로 동기화해요' + (dirty ? ' (변경 대기)' : '') + '</span>';
         if (waiting) return '<span class="text-amber-300"><i class="fa-brands fa-google-drive mr-1"></i>로그인 갱신 대기 — 화면을 한 번 누르면 바로 동기화해요</span>';
-        if (lastErr) return `<span class="text-rose-300" title="${escapeHtml(lastErr)}"><i class="fa-solid fa-triangle-exclamation mr-1"></i>동기화 실패 — 설정에서 다시 시도</span>`;
-        return `<span class="text-emerald-300"><i class="fa-brands fa-google-drive mr-1"></i>통합 동기화 켜짐${S.last ? ' · ' + timeTxt(S.last) : ''}${dirty ? ' · 변경 대기' : ''}</span>`;
+        if (lastErr) return `<span class="text-rose-300" title="${escapeHtml(lastErr)}"><i class="fa-solid fa-triangle-exclamation mr-1"></i>동기화 실패 — 자동으로 다시 시도 중 (직접 다시 시도도 가능)</span>`;
+        return `<span class="text-emerald-300" title="${escapeHtml(hist.slice(0, 6).map(h => timeTxt(h.t) + ' ' + h.m).join('\n'))}"><i class="fa-brands fa-google-drive mr-1"></i>통합 동기화 켜짐${S.last ? ' · ' + timeTxt(S.last) : ''}${dirty ? ' · 변경 대기' : ''}</span>`;
       }
       // 헤더 불빛: 꺼짐(회색)=로그아웃, 파랑=동기화 중, 빨강=실패, 주황=변경 대기, 초록=최신
       function renderBadges() {
@@ -3811,7 +3872,7 @@ html[data-theme="light"] body [style*="color: #fbbf24" i]{color:#b48303 !importa
         saveNow: silent => run({ quiet: !!silent, interactive: !silent }),
         loadNow: silent => run({ apply: true, quiet: !!silent, interactive: !silent }),
         startup, flush, restoreBackup, statusHtml, renderBadges, isOn: () => !!user(), last: () => S.last, lastText: () => timeTxt(S.last), isDirty: () => dirty,
-        backups: () => jparse(ls.get(BAK_KEY)) || {}
+        backups: () => jparse(ls.get(BAK_KEY)) || {}, history: () => hist.slice()
       };
     })();
 
